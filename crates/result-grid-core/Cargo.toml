@@ -1,0 +1,13 @@
+[package]
+name = "ferrum-result-grid-core"
+description = "UI-agnostic result grid model: viewport math and bounded row buffer."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrum-domain.workspace = true

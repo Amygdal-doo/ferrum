@@ -1,0 +1,26 @@
+[package]
+name = "ferrum-db-postgres"
+description = "PostgreSQL adapter built on SQLx."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrum-domain.workspace = true
+ferrum-db-driver-api.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+sqlx = { workspace = true, features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "chrono", "json", "uuid"] }
+uuid.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

@@ -1,0 +1,16 @@
+[package]
+name = "ferrum-db-driver-api"
+description = "Driver contract shared by every database adapter."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrum-domain.workspace = true
+async-trait.workspace = true
+tokio-util.workspace = true
+tokio = { workspace = true, features = ["sync"] }
