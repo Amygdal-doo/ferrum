@@ -1,0 +1,14 @@
+target
+.git
+.gitignore
+.env
+.env.*
+.DS_Store
+.idea
+.vscode
+*.md
+tests
+Dockerfile
+.dockerignore
+railway.toml
+rust-toolchain.toml
