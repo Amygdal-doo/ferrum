@@ -1,0 +1,31 @@
+[package]
+name = "ferrumapi-desktop"
+description = "FerrumAPI HTTP client — Dioxus desktop shell."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "ferrumapi"
+path = "src/main.rs"
+
+[dependencies]
+ferrumapi-domain.workspace = true
+ferrumapi-application.workspace = true
+dioxus = { workspace = true, features = ["desktop", "launch", "macro", "html", "signals", "hooks", "document"] }
+tw_merge.workspace = true
+strum = { version = "0.28", features = ["derive"] }
+tokio.workspace = true
+futures.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+directories.workspace = true
+uuid.workspace = true
+rfd.workspace = true
+chrono.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+
+[lints]
+workspace = true

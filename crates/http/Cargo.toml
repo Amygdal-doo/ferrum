@@ -1,0 +1,28 @@
+[package]
+name = "ferrumapi-http"
+description = "HTTP execution: variable substitution, auth, bodies, cancellation (reqwest + rustls)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrumapi-domain.workspace = true
+reqwest = { workspace = true, features = ["rustls", "multipart", "stream", "http2", "charset"] }
+tokio = { workspace = true, features = ["fs"] }
+tokio-util.workspace = true
+futures.workspace = true
+url.workspace = true
+base64.workspace = true
+percent-encoding.workspace = true
+mime_guess.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util", "fs"] }
+wiremock = "0.6"
+tempfile = "3"

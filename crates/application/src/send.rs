@@ -1,0 +1,120 @@
+//! Sending a request: resolve inherited auth and variables, execute, record history.
+
+use crate::{AppServices, DEFAULT_HISTORY_LIMIT};
+use ferrumapi_domain::{
+    Auth, Collection, Environment, ExecError, HistoryEntry, HttpRequest, HttpResponse,
+    RequestOrigin, VariableSet,
+};
+use ferrumapi_http::CancellationToken;
+use ferrumapi_interop::codegen::{self, CodeTarget};
+
+/// A request ready to execute: auth resolved (never `Inherit`), variables
+/// collected but not yet substituted.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Prepared {
+    pub request: HttpRequest,
+    pub variables: VariableSet,
+}
+
+fn find_collection(
+    collections: &[Collection],
+    origin: Option<RequestOrigin>,
+) -> Option<&Collection> {
+    let o = origin?;
+    collections.iter().find(|c| c.id == o.collection)
+}
+
+/// Variables visible to a request: globals < collection < active environment.
+#[must_use]
+pub fn variables_for(
+    origin: Option<RequestOrigin>,
+    collections: &[Collection],
+    globals: &Environment,
+    environment: Option<&Environment>,
+) -> VariableSet {
+    let coll: &[_] = find_collection(collections, origin).map_or(&[], |c| &c.variables);
+    let env: &[_] = environment.map_or(&[], |e| &e.variables);
+    VariableSet::from_layers(&[&globals.variables, coll, env])
+}
+
+/// Resolves `Auth::Inherit` against the request's collection using the
+/// tab's current (possibly unsaved) auth, and gathers variables.
+#[must_use]
+pub fn prepare(
+    request: &HttpRequest,
+    origin: Option<RequestOrigin>,
+    collections: &[Collection],
+    globals: &Environment,
+    environment: Option<&Environment>,
+) -> Prepared {
+    let mut req = request.clone();
+    if req.auth.is_inherit() {
+        req.auth = match (find_collection(collections, origin), origin) {
+            (Some(c), Some(o)) => {
+                let mut patched = c.clone();
+                if let Some(saved) = patched.find_request_mut(o.item) {
+                    saved.request.auth = Auth::Inherit;
+                }
+                patched.effective_auth(o.item)
+            }
+            _ => Auth::None,
+        };
+    }
+    Prepared {
+        request: req,
+        variables: variables_for(origin, collections, globals, environment),
+    }
+}
+
+/// Code snippet with variables substituted and auth resolved.
+#[must_use]
+pub fn code_snippet(target: CodeTarget, prepared: &Prepared) -> String {
+    let concrete = ferrumapi_http::substitute(&prepared.request, &prepared.variables);
+    codegen::generate(target, &concrete)
+}
+
+impl AppServices {
+    /// Executes `prepared` and records `authored` (pre-substitution) in
+    /// history. Cancelled requests are not recorded. Runs on any executor but
+    /// should be spawned on the services runtime.
+    pub async fn send(
+        &self,
+        authored: HttpRequest,
+        prepared: Prepared,
+        origin: Option<RequestOrigin>,
+        cancel: CancellationToken,
+    ) -> Result<HttpResponse, ExecError> {
+        let result = self
+            .http
+            .execute(&prepared.request, &prepared.variables, cancel)
+            .await;
+        if matches!(result, Err(ExecError::Cancelled)) {
+            return result;
+        }
+        let mut entry = HistoryEntry::new(authored, origin);
+        match &result {
+            Ok(r) => {
+                entry.status = Some(r.status);
+                entry.time_ms = Some(r.time_ms);
+                entry.size_bytes = Some(r.size_bytes);
+            }
+            Err(e) => entry.error = Some(e.to_string()),
+        }
+        let limit = self.history_limit().await;
+        if let Err(e) = self.store.add_history(&entry, limit).await {
+            tracing::warn!(error = %e, "failed to record history");
+        }
+        result
+    }
+
+    async fn history_limit(&self) -> usize {
+        match self.store.load_settings().await {
+            Ok(s) if s.history_limit > 0 => s.history_limit as usize,
+            _ => DEFAULT_HISTORY_LIMIT,
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "send_tests.rs"]
+mod tests;

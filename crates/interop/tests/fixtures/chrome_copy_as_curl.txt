@@ -1,0 +1,14 @@
+curl 'https://api.example.com/graphql?op=Search' \
+  -H 'accept: */*' \
+  -H 'accept-language: en-GB,en;q=0.9' \
+  -H 'authorization: Bearer eyJhbGciOiJIUzI1NiJ9.e30.abc' \
+  -H 'content-type: application/json' \
+  -b 'session=abc123; theme=dark' \
+  -H 'origin: https://app.example.com' \
+  -H 'priority: u=1, i' \
+  -H 'referer: https://app.example.com/' \
+  -H 'sec-ch-ua: "Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'user-agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' \
+  --data-raw $'{"query":"query Search($q: String!) {\\n  search(q: $q) { id name }\\n}","variables":{"q":"it\'s caf\\u00e9"}}'
