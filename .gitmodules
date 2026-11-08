@@ -1,0 +1,4 @@
+[submodule "ide"]
+	path = ide
+	url = ../ferrum-ide.git
+	branch = ferrum-ide
