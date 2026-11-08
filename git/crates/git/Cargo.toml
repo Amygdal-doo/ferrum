@@ -1,0 +1,21 @@
+[package]
+name = "ferrumgit-git"
+description = "Git CLI execution and porcelain parsing, per-profile SSH environment, askpass, cancellation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrumgit-domain.workspace = true
+tokio = { workspace = true, features = ["process", "io-util", "fs"] }
+tokio-util.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "process", "io-util", "fs"] }
