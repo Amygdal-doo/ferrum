@@ -94,7 +94,7 @@ Gatekeeper prompt.
   **Activate** (or **Install**, then **Activate**, if it isn't installed).
 - The last 3 versions of each app are kept (Settings → *Versions to keep*; 0
   keeps all). The active version is never pruned.
-- Turn on **Include prereleases** in Settings to see `-beta`/`-rc` builds.
+- To get `-beta`/`-rc` builds of an app, switch its **Update channel** to **Beta** on the app page. Every release (stable, beta, alpha) is listed under **Releases**.
 
 ## 5. Uninstall
 

@@ -64,6 +64,74 @@ pub struct Asset {
     pub size: u64,
     /// API URL; download with `Accept: application/octet-stream` (works for private repos).
     pub url: String,
+    #[serde(default)]
+    pub download_count: u64,
+}
+
+/// How mature a release is, from its version and GitHub's prerelease flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Channel {
+    Stable,
+    Beta,
+    Alpha,
+}
+
+impl Channel {
+    /// Stable: no semver prerelease part and not marked prerelease on GitHub.
+    /// Alpha: a prerelease part starting with `alpha`. Beta: anything else
+    /// that is a prerelease (`-beta.N`, `-rc.N`, or the GitHub flag).
+    #[must_use]
+    pub fn of(version: &Version, github_prerelease: bool) -> Self {
+        let first = version.pre.as_str().split('.').next().unwrap_or_default();
+        if first.to_ascii_lowercase().starts_with("alpha") {
+            Channel::Alpha
+        } else if !version.pre.is_empty() || github_prerelease {
+            Channel::Beta
+        } else {
+            Channel::Stable
+        }
+    }
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Channel::Stable => "Stable",
+            Channel::Beta => "Beta",
+            Channel::Alpha => "Alpha",
+        }
+    }
+}
+
+/// Which releases an installed app follows for updates.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UpdateChannel {
+    #[default]
+    Stable,
+    Beta,
+}
+
+impl UpdateChannel {
+    pub const ALL: [UpdateChannel; 2] = [UpdateChannel::Stable, UpdateChannel::Beta];
+
+    /// Beta also takes stable releases, so a stable release newer than the
+    /// newest beta wins. Alpha builds are never offered as updates.
+    #[must_use]
+    pub fn accepts(self, channel: Channel) -> bool {
+        match self {
+            UpdateChannel::Stable => channel == Channel::Stable,
+            UpdateChannel::Beta => matches!(channel, Channel::Stable | Channel::Beta),
+        }
+    }
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            UpdateChannel::Stable => "Stable",
+            UpdateChannel::Beta => "Beta",
+        }
+    }
 }
 
 /// A release of one app, as cached in `state.json`.
@@ -84,6 +152,21 @@ impl ReleaseInfo {
     #[must_use]
     pub fn is_prerelease(&self) -> bool {
         self.prerelease || !self.version.pre.is_empty()
+    }
+
+    #[must_use]
+    pub fn channel(&self) -> Channel {
+        Channel::of(&self.version, self.prerelease)
+    }
+
+    /// Downloads of every build in the release (checksum files excluded).
+    #[must_use]
+    pub fn downloads(&self) -> u64 {
+        self.assets
+            .iter()
+            .filter(|asset| !asset.name.ends_with(".sha256"))
+            .map(|asset| asset.download_count)
+            .sum()
     }
 
     /// The archive for `target` and its optional `.sha256` companion. On
@@ -130,8 +213,11 @@ pub(crate) struct GitHubRelease {
 #[derive(Debug, Deserialize)]
 struct GitHubAsset {
     name: String,
+    #[serde(default)]
     size: u64,
     url: String,
+    #[serde(default)]
+    download_count: u64,
 }
 
 impl GitHubRelease {
@@ -160,6 +246,7 @@ impl GitHubRelease {
                     name: asset.name,
                     size: asset.size,
                     url: asset.url,
+                    download_count: asset.download_count,
                 })
                 .collect(),
         })
@@ -175,17 +262,25 @@ pub fn parse_releases(json: &str) -> crate::Result<Vec<ReleaseInfo>> {
         .collect())
 }
 
-/// Newest release of `app`, skipping prereleases unless `include_prereleases`.
+/// Newest release of `app` that `channel` follows.
 #[must_use]
 pub fn latest(
     releases: &[ReleaseInfo],
     app: AppId,
-    include_prereleases: bool,
+    channel: UpdateChannel,
 ) -> Option<&ReleaseInfo> {
     releases
         .iter()
-        .filter(|release| release.app == app)
-        .filter(|release| include_prereleases || !release.is_prerelease())
+        .filter(|release| release.app == app && channel.accepts(release.channel()))
+        .max_by(|a, b| a.version.cmp(&b.version))
+}
+
+/// Newest release of `app` published exactly on `channel`.
+#[must_use]
+pub fn latest_in(releases: &[ReleaseInfo], app: AppId, channel: Channel) -> Option<&ReleaseInfo> {
+    releases
+        .iter()
+        .filter(|release| release.app == app && release.channel() == channel)
         .max_by(|a, b| a.version.cmp(&b.version))
 }
 
@@ -242,13 +337,76 @@ mod tests {
     }
 
     #[test]
-    fn latest_respects_prerelease_setting() {
+    fn latest_follows_update_channel() {
         let releases = parse_releases(RELEASES_JSON).expect("parse");
-        let stable = latest(&releases, AppId::Api, false).expect("stable");
+        let stable = latest(&releases, AppId::Api, UpdateChannel::Stable).expect("stable");
         assert_eq!(stable.version, Version::new(0, 2, 0));
-        let any = latest(&releases, AppId::Api, true).expect("any");
-        assert_eq!(any.version.to_string(), "0.3.0-beta.1");
-        assert!(latest(&releases, AppId::Git, true).is_none());
+        let beta = latest(&releases, AppId::Api, UpdateChannel::Beta).expect("beta");
+        assert_eq!(beta.version.to_string(), "0.3.0-beta.1");
+        assert!(latest(&releases, AppId::Git, UpdateChannel::Beta).is_none());
+        assert_eq!(
+            latest_in(&releases, AppId::Api, Channel::Beta).map(|r| r.tag.as_str()),
+            Some("api-v0.3.0-beta.1")
+        );
+        assert!(latest_in(&releases, AppId::Api, Channel::Alpha).is_none());
+    }
+
+    fn release_with(version: &str, prerelease: bool) -> ReleaseInfo {
+        let version = Version::parse(version).expect("semver");
+        ReleaseInfo {
+            app: AppId::Api,
+            tag: tag_for(AppId::Api, &version),
+            version,
+            title: String::new(),
+            notes: String::new(),
+            prerelease,
+            published_at: None,
+            html_url: String::new(),
+            assets: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn classifies_channels() {
+        let channel = |v: &str, pre: bool| release_with(v, pre).channel();
+        assert_eq!(channel("1.0.0", false), Channel::Stable);
+        assert_eq!(channel("1.0.0", true), Channel::Beta);
+        assert_eq!(channel("1.0.0-beta.2", false), Channel::Beta);
+        assert_eq!(channel("1.0.0-rc.1", true), Channel::Beta);
+        assert_eq!(channel("1.0.0-alpha.3", false), Channel::Alpha);
+        assert_eq!(channel("1.0.0-Alpha", true), Channel::Alpha);
+        assert_eq!(channel("1.0.0-dev.1", false), Channel::Beta);
+    }
+
+    #[test]
+    fn beta_channel_prefers_a_newer_stable_and_never_offers_alpha() {
+        let releases = vec![
+            release_with("0.3.0-beta.1", true),
+            release_with("0.3.0", false),
+            release_with("0.4.0-alpha.1", true),
+        ];
+        let beta = latest(&releases, AppId::Api, UpdateChannel::Beta).expect("beta");
+        assert_eq!(beta.version, Version::new(0, 3, 0));
+        let stable = latest(&releases, AppId::Api, UpdateChannel::Stable).expect("stable");
+        assert_eq!(stable.version, Version::new(0, 3, 0));
+        assert!(UpdateChannel::Beta.accepts(Channel::Stable));
+        assert!(!UpdateChannel::Beta.accepts(Channel::Alpha));
+        assert!(!UpdateChannel::Stable.accepts(Channel::Beta));
+    }
+
+    #[test]
+    fn sums_downloads_without_checksums() {
+        let json = r#"[{"tag_name":"data-v0.1.0","draft":false,"prerelease":false,"html_url":"",
+          "published_at":"2026-11-09T00:30:00Z",
+          "assets":[
+            {"name":"data-0.1.0-aarch64-apple-darwin.app.tar.gz","size":10,"url":"u1","download_count":4},
+            {"name":"data-0.1.0-aarch64-apple-darwin.app.tar.gz.sha256","size":1,"url":"u2","download_count":4},
+            {"name":"FerrumData-0.1.0-aarch64.dmg","size":12,"url":"u3","download_count":7}
+          ]}]"#;
+        let release = parse_releases(json).expect("parse").remove(0);
+        assert_eq!(release.downloads(), 11);
+        assert_eq!(release.assets[0].download_count, 4);
+        assert!(release.published_at.is_some());
     }
 
     #[test]
@@ -275,6 +433,7 @@ mod tests {
             name: name.into(),
             size: 1,
             url: format!("https://api.github.com/{name}"),
+            download_count: 0,
         };
         let mut release = parse_releases(RELEASES_JSON).expect("parse").remove(0);
         release.assets = vec![
@@ -308,6 +467,7 @@ mod tests {
             name: name.into(),
             size: 1,
             url: format!("https://api.github.com/{name}"),
+            download_count: 0,
         };
         let mut release = parse_releases(RELEASES_JSON).expect("parse").remove(0);
         release.assets = vec![

@@ -1,13 +1,14 @@
 //! Root view and window layout.
 
+use crate::components::logo::logo;
 use crate::components::onboarding::Onboarding;
 use crate::components::settings::{SettingsForm, SettingsFormEvent};
 use crate::services::Services;
 use ferrum_ui::gpui::Axis;
 use ferrum_ui::prelude::*;
-use ferrumtoolbox_core::{AppId, State, TokenSource};
+use ferrumtoolbox_core::{AppId, Channel, State, TokenSource};
 use semver::Version;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio_util::sync::CancellationToken;
@@ -33,10 +34,24 @@ impl Download {
     }
 }
 
+/// What the main area shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Page {
+    Overview,
+    Releases,
+    App,
+}
+
 pub struct FerrumToolbox {
     pub services: Services,
     pub state: State,
+    pub page: Page,
     pub selected: AppId,
+    /// Releases page filters (`None` = all).
+    pub timeline_app: Option<AppId>,
+    pub timeline_channel: Option<Channel>,
+    /// Release tags whose notes are expanded on the Releases page.
+    pub expanded_notes: HashSet<String>,
     /// Release whose notes are shown; `None` shows the latest.
     pub selected_release: Option<Version>,
     pub downloads: HashMap<AppId, Download>,
@@ -63,7 +78,11 @@ impl FerrumToolbox {
         let mut this = Self {
             services,
             state,
+            page: Page::Overview,
             selected: AppId::Ide,
+            timeline_app: None,
+            timeline_channel: None,
+            expanded_notes: HashSet::new(),
             selected_release: None,
             downloads: HashMap::new(),
             checking: false,
@@ -104,8 +123,14 @@ impl FerrumToolbox {
     }
 
     pub fn select_app(&mut self, app: AppId, cx: &mut Context<Self>) {
+        self.page = Page::App;
         self.selected = app;
         self.selected_release = None;
+        cx.notify();
+    }
+
+    pub fn show_page(&mut self, page: Page, cx: &mut Context<Self>) {
+        self.page = page;
         cx.notify();
     }
 
@@ -171,8 +196,8 @@ impl FerrumToolbox {
             .child(
                 h_flex()
                     .gap_2()
-                    .child(Icon::new(IconName::Box).color(Color::Accent))
-                    .child(Label::new("FerrumToolbox"))
+                    .child(logo(AppId::Toolbox, px(22.)))
+                    .child(Label::new("Ferrum Toolbox"))
                     .when(updates > 0, |this| {
                         this.child(badge(
                             format!("{updates} update{}", if updates == 1 { "" } else { "s" }),
@@ -251,13 +276,11 @@ impl Render for FerrumToolbox {
                             .child(self.render_sidebar(cx)),
                     )
                     .child(splitter(SIDEBAR_SPLITTER, Axis::Horizontal, cx))
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w_0()
-                            .h_full()
-                            .child(self.render_detail(window, cx)),
-                    ),
+                    .child(div().flex_1().min_w_0().h_full().child(match self.page {
+                        Page::Overview => self.render_overview(cx).into_any_element(),
+                        Page::Releases => self.render_releases(cx).into_any_element(),
+                        Page::App => self.render_detail(window, cx).into_any_element(),
+                    })),
             )
             .child(
                 status_bar(cx)

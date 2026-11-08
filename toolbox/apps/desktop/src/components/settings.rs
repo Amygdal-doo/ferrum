@@ -26,7 +26,6 @@ pub struct SettingsForm {
     token: Entity<TextInput>,
     interval: Entity<TextInput>,
     keep: Entity<TextInput>,
-    include_prereleases: bool,
     clear_token: bool,
     token_source: Option<TokenSource>,
     error: Option<SharedString>,
@@ -83,7 +82,6 @@ impl SettingsForm {
             token,
             interval,
             keep,
-            include_prereleases: settings.include_prereleases,
             clear_token: false,
             token_source,
             error: None,
@@ -134,7 +132,7 @@ impl SettingsForm {
                 repo_name: repo,
                 check_interval_hours,
                 keep_versions,
-                include_prereleases: self.include_prereleases,
+                legacy_include_prereleases: false,
             },
             token,
         ))
@@ -224,21 +222,9 @@ impl Render for SettingsForm {
                     ))),
             )
             .child(
-                Checkbox::new(
-                    "prereleases",
-                    if self.include_prereleases {
-                        ToggleState::Selected
-                    } else {
-                        ToggleState::Unselected
-                    },
-                )
-                .label("Include prereleases")
-                .on_click(cx.listener(
-                    |this: &mut Self, state: &ToggleState, _, cx| {
-                        this.include_prereleases = state.selected();
-                        cx.notify();
-                    },
-                )),
+                Label::new("Update channels (Stable or Beta) are set per app on its page.")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
             )
             .when_some(self.error.clone(), |this, error| {
                 this.child(Label::new(error).size(LabelSize::Small).color(Color::Error))

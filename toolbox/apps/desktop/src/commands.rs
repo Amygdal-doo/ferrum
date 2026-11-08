@@ -6,7 +6,7 @@ use crate::components::onboarding::{Onboarding, OnboardingEvent};
 use crate::components::settings::TokenChange;
 use crate::services::client_for;
 use ferrum_ui::prelude::*;
-use ferrumtoolbox_core::{AppId, Settings, State, auth, store};
+use ferrumtoolbox_core::{AppId, Settings, State, UpdateChannel, auth, store};
 use semver::Version;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -145,15 +145,28 @@ impl FerrumToolbox {
                         .map_err(|e| e.to_string())?;
                     let source = client_token_source(&client);
                     let releases = client.list_releases().await.map_err(|e| e.to_string())?;
-                    Ok::<_, String>((releases, source))
+                    // The catalog is optional: without it the embedded copy is used.
+                    let catalog = client.fetch_catalog().await;
+                    Ok::<_, String>((releases, catalog, source))
                 })
                 .await
                 .and_then(|result| result);
             this.update(cx, |this, cx| {
                 this.checking = false;
                 match result {
-                    Ok((releases, source)) => {
+                    Ok((releases, catalog, source)) => {
                         this.token_source = source;
+                        tracing::info!(count = releases.len(), "fetched releases");
+                        match catalog {
+                            Ok(catalog) => {
+                                tracing::info!(apps = catalog.apps.len(), "fetched catalog.json");
+                                this.state.record_catalog(catalog);
+                            }
+                            Err(e) => tracing::warn!(
+                                error = %e,
+                                "catalog.json unavailable; using the cached or built-in copy"
+                            ),
+                        }
                         this.state.record_releases(releases);
                         this.persist(cx);
                         let updates = this.state.updates();
@@ -315,7 +328,9 @@ impl FerrumToolbox {
                 .and_then(|result| result);
             this.update(cx, |this, cx| {
                 match result {
-                    Ok(app_state) => {
+                    Ok(mut app_state) => {
+                        // The channel may have changed while the work ran.
+                        app_state.channel = this.state.channel(app);
                         this.state.apps.insert(app, app_state);
                         this.persist(cx);
                         if let Some(message) = success {
@@ -360,6 +375,25 @@ impl FerrumToolbox {
             move |state, paths| state.prune(app, paths).map(|_| ()),
             cx,
         );
+    }
+
+    /// Switches which releases `app` follows; updates are re-evaluated at once.
+    pub fn set_channel(&mut self, app: AppId, channel: UpdateChannel, cx: &mut Context<Self>) {
+        if self.state.channel(app) == channel {
+            return;
+        }
+        self.state.set_channel(app, channel);
+        self.persist(cx);
+        if let Some(update) = self.state.update_for(app) {
+            let message = format!(
+                "{} {} is available on {}.",
+                app.info().name,
+                update.version,
+                channel.label()
+            );
+            self.notify_user(message, false, cx);
+        }
+        cx.notify();
     }
 
     pub fn launch(&mut self, app: AppId, cx: &mut Context<Self>) {

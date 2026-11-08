@@ -1,10 +1,10 @@
 //! Local state: settings, installed versions, the active version per app and
 //! the cached release list. Persisted as `state.json` (never holds the token).
 
-use crate::catalog::AppId;
+use crate::catalog::{AppId, Catalog, CatalogEntry};
 use crate::github::{DownloadProgress, GitHubClient};
 use crate::platform::{self, ArchiveKind, Platform};
-use crate::release::{self, ReleaseInfo};
+use crate::release::{self, Channel, ReleaseInfo, UpdateChannel};
 use crate::{Result, ToolboxError, install};
 use chrono::{DateTime, Utc};
 use semver::Version;
@@ -147,7 +147,10 @@ pub struct Settings {
     pub check_interval_hours: u32,
     /// Versions to keep per app, including the active one. `0` keeps all.
     pub keep_versions: u32,
-    pub include_prereleases: bool,
+    /// The global toggle that per-app update channels replaced; only read so
+    /// old state files can be migrated.
+    #[serde(rename = "include_prereleases", skip_serializing)]
+    pub legacy_include_prereleases: bool,
 }
 
 impl Default for Settings {
@@ -157,7 +160,7 @@ impl Default for Settings {
             repo_name: "ferrum".into(),
             check_interval_hours: 6,
             keep_versions: 3,
-            include_prereleases: false,
+            legacy_include_prereleases: false,
         }
     }
 }
@@ -177,6 +180,8 @@ pub struct InstalledVersion {
 pub struct AppState {
     pub installed: Vec<InstalledVersion>,
     pub active: Option<Version>,
+    /// Which releases updates follow.
+    pub channel: UpdateChannel,
 }
 
 impl AppState {
@@ -193,15 +198,28 @@ pub struct State {
     pub apps: BTreeMap<AppId, AppState>,
     pub last_check: Option<DateTime<Utc>>,
     pub releases: Vec<ReleaseInfo>,
+    /// Last `catalog.json` fetched from the repo (completed from the embedded copy).
+    pub catalog: Option<Catalog>,
 }
 
 impl State {
     /// Loads `state.json`; a missing file yields defaults.
     pub fn load(paths: &Paths) -> Result<Self> {
-        match std::fs::read(paths.state_file()) {
-            Ok(bytes) => Ok(serde_json::from_slice(&bytes)?),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
-            Err(e) => Err(e.into()),
+        let mut state: Self = match std::fs::read(paths.state_file()) {
+            Ok(bytes) => serde_json::from_slice(&bytes)?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Self::default(),
+            Err(e) => return Err(e.into()),
+        };
+        state.migrate();
+        Ok(state)
+    }
+
+    /// "Include prereleases" became the Beta channel for every app.
+    fn migrate(&mut self) {
+        if std::mem::take(&mut self.settings.legacy_include_prereleases) {
+            for app in AppId::ALL {
+                self.apps.entry(app).or_default().channel = UpdateChannel::Beta;
+            }
         }
     }
 
@@ -234,21 +252,83 @@ impl State {
         self.apps.get(&app).and_then(|state| state.active.as_ref())
     }
 
+    /// Every release of `app` on every channel, newest version first.
     #[must_use]
     pub fn releases_for(&self, app: AppId) -> Vec<&ReleaseInfo> {
         let mut releases: Vec<_> = self
             .releases
             .iter()
             .filter(|release| release.app == app)
-            .filter(|release| self.settings.include_prereleases || !release.is_prerelease())
             .collect();
         releases.sort_by(|a, b| b.version.cmp(&a.version));
         releases
     }
 
+    /// Every release of every app, most recently published first.
+    #[must_use]
+    pub fn timeline(&self) -> Vec<&ReleaseInfo> {
+        let mut releases: Vec<_> = self.releases.iter().collect();
+        releases.sort_by(|a, b| {
+            b.published_at
+                .cmp(&a.published_at)
+                .then_with(|| b.version.cmp(&a.version))
+        });
+        releases
+    }
+
+    #[must_use]
+    pub fn channel(&self, app: AppId) -> UpdateChannel {
+        self.apps
+            .get(&app)
+            .map(|state| state.channel)
+            .unwrap_or_default()
+    }
+
+    pub fn set_channel(&mut self, app: AppId, channel: UpdateChannel) {
+        self.apps.entry(app).or_default().channel = channel;
+    }
+
+    /// Newest release the app's update channel follows.
     #[must_use]
     pub fn latest(&self, app: AppId) -> Option<&ReleaseInfo> {
-        release::latest(&self.releases, app, self.settings.include_prereleases)
+        release::latest(&self.releases, app, self.channel(app))
+    }
+
+    /// Newest release published exactly on `channel`.
+    #[must_use]
+    pub fn latest_in(&self, app: AppId, channel: Channel) -> Option<&ReleaseInfo> {
+        release::latest_in(&self.releases, app, channel)
+    }
+
+    #[must_use]
+    pub fn last_released(&self, app: AppId) -> Option<DateTime<Utc>> {
+        self.releases
+            .iter()
+            .filter(|release| release.app == app)
+            .filter_map(|release| release.published_at)
+            .max()
+    }
+
+    #[must_use]
+    pub fn total_downloads(&self, app: AppId) -> u64 {
+        self.releases
+            .iter()
+            .filter(|release| release.app == app)
+            .map(ReleaseInfo::downloads)
+            .sum()
+    }
+
+    /// The app's catalog entry: fetched copy first, then the embedded one.
+    #[must_use]
+    pub fn catalog_entry(&self, app: AppId) -> Option<&CatalogEntry> {
+        self.catalog
+            .as_ref()
+            .and_then(|catalog| catalog.entry(app))
+            .or_else(|| Catalog::embedded().entry(app))
+    }
+
+    pub fn record_catalog(&mut self, catalog: Catalog) {
+        self.catalog = Some(catalog.or_fill_from(Catalog::embedded()));
     }
 
     /// The newer release if `app` is installed and behind the latest.
@@ -772,12 +852,92 @@ mod tests {
         ]);
         state.record_install(AppId::Api, installed("0.2.0"));
         assert_eq!(state.updates(), vec![(AppId::Api, Version::new(0, 3, 0))]);
-        state.settings.include_prereleases = true;
+        state.set_channel(AppId::Api, UpdateChannel::Beta);
         assert_eq!(
             state.updates(),
             vec![(AppId::Api, Version::parse("0.4.0-beta.1").expect("semver"))]
         );
         assert_eq!(state.releases_for(AppId::Api).len(), 2);
+        assert_eq!(
+            state
+                .latest_in(AppId::Api, Channel::Stable)
+                .map(|r| r.version.clone()),
+            Some(Version::new(0, 3, 0))
+        );
+    }
+
+    #[test]
+    fn migrates_include_prereleases_to_beta_channels() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        std::fs::create_dir_all(&paths.data_dir).expect("mkdir");
+        std::fs::write(
+            paths.state_file(),
+            r#"{"settings":{"repo_owner":"o","repo_name":"r","include_prereleases":true},
+                "apps":{"data":{"installed":[],"active":null}}}"#,
+        )
+        .expect("write");
+        let state = State::load(&paths).expect("load");
+        assert!(
+            AppId::ALL
+                .iter()
+                .all(|app| state.channel(*app) == UpdateChannel::Beta)
+        );
+        assert!(!state.settings.legacy_include_prereleases);
+        state.save(&paths).expect("save");
+        let json = std::fs::read_to_string(paths.state_file()).expect("read");
+        assert!(!json.contains("include_prereleases"));
+        assert!(json.contains(r#""channel": "beta""#));
+
+        std::fs::write(paths.state_file(), r#"{"settings":{"repo_owner":"o"}}"#).expect("write");
+        let fresh = State::load(&paths).expect("load");
+        assert_eq!(fresh.channel(AppId::Data), UpdateChannel::Stable);
+    }
+
+    #[test]
+    fn summarizes_releases_and_catalog() {
+        let mut state = State::default();
+        let mut older = release(AppId::Data, "0.1.0", false);
+        older.published_at = DateTime::parse_from_rfc3339("2026-11-01T00:00:00Z")
+            .ok()
+            .map(|t| t.with_timezone(&Utc));
+        older.assets = vec![Asset {
+            name: "FerrumData-0.1.0-aarch64.dmg".into(),
+            size: 1,
+            url: String::new(),
+            download_count: 3,
+        }];
+        let mut newer = release(AppId::Data, "0.2.0-beta.1", true);
+        newer.published_at = DateTime::parse_from_rfc3339("2026-11-05T00:00:00Z")
+            .ok()
+            .map(|t| t.with_timezone(&Utc));
+        newer.assets = vec![Asset {
+            name: "data.tar.gz".into(),
+            size: 1,
+            url: String::new(),
+            download_count: 2,
+        }];
+        let api = release(AppId::Api, "1.0.0", false);
+        state.record_releases(vec![older, api, newer]);
+        assert_eq!(state.total_downloads(AppId::Data), 5);
+        assert_eq!(
+            state.last_released(AppId::Data),
+            state.releases[2].published_at
+        );
+        let timeline: Vec<_> = state.timeline().iter().map(|r| r.tag.clone()).collect();
+        assert_eq!(timeline[0], "data-v0.2.0-beta.1");
+        assert_eq!(timeline[1], "data-v0.1.0");
+
+        assert!(state.catalog_entry(AppId::Term).is_some());
+        state.record_catalog(
+            Catalog::parse(r#"{"apps":[{"id":"term","status":"stable","summary":"Done"}]}"#)
+                .expect("parse"),
+        );
+        assert_eq!(
+            state.catalog_entry(AppId::Term).map(|e| e.status),
+            Some(crate::AppStatus::Stable)
+        );
+        assert!(state.catalog_entry(AppId::Ide).is_some());
     }
 
     #[test]
@@ -1037,11 +1197,13 @@ mod tests {
                 name: name.clone(),
                 size: bytes.len() as u64,
                 url: format!("{}/a/bundle", server.base),
+                download_count: 0,
             },
             Asset {
                 name: format!("{name}.sha256"),
                 size: 80,
                 url: format!("{}/a/bundle.sha", server.base),
+                download_count: 0,
             },
         ];
         let record = install_release_for_target(
@@ -1102,11 +1264,13 @@ mod tests {
                 name: name.clone(),
                 size: bytes.len() as u64,
                 url: format!("{}/e2e/archive", server.base),
+                download_count: 0,
             },
             Asset {
                 name: format!("{name}.sha256"),
                 size: 80,
                 url: format!("{}/e2e/sha", server.base),
+                download_count: 0,
             },
         ];
         let record = install_release(
@@ -1172,6 +1336,7 @@ mod tests {
             name: asset_name.into(),
             size: bytes.len() as u64,
             url: format!("{}{path}", server.base),
+            download_count: 0,
         };
 
         let mut bad = release(AppId::Api, "0.2.0", false);

@@ -1,9 +1,10 @@
 //! Selected app: actions, versions and release notes.
 
-use super::{format_size, icon_for};
+use super::logo::logo;
+use super::{channel_badge, format_count, format_size, status_badge};
 use crate::app::FerrumToolbox;
 use ferrum_ui::prelude::*;
-use ferrumtoolbox_core::{AppId, ReleaseInfo, current_target};
+use ferrumtoolbox_core::{AppId, ReleaseInfo, UpdateChannel, current_target};
 use semver::Version;
 
 /// One row of the versions list: a published release, an installed version
@@ -45,7 +46,6 @@ impl FerrumToolbox {
 
     pub fn render_detail(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let app = self.selected;
-        let info = app.info();
         let border = cx.theme().colors().border;
         let active = self.state.active(app).cloned();
         let latest = self.state.latest(app).cloned();
@@ -88,20 +88,7 @@ impl FerrumToolbox {
                     .p_4()
                     .border_b_1()
                     .border_color(border)
-                    .child(
-                        h_flex()
-                            .gap_3()
-                            .child(
-                                Icon::new(icon_for(app))
-                                    .size(IconSize::XLarge)
-                                    .color(Color::Accent),
-                            )
-                            .child(
-                                v_flex()
-                                    .child(Headline::new(info.name).size(HeadlineSize::Small))
-                                    .child(Label::new(info.description).color(Color::Muted)),
-                            ),
-                    )
+                    .child(self.render_header(app, cx))
                     .child(actions)
                     .children(download),
             )
@@ -137,6 +124,100 @@ impl FerrumToolbox {
                             .child(self.render_notes(notes_release, installed_notes)),
                     ),
             )
+    }
+
+    fn render_header(&self, app: AppId, cx: &mut Context<Self>) -> AnyElement {
+        let info = app.info();
+        let entry = self.state.catalog_entry(app).cloned();
+        let summary = entry
+            .as_ref()
+            .map(|entry| entry.summary.clone())
+            .unwrap_or_else(|| info.description.to_string());
+        let highlights = entry
+            .as_ref()
+            .map(|entry| entry.highlights.clone())
+            .unwrap_or_default();
+        let roadmap = entry
+            .as_ref()
+            .map(|entry| entry.roadmap.clone())
+            .unwrap_or_default();
+        let homepage = entry.as_ref().and_then(|entry| entry.homepage.clone());
+        let channel = self.state.channel(app);
+
+        let bullets = |items: Vec<String>, prefix: &'static str| {
+            v_flex()
+                .gap_0p5()
+                .children(items.into_iter().map(move |item| {
+                    Label::new(format!("{prefix} {item}"))
+                        .size(LabelSize::Small)
+                        .color(Color::Muted)
+                }))
+        };
+        let channel_buttons: Vec<AnyElement> = UpdateChannel::ALL
+            .into_iter()
+            .map(|option| {
+                Button::new(
+                    SharedString::from(format!("channel-{}", option.label())),
+                    option.label(),
+                )
+                .style(ButtonStyle::Subtle)
+                .toggle_state(channel == option)
+                .on_click(cx.listener(move |this, _, _, cx| this.set_channel(app, option, cx)))
+                .into_any_element()
+            })
+            .collect();
+
+        h_flex()
+            .gap_4()
+            .items_start()
+            .child(logo(app, px(64.)))
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .gap_1()
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .child(Headline::new(info.name).size(HeadlineSize::Small))
+                            .when_some(entry.as_ref().map(|entry| entry.status), |this, status| {
+                                this.child(status_badge(status, cx))
+                            }),
+                    )
+                    .child(Label::new(summary).color(Color::Muted))
+                    .when(!highlights.is_empty(), |this| {
+                        this.child(bullets(highlights, "•"))
+                    })
+                    .when(!roadmap.is_empty(), |this| {
+                        this.child(
+                            Label::new("Next")
+                                .size(LabelSize::XSmall)
+                                .color(Color::Placeholder),
+                        )
+                        .child(bullets(roadmap, "→"))
+                    }),
+            )
+            .child(
+                v_flex()
+                    .flex_none()
+                    .items_end()
+                    .gap_1()
+                    .child(
+                        Label::new("Update channel")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                    )
+                    .child(h_flex().gap_1().children(channel_buttons))
+                    .when_some(homepage, |this, url| {
+                        this.child(
+                            Button::new("homepage", "Website")
+                                .style(ButtonStyle::Subtle)
+                                .start_icon(Icon::new(IconName::ArrowUpRight))
+                                .on_click(move |_, _, cx| cx.open_url(&url)),
+                        )
+                    }),
+            )
+            .into_any_element()
     }
 
     fn render_actions(
@@ -281,7 +362,8 @@ impl FerrumToolbox {
             (Some(_), None) => "No build for this platform".into(),
             (None, None) => "Release removed".into(),
         };
-        let prerelease = row.release.as_ref().is_some_and(ReleaseInfo::is_prerelease);
+        let channel = row.release.as_ref().map(ReleaseInfo::channel);
+        let downloads = row.release.as_ref().map(ReleaseInfo::downloads);
         let can_install = !row.installed && target_asset.is_some() && !downloading;
 
         ListItem::new(SharedString::from(format!("version-{version}")))
@@ -291,8 +373,8 @@ impl FerrumToolbox {
                     .w_full()
                     .gap_2()
                     .child(Label::new(format!("v{version}")))
-                    .when(prerelease, |this| {
-                        this.child(badge("pre", cx.theme().status().warning, cx))
+                    .when_some(channel, |this, channel| {
+                        this.child(channel_badge(channel, cx))
                     })
                     .when(row.active, |this| {
                         this.child(badge("active", cx.theme().status().success, cx))
@@ -302,9 +384,14 @@ impl FerrumToolbox {
                     })
                     .child(div().flex_1())
                     .child(
-                        Label::new(format!("{date} · {size}"))
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted),
+                        Label::new(match downloads {
+                            Some(downloads) => {
+                                format!("{date} · {size} · {} downloads", format_count(downloads))
+                            }
+                            None => format!("{date} · {size}"),
+                        })
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
                     ),
             )
             .end_slot(

@@ -28,9 +28,45 @@ the record: tag, version, date, notes and downloadable builds.
 | Checksum | `<asset>.sha256` | `api-0.2.0-aarch64-apple-darwin.tar.gz.sha256` |
 | Targets | `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, `x86_64-pc-windows-msvc` (not for `term`) | |
 
-Tags that don't match the pattern, and draft releases, are ignored. A
-version with a semver prerelease part (`-beta.1`), or a release marked as a
-prerelease, only shows up when "Include prereleases" is on.
+Tags that don't match the pattern, and draft releases, are ignored.
+
+### Release channels
+
+Every release belongs to one channel, read from its version and GitHub's
+prerelease flag:
+
+| Channel | Rule | Example tags |
+| --- | --- | --- |
+| **Stable** | no semver prerelease part, not marked prerelease on GitHub | `data-v1.2.0` |
+| **Beta** | `-beta.N`, `-rc.N` (or any other prerelease part), or marked prerelease on GitHub | `data-v1.3.0-beta.1`, `data-v1.3.0-rc.1` |
+| **Alpha** | prerelease part starting with `alpha` | `data-v1.4.0-alpha.2` |
+
+Each app has an **update channel**, set on its page: **Stable** (default)
+offers only stable releases; **Beta** offers betas and stable releases, so a
+stable release newer than the newest beta wins. Alpha builds are never
+offered as updates, but they're listed and can be installed by hand. (Older
+state files with "Include prereleases" turned on are migrated to Beta for
+every app.)
+
+### App status (`catalog.json`)
+
+The status shown for each app (Planned, In development, Alpha, Beta,
+Stable, Deprecated), its summary, highlights, roadmap and website come from
+[`catalog.json`](../catalog.json) at the repo root. The toolbox fetches it
+from the release repo's default branch on every update check (through the
+contents API, with the same token) and caches it. A copy is compiled in as a
+fallback, so the toolbox works before the file is pushed or when offline.
+
+**To mark an app beta or stable, edit `catalog.json` on `main` and push.**
+Every toolbox picks it up on its next check; no toolbox release is needed.
+
+```json
+{ "id": "data", "status": "beta", "summary": "…", "highlights": ["…"], "roadmap": ["…"], "homepage": "https://…" }
+```
+
+Valid statuses: `planned`, `in-development`, `alpha`, `beta`, `stable`,
+`deprecated`. Entries with an unknown id or status are skipped, so a newer
+catalog never breaks an older toolbox.
 
 ### Publishing a version
 
@@ -56,13 +92,22 @@ apps use its GPUI crates.
 
 ## Using the toolbox
 
-- **Left panel:** every app, with its active version (or "Not installed") and
-  an *Update vX* badge when a newer release exists.
-- **Right panel:** the app's **Launch**, **Install / Update to vX** and
-  **Uninstall** buttons, then a list of every version. Each row shows the
-  date, the size of this platform's build and an active/installed marker, and
-  has **Install**, **Activate** or **Remove** buttons. Click a row to see that
-  release's notes.
+- **Overview** (the start page): one row per app with its logo, status,
+  installed version, latest stable, latest beta, last release date, total
+  downloads (GitHub download counts, checksum files excluded) and the next
+  action: **Install**, **Update**, **Open** or ✓ up to date. Click a row to
+  open the app.
+- **Releases:** every release of every app, newest first, with channel,
+  date, the size of this platform's build and download count. Filter by app
+  and channel; click a release to expand its notes.
+- **Sidebar:** each app with its logo, status badge and one line:
+  *v0.1.0 · active*, *v0.1.0 available*, *Update to vX* or *No releases yet*.
+- **App page:** logo, status, summary, highlights and roadmap from the
+  catalog, the **Stable | Beta** update channel, the **Launch**,
+  **Install / Update to vX** and **Uninstall** buttons, then a list of every
+  version with its channel, date, size, downloads and an active/installed
+  marker, and **Install**, **Activate** or **Remove** buttons. Click a row to
+  see that release's notes.
 - **Downloads** show a progress bar with **Cancel**, and several apps can
   download at once.
 - **Check for updates** runs on startup and then every *N* hours (Settings).

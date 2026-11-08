@@ -13,10 +13,10 @@ pub mod release;
 pub mod store;
 
 pub use auth::{GitHubToken, TokenSource};
-pub use catalog::{AppId, AppInfo, CATALOG};
+pub use catalog::{AppId, AppInfo, AppStatus, CATALOG, Catalog, CatalogEntry};
 pub use github::{DownloadProgress, GitHubClient};
 pub use platform::Platform;
-pub use release::{Asset, ReleaseInfo, current_target};
+pub use release::{Asset, Channel, ReleaseInfo, UpdateChannel, current_target};
 pub use store::{InstalledVersion, Paths, Settings, State};
 
 #[derive(Debug, thiserror::Error)]

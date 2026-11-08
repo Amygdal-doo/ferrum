@@ -116,6 +116,23 @@ impl GitHubClient {
         Ok(releases)
     }
 
+    /// `catalog.json` from the repo's default branch (raw contents API, so
+    /// private repos work with the same token).
+    pub async fn fetch_catalog(&self) -> Result<crate::Catalog> {
+        let url = format!(
+            "{}/repos/{}/{}/contents/catalog.json",
+            self.api_base, self.owner, self.repo
+        );
+        let response = self
+            .get(&url, "application/vnd.github.raw+json")
+            .send()
+            .await
+            .map_err(network_error)?;
+        let response = check_status(response, "catalog.json").await?;
+        let text = response.text().await.map_err(network_error)?;
+        crate::Catalog::parse(&text)
+    }
+
     /// Downloads a small text asset (e.g. a `.sha256` file).
     pub async fn download_text(&self, asset: &Asset) -> Result<String> {
         let response = self
@@ -318,6 +335,36 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn fetches_catalog_as_raw_contents() {
+        let body = br#"{"apps":[{"id":"term","status":"beta","summary":"Terminal"}]}"#.to_vec();
+        let server = FakeServer::start(vec![(
+            "/repos/o/r/contents/catalog.json".into(),
+            200,
+            vec![],
+            body,
+        )])
+        .await;
+        let client = GitHubClient::new("o", "r", None)
+            .expect("client")
+            .with_api_base(&server.base);
+        let catalog = client.fetch_catalog().await.expect("catalog");
+        assert_eq!(
+            catalog.entry(crate::AppId::Term).map(|e| e.status),
+            Some(crate::AppStatus::Beta)
+        );
+        let request = server.requests.lock().expect("lock")[0].to_lowercase();
+        assert!(request.contains("accept: application/vnd.github.raw+json"));
+
+        let missing = GitHubClient::new("o", "missing", None)
+            .expect("client")
+            .with_api_base(&server.base);
+        assert!(matches!(
+            missing.fetch_catalog().await,
+            Err(ToolboxError::NotFound(_))
+        ));
+    }
+
+    #[tokio::test]
     async fn lists_releases_across_pages_with_token() {
         let server = FakeServer::start(vec![
             (
@@ -412,6 +459,7 @@ pub(crate) mod tests {
             name: "a.tar.gz".into(),
             size: body.len() as u64,
             url: format!("{}/asset/1", server.base),
+            download_count: 0,
         };
         let dir = tempfile::tempdir().expect("tmp");
         let destination = dir.path().join("a.tar.gz");
@@ -447,6 +495,7 @@ pub(crate) mod tests {
             name: "a".into(),
             size: 16,
             url: format!("{}/asset/1", server.base),
+            download_count: 0,
         };
         let dir = tempfile::tempdir().expect("tmp");
         let destination = dir.path().join("a");
