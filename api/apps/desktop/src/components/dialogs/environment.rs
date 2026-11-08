@@ -1,61 +1,99 @@
 //! Environment / globals variable editor.
 
-use super::{Actions, Modal};
-use crate::commands::environments;
-use crate::components::widgets::{FIELD, VarsTable};
-use crate::state::AppState;
-use crate::state::kv::{self, RowEdit};
-use dioxus::prelude::*;
-use ferrumapi_application::AppServices;
-use ferrumapi_domain::EnvironmentId;
+use super::{actions, modal};
+use crate::app::FerrumApi;
+use crate::components::fields::{FieldSpec, on_change};
+use crate::components::widgets::RowEditor;
+use crate::components::{checkbox, hint};
+use crate::state::Dialog;
+use crate::state::kv;
+use ferrumapi_domain::Environment;
+use gpui::{AnyElement, Context, Window, div, prelude::*, px};
+use std::rc::Rc;
+use ui::{ActiveTheme as _, Label, LabelCommon as _, LabelSize, h_flex};
 
-#[component]
-pub fn EnvironmentDialog(id: EnvironmentId) -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let mut draft = use_signal(|| environments::get(state, id));
-    let Some(env) = draft.read().clone() else {
-        return rsx! {};
-    };
-    let globals = id.is_globals();
-    let active = *state.active_env.read() == Some(id);
-    let title = if globals {
-        "Globals".to_owned()
-    } else {
-        "Environment".to_owned()
-    };
+fn with_draft(this: &mut FerrumApi, f: impl FnOnce(&mut Environment)) {
+    if let Some(Dialog::EditEnvironment(env)) = &mut this.state.dialog {
+        f(env);
+    }
+}
 
-    rsx! {
-        Modal { title, width: "max-w-3xl", on_close: move |_| state.dialog.set(None),
-            div { class: "flex min-h-0 flex-col gap-3 text-sm",
-                if globals {
-                    p { class: "text-xs text-muted-foreground", "Globals are available to every request. Collection variables and the active environment override them." }
-                } else {
-                    div { class: "flex items-center gap-3",
-                        span { class: "w-16 shrink-0 text-xs text-muted-foreground", "Name" }
-                        input { class: FIELD, initial_value: "{env.name}",
-                            oninput: move |e| if let Some(env) = draft.write().as_mut() { env.name = e.value(); } }
-                        label { class: "flex shrink-0 items-center gap-1.5 text-xs",
-                            input { r#type: "checkbox", checked: active,
-                                onchange: move |e| environments::set_active(state, e.checked().then_some(id)) }
-                            "Active"
-                        }
-                    }
+impl FerrumApi {
+    pub(super) fn render_environment_dialog(
+        &mut self,
+        env: Environment,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let colors = cx.theme().colors().clone();
+        let id = env.id;
+        let globals = id.is_globals();
+        let active = self.state.active_env == Some(id);
+        let title = if globals { "Globals" } else { "Environment" };
+
+        let header = if globals {
+            hint("Globals are available to every request. Collection variables and the active environment override them.")
+                .into_any_element()
+        } else {
+            let name = self.field(
+                FieldSpec::new(format!("env-name:{id}")).value(env.name.clone()),
+                on_change(|this, text, _| with_draft(this, |env| env.name = text)),
+                window,
+                cx,
+            );
+            h_flex()
+                .gap_3()
+                .child(
+                    div()
+                        .w_16()
+                        .child(Label::new("Name").size(LabelSize::Small)),
+                )
+                .child(div().flex_1().child(name))
+                .child(
+                    h_flex()
+                        .gap_1p5()
+                        .child(checkbox(
+                            "env-active",
+                            active,
+                            move |this, on, _| {
+                                this.set_active_environment(on.then_some(id));
+                            },
+                            cx,
+                        ))
+                        .child(Label::new("Active").size(LabelSize::Small)),
+                )
+                .into_any_element()
+        };
+        let on_edit: RowEditor = Rc::new(|this, i, edit, _| {
+            with_draft(this, |env| kv::apply(&mut env.variables, i, edit));
+        });
+        let table =
+            self.render_vars_table(format!("env-vars:{id}"), env.variables, on_edit, window, cx);
+
+        actions(
+            modal(title, px(768.), cx)
+                .child(header)
+                .child(
+                    div()
+                        .min_h(px(192.))
+                        .rounded_md()
+                        .border_1()
+                        .border_color(colors.border)
+                        .child(table),
+                )
+                .child(hint(
+                    "Use variables as {{name}} in the URL, params, headers, body and auth. Secret values are masked.",
+                )),
+            "Save",
+            false,
+            false,
+            |this, cx| {
+                if let Some(Dialog::EditEnvironment(env)) = this.state.dialog.take() {
+                    this.save_environment(*env, cx);
                 }
-                div { class: "max-h-[60vh] min-h-48 overflow-y-auto rounded-md border",
-                    VarsTable { rows: env.variables.clone(),
-                        on_edit: move |(i, e): (usize, RowEdit)| if let Some(env) = draft.write().as_mut() { kv::apply(&mut env.variables, i, e); } }
-                }
-                p { class: "text-xs text-muted-foreground", "Use variables as {{{{name}}}} in the URL, params, headers, body and auth. Secret values are masked." }
-            }
-            Actions { confirm: "Save",
-                on_confirm: move |_| {
-                    if let Some(env) = draft.peek().clone() {
-                        environments::save(state, services.clone(), env);
-                    }
-                    state.dialog.set(None);
-                }
-            }
-        }
+            },
+            cx,
+        )
+        .into_any_element()
     }
 }

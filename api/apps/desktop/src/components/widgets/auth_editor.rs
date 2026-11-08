@@ -1,8 +1,13 @@
 //! Auth type select and fields (requests and collections).
 
-use super::{FIELD, SecretInput};
-use dioxus::prelude::*;
+use super::form_row;
+use crate::app::FerrumApi;
+use crate::components::fields::{FieldSpec, on_change, on_request_edit};
+use crate::components::{hint, select};
 use ferrumapi_domain::{ApiKeyLocation, Auth};
+use gpui::{AnyElement, Context, SharedString, Window, prelude::*};
+use std::rc::Rc;
+use ui::{Label, LabelCommon as _, LabelSize, h_flex, v_flex};
 
 const KINDS: [&str; 5] = ["inherit", "none", "basic", "bearer", "apikey"];
 
@@ -35,139 +40,234 @@ fn blank(kind: &str) -> Auth {
     }
 }
 
-fn label(kind: &str) -> &'static str {
-    blank(kind).kind_label()
+/// Edits the auth being shown in place (the request's or a dialog draft's),
+/// so field handlers always change the latest value.
+pub type AuthTarget = Rc<dyn Fn(&mut FerrumApi, &mut dyn FnMut(&mut Auth))>;
+
+/// What to render: the current auth plus where edits go.
+pub struct AuthView {
+    pub auth: Auth,
+    /// Keys the fields (e.g. tab id) so switching owners swaps them.
+    pub scope: String,
+    pub allow_inherit: bool,
+    /// The auth that `Inherit` resolves to, if known.
+    pub inherited: Option<String>,
+    /// Request auth fields send on Enter; dialog fields do not.
+    pub request_fields: bool,
+    pub target: AuthTarget,
 }
 
-/// `scope` keys the fields (e.g. tab id) so switching owners remounts them.
-/// `inherited` describes the auth that `Inherit` resolves to, if known.
-#[component]
-pub fn AuthEditor(
-    auth: Auth,
-    scope: String,
-    allow_inherit: bool,
-    #[props(default)] inherited: Option<String>,
-    on_change: EventHandler<Auth>,
-) -> Element {
-    let kind = kind_of(&auth);
-    let kinds: Vec<&str> = KINDS
-        .iter()
-        .copied()
-        .filter(|k| allow_inherit || *k != "inherit")
-        .collect();
+impl FerrumApi {
+    pub fn render_auth_editor(
+        &mut self,
+        view: AuthView,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let AuthView {
+            auth,
+            scope,
+            allow_inherit,
+            inherited,
+            request_fields,
+            target,
+        } = view;
+        let kind = kind_of(&auth);
+        let options: Vec<(SharedString, &'static str)> = KINDS
+            .iter()
+            .copied()
+            .filter(|k| allow_inherit || *k != "inherit")
+            .map(|k| (blank(k).kind_label().into(), k))
+            .collect();
+        let type_select = {
+            let target = target.clone();
+            select(
+                SharedString::from(format!("{scope}-auth-kind")),
+                auth.kind_label(),
+                options,
+                move |this, k, _| target(this, &mut |a| *a = blank(k)),
+                window,
+                cx,
+            )
+        };
 
-    rsx! {
-        div { class: "flex max-w-xl flex-col gap-3 text-sm",
-            label { class: "flex items-center gap-3",
-                span { class: "w-24 shrink-0 text-xs text-muted-foreground", "Type" }
-                select {
-                    class: "h-8 rounded-md border bg-background px-2 text-sm",
-                    "aria-label": "Auth type",
-                    onchange: move |e| on_change.call(blank(&e.value())),
-                    for k in kinds {
-                        option { key: "{k}", value: k, selected: k == kind, "{label(k)}" }
-                    }
-                }
+        // Builds a text field that writes into the current auth via `set`.
+        let text_field = |this: &mut FerrumApi,
+                          name: &str,
+                          value: &str,
+                          placeholder: &'static str,
+                          set: fn(&mut Auth, String),
+                          window: &mut Window,
+                          cx: &mut Context<FerrumApi>| {
+            let target = target.clone();
+            let apply = move |this: &mut FerrumApi, text: String, _: &mut Context<FerrumApi>| {
+                target(this, &mut |a| set(a, text.clone()))
+            };
+            let spec = FieldSpec::new(format!("{scope}:{kind}:{name}"))
+                .value(value)
+                .placeholder(placeholder)
+                .mono();
+            if request_fields {
+                this.field(spec, on_request_edit(apply), window, cx)
+                    .into_any_element()
+            } else {
+                this.field(spec, on_change(apply), window, cx)
+                    .into_any_element()
             }
-            // Single-item loop: the key re-mounts the uncontrolled fields.
-            for k in [format!("{scope}-{kind}")] {
-                AuthFields { key: "{k}", auth: auth.clone(), inherited: inherited.clone(), on_change }
+        };
+        let secret_field = |this: &mut FerrumApi,
+                            name: &str,
+                            value: &str,
+                            placeholder: &'static str,
+                            set: fn(&mut Auth, String),
+                            window: &mut Window,
+                            cx: &mut Context<FerrumApi>| {
+            let target = target.clone();
+            let apply = move |this: &mut FerrumApi, text: String, _: &mut Context<FerrumApi>| {
+                target(this, &mut |a| set(a, text.clone()))
+            };
+            let key = format!("{scope}:{kind}:{name}");
+            if request_fields {
+                this.render_secret_input(
+                    key,
+                    value,
+                    placeholder,
+                    on_request_edit(apply),
+                    window,
+                    cx,
+                )
+            } else {
+                this.render_secret_input(key, value, placeholder, on_change(apply), window, cx)
             }
-        }
-    }
-}
+        };
 
-#[component]
-fn AuthFields(auth: Auth, inherited: Option<String>, on_change: EventHandler<Auth>) -> Element {
-    let (a1, a2) = (auth.clone(), auth.clone());
-    rsx! {
-        div { class: "flex flex-col gap-3",
-            match auth.clone() {
-                Auth::Inherit => rsx! {
-                    p { class: "text-xs text-muted-foreground",
-                        match &inherited {
-                            Some(l) => rsx! { "Inherits " strong { class: "text-foreground", "{l}" } " from the parent folder or collection." },
-                            None => rsx! { "This request is not in a collection, so no auth is sent." },
+        let fields: Vec<AnyElement> = match &auth {
+            Auth::Inherit => vec![match &inherited {
+                Some(label) => h_flex()
+                    .gap_1()
+                    .child(hint("Inherits"))
+                    .child(Label::new(label.clone()).size(LabelSize::Small))
+                    .child(hint("from the parent folder or collection."))
+                    .into_any_element(),
+                None => hint("This request is not in a collection, so no auth is sent.")
+                    .into_any_element(),
+            }],
+            Auth::None => vec![hint("No authorization header is sent.").into_any_element()],
+            Auth::Basic { username, password } => {
+                let user = text_field(
+                    self,
+                    "username",
+                    username,
+                    "",
+                    |a, v| {
+                        if let Auth::Basic { username, .. } = a {
+                            *username = v;
                         }
-                    }
-                },
-                Auth::None => rsx! { p { class: "text-xs text-muted-foreground", "No authorization header is sent." } },
-                Auth::Basic { username, password } => rsx! {
-                    Field { name: "Username",
-                        input { class: FIELD, spellcheck: "false", initial_value: "{username}",
-                            oninput: move |e| if let Auth::Basic { password, .. } = &a1 { on_change.call(Auth::Basic { username: e.value(), password: password.clone() }) } }
-                    }
-                    Field { name: "Password",
-                        SecretInput { value: password, label: "Password",
-                            on_input: move |v: String| if let Auth::Basic { username, .. } = &a2 { on_change.call(Auth::Basic { username: username.clone(), password: v }) } }
-                    }
-                },
-                Auth::Bearer { token } => rsx! {
-                    Field { name: "Token",
-                        SecretInput { value: token, label: "Token", placeholder: "Token",
-                            on_input: move |v: String| on_change.call(Auth::Bearer { token: v }) }
-                    }
-                },
-                Auth::ApiKey { key, value, location } => rsx! {
-                    ApiKeyFields { key_name: key, value, location, current: auth.clone(), on_change }
-                },
+                    },
+                    window,
+                    cx,
+                );
+                let pass = secret_field(
+                    self,
+                    "password",
+                    password,
+                    "",
+                    |a, v| {
+                        if let Auth::Basic { password, .. } = a {
+                            *password = v;
+                        }
+                    },
+                    window,
+                    cx,
+                );
+                vec![
+                    form_row("Username", user).into_any_element(),
+                    form_row("Password", pass).into_any_element(),
+                ]
             }
-        }
-    }
-}
-
-#[component]
-fn Field(name: String, children: Element) -> Element {
-    rsx! {
-        div { class: "flex items-center gap-3",
-            span { class: "w-24 shrink-0 text-xs text-muted-foreground", "{name}" }
-            div { class: "min-w-0 flex-1", {children} }
-        }
-    }
-}
-
-#[component]
-fn ApiKeyFields(
-    key_name: String,
-    value: String,
-    location: ApiKeyLocation,
-    current: Auth,
-    on_change: EventHandler<Auth>,
-) -> Element {
-    let set = move |f: &dyn Fn(&mut String, &mut String, &mut ApiKeyLocation)| {
-        if let Auth::ApiKey {
-            mut key,
-            mut value,
-            mut location,
-        } = current.clone()
-        {
-            f(&mut key, &mut value, &mut location);
-            on_change.call(Auth::ApiKey {
+            Auth::Bearer { token } => {
+                let token = secret_field(
+                    self,
+                    "token",
+                    token,
+                    "Token",
+                    |a, v| {
+                        if let Auth::Bearer { token } = a {
+                            *token = v;
+                        }
+                    },
+                    window,
+                    cx,
+                );
+                vec![form_row("Token", token).into_any_element()]
+            }
+            Auth::ApiKey {
                 key,
                 value,
                 location,
-            });
-        }
-    };
-    let (s1, s2, s3) = (set.clone(), set.clone(), set);
-    rsx! {
-        Field { name: "Key",
-            input { class: FIELD, spellcheck: "false", placeholder: "X-API-Key", initial_value: "{key_name}",
-                oninput: move |e| { let v = e.value(); s1(&|k, _, _| *k = v.clone()); } }
-        }
-        Field { name: "Value",
-            SecretInput { value, label: "API key value",
-                on_input: move |v: String| s2(&|_, val, _| *val = v.clone()) }
-        }
-        Field { name: "Add to",
-            select { class: "h-8 rounded-md border bg-background px-2 text-sm", "aria-label": "API key location",
-                onchange: move |e| {
-                    let loc = if e.value() == "query" { ApiKeyLocation::Query } else { ApiKeyLocation::Header };
-                    s3(&|_, _, l| *l = loc);
-                },
-                option { value: "header", selected: location == ApiKeyLocation::Header, "Header" }
-                option { value: "query", selected: location == ApiKeyLocation::Query, "Query params" }
+            } => {
+                let key_input = text_field(
+                    self,
+                    "key",
+                    key,
+                    "X-API-Key",
+                    |a, v| {
+                        if let Auth::ApiKey { key, .. } = a {
+                            *key = v;
+                        }
+                    },
+                    window,
+                    cx,
+                );
+                let value_input = secret_field(
+                    self,
+                    "value",
+                    value,
+                    "",
+                    |a, v| {
+                        if let Auth::ApiKey { value, .. } = a {
+                            *value = v;
+                        }
+                    },
+                    window,
+                    cx,
+                );
+                let location_select = {
+                    let target = target.clone();
+                    select(
+                        SharedString::from(format!("{scope}-apikey-location")),
+                        match location {
+                            ApiKeyLocation::Header => "Header",
+                            ApiKeyLocation::Query => "Query params",
+                        },
+                        vec![
+                            ("Header".into(), ApiKeyLocation::Header),
+                            ("Query params".into(), ApiKeyLocation::Query),
+                        ],
+                        move |this, loc, _| {
+                            target(this, &mut |a| {
+                                if let Auth::ApiKey { location, .. } = a {
+                                    *location = loc;
+                                }
+                            })
+                        },
+                        window,
+                        cx,
+                    )
+                };
+                vec![
+                    form_row("Key", key_input).into_any_element(),
+                    form_row("Value", value_input).into_any_element(),
+                    form_row("Add to", location_select).into_any_element(),
+                ]
             }
-        }
+        };
+
+        v_flex()
+            .max_w(gpui::px(576.))
+            .gap_3()
+            .child(form_row("Type", type_select))
+            .children(fields)
+            .into_any_element()
     }
 }

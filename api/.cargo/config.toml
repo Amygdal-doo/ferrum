@@ -1,3 +1,0 @@
-[alias]
-api = "run -p ferrumapi-desktop"
-lint = "clippy --workspace --all-targets -- -D warnings"

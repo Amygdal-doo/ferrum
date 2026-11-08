@@ -1,3 +1,0 @@
-[alias]
-git-ui = "run -p ferrumgit-desktop"
-lint = "clippy --workspace --all-targets -- -D warnings"

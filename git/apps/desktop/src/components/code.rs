@@ -1,107 +1,150 @@
 //! Hunks of a file diff with syntax highlighting, visible whitespace and —
 //! for working-copy diffs — hunk / line staging.
 
-use crate::commands::repo::{self, HunkAction};
+use crate::app::FerrumGit;
+use crate::commands::repo::HunkAction;
 use crate::components::highlight::{Token, highlight};
-use crate::state::AppState;
-use dioxus::prelude::*;
-use ferrumgit_application::AppServices;
+use crate::components::widgets::small_button;
 use ferrumgit_domain::{DiffLine, DiffSource, FileDiff, Hunk, LineKind, RepoId};
+use gpui::{
+    AnyElement, Context, HighlightStyle, Hsla, SharedString, StyledText, div, prelude::*, px, rgb,
+};
+use std::ops::Range;
 use std::sync::Arc;
+use theme::ActiveTheme;
+use ui::{
+    Clickable, Color, Disableable, Label, LabelCommon, LabelSize, StyledTypography, h_flex, v_flex,
+};
 
 /// Lines rendered per file at most.
 pub const MAX_LINES: usize = 4000;
 
-/// Renders text with `·` for spaces, `→` for tabs (muted) when `invisibles`.
-fn tokens(toks: &[Token], invisibles: bool) -> Element {
-    rsx! {
-        for (i, t) in toks.iter().enumerate() {
-            {
-                let style = t.color.as_ref().map(|c| format!("color: {c}")).unwrap_or_default();
-                if invisibles && t.text.contains([' ', '\t']) {
-                    let parts: Vec<(bool, String)> = t.text.split_inclusive([' ', '\t']).flat_map(|p| {
-                        let (body, ws) = p.split_at(p.trim_end_matches([' ', '\t']).len());
-                        let mut v = Vec::new();
-                        if !body.is_empty() { v.push((false, body.to_owned())); }
-                        for c in ws.chars() { v.push((true, if c == '\t' { "→   ".to_owned() } else { "·".to_owned() })); }
-                        v
-                    }).collect();
-                    rsx! {
-                        span { key: "{i}", style: "{style}",
-                            for (j, (ws, s)) in parts.into_iter().enumerate() {
-                                if ws { span { key: "{j}", class: "text-muted-foreground/35", "{s}" } } else { span { key: "{j}", "{s}" } }
-                            }
+/// Line text with `·` for spaces and `→` for tabs (muted) when `invisibles`,
+/// plus the syntax colour runs over it.
+fn line_text(
+    toks: &[Token],
+    invisibles: bool,
+    muted: Hsla,
+) -> (String, Vec<(Range<usize>, HighlightStyle)>) {
+    let mut text = String::new();
+    let mut highlights = Vec::new();
+    let colored = |color: Hsla| HighlightStyle {
+        color: Some(color),
+        ..Default::default()
+    };
+    for t in toks {
+        let color = t.color.map(|c| Hsla::from(rgb(c)));
+        if invisibles && t.text.contains([' ', '\t']) {
+            for ch in t.text.chars() {
+                let start = text.len();
+                match ch {
+                    ' ' => {
+                        text.push('·');
+                        highlights.push((start..text.len(), colored(muted)));
+                    }
+                    '\t' => {
+                        text.push_str("→   ");
+                        highlights.push((start..text.len(), colored(muted)));
+                    }
+                    other => {
+                        text.push(other);
+                        if let Some(c) = color {
+                            highlights.push((start..text.len(), colored(c)));
                         }
                     }
-                } else {
-                    rsx! { span { key: "{i}", style: "{style}", "{t.text}" } }
                 }
+            }
+        } else {
+            let start = text.len();
+            text.push_str(&t.text);
+            if let Some(c) = color {
+                highlights.push((start..text.len(), colored(c)));
             }
         }
     }
+    if invisibles {
+        let start = text.len();
+        text.push('¬');
+        highlights.push((start..text.len(), colored(muted)));
+    }
+    (text, highlights)
 }
 
-/// All hunks of `file`. `repo` + editable source enables staging actions.
-#[component]
-pub fn CodeDiff(
+/// All hunks of `file`. `repo` + an editable source enables staging actions.
+pub fn code_diff(
+    app: &FerrumGit,
     file: Arc<FileDiff>,
     source: DiffSource,
-    #[props(default)] repo: Option<RepoId>,
-) -> Element {
-    let state = use_context::<AppState>();
-    let dark = state.is_dark();
-    let invisibles = !state.settings.read().hide_invisibles;
+    repo: Option<RepoId>,
+    cx: &mut Context<FerrumGit>,
+) -> AnyElement {
+    let invisibles = !app.state.settings.hide_invisibles;
+    let note = |text: &'static str| {
+        div()
+            .px_4()
+            .py_3()
+            .child(Label::new(text).size(LabelSize::Small).color(Color::Muted))
+            .into_any_element()
+    };
     if file.binary {
-        return rsx! { p { class: "px-4 py-3 font-sans text-xs text-muted-foreground", "Binary file — no text diff." } };
+        return note("Binary file — no text diff.");
     }
     if file.hunks.is_empty() {
-        return rsx! { p { class: "px-4 py-3 font-sans text-xs text-muted-foreground", "No textual changes (mode change, rename or empty file)." } };
+        return note("No textual changes (mode change, rename or empty file).");
     }
     let mut budget = MAX_LINES;
-    let hunks: Vec<(usize, Hunk, usize)> = file
-        .hunks
-        .iter()
-        .enumerate()
-        .map(|(i, h)| {
-            let shown = h.lines.len().min(budget);
-            budget -= shown;
-            (i, h.clone(), shown)
-        })
-        .collect();
+    let mut hunks: Vec<AnyElement> = Vec::new();
+    for (i, h) in file.hunks.iter().enumerate() {
+        let shown = h.lines.len().min(budget);
+        budget -= shown;
+        if shown > 0 {
+            hunks.push(hunk_view(
+                app, &file.path, i, h, shown, &source, repo, invisibles, cx,
+            ));
+        }
+    }
     let hidden = file
         .hunks
         .iter()
         .map(|h| h.lines.len())
         .sum::<usize>()
         .saturating_sub(MAX_LINES);
-    rsx! {
-        div { class: "font-mono text-[12px] leading-[19px] select-text",
-            for (i, h, shown) in hunks {
-                if shown > 0 {
-                    HunkView { key: "{i}", path: file.path.clone(), index: i, hunk: h, shown, source: source.clone(), repo, dark, invisibles }
-                }
-            }
-            if hidden > 0 { p { class: "px-4 py-2 font-sans text-xs text-muted-foreground", "{hidden} more lines not shown." } }
-        }
-    }
+    v_flex()
+        .id(SharedString::from(format!("code-{}-{source:?}", file.path)))
+        .w_full()
+        .overflow_x_scroll()
+        .font_buffer(cx)
+        .text_buffer(cx)
+        .children(hunks)
+        .when(hidden > 0, |d| {
+            d.child(
+                div().px_4().py_2().child(
+                    Label::new(format!("{hidden} more lines not shown."))
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                ),
+            )
+        })
+        .into_any_element()
 }
 
-#[component]
-fn HunkView(
-    path: String,
+#[allow(clippy::too_many_arguments)]
+fn hunk_view(
+    app: &FerrumGit,
+    path: &str,
     index: usize,
-    hunk: Hunk,
+    hunk: &Hunk,
     shown: usize,
-    source: DiffSource,
+    source: &DiffSource,
     repo: Option<RepoId>,
-    dark: bool,
     invisibles: bool,
-) -> Element {
-    let state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
+    cx: &mut Context<FerrumGit>,
+) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
     let editable = repo.is_some() && matches!(source, DiffSource::Unstaged | DiffSource::Staged);
     let selected: Vec<usize> = repo
-        .and_then(|id| state.view(id).diff)
+        .and_then(|id| app.state.view(id).diff)
         .map(|d| {
             d.lines
                 .iter()
@@ -111,107 +154,217 @@ fn HunkView(
         })
         .unwrap_or_default();
     let has_sel = !selected.is_empty();
-    let busy = repo.is_some_and(|id| state.is_busy(id));
+    let busy = repo.is_some_and(|id| app.state.is_busy(id));
     let texts: Vec<&str> = hunk
         .lines
         .iter()
         .take(shown)
         .map(|l| l.content.as_str())
         .collect();
-    let toks = highlight(&path, &texts, dark);
+    let toks = highlight(path, &texts, true);
     let what = if has_sel { "Lines" } else { "Hunk" };
-    let s = services.clone();
-    let act = move |a: HunkAction| {
-        if let Some(id) = repo {
-            repo::hunk(state, s.clone(), id, index, a, has_sel);
+    let act = move |action: HunkAction| {
+        move |app: &mut FerrumGit,
+              _: &gpui::ClickEvent,
+              _: &mut gpui::Window,
+              cx: &mut Context<FerrumGit>| {
+            if let Some(id) = repo {
+                app.hunk(id, index, action, has_sel, cx);
+            }
         }
     };
-    let (a1, a2) = (act.clone(), act);
-    rsx! {
-        div { class: "border-t first:border-t-0",
-            div { class: "sticky top-0 z-10 flex h-8 items-center gap-2 bg-muted/95 px-4 text-[11px] text-muted-foreground backdrop-blur",
-                span { class: "min-w-0 flex-1 truncate", "{hunk.header}" }
-                if editable {
-                    if has_sel { span { class: "font-sans", "{selected.len()} selected" } }
-                    if source == DiffSource::Unstaged {
-                        button { class: "rounded border bg-background px-2 py-0.5 font-sans text-destructive hover:bg-accent", disabled: busy, onclick: move |_| a1(HunkAction::Discard), "Discard {what}" }
-                        button { class: "rounded border bg-background px-2 py-0.5 font-sans font-medium text-foreground hover:bg-accent", disabled: busy, onclick: move |_| a2(HunkAction::Stage), "Stage {what}" }
-                    } else {
-                        button { class: "rounded border bg-background px-2 py-0.5 font-sans font-medium text-foreground hover:bg-accent", disabled: busy, onclick: move |_| a2(HunkAction::Unstage), "Unstage {what}" }
-                    }
-                }
-            }
-            for (li, line) in hunk.lines.iter().take(shown).enumerate() {
-                Line { key: "{li}", repo, hunk: index, index: li, line: line.clone(), toks: toks.get(li).cloned().unwrap_or_default(), selected: selected.contains(&li), selectable: editable, invisibles }
-            }
+    let id_base = format!("{path}-{index}");
+    let mut buttons: Vec<AnyElement> = Vec::new();
+    if editable {
+        if has_sel {
+            buttons.push(
+                Label::new(format!("{} selected", selected.len()))
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted)
+                    .into_any_element(),
+            );
+        }
+        if *source == DiffSource::Unstaged {
+            buttons.push(
+                small_button(
+                    SharedString::from(format!("{id_base}-discard")),
+                    format!("Discard {what}"),
+                )
+                .color(Color::Error)
+                .disabled(busy)
+                .on_click(cx.listener(act(HunkAction::Discard)))
+                .into_any_element(),
+            );
+            buttons.push(
+                small_button(
+                    SharedString::from(format!("{id_base}-stage")),
+                    format!("Stage {what}"),
+                )
+                .disabled(busy)
+                .on_click(cx.listener(act(HunkAction::Stage)))
+                .into_any_element(),
+            );
+        } else {
+            buttons.push(
+                small_button(
+                    SharedString::from(format!("{id_base}-unstage")),
+                    format!("Unstage {what}"),
+                )
+                .disabled(busy)
+                .on_click(cx.listener(act(HunkAction::Unstage)))
+                .into_any_element(),
+            );
         }
     }
+    let lines: Vec<AnyElement> = hunk
+        .lines
+        .iter()
+        .take(shown)
+        .enumerate()
+        .map(|(li, line)| {
+            line_view(
+                repo,
+                index,
+                li,
+                line,
+                toks.get(li).map(Vec::as_slice).unwrap_or_default(),
+                selected.contains(&li),
+                editable,
+                invisibles,
+                &id_base,
+                &theme,
+                cx,
+            )
+        })
+        .collect();
+    v_flex()
+        .border_t_1()
+        .border_color(colors.border_variant)
+        .child(
+            h_flex()
+                .h(px(32.))
+                .gap_2()
+                .px_4()
+                .bg(colors.element_background)
+                .text_ui_xs(cx)
+                .text_color(colors.text_muted)
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .child(hunk.header.clone()),
+                )
+                .children(buttons),
+        )
+        .children(lines)
+        .into_any_element()
 }
 
-#[component]
-fn Line(
+#[allow(clippy::too_many_arguments)]
+fn line_view(
     repo: Option<RepoId>,
     hunk: usize,
     index: usize,
-    line: DiffLine,
-    toks: Vec<Token>,
+    line: &DiffLine,
+    toks: &[Token],
     selected: bool,
     selectable: bool,
     invisibles: bool,
-) -> Element {
-    let state = use_context::<AppState>();
-    let (tone, gutter, sign) = match line.kind {
-        LineKind::Added => (
-            "bg-green-500/[0.07]",
-            "bg-green-500/[0.12] text-green-700 dark:text-green-300",
-            "+",
-        ),
-        LineKind::Removed => (
-            "bg-red-500/[0.07]",
-            "bg-red-500/[0.12] text-red-700 dark:text-red-300",
-            "-",
-        ),
-        LineKind::Context => ("", "text-muted-foreground/60", " "),
-        LineKind::NoNewline => (
-            "italic text-muted-foreground",
-            "text-muted-foreground/60",
-            "",
-        ),
-    };
+    id_base: &str,
+    theme: &theme::Theme,
+    cx: &mut Context<FerrumGit>,
+) -> AnyElement {
+    let colors = theme.colors();
+    let status = theme.status();
+    let (tone, gutter_bg, gutter_fg, sign): (Option<Hsla>, Option<Hsla>, Hsla, &str) =
+        match line.kind {
+            LineKind::Added => (
+                Some(status.created.opacity(0.08)),
+                Some(status.created.opacity(0.14)),
+                status.created,
+                "+",
+            ),
+            LineKind::Removed => (
+                Some(status.deleted.opacity(0.08)),
+                Some(status.deleted.opacity(0.14)),
+                status.deleted,
+                "-",
+            ),
+            LineKind::Context => (None, None, colors.text_muted.opacity(0.6), " "),
+            LineKind::NoNewline => (None, None, colors.text_muted.opacity(0.6), ""),
+        };
     let changed = matches!(line.kind, LineKind::Added | LineKind::Removed);
-    let sel = if selected {
-        "outline outline-1 -outline-offset-1 outline-info bg-info-light"
-    } else {
-        ""
-    };
-    let cursor = if selectable && changed {
-        "cursor-pointer"
-    } else {
-        ""
-    };
     let old = line.old_no.map(|n| n.to_string()).unwrap_or_default();
     let new = line
         .new_no
         .map(|n| format!("{sign}{n}"))
         .unwrap_or_default();
     let is_meta = line.kind == LineKind::NoNewline;
-    rsx! {
-        div { class: "flex min-w-fit {tone} {sel} {cursor}",
-            onclick: move |_| {
-                if let Some(id) = repo.filter(|_| selectable && changed) {
-                    state.update_view(id, |v| {
-                        if let Some(d) = v.diff.as_mut() && !d.lines.remove(&(hunk, index)) {
-                            d.lines.insert((hunk, index));
-                        }
-                    });
-                }
-            },
-            span { class: "w-12 shrink-0 select-none pr-2 text-right {gutter}", "{old}" }
-            span { class: "w-14 shrink-0 select-none border-r pr-2 text-right {gutter}", "{new}" }
-            span { class: "whitespace-pre pl-3 pr-6",
-                if is_meta { "{line.content}" } else { {tokens(&toks, invisibles)} }
-                if invisibles && !is_meta { span { class: "text-muted-foreground/35", "¬" } }
-            }
-        }
-    }
+    let muted = colors.text_muted.opacity(0.35);
+    let content: AnyElement = if is_meta {
+        div()
+            .italic()
+            .text_color(colors.text_muted)
+            .child(line.content.clone())
+            .into_any_element()
+    } else {
+        let (text, highlights) = line_text(toks, invisibles, muted);
+        StyledText::new(text)
+            .with_highlights(highlights)
+            .into_any_element()
+    };
+    let clickable = repo.is_some() && selectable && changed;
+    h_flex()
+        .id(SharedString::from(format!("{id_base}-line-{index}")))
+        .min_w_full()
+        .flex_none()
+        .whitespace_nowrap()
+        .when_some(tone, |d, t| d.bg(t))
+        .when(selected, |d| {
+            d.bg(status.info_background)
+                .border_1()
+                .border_color(status.info)
+        })
+        .when(clickable, |d| {
+            d.cursor_pointer()
+                .on_click(cx.listener(move |app, _, _, cx| {
+                    if let Some(id) = repo {
+                        app.state.update_view(id, |v| {
+                            if let Some(d) = v.diff.as_mut()
+                                && !d.lines.remove(&(hunk, index))
+                            {
+                                d.lines.insert((hunk, index));
+                            }
+                        });
+                        cx.notify();
+                    }
+                }))
+        })
+        .child(
+            div()
+                .flex_none()
+                .w(px(48.))
+                .pr_2()
+                .flex()
+                .justify_end()
+                .when_some(gutter_bg, |d, b| d.bg(b))
+                .text_color(gutter_fg)
+                .child(old),
+        )
+        .child(
+            div()
+                .flex_none()
+                .w(px(56.))
+                .pr_2()
+                .flex()
+                .justify_end()
+                .border_r_1()
+                .border_color(colors.border_variant)
+                .when_some(gutter_bg, |d, b| d.bg(b))
+                .text_color(gutter_fg)
+                .child(new),
+        )
+        .child(div().pl_3().pr_6().child(content))
+        .into_any_element()
 }

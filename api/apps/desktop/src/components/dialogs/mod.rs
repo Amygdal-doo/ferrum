@@ -1,4 +1,4 @@
-//! In-app modal dialogs (never browser `alert`/`confirm`).
+//! In-app modal dialogs.
 
 mod code;
 mod collection_settings;
@@ -6,102 +6,138 @@ mod environment;
 mod import;
 mod save_request;
 
-use crate::commands::{collections, environments, history};
-use crate::components::rust_ui::button::{Button, ButtonVariant};
-use crate::state::{AppState, Dialog};
-use dioxus::prelude::*;
-use ferrumapi_application::AppServices;
+use crate::app::FerrumApi;
+use crate::state::Dialog;
+use ferrum_ui::Modal;
+use gpui::{AnyElement, ClickEvent, Context, Pixels, SharedString, Window, prelude::*, px};
+use ui::{
+    Button, ButtonCommon as _, ButtonStyle, Clickable as _, Disableable as _, Label,
+    LabelCommon as _, LabelSize, TintColor,
+};
 
-#[component]
-pub fn Modal(
-    title: String,
-    on_close: EventHandler<()>,
-    #[props(default = "max-w-xl".to_owned())] width: String,
-    children: Element,
-) -> Element {
-    rsx! {
-        div {
-            class: "fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4",
-            onkeydown: move |e: KeyboardEvent| if e.key() == Key::Escape { on_close.call(()) },
-            div {
-                class: "flex max-h-full w-full {width} flex-col rounded-lg border bg-background p-5 shadow-xl",
-                role: "dialog",
-                "aria-modal": "true",
-                "aria-label": "{title}",
-                h2 { class: "mb-4 shrink-0 text-base font-semibold", "{title}" }
-                {children}
-            }
-        }
-    }
+/// Dialog shell: title, width, closes on backdrop / close button.
+pub fn modal(title: impl Into<SharedString>, width: Pixels, cx: &mut Context<FerrumApi>) -> Modal {
+    Modal::new(title)
+        .width(width)
+        .on_dismiss(cx.listener(|this, _: &ClickEvent, _, cx| {
+            this.state.dialog = None;
+            cx.notify();
+        }))
 }
 
-/// Footer with Cancel and a primary action.
-#[component]
-pub fn Actions(
-    confirm: String,
-    on_confirm: EventHandler<()>,
-    #[props(default)] destructive: bool,
-    #[props(default)] disabled: bool,
-) -> Element {
-    let mut state = use_context::<AppState>();
-    let variant = if destructive {
-        ButtonVariant::Destructive
-    } else {
-        ButtonVariant::Default
-    };
-    rsx! {
-        div { class: "mt-5 flex shrink-0 justify-end gap-2",
-            Button { variant: ButtonVariant::Ghost, onclick: move |_| state.dialog.set(None), "Cancel" }
-            Button { variant, disabled, onclick: move |_| on_confirm.call(()), "{confirm}" }
-        }
-    }
+/// Footer buttons: Cancel and a primary action.
+pub fn actions(
+    modal: Modal,
+    confirm: &'static str,
+    destructive: bool,
+    disabled: bool,
+    on_confirm: impl Fn(&mut FerrumApi, &mut Context<FerrumApi>) + 'static,
+    cx: &mut Context<FerrumApi>,
+) -> Modal {
+    modal
+        .footer(
+            Button::new("dialog-cancel", "Cancel")
+                .style(ButtonStyle::Subtle)
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.state.dialog = None;
+                    cx.notify();
+                })),
+        )
+        .footer(
+            Button::new("dialog-confirm", confirm)
+                .style(if destructive {
+                    ButtonStyle::Tinted(TintColor::Error)
+                } else {
+                    ButtonStyle::Filled
+                })
+                .disabled(disabled)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    on_confirm(this, cx);
+                    cx.notify();
+                })),
+        )
 }
 
-#[component]
-pub fn DialogHost() -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let dialog = state.dialog.read().clone();
-    let close = move |_| state.dialog.set(None);
+fn body_text(text: String) -> Label {
+    Label::new(text).size(LabelSize::Default)
+}
 
-    match dialog {
-        None => rsx! {},
-        Some(Dialog::SaveRequest(tab_id)) => rsx! { save_request::SaveRequestDialog { tab_id } },
-        Some(Dialog::CollectionSettings(id)) => {
-            rsx! { collection_settings::CollectionSettingsDialog { id } }
+impl FerrumApi {
+    pub fn render_dialog(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let open = self.state.dialog.is_some();
+        if open && !self.dialog_focused {
+            // Keys must not keep going to the field behind the backdrop.
+            window.focus(&self.root_focus(), cx);
         }
-        Some(Dialog::EditEnvironment(id)) => {
-            rsx! { environment::EnvironmentDialog { key: "{id}", id } }
-        }
-        Some(Dialog::Import) => rsx! { import::ImportDialog {} },
-        Some(Dialog::Code(tab_id)) => rsx! { code::CodeDialog { tab_id } },
-        Some(Dialog::DeleteItem {
-            collection,
-            item,
-            name,
-        }) => {
-            let what = if item.is_some() { "item" } else { "collection" };
-            rsx! {
-                Modal { title: "Delete {what}?", on_close: close,
-                    p { class: "text-sm", "“{name}” and everything inside it will be deleted. Open tabs are kept as unsaved requests." }
-                    Actions { confirm: "Delete", destructive: true,
-                        on_confirm: move |_| { state.dialog.set(None); collections::delete(state, services.clone(), collection, item); } }
-                }
+        self.dialog_focused = open;
+        let dialog = self.state.dialog.clone()?;
+        let element = match dialog {
+            Dialog::SaveRequest {
+                tab_id,
+                name,
+                new_collection,
+                target,
+            } => self.render_save_request(tab_id, name, new_collection, target, window, cx),
+            Dialog::CollectionSettings { draft, pane } => {
+                self.render_collection_settings(*draft, pane, window, cx)
             }
-        }
-        Some(Dialog::DeleteEnvironment(id, name)) => rsx! {
-            Modal { title: "Delete environment?", on_close: close,
-                p { class: "text-sm", "“{name}” and its variables will be deleted." }
-                Actions { confirm: "Delete", destructive: true,
-                    on_confirm: move |_| { state.dialog.set(None); environments::delete(state, services.clone(), id); } }
+            Dialog::EditEnvironment(env) => self.render_environment_dialog(*env, window, cx),
+            Dialog::Import { curl, error } => self.render_import_dialog(curl, error, window, cx),
+            Dialog::Code { tab_id, target } => self.render_code_dialog(tab_id, target, window, cx),
+            Dialog::DeleteItem {
+                collection,
+                item,
+                name,
+            } => {
+                let what = if item.is_some() { "item" } else { "collection" };
+                actions(
+                    modal(format!("Delete {what}?"), px(480.), cx).child(body_text(format!(
+                        "“{name}” and everything inside it will be deleted. Open tabs are kept as unsaved requests."
+                    ))),
+                    "Delete",
+                    true,
+                    false,
+                    move |this, cx| {
+                        this.state.dialog = None;
+                        this.delete_item(collection, item, cx);
+                    },
+                    cx,
+                )
+                .into_any_element()
             }
-        },
-        Some(Dialog::ClearHistory) => rsx! {
-            Modal { title: "Clear history?", on_close: close,
-                p { class: "text-sm", "All history entries will be deleted. This cannot be undone." }
-                Actions { confirm: "Clear history", destructive: true,
-                    on_confirm: move |_| { state.dialog.set(None); history::clear(state, services.clone()); } }
-            }
-        },
+            Dialog::DeleteEnvironment(id, name) => actions(
+                modal("Delete environment?", px(480.), cx).child(body_text(format!(
+                    "“{name}” and its variables will be deleted."
+                ))),
+                "Delete",
+                true,
+                false,
+                move |this, cx| {
+                    this.state.dialog = None;
+                    this.delete_environment(id, cx);
+                },
+                cx,
+            )
+            .into_any_element(),
+            Dialog::ClearHistory => actions(
+                modal("Clear history?", px(480.), cx).child(body_text(
+                    "All history entries will be deleted. This cannot be undone.".to_owned(),
+                )),
+                "Clear history",
+                true,
+                false,
+                |this, cx| {
+                    this.state.dialog = None;
+                    this.clear_history(cx);
+                },
+                cx,
+            )
+            .into_any_element(),
+        };
+        Some(element)
     }
 }

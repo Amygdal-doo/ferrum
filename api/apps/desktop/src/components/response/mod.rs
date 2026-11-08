@@ -3,131 +3,190 @@
 mod body_view;
 mod tables;
 
-use crate::commands::{files, send};
-use crate::components::rust_ui::badge::{Badge, BadgeVariant};
-use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
-use crate::state::{AppState, TabResponse};
-use body_view::BodyView;
-use dioxus::prelude::*;
-use ferrumapi_application::AppServices;
-use ferrumapi_domain::HttpResponse;
+use crate::app::FerrumApi;
+use crate::commands::files;
+use crate::components::{status_color, tab_button};
+use crate::state::{ResponseView, TabResponse};
+use ferrum_ui::badge;
 use ferrumapi_domain::text::{human_duration_ms, human_size};
-use tables::{CookiesTable, HeadersTable};
+use ferrumapi_domain::{HttpResponse, TabId};
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*};
+use ui::{
+    ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Color,
+    Label, LabelCommon as _, LabelSize, LoadingLabel, Tooltip, h_flex, v_flex,
+};
 
-#[component]
-pub fn ResponsePanel() -> Element {
-    let state = use_context::<AppState>();
-    let tab_id = *state.active_tab.read();
-    let response = tab_id.and_then(|id| state.responses.read().get(&id).cloned());
+fn centered(children: Vec<AnyElement>) -> AnyElement {
+    v_flex()
+        .flex_1()
+        .size_full()
+        .items_center()
+        .justify_center()
+        .gap_2()
+        .children(children)
+        .into_any_element()
+}
 
-    let content = match (tab_id, response) {
-        (_, None) | (None, _) => rsx! {
-            Centered {
-                p { class: "text-sm", "No response yet" }
-                p { class: "text-xs", "Enter a URL and press Send (⌘/Ctrl+Enter)." }
+impl FerrumApi {
+    pub fn render_response_panel(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let colors = cx.theme().colors().clone();
+        let tab_id = self.state.active_tab;
+        let response = tab_id.and_then(|id| self.state.responses.get(&id).cloned());
+        let content = match (tab_id, response) {
+            (_, None) | (None, _) => centered(vec![
+                Label::new("No response yet")
+                    .color(Color::Muted)
+                    .into_any_element(),
+                Label::new("Enter a URL and press Send (⌘/Ctrl+Enter).")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted)
+                    .into_any_element(),
+            ]),
+            (Some(id), Some(TabResponse::Loading { .. })) => centered(vec![
+                LoadingLabel::new("Sending request").into_any_element(),
+                Button::new("cancel-loading", "Cancel")
+                    .style(ButtonStyle::Outlined)
+                    .size(ButtonSize::Compact)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.cancel(id);
+                        cx.notify();
+                    }))
+                    .into_any_element(),
+            ]),
+            (Some(id), Some(TabResponse::Failed(message))) => {
+                let error = cx.theme().status().error;
+                let detail = self.field(
+                    crate::components::fields::FieldSpec::new(format!("response-error:{id}"))
+                        .value(message)
+                        .read_only()
+                        .borderless(),
+                    |_, _, _, _| {},
+                    window,
+                    cx,
+                );
+                centered(vec![
+                    div()
+                        .text_sm()
+                        .font_weight(gpui::FontWeight::MEDIUM)
+                        .text_color(error)
+                        .child("Could not get a response")
+                        .into_any_element(),
+                    div().max_w(gpui::px(576.)).child(detail).into_any_element(),
+                ])
             }
-        },
-        (Some(id), Some(TabResponse::Loading { .. })) => rsx! {
-            Centered {
-                div { class: "size-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent", role: "progressbar", "aria-label": "Sending request" }
-                p { class: "text-sm", "Sending request…" }
-                Button { size: ButtonSize::Sm, variant: ButtonVariant::Outline, onclick: move |_| send::cancel(state, id), "Cancel" }
+            (_, Some(TabResponse::Cancelled)) => centered(vec![
+                Label::new("Request cancelled.")
+                    .color(Color::Muted)
+                    .into_any_element(),
+            ]),
+            (Some(id), Some(TabResponse::Done(resp))) => {
+                self.render_response_view(id, *resp, window, cx)
             }
-        },
-        (_, Some(TabResponse::Failed(msg))) => rsx! {
-            Centered {
-                p { class: "text-sm font-medium text-destructive", "Could not get a response" }
-                p { class: "max-w-xl text-center text-xs select-text", "{msg}" }
-            }
-        },
-        (_, Some(TabResponse::Cancelled)) => rsx! {
-            Centered { p { class: "text-sm", "Request cancelled." } }
-        },
-        (_, Some(TabResponse::Done(resp))) => rsx! { ResponseView { response: *resp } },
-    };
-
-    rsx! {
-        section { class: "flex h-full min-h-0 flex-col bg-background", "aria-label": "Response",
-            {content}
-        }
+        };
+        v_flex()
+            .size_full()
+            .bg(colors.editor_background)
+            .child(content)
+            .into_any_element()
     }
-}
 
-#[component]
-fn Centered(children: Element) -> Element {
-    rsx! {
-        div { class: "flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground", {children} }
-    }
-}
+    fn render_response_view(
+        &mut self,
+        tab_id: TabId,
+        response: HttpResponse,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let colors = cx.theme().colors().clone();
+        let current = self.state.response_view;
+        let views = [
+            (ResponseView::Body, "Body".to_owned()),
+            (
+                ResponseView::Headers,
+                format!("Headers ({})", response.headers.len()),
+            ),
+            (
+                ResponseView::Cookies,
+                format!("Cookies ({})", response.cookies.len()),
+            ),
+        ];
+        let copy_body = response.body_text();
+        let save_bytes = response.body.clone();
+        let save_name = files::response_file_name(&response);
+        let status = response.status;
+        let summary = format!("{} {}", response.status, response.status_text);
+        let time = human_duration_ms(response.time_ms);
+        let size = human_size(response.size_bytes);
+        let content = match current {
+            ResponseView::Body => self.render_body_view(tab_id, &response, window, cx),
+            ResponseView::Headers => tables::headers_table(response.headers, cx),
+            ResponseView::Cookies => tables::cookies_table(response.cookies, cx),
+        };
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum View {
-    Body,
-    Headers,
-    Cookies,
-}
-
-fn status_variant(status: u16) -> BadgeVariant {
-    match status {
-        200..=299 => BadgeVariant::Success,
-        300..=399 => BadgeVariant::Info,
-        400..=499 => BadgeVariant::Warning,
-        _ => BadgeVariant::Destructive,
-    }
-}
-
-#[component]
-fn ResponseView(response: HttpResponse) -> Element {
-    let state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let mut view = use_signal(|| View::Body);
-    let current = *view.read();
-    let r = response.clone();
-    let views = [
-        (View::Body, "Body".to_owned()),
-        (
-            View::Headers,
-            format!("Headers ({})", response.headers.len()),
-        ),
-        (
-            View::Cookies,
-            format!("Cookies ({})", response.cookies.len()),
-        ),
-    ];
-    let copy_src = response.clone();
-    let save_src = response.clone();
-
-    rsx! {
-        div { class: "flex h-9 shrink-0 items-center gap-3 border-b px-3 text-xs",
-            for (v, label) in views {
-                {
-                    let cls = if v == current { "border-foreground text-foreground" } else { "border-transparent text-muted-foreground hover:text-foreground" };
-                    rsx! {
-                        button { key: "{label}", class: "flex h-9 items-center border-b-2 font-medium {cls}", onclick: move |_| view.set(v), "{label}" }
-                    }
-                }
-            }
-            div { class: "flex-1" }
-            Badge { variant: status_variant(r.status), "{r.status} {r.status_text}" }
-            span { class: "text-muted-foreground", title: "Time", "{human_duration_ms(r.time_ms)}" }
-            span { class: "text-muted-foreground", title: "Size", "{human_size(r.size_bytes)}" }
-            Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, class: "h-7 px-2 text-xs",
-                title: "Copy the response body",
-                onclick: move |_| files::copy_text(state, copy_src.body_text()),
-                "Copy"
-            }
-            Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, class: "h-7 px-2 text-xs",
-                title: "Save the response body to a file",
-                onclick: move |_| files::save_response(state, services.clone(), save_src.body.clone(), files::response_file_name(&save_src)),
-                "Save…"
-            }
-        }
-        div { class: "min-h-0 flex-1 overflow-hidden",
-            match current {
-                View::Body => rsx! { BodyView { response } },
-                View::Headers => rsx! { HeadersTable { headers: response.headers } },
-                View::Cookies => rsx! { CookiesTable { cookies: response.cookies } },
-            }
-        }
+        v_flex()
+            .size_full()
+            .child(
+                h_flex()
+                    .flex_none()
+                    .h_9()
+                    .gap_3()
+                    .px_3()
+                    .border_b_1()
+                    .border_color(colors.border)
+                    .children(views.into_iter().map(|(view, label)| {
+                        tab_button(
+                            SharedString::from(label.clone()),
+                            label,
+                            view == current,
+                            cx,
+                        )
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.state.response_view = view;
+                            cx.notify();
+                        }))
+                    }))
+                    .child(div().flex_1())
+                    .child(badge(summary, status_color(status, cx), cx))
+                    .child(
+                        div()
+                            .id("response-time")
+                            .text_xs()
+                            .text_color(colors.text_muted)
+                            .tooltip(Tooltip::text("Time"))
+                            .child(time),
+                    )
+                    .child(
+                        div()
+                            .id("response-size")
+                            .text_xs()
+                            .text_color(colors.text_muted)
+                            .tooltip(Tooltip::text("Size"))
+                            .child(size),
+                    )
+                    .child(
+                        Button::new("copy-response", "Copy")
+                            .style(ButtonStyle::Subtle)
+                            .size(ButtonSize::Compact)
+                            .tooltip(Tooltip::text("Copy the response body"))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.copy_text(copy_body.clone(), cx);
+                            })),
+                    )
+                    .child(
+                        Button::new("save-response", "Save…")
+                            .style(ButtonStyle::Subtle)
+                            .size(ButtonSize::Compact)
+                            .tooltip(Tooltip::text("Save the response body to a file"))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.save_response(save_bytes.clone(), save_name, cx);
+                            })),
+                    ),
+            )
+            .child(div().flex_1().min_h_0().overflow_hidden().child(content))
+            .into_any_element()
     }
 }

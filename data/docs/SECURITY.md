@@ -32,8 +32,10 @@ for local development and labels unverified modes ("Server certificate is not ve
 Client certificates and custom CAs are P1.
 
 ## Rendering
-Cell values render as Dioxus text nodes; nothing from a database is interpreted as HTML.
+Cell values render as plain GPUI text (`CellValue::display()`); there is no HTML/webview
+layer, so nothing from a database is interpreted as markup.
 
 ## Supply chain
-Toolchain pinned (`rust-toolchain.toml`), `Cargo.lock` committed, Dioxus pinned exactly,
-Rust/UI vendored at a commit, weekly `cargo audit` workflow.
+Toolchain pinned (`rust-toolchain.toml`), `Cargo.lock` committed, GPUI and the `ui`/`theme`
+crates come from the in-repo FerrumIDE fork (`../ide`, path dependencies), weekly `cargo
+audit` workflow.

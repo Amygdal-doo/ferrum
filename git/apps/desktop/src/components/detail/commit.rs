@@ -1,19 +1,24 @@
 //! Commit / stash details (Tower style): metadata, message, and the
 //! changeset with expandable inline diffs — or a folder tree of changes.
 
-use crate::commands::{self, repo};
-use crate::components::actions::{self, Action};
-use crate::components::code::CodeDiff;
-use crate::components::graph::RefBadge;
-use crate::components::icons::{Icon, Svg};
-use crate::components::{avatar_class, change_word};
-use crate::state::{AppState, Selection};
-use dioxus::prelude::*;
-use ferrumgit_application::AppServices;
+use crate::app::FerrumGit;
+use crate::components::actions::Action;
+use crate::components::code::code_diff;
+use crate::components::graph::ref_badge;
+use crate::components::icons::Icon;
+use crate::components::widgets::{danger_button, ghost_button, primary_button, small_button};
+use crate::components::{avatar_color, change_word, plural};
+use crate::state::Selection;
 use ferrumgit_domain::text::initials;
 use ferrumgit_domain::{CommitDetails, DiffSource, FileDiff, RepoId};
+use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use theme::ActiveTheme;
+use ui::{
+    Clickable, Color, IconSize, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex,
+    v_flex,
+};
 
 /// `5 November 2026 at 15:44:54 CET`.
 fn long_date(unix: i64) -> String {
@@ -26,11 +31,29 @@ fn long_date(unix: i64) -> String {
         })
 }
 
-#[component]
-pub fn CommitPanel(id: RepoId, details: Arc<CommitDetails>) -> Element {
-    let state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let view = state.view(id);
+fn meta_row(label: &str, value: impl IntoElement) -> AnyElement {
+    h_flex()
+        .gap_3()
+        .child(
+            div().flex_none().w(px(88.)).flex().justify_end().child(
+                Label::new(label.to_owned())
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            ),
+        )
+        .child(div().flex_1().min_w_0().child(value))
+        .into_any_element()
+}
+
+pub fn commit_panel(
+    app: &FerrumGit,
+    id: RepoId,
+    details: Arc<CommitDetails>,
+    cx: &mut Context<FerrumGit>,
+) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    let view = app.state.view(id);
     let stash = match view.selection {
         Selection::Stash(i) => Some(i),
         _ => None,
@@ -65,103 +88,286 @@ pub fn CommitPanel(id: RepoId, details: Arc<CommitDetails>) -> Element {
             .all(|f| view.expanded.contains(&f.path));
     let tree = view.tree;
     let sha = c.oid.0.clone();
-    let short = c.oid.short().to_owned();
     let author = format!("{} <{}>", c.author_name, c.author_email);
     let committer = (details.committer_email != c.author_email)
         .then(|| format!("{} <{}>", details.committer_name, details.committer_email));
-    let date = long_date(c.author_time);
-    let avatar = initials(&c.author_name);
-    let avatar_bg = avatar_class(&c.author_email);
     let paths: Vec<String> = details.files.iter().map(|f| f.path.clone()).collect();
-    let svc = services.clone();
-    let act = move |a: Action| actions::perform(state, svc.clone(), a);
-    let (a1, a2, a3) = (act.clone(), act.clone(), act);
 
-    rsx! {
-        div { class: "flex h-9 shrink-0 items-center gap-2 border-b px-4",
-            button { class: "font-mono text-[12.5px] text-muted-foreground hover:text-foreground", title: "Copy full SHA",
-                onclick: move |_| { commands::copy(&sha); state.notify("Copied SHA", false); }, "{short}" }
-            div { class: "flex-1" }
-            div { class: "flex overflow-hidden rounded-md border text-[12px]",
-                button { class: if tree { "px-2.5 py-0.5 hover:bg-accent" } else { "bg-primary-accent px-2.5 py-0.5 text-white" },
-                    onclick: move |_| state.update_view(id, |v| v.tree = false), "Changeset" }
-                button { class: if tree { "bg-primary-accent px-2.5 py-0.5 text-white" } else { "px-2.5 py-0.5 hover:bg-accent" },
-                    onclick: move |_| state.update_view(id, |v| v.tree = true), "Tree" }
-            }
-        }
-        div { class: "min-h-0 flex-1 overflow-y-auto",
-            div { class: "flex gap-4 px-5 pt-4 pb-3 select-text",
-                div { class: "grid min-w-0 flex-1 grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 text-[12.5px]",
-                    span { class: "text-right text-muted-foreground", "Author" }
-                    span { class: "truncate", "{author}" }
-                    span { class: "text-right text-muted-foreground", "Author Date" }
-                    span { "{date}" }
-                    if let Some(cm) = committer {
-                        span { class: "text-right text-muted-foreground", "Committer" }
-                        span { class: "truncate", "{cm}" }
-                    }
-                    if !refs.is_empty() || is_head {
-                        span { class: "text-right text-muted-foreground", "Refs" }
-                        span { class: "flex flex-wrap gap-1",
-                            if is_head && !refs.iter().any(|r| r.is_head) { span { class: "rounded bg-primary-accent px-1.5 py-px text-[10.5px] font-medium text-white", "HEAD" } }
-                            for r in refs { RefBadge { key: "{r.full_name}", r: r.clone() } }
-                        }
-                    }
-                    if !c.parents.is_empty() {
-                        span { class: "text-right text-muted-foreground", if c.parents.len() > 1 { "Parents" } else { "Parent" } }
-                        span { class: "flex gap-2",
-                            for p in c.parents.clone() {
-                                {
-                                    let (p2, s, ps) = (p.clone(), services.clone(), p.short().to_owned());
-                                    rsx! { button { key: "{p}", class: "font-mono text-[12px] text-info hover:underline",
-                                        onclick: move |_| repo::reveal_commit(state, s.clone(), id, &p2), "{ps}" } }
-                                }
-                            }
-                        }
-                    }
-                }
-                span { class: "flex size-14 shrink-0 items-center justify-center rounded-full text-lg font-semibold {avatar_bg}", "{avatar}" }
-            }
-            if let Some(i) = stash {
-                div { class: "flex gap-2 px-5 pb-3",
-                    button { class: "rounded-md bg-primary-accent px-3 py-1 text-xs font-medium text-white", onclick: move |_| a1(Action::StashApply(i)), "Apply" }
-                    button { class: "rounded-md border px-3 py-1 text-xs hover:bg-accent", onclick: move |_| a2(Action::StashPop(i)), "Pop" }
-                    button { class: "rounded-md px-3 py-1 text-xs text-destructive hover:bg-accent", onclick: move |_| a3(Action::StashDrop(i)), "Drop…" }
-                }
-            }
-            div { class: "border-y px-5 py-3 select-text",
-                p { class: "text-[13.5px] font-medium", "{c.summary}" }
-                if !details.body.is_empty() { pre { class: "mt-2 whitespace-pre-wrap font-sans text-[12.5px] text-muted-foreground", "{details.body}" } }
-            }
-            div { class: "flex h-9 items-center gap-3 px-5 text-[12px] text-muted-foreground",
-                if !tree {
-                    button { class: "hover:text-foreground",
-                        onclick: move |_| state.update_view(id, |v| v.expanded = if all_open { Default::default() } else { paths.iter().cloned().collect() }),
-                        if all_open { "Collapse All" } else { "Expand All" } }
-                }
-                div { class: "flex-1" }
-                span { "Showing {n_files} changed file{plural(n_files)} with {adds} addition{plural(adds as usize)} and {dels} deletion{plural(dels as usize)}" }
-            }
-            if details.truncated { p { class: "px-5 pb-2 text-[11px] text-warning", "Large commit: only the first files are shown." } }
-            if tree {
-                FileTree { id, files: details.files.clone() }
-            } else {
-                for f in details.files.iter() {
-                    FileSection { key: "{f.path}", id, file: Arc::new(f.clone()), open: view.expanded.contains(&f.path) }
-                }
-            }
-        }
+    let mut grid: Vec<AnyElement> = Vec::new();
+    grid.push(meta_row(
+        "Author",
+        Label::new(author).size(LabelSize::Small).truncate(),
+    ));
+    grid.push(meta_row(
+        "Author Date",
+        Label::new(long_date(c.author_time)).size(LabelSize::Small),
+    ));
+    if let Some(cm) = committer {
+        grid.push(meta_row(
+            "Committer",
+            Label::new(cm).size(LabelSize::Small).truncate(),
+        ));
     }
+    if !refs.is_empty() || is_head {
+        let head_badge = (is_head && !refs.iter().any(|r| r.is_head)).then(|| {
+            div()
+                .px_1p5()
+                .rounded_sm()
+                .bg(colors.text_accent)
+                .text_color(colors.background)
+                .text_ui_xs(cx)
+                .child("HEAD")
+        });
+        let badges: Vec<AnyElement> = refs
+            .iter()
+            .map(|r| ref_badge(r, false, &theme, cx))
+            .collect();
+        grid.push(meta_row(
+            "Refs",
+            h_flex()
+                .flex_wrap()
+                .gap_1()
+                .children(head_badge)
+                .children(badges),
+        ));
+    }
+    if !c.parents.is_empty() {
+        let parents: Vec<AnyElement> = c
+            .parents
+            .iter()
+            .map(|p| {
+                let target = p.clone();
+                div()
+                    .id(SharedString::from(format!("parent-{p}")))
+                    .cursor_pointer()
+                    .font_buffer(cx)
+                    .text_ui_sm(cx)
+                    .text_color(theme.status().info)
+                    .hover(|s| s.underline())
+                    .child(p.short().to_owned())
+                    .on_click(cx.listener(move |app, _, _, cx| app.reveal_commit(id, &target, cx)))
+                    .into_any_element()
+            })
+            .collect();
+        grid.push(meta_row(
+            if c.parents.len() > 1 {
+                "Parents"
+            } else {
+                "Parent"
+            },
+            h_flex().gap_2().children(parents),
+        ));
+    }
+
+    let segment = |label: &'static str, active: bool, on: bool, cx: &mut Context<FerrumGit>| {
+        div()
+            .id(label)
+            .px_2p5()
+            .py_0p5()
+            .cursor_pointer()
+            .text_ui_sm(cx)
+            .when(active, |d| {
+                d.bg(colors.text_accent).text_color(colors.background)
+            })
+            .when(!active, |d| d.hover(|s| s.bg(colors.element_hover)))
+            .child(label)
+            .on_click(cx.listener(move |app, _, _, cx| {
+                app.state.update_view(id, |v| v.tree = on);
+                cx.notify();
+            }))
+    };
+
+    let header = h_flex()
+        .flex_none()
+        .h(px(36.))
+        .gap_2()
+        .px_4()
+        .border_b_1()
+        .border_color(colors.border)
+        .child(
+            div()
+                .id("copy-sha")
+                .cursor_pointer()
+                .font_buffer(cx)
+                .text_ui_sm(cx)
+                .text_color(colors.text_muted)
+                .hover(|s| s.text_color(colors.text))
+                .tooltip(Tooltip::text("Copy full SHA"))
+                .child(c.oid.short().to_owned())
+                .on_click(cx.listener(move |app, _, _, cx| {
+                    app.copy(&sha, cx);
+                    app.notify("Copied SHA", false, cx);
+                })),
+        )
+        .child(div().flex_1())
+        .child(
+            h_flex()
+                .rounded_md()
+                .border_1()
+                .border_color(colors.border)
+                .overflow_hidden()
+                .child(segment("Changeset", !tree, false, cx))
+                .child(segment("Tree", tree, true, cx)),
+        );
+
+    let stash_actions = stash.map(|i| {
+        h_flex()
+            .gap_2()
+            .px_5()
+            .pb_3()
+            .child(primary_button("stash-apply", "Apply").on_click(cx.listener(
+                move |app, _, window, cx| {
+                    app.perform(Action::StashApply(i), window, cx);
+                },
+            )))
+            .child(small_button("stash-pop", "Pop").on_click(cx.listener(
+                move |app, _, window, cx| {
+                    app.perform(Action::StashPop(i), window, cx);
+                },
+            )))
+            .child(danger_button("stash-drop", "Drop…").on_click(cx.listener(
+                move |app, _, window, cx| {
+                    app.perform(Action::StashDrop(i), window, cx);
+                },
+            )))
+    });
+
+    let summary_line = format!(
+        "Showing {n_files} changed file{} with {adds} addition{} and {dels} deletion{}",
+        plural(n_files),
+        plural(adds as usize),
+        plural(dels as usize)
+    );
+    let files: Vec<AnyElement> = if tree {
+        vec![file_tree(id, &details.files, cx)]
+    } else {
+        details
+            .files
+            .iter()
+            .map(|f| {
+                let open = view.expanded.contains(&f.path);
+                file_section(app, id, Arc::new(f.clone()), open, cx)
+            })
+            .collect()
+    };
+
+    v_flex()
+        .size_full()
+        .child(header)
+        .child(
+            v_flex()
+                .id("commit-scroll")
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .child(
+                    h_flex()
+                        .items_start()
+                        .gap_4()
+                        .px_5()
+                        .pt_4()
+                        .pb_3()
+                        .child(v_flex().flex_1().min_w_0().gap_1().children(grid))
+                        .child(
+                            div()
+                                .flex_none()
+                                .size(px(56.))
+                                .rounded_full()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .bg(avatar_color(&c.author_email))
+                                .text_lg()
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .child(initials(&c.author_name)),
+                        ),
+                )
+                .children(stash_actions)
+                .child(
+                    v_flex()
+                        .px_5()
+                        .py_3()
+                        .border_t_1()
+                        .border_b_1()
+                        .border_color(colors.border)
+                        .child(Label::new(c.summary.clone()).weight(gpui::FontWeight::MEDIUM))
+                        .when(!details.body.is_empty(), |d| {
+                            d.child(
+                                div()
+                                    .mt_2()
+                                    .text_ui_sm(cx)
+                                    .text_color(colors.text_muted)
+                                    .child(details.body.clone()),
+                            )
+                        }),
+                )
+                .child(
+                    h_flex()
+                        .h(px(36.))
+                        .gap_3()
+                        .px_5()
+                        .when(!tree, |d| {
+                            d.child(
+                                ghost_button(
+                                    "expand-all",
+                                    if all_open {
+                                        "Collapse All"
+                                    } else {
+                                        "Expand All"
+                                    },
+                                )
+                                .on_click(cx.listener(
+                                    move |app, _, _, cx| {
+                                        app.state.update_view(id, |v| {
+                                            v.expanded = if all_open {
+                                                Default::default()
+                                            } else {
+                                                paths.iter().cloned().collect()
+                                            };
+                                        });
+                                        cx.notify();
+                                    },
+                                )),
+                            )
+                        })
+                        .child(div().flex_1())
+                        .child(
+                            Label::new(summary_line)
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        ),
+                )
+                .when(details.truncated, |d| {
+                    d.child(
+                        div().px_5().pb_2().child(
+                            Label::new("Large commit: only the first files are shown.")
+                                .size(LabelSize::XSmall)
+                                .color(Color::Warning),
+                        ),
+                    )
+                })
+                .children(files),
+        )
+        .into_any_element()
 }
 
-fn plural(n: usize) -> &'static str {
-    if n == 1 { "" } else { "s" }
+fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    c.next()
+        .map_or_else(String::new, |f| f.to_uppercase().chain(c).collect())
 }
 
-#[component]
-fn FileSection(id: RepoId, file: Arc<FileDiff>, open: bool) -> Element {
-    let state = use_context::<AppState>();
-    let (word, word_cls, badge_cls) = change_word(file.change);
+fn file_section(
+    app: &FerrumGit,
+    id: RepoId,
+    file: Arc<FileDiff>,
+    open: bool,
+    cx: &mut Context<FerrumGit>,
+) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    let status = theme.status();
+    let (word, word_color) = change_word(file.change, cx);
     let path = file.path.clone();
     let shown = match &file.old_path {
         Some(old) => format!("{old} → {}", file.path),
@@ -173,72 +379,164 @@ fn FileSection(id: RepoId, file: Arc<FileDiff>, open: bool) -> Element {
         .find(|l| l.starts_with("new file mode") || l.starts_with("deleted file mode"))
         .cloned();
     let chunks = file.hunks.len();
-    rsx! {
-        div { class: "border-t",
-            div { class: "flex h-9 cursor-default items-center gap-2 px-3 text-[12.5px] hover:bg-accent/50",
-                onclick: move |_| state.update_view(id, |v| if !v.expanded.remove(&path) { v.expanded.insert(path.clone()); }),
-                span { class: "text-muted-foreground", if open { Svg { icon: Icon::ChevronDown, class: "size-3.5" } } else { Svg { icon: Icon::ChevronRight, class: "size-3.5" } } }
-                span { class: "w-16 text-right text-[12px] {word_cls}", "{word}" }
-                span { class: "flex size-4 items-center justify-center rounded-[3px] font-mono text-[10px] font-bold {badge_cls}", "{file.change.letter()}" }
-                span { class: "min-w-0 flex-1 truncate select-text", title: "{shown}", "{shown}" }
-                span { class: "font-mono text-[11px] text-green-600 dark:text-green-400", "+{file.additions}" }
-                span { class: "font-mono text-[11px] text-red-600 dark:text-red-400", "−{file.deletions}" }
-            }
-            if open {
-                div { class: "border-t bg-background",
-                    div { class: "px-8 py-2 font-mono text-[11.5px] leading-5 text-muted-foreground",
-                        if let Some(m) = mode { p { "{capitalize(&m)}" } }
-                        p { "{chunks} chunk{plural(chunks)}, {file.additions} insertion{plural(file.additions as usize)}, {file.deletions} deletion{plural(file.deletions as usize)}" }
+    v_flex()
+        .border_t_1()
+        .border_color(colors.border)
+        .child(
+            h_flex()
+                .id(SharedString::from(format!("file-section-{}", file.path)))
+                .h(px(36.))
+                .gap_2()
+                .px_3()
+                .text_ui_sm(cx)
+                .hover(|s| s.bg(colors.element_hover))
+                .on_click(cx.listener(move |app, _, _, cx| {
+                    app.state.update_view(id, |v| {
+                        if !v.expanded.remove(&path) {
+                            v.expanded.insert(path.clone());
+                        }
+                    });
+                    cx.notify();
+                }))
+                .child(
+                    if open {
+                        Icon::ChevronDown
+                    } else {
+                        Icon::ChevronRight
                     }
-                    CodeDiff { file: file.clone(), source: DiffSource::Commit }
-                }
-            }
-        }
-    }
-}
-
-fn capitalize(s: &str) -> String {
-    let mut c = s.chars();
-    c.next()
-        .map_or_else(String::new, |f| f.to_uppercase().chain(c).collect())
+                    .icon()
+                    .size(IconSize::Small)
+                    .color(Color::Muted),
+                )
+                .child(
+                    div()
+                        .w(px(64.))
+                        .flex()
+                        .justify_end()
+                        .text_color(word_color)
+                        .child(word),
+                )
+                .child(
+                    div()
+                        .size(px(16.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded_sm()
+                        .bg(word_color)
+                        .text_color(colors.background)
+                        .font_buffer(cx)
+                        .text_ui_xs(cx)
+                        .font_weight(gpui::FontWeight::BOLD)
+                        .child(file.change.letter().to_string()),
+                )
+                .child(div().flex_1().min_w_0().truncate().child(shown))
+                .child(
+                    div()
+                        .font_buffer(cx)
+                        .text_ui_xs(cx)
+                        .text_color(status.created)
+                        .child(format!("+{}", file.additions)),
+                )
+                .child(
+                    div()
+                        .font_buffer(cx)
+                        .text_ui_xs(cx)
+                        .text_color(status.deleted)
+                        .child(format!("−{}", file.deletions)),
+                ),
+        )
+        .when(open, |d| {
+            d.child(
+                v_flex()
+                    .border_t_1()
+                    .border_color(colors.border)
+                    .child(
+                        v_flex()
+                            .px_8()
+                            .py_2()
+                            .font_buffer(cx)
+                            .text_ui_xs(cx)
+                            .text_color(colors.text_muted)
+                            .children(mode.map(|m| capitalize(&m)))
+                            .child(format!(
+                                "{chunks} chunk{}, {} insertion{}, {} deletion{}",
+                                plural(chunks),
+                                file.additions,
+                                plural(file.additions as usize),
+                                file.deletions,
+                                plural(file.deletions as usize)
+                            )),
+                    )
+                    .child(code_diff(app, file.clone(), DiffSource::Commit, None, cx)),
+            )
+        })
+        .into_any_element()
 }
 
 /// Changed files grouped by directory; clicking a file opens its diff in the changeset.
-#[component]
-fn FileTree(id: RepoId, files: Vec<FileDiff>) -> Element {
-    let state = use_context::<AppState>();
+fn file_tree(id: RepoId, files: &[FileDiff], cx: &mut Context<FerrumGit>) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
     let mut dirs: BTreeMap<String, Vec<FileDiff>> = BTreeMap::new();
     for f in files {
         let dir = f
             .path
             .rsplit_once('/')
             .map_or_else(String::new, |(d, _)| d.to_owned());
-        dirs.entry(dir).or_default().push(f);
+        dirs.entry(dir).or_default().push(f.clone());
     }
-    rsx! {
-        div { class: "border-t py-1 text-[12.5px]",
-            for (dir, fs) in dirs {
-                div { key: "{dir}",
-                    div { class: "flex h-7 items-center gap-2 px-4 text-muted-foreground",
-                        Svg { icon: Icon::Folder, class: "size-3.5" }
-                        span { class: "truncate", if dir.is_empty() { "/" } else { "{dir}" } }
-                    }
-                    for f in fs {
-                        {
-                            let (word, word_cls, _) = change_word(f.change);
-                            let name = f.path.rsplit('/').next().unwrap_or(&f.path).to_owned();
-                            let path = f.path.clone();
-                            rsx! {
-                                div { key: "{f.path}", class: "flex h-7 cursor-default items-center gap-2 pr-4 pl-10 hover:bg-accent/50",
-                                    onclick: move |_| state.update_view(id, |v| { v.tree = false; v.expanded.insert(path.clone()); }),
-                                    span { class: "flex-1 truncate", "{name}" }
-                                    span { class: "text-[11px] {word_cls}", "{word}" }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+    let mut rows: Vec<AnyElement> = Vec::new();
+    for (dir, fs) in dirs {
+        rows.push(
+            h_flex()
+                .h(px(28.))
+                .gap_2()
+                .px_4()
+                .child(
+                    Icon::Folder
+                        .icon()
+                        .size(IconSize::Small)
+                        .color(Color::Muted),
+                )
+                .child(
+                    Label::new(if dir.is_empty() { "/".to_owned() } else { dir })
+                        .size(LabelSize::Small)
+                        .color(Color::Muted)
+                        .truncate(),
+                )
+                .into_any_element(),
+        );
+        for f in fs {
+            let (word, word_color) = change_word(f.change, cx);
+            let name = f.path.rsplit('/').next().unwrap_or(&f.path).to_owned();
+            let path = f.path.clone();
+            rows.push(
+                h_flex()
+                    .id(SharedString::from(format!("tree-{}", f.path)))
+                    .h(px(28.))
+                    .gap_2()
+                    .pr_4()
+                    .pl_10()
+                    .text_ui_sm(cx)
+                    .hover(|s| s.bg(colors.element_hover))
+                    .on_click(cx.listener(move |app, _, _, cx| {
+                        app.state.update_view(id, |v| {
+                            v.tree = false;
+                            v.expanded.insert(path.clone());
+                        });
+                        cx.notify();
+                    }))
+                    .child(div().flex_1().min_w_0().truncate().child(name))
+                    .child(div().text_ui_xs(cx).text_color(word_color).child(word))
+                    .into_any_element(),
+            );
         }
     }
+    v_flex()
+        .border_t_1()
+        .border_color(colors.border)
+        .py_1()
+        .children(rows)
+        .into_any_element()
 }

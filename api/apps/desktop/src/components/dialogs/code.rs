@@ -1,55 +1,95 @@
 //! Code snippet for the request (variables substituted, auth resolved).
 
-use super::Modal;
-use crate::commands::files;
-use crate::components::rust_ui::button::{Button, ButtonVariant};
-use crate::state::AppState;
-use dioxus::prelude::*;
+use super::modal;
+use crate::app::FerrumApi;
+use crate::components::fields::FieldSpec;
+use crate::components::select;
+use crate::state::Dialog;
 use ferrumapi_application::code_snippet;
 use ferrumapi_application::interop::codegen::CodeTarget;
 use ferrumapi_domain::TabId;
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
+use ui::{
+    ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, Disableable as _,
+    h_flex,
+};
 
-#[component]
-pub fn CodeDialog(tab_id: TabId) -> Element {
-    let mut state = use_context::<AppState>();
-    let mut target = use_signal(|| CodeTarget::Curl);
-    let Some(tab) = state.tabs.read().iter().find(|t| t.id == tab_id).cloned() else {
-        return rsx! {};
-    };
-    let current = *target.read();
-    let snippet = code_snippet(current, &state.prepare_tab(&tab));
-    let shown = if snippet.is_empty() {
-        "// No snippet could be generated for this request.".to_owned()
-    } else {
-        snippet.clone()
-    };
-
-    rsx! {
-        Modal { title: "Code snippet", width: "max-w-3xl", on_close: move |_| state.dialog.set(None),
-            div { class: "flex min-h-0 flex-col gap-3",
-                div { class: "flex items-center gap-2",
-                    select {
-                        class: "h-8 rounded-md border bg-background px-2 text-sm",
-                        "aria-label": "Language",
-                        onchange: move |e| {
-                            if let Some(t) = CodeTarget::ALL.into_iter().find(|t| t.label() == e.value()) {
-                                target.set(t);
-                            }
-                        },
-                        for t in CodeTarget::ALL {
-                            option { key: "{t.label()}", value: t.label(), selected: t == current, "{t.label()}" }
-                        }
-                    }
-                    div { class: "flex-1" }
-                    Button { variant: ButtonVariant::Outline, disabled: snippet.is_empty(),
-                        onclick: move |_| files::copy_text(state, snippet.clone()), "Copy" }
+impl FerrumApi {
+    pub(super) fn render_code_dialog(
+        &mut self,
+        tab_id: TabId,
+        target: CodeTarget,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let Some(tab) = self.state.tab(tab_id).cloned() else {
+            self.state.dialog = None;
+            return div().into_any_element();
+        };
+        let snippet = code_snippet(target, &self.state.prepare_tab(&tab));
+        let shown = if snippet.is_empty() {
+            "// No snippet could be generated for this request.".to_owned()
+        } else {
+            snippet.clone()
+        };
+        let language = select(
+            "code-language",
+            target.label(),
+            CodeTarget::ALL
+                .into_iter()
+                .map(|t| (SharedString::from(t.label()), t))
+                .collect(),
+            move |this, t, _| {
+                if let Some(Dialog::Code { target, .. }) = &mut this.state.dialog {
+                    *target = t;
                 }
-                p { class: "text-xs text-warning-dark", "Variables are substituted, so the snippet may contain secrets." }
-                pre { class: "max-h-[60vh] min-h-48 overflow-auto rounded-md border bg-muted p-3 font-mono text-xs leading-5 select-text whitespace-pre", "{shown}" }
-            }
-            div { class: "mt-4 flex justify-end",
-                Button { variant: ButtonVariant::Ghost, onclick: move |_| state.dialog.set(None), "Close" }
-            }
-        }
+            },
+            window,
+            cx,
+        );
+        let view = self.field(
+            FieldSpec::new(format!("code:{tab_id}"))
+                .value(shown)
+                .multiline(12)
+                .mono()
+                .read_only(),
+            |_, _, _, _| {},
+            window,
+            cx,
+        );
+        let warning = cx.theme().status().warning;
+        let empty = snippet.is_empty();
+
+        modal("Code snippet", px(768.), cx)
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(language)
+                    .child(div().flex_1())
+                    .child(
+                        Button::new("copy-snippet", "Copy")
+                            .style(ButtonStyle::Outlined)
+                            .disabled(empty)
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.copy_text(snippet.clone(), cx);
+                            })),
+                    ),
+            )
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(warning)
+                    .child("Variables are substituted, so the snippet may contain secrets."),
+            )
+            .child(view)
+            .footer(
+                Button::new("close-code", "Close")
+                    .style(ButtonStyle::Subtle)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.state.dialog = None;
+                        cx.notify();
+                    })),
+            )
+            .into_any_element()
     }
 }

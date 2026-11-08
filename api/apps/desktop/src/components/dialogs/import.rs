@@ -1,64 +1,116 @@
 //! Import a Postman v2.1 collection file or a pasted cURL command.
 
-use super::Modal;
-use crate::commands::{files, workspace};
-use crate::components::rust_ui::button::{Button, ButtonVariant};
-use crate::state::AppState;
-use dioxus::prelude::*;
-use ferrumapi_application::AppServices;
+use super::modal;
+use crate::app::FerrumApi;
+use crate::components::fields::{FieldSpec, on_change};
+use crate::components::hint;
+use crate::state::Dialog;
+use gpui::{AnyElement, Context, Window, div, prelude::*, px};
+use ui::{
+    ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, Color,
+    Disableable as _, Divider, Label, LabelCommon as _, LabelSize, h_flex, v_flex,
+};
 
-#[component]
-pub fn ImportDialog() -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let mut curl = use_signal(String::new);
-    let mut error = use_signal(|| None::<String>);
-    let svc_file = services.clone();
-
-    let import_curl = move |_| {
-        let text = curl.peek().trim().to_owned();
+impl FerrumApi {
+    fn import_curl(&mut self, cx: &mut Context<Self>) {
+        let Some(Dialog::Import { curl, .. }) = &self.state.dialog else {
+            return;
+        };
+        let text = curl.trim().to_owned();
         if text.is_empty() {
             return;
         }
-        match services.import_curl(&text) {
+        match self.services.import_curl(&text) {
             Ok(req) => {
-                state.dialog.set(None);
-                workspace::open_request(state, String::new(), req, None);
+                self.state.dialog = None;
+                self.open_request(String::new(), req, None);
             }
-            Err(e) => error.set(Some(e.to_string())),
+            Err(e) => {
+                if let Some(Dialog::Import { error, .. }) = &mut self.state.dialog {
+                    *error = Some(e.to_string());
+                }
+            }
         }
-    };
+        cx.notify();
+    }
 
-    rsx! {
-        Modal { title: "Import", on_close: move |_| state.dialog.set(None),
-            div { class: "flex flex-col gap-5 text-sm",
-                section { class: "flex flex-col gap-2",
-                    h3 { class: "text-xs font-semibold uppercase tracking-wide text-muted-foreground", "Postman collection" }
-                    p { class: "text-xs text-muted-foreground", "Choose a Postman Collection v2.1 JSON file. It is added to your collections." }
-                    Button { variant: ButtonVariant::Outline, class: "w-fit",
-                        onclick: move |_| { state.dialog.set(None); files::import_collection(state, svc_file.clone()); },
-                        "Choose file…"
-                    }
+    pub(super) fn render_import_dialog(
+        &mut self,
+        curl: String,
+        error: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let empty = curl.trim().is_empty();
+        let input = self.field(
+            FieldSpec::new("import-curl")
+                .value(curl)
+                .multiline(6)
+                .mono()
+                .placeholder("curl -X POST https://api.example.com/items -H 'Content-Type: application/json'"),
+            on_change(|this, text, _| {
+                if let Some(Dialog::Import { curl, error }) = &mut this.state.dialog {
+                    *curl = text;
+                    *error = None;
                 }
-                div { class: "h-px bg-border" }
-                section { class: "flex flex-col gap-2",
-                    h3 { class: "text-xs font-semibold uppercase tracking-wide text-muted-foreground", "cURL command" }
-                    textarea {
-                        class: "h-32 resize-none rounded-md border bg-background p-2 font-mono text-xs outline-none focus:border-ring select-text",
-                        placeholder: "curl -X POST https://api.example.com/items -H 'Content-Type: application/json' -d '{{\"name\":\"x\"}}'",
-                        spellcheck: "false",
-                        "aria-label": "cURL command",
-                        oninput: move |e| { curl.set(e.value()); error.set(None); },
-                    }
-                    if let Some(e) = error.read().clone() {
-                        p { class: "text-xs text-destructive select-text", "{e}" }
-                    }
-                    div { class: "flex justify-end gap-2",
-                        Button { variant: ButtonVariant::Ghost, onclick: move |_| state.dialog.set(None), "Cancel" }
-                        Button { disabled: curl.read().trim().is_empty(), onclick: import_curl, "Import cURL" }
-                    }
-                }
-            }
-        }
+            }),
+            window,
+            cx,
+        );
+        let error_color = cx.theme().status().error;
+        let section = |title: &'static str| {
+            Label::new(title)
+                .size(LabelSize::XSmall)
+                .color(Color::Muted)
+        };
+
+        modal("Import", px(576.), cx)
+            .child(
+                v_flex()
+                    .gap_2()
+                    .child(section("POSTMAN COLLECTION"))
+                    .child(hint("Choose a Postman Collection v2.1 JSON file. It is added to your collections."))
+                    .child(
+                        div().child(
+                            Button::new("import-file", "Choose file…")
+                                .style(ButtonStyle::Outlined)
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.state.dialog = None;
+                                    this.import_collection(cx);
+                                    cx.notify();
+                                })),
+                        ),
+                    ),
+            )
+            .child(Divider::horizontal())
+            .child(
+                v_flex()
+                    .gap_2()
+                    .child(section("CURL COMMAND"))
+                    .child(input)
+                    .when_some(error, |this, error| {
+                        this.child(div().text_xs().text_color(error_color).child(error))
+                    })
+                    .child(
+                        h_flex()
+                            .justify_end()
+                            .gap_2()
+                            .child(
+                                Button::new("import-cancel", "Cancel")
+                                    .style(ButtonStyle::Subtle)
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.state.dialog = None;
+                                        cx.notify();
+                                    })),
+                            )
+                            .child(
+                                Button::new("import-curl-confirm", "Import cURL")
+                                    .style(ButtonStyle::Filled)
+                                    .disabled(empty)
+                                    .on_click(cx.listener(|this, _, _, cx| this.import_curl(cx))),
+                            ),
+                    ),
+            )
+            .into_any_element()
     }
 }

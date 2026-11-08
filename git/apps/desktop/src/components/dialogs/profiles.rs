@@ -1,302 +1,665 @@
 //! Profiles manager: identity + SSH key, passphrase in the OS keychain,
 //! key generation and "Test connection".
 
-use super::{FIELD, Modal};
-use crate::commands::{self, profiles, run};
-use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
-use crate::state::{AppState, Dialog};
-use dioxus::prelude::*;
+use super::{DialogState, WIDEST, modal, width};
+use crate::app::FerrumGit;
+use crate::commands::background;
+use crate::components::widgets::{
+    caption, card, danger_button, field, ghost_button, hint, primary_button, radio_row,
+    small_button,
+};
+use ferrum_ui::{TextInput, TextInputEvent};
 use ferrumgit_application::{AppServices, PassphraseChange};
 use ferrumgit_domain::{Profile, ProfileId, Secret, SshAuth};
+use gpui::{AnyElement, Context, Entity, SharedString, Window, div, prelude::*, px};
+use theme::ActiveTheme;
+use ui::{
+    ButtonCommon, Clickable, Color, Disableable, Label, LabelCommon, LabelSize, StyledTypography,
+    h_flex, v_flex,
+};
 
-#[component]
-pub fn ProfilesDialog(selected: Option<ProfileId>) -> Element {
-    let mut state = use_context::<AppState>();
-    let list = state.profiles.read().clone();
-    let mut current = use_signal(move || selected.or_else(|| list.first().map(|p| p.id)));
-    let mut draft_new = use_signal(|| None::<Profile>);
-    let list = state.profiles.read().clone();
-    let editing: Option<Profile> = draft_new
-        .read()
-        .clone()
-        .or_else(|| (*current.read()).and_then(|id| list.iter().find(|p| p.id == id).cloned()));
+pub struct ProfilesForm {
+    pub current: Option<ProfileId>,
+    pub editor: Option<Editor>,
+}
 
-    rsx! {
-        Modal { title: "Profiles", width: "max-w-4xl", on_close: move |_| state.dialog.set(None),
-            p { class: "-mt-2 mb-4 text-xs text-muted-foreground",
-                "A profile is a commit identity plus the SSH key used for network operations. Assign one per repository in its settings (toolbar → Profile)." }
-            div { class: "flex min-h-0 flex-1 gap-4",
-                div { class: "flex w-56 shrink-0 flex-col gap-1",
-                    for p in list.clone() {
-                        {
-                            let pid = p.id;
-                            let active = draft_new.read().is_none() && *current.read() == Some(pid);
-                            rsx! {
-                                button { key: "{pid}",
-                                    class: if active { "rounded-md bg-accent px-3 py-2 text-left" } else { "rounded-md px-3 py-2 text-left hover:bg-accent/60" },
-                                    onclick: move |_| { draft_new.set(None); current.set(Some(pid)); },
-                                    p { class: "truncate text-sm font-medium", "{p.name}" }
-                                    p { class: "truncate text-[11px] text-muted-foreground", "{p.ssh_label()}" }
-                                }
-                            }
-                        }
-                    }
-                    if list.is_empty() && draft_new.read().is_none() { p { class: "px-3 py-2 text-xs text-muted-foreground", "No profiles yet." } }
-                    Button { size: ButtonSize::Sm, variant: ButtonVariant::Outline, class: "mt-2",
-                        onclick: move |_| draft_new.set(Some(Profile::new("New profile"))), "+ New profile" }
-                }
-                div { class: "min-h-0 min-w-0 flex-1 overflow-y-auto border-l pl-4",
-                    match editing {
-                        Some(p) => rsx! {
-                            Editor { key: "{p.id}", profile: p.clone(), is_new: draft_new.read().is_some(),
-                                on_saved: move |id| { draft_new.set(None); current.set(Some(id)); },
-                                on_deleted: move |_| { draft_new.set(None); current.set(None); } }
-                        },
-                        None => rsx! { p { class: "p-6 text-sm text-muted-foreground", "Create a profile to get started." } },
-                    }
-                }
-            }
-        }
+pub struct Editor {
+    id: ProfileId,
+    is_new: bool,
+    stored: bool,
+    name: Entity<TextInput>,
+    author: Entity<TextInput>,
+    email: Entity<TextInput>,
+    use_key: bool,
+    key_path: Entity<TextInput>,
+    passphrase: Entity<TextInput>,
+    passphrase_change: Option<PassphraseChange>,
+    host: Entity<TextInput>,
+    test: Option<Result<String, String>>,
+    testing: bool,
+    public: Option<String>,
+    confirm_delete: bool,
+    keys: Vec<String>,
+}
+
+fn editor_mut(app: &mut FerrumGit) -> Option<&mut Editor> {
+    match &mut app.dialog {
+        Some(DialogState::Profiles(form)) => form.editor.as_mut(),
+        _ => None,
     }
 }
 
-#[component]
-fn Editor(
-    profile: Profile,
-    is_new: bool,
-    on_saved: EventHandler<ProfileId>,
-    on_deleted: EventHandler<()>,
-) -> Element {
-    let state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let id = profile.id;
-    let mut name = use_signal(|| profile.name.clone());
-    let mut author = use_signal(|| profile.author_name.clone());
-    let mut email = use_signal(|| profile.author_email.clone());
-    let (initial_key, stored) = match &profile.ssh {
-        SshAuth::KeyFile {
-            path,
-            has_passphrase,
-        } => (Some(path.clone()), *has_passphrase),
-        SshAuth::System => (None, false),
-    };
-    let mut use_key = use_signal(|| initial_key.is_some());
-    let mut key_path = use_signal(|| initial_key.clone().unwrap_or_default());
-    let mut key_rev = use_signal(|| 0u64);
-    let mut passphrase = use_signal(|| None::<PassphraseChange>);
-    let mut host = use_signal(|| "github.com".to_owned());
-    let mut test = use_signal(|| None::<Result<String, String>>);
-    let mut testing = use_signal(|| false);
-    let mut public = use_signal(|| None::<String>);
-    let mut confirm_delete = use_signal(|| false);
-    let mut keys = use_signal(Vec::<String>::new);
-    let svc = services.clone();
-    use_future(move || {
-        let svc = svc.clone();
-        async move {
-            let s = svc.clone();
-            if let Ok(found) =
-                commands::background(&svc, async move { s.discover_keys().await }).await
-            {
-                keys.set(found);
-            }
+impl Editor {
+    fn new(
+        app: &mut FerrumGit,
+        profile: Profile,
+        is_new: bool,
+        window: &mut Window,
+        cx: &mut Context<FerrumGit>,
+    ) -> Self {
+        let text =
+            |placeholder: &str, value: String, window: &mut Window, cx: &mut Context<FerrumGit>| {
+                let placeholder = placeholder.to_owned();
+                cx.new(|cx| {
+                    TextInput::new(window, cx)
+                        .placeholder(placeholder)
+                        .with_text(value)
+                })
+            };
+        let (initial_key, stored) = match &profile.ssh {
+            SshAuth::KeyFile {
+                path,
+                has_passphrase,
+            } => (Some(path.clone()), *has_passphrase),
+            SshAuth::System => (None, false),
+        };
+        let name = text(
+            "Work, Personal, Client X…",
+            profile.name.clone(),
+            window,
+            cx,
+        );
+        let author = text("Ada Lovelace", profile.author_name.clone(), window, cx);
+        let email = text("ada@company.com", profile.author_email.clone(), window, cx);
+        let key_path = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("~/.ssh/id_ed25519_work")
+                .monospace()
+                .with_text(initial_key.clone().unwrap_or_default())
+        });
+        let passphrase = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .masked(true)
+                .placeholder(if stored {
+                    "•••••••• (stored)"
+                } else {
+                    "Optional"
+                })
+        });
+        let host = text(
+            "github.com, gitlab.com, git@host…",
+            "github.com".to_owned(),
+            window,
+            cx,
+        );
+        for input in [&name, &author, &email, &host] {
+            app.watch_input(input, window, cx);
         }
-    });
+        app.dialog_subscriptions
+            .push(cx.subscribe(&key_path, |app, _, event, cx| {
+                if *event == TextInputEvent::Changed {
+                    if let Some(editor) = editor_mut(app) {
+                        editor.public = None;
+                    }
+                    cx.notify();
+                }
+            }));
+        app.dialog_subscriptions
+            .push(cx.subscribe(&passphrase, |app, input, event, cx| {
+                if *event == TextInputEvent::Changed {
+                    let value = input.read(cx).text().to_owned();
+                    if let Some(editor) = editor_mut(app) {
+                        editor.passphrase_change = Some(PassphraseChange::Set(Secret::new(value)));
+                    }
+                    cx.notify();
+                }
+            }));
 
-    let build = move || -> Profile {
-        let path = key_path.peek().trim().to_owned();
+        let services = app.services.clone();
+        app.spawn_run(
+            cx,
+            async move {
+                Ok::<_, String>(
+                    background(
+                        &services.clone(),
+                        async move { services.discover_keys().await },
+                    )
+                    .await,
+                )
+            },
+            |app, result, _| {
+                if let Ok(Ok(found)) = result
+                    && let Some(editor) = editor_mut(app)
+                {
+                    editor.keys = found;
+                }
+            },
+        );
+
+        Self {
+            id: profile.id,
+            is_new,
+            stored,
+            name,
+            author,
+            email,
+            use_key: initial_key.is_some(),
+            key_path,
+            passphrase,
+            passphrase_change: None,
+            host,
+            test: None,
+            testing: false,
+            public: None,
+            confirm_delete: false,
+            keys: Vec::new(),
+        }
+    }
+
+    fn build(&self, cx: &gpui::App) -> Profile {
+        let path = self.key_path.read(cx).text().trim().to_owned();
         Profile {
-            id,
-            name: name.peek().trim().to_owned(),
-            author_name: author.peek().trim().to_owned(),
-            author_email: email.peek().trim().to_owned(),
-            ssh: if *use_key.peek() && !path.is_empty() {
+            id: self.id,
+            name: self.name.read(cx).text().trim().to_owned(),
+            author_name: self.author.read(cx).text().trim().to_owned(),
+            author_email: self.email.read(cx).text().trim().to_owned(),
+            ssh: if self.use_key && !path.is_empty() {
                 SshAuth::KeyFile {
                     path,
-                    has_passphrase: stored,
+                    has_passphrase: self.stored,
                 }
             } else {
                 SshAuth::System
             },
         }
+    }
+}
+
+impl ProfilesForm {
+    pub fn new(
+        app: &mut FerrumGit,
+        selected: Option<ProfileId>,
+        window: &mut Window,
+        cx: &mut Context<FerrumGit>,
+    ) -> Self {
+        let current = selected.or_else(|| app.state.profiles.first().map(|p| p.id));
+        let editor = current
+            .and_then(|id| app.state.profiles.iter().find(|p| p.id == id).cloned())
+            .map(|p| Editor::new(app, p, false, window, cx));
+        Self { current, editor }
+    }
+}
+
+impl FerrumGit {
+    fn select_profile(
+        &mut self,
+        profile: Option<Profile>,
+        is_new: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let editor = profile
+            .clone()
+            .map(|p| Editor::new(self, p, is_new, window, cx));
+        if let Some(DialogState::Profiles(form)) = &mut self.dialog {
+            form.current = if is_new { None } else { profile.map(|p| p.id) };
+            form.editor = editor;
+        }
+        cx.notify();
+    }
+
+    fn save_editor(&mut self, cx: &mut Context<Self>) {
+        let Some(editor) = editor_mut(self) else {
+            return;
+        };
+        let change = editor
+            .passphrase_change
+            .take()
+            .unwrap_or(PassphraseChange::Keep);
+        let profile = editor.build(cx);
+        self.save_profile(profile, change, cx, |app, saved, cx| {
+            if let Some(DialogState::Profiles(form)) = &mut app.dialog {
+                form.current = Some(saved.id);
+                if let Some(editor) = form.editor.as_mut()
+                    && editor.id == saved.id
+                {
+                    editor.is_new = false;
+                    editor.stored = matches!(
+                        saved.ssh,
+                        SshAuth::KeyFile {
+                            has_passphrase: true,
+                            ..
+                        }
+                    );
+                }
+            }
+            cx.notify();
+        });
+    }
+
+    fn test_editor(&mut self, cx: &mut Context<Self>) {
+        let Some(editor) = editor_mut(self) else {
+            return;
+        };
+        editor.testing = true;
+        editor.test = None;
+        let profile = editor.build(cx);
+        let host = editor.host.read(cx).text().to_owned();
+        let services = self.services.clone();
+        self.spawn_run(
+            cx,
+            async move { services.test_profile(&profile, &host).await },
+            |app, result, _| {
+                if let Some(editor) = editor_mut(app) {
+                    editor.testing = false;
+                    editor.test = Some(result);
+                }
+            },
+        );
+    }
+
+    fn show_public_key(&mut self, cx: &mut Context<Self>) {
+        let Some(editor) = editor_mut(self) else {
+            return;
+        };
+        let key = editor.key_path.read(cx).text().to_owned();
+        let services = self.services.clone();
+        self.spawn_run(
+            cx,
+            async move { services.public_key(&key).await },
+            |app, result, cx| match result {
+                Ok(public) => {
+                    if let Some(editor) = editor_mut(app) {
+                        editor.public = Some(public);
+                    }
+                }
+                Err(e) => app.notify(e, true, cx),
+            },
+        );
+    }
+
+    fn generate_key(&mut self, path: String, cx: &mut Context<Self>) {
+        let Some(editor) = editor_mut(self) else {
+            return;
+        };
+        let comment = editor.email.read(cx).text().to_owned();
+        let services = self.services.clone();
+        let target = path.clone();
+        self.spawn_run(
+            cx,
+            async move { services.generate_key(&target, &comment).await },
+            move |app, result, cx| match result {
+                Ok(public) => {
+                    if let Some(editor) = editor_mut(app) {
+                        editor
+                            .key_path
+                            .update(cx, |input, cx| input.set_text(path.clone(), cx));
+                        editor.public = Some(public);
+                    }
+                    app.notify(
+                        "Key generated. Add the public key to your Git host, then Save.",
+                        false,
+                        cx,
+                    );
+                }
+                Err(e) => app.notify(e, true, cx),
+            },
+        );
+    }
+
+    fn set_key_path(&mut self, path: String, cx: &mut Context<Self>) {
+        if let Some(editor) = editor_mut(self) {
+            editor
+                .key_path
+                .update(cx, |input, cx| input.set_text(path, cx));
+            editor.public = None;
+        }
+        cx.notify();
+    }
+}
+
+pub fn render(app: &FerrumGit, cx: &mut Context<FerrumGit>) -> AnyElement {
+    let Some(DialogState::Profiles(form)) = &app.dialog else {
+        return div().into_any_element();
     };
-    let preview = AppServices::ssh_command_preview(&build());
-    let (s_save, s_del, s_test, s_gen, s_pub) = (
-        services.clone(),
-        services.clone(),
-        services.clone(),
-        services.clone(),
-        services.clone(),
-    );
-    let pass_state = match (&*passphrase.read(), stored) {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    let new_open = form.editor.as_ref().is_some_and(|e| e.is_new);
+    let list: Vec<AnyElement> = app
+        .state
+        .profiles
+        .iter()
+        .map(|p| {
+            let active = !new_open && form.current == Some(p.id);
+            let profile = p.clone();
+            v_flex()
+                .id(SharedString::from(format!("profile-{}", p.id)))
+                .px_3()
+                .py_2()
+                .rounded_md()
+                .cursor_pointer()
+                .when(active, |d| d.bg(colors.element_selected))
+                .when(!active, |d| d.hover(|s| s.bg(colors.element_hover)))
+                .child(Label::new(p.name.clone()).truncate())
+                .child(
+                    Label::new(p.ssh_label())
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted)
+                        .truncate(),
+                )
+                .on_click(cx.listener(move |app, _, window, cx| {
+                    app.select_profile(Some(profile.clone()), false, window, cx);
+                }))
+                .into_any_element()
+        })
+        .collect();
+    let no_profiles = list.is_empty() && !new_open;
+    let editor = match &form.editor {
+        Some(editor) => render_editor(editor, cx),
+        None => div()
+            .p_6()
+            .child(Label::new("Create a profile to get started.").color(Color::Muted))
+            .into_any_element(),
+    };
+    modal("Profiles", cx)
+        .width(width(WIDEST))
+        .child(hint(
+            "A profile is a commit identity plus the SSH key used for network operations. Assign one per repository in its settings (toolbar → Profile).",
+        ))
+        .child(
+            h_flex()
+                .items_start()
+                .gap_4()
+                .child(
+                    v_flex()
+                        .flex_none()
+                        .w(px(224.))
+                        .gap_1()
+                        .children(list)
+                        .when(no_profiles, |d| d.child(div().px_3().py_2().child(hint("No profiles yet."))))
+                        .child(div().mt_2().child(small_button("new-profile", "+ New profile").on_click(
+                            cx.listener(|app, _, window, cx| {
+                                app.select_profile(Some(Profile::new("New profile")), true, window, cx);
+                            }),
+                        ))),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .pl_4()
+                        .border_l_1()
+                        .border_color(colors.border)
+                        .child(editor),
+                ),
+        )
+        .into_any_element()
+}
+
+fn render_editor(editor: &Editor, cx: &mut Context<FerrumGit>) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    let profile = editor.build(cx);
+    let preview = AppServices::ssh_command_preview(&profile);
+    let pass_state = match (&editor.passphrase_change, editor.stored) {
         (Some(PassphraseChange::Set(_)), _) => "Will be saved to the keychain",
         (Some(PassphraseChange::Clear), _) => "Will be removed from the keychain",
         (_, true) => "Stored in the OS keychain",
         (_, false) => "None stored (fine for keys without a passphrase or keys in ssh-agent)",
     };
-    let slug: String = name
-        .read()
+    let slug: String = editor
+        .name
+        .read(cx)
+        .text()
         .to_lowercase()
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
         .collect();
     let gen_path = format!("~/.ssh/ferrumgit_{slug}_ed25519");
+    let key_empty = editor.key_path.read(cx).text().trim().is_empty();
+    let name_empty = editor.name.read(cx).text().trim().is_empty();
+    let id = editor.id;
+    let use_key = editor.use_key;
 
-    rsx! {
-        div { class: "flex flex-col gap-4 text-sm",
-            div { class: "grid grid-cols-2 gap-3",
-                label { class: "col-span-2 flex flex-col gap-1",
-                    span { class: "text-xs text-muted-foreground", "Profile name" }
-                    input { class: FIELD, initial_value: "{profile.name}", placeholder: "Work, Personal, Client X…", oninput: move |e| name.set(e.value()) }
+    let ssh_mode = |use_key_choice: bool, title: &'static str, cx: &mut Context<FerrumGit>| {
+        radio_row(
+            if use_key_choice {
+                "ssh-key"
+            } else {
+                "ssh-system"
+            },
+            use_key == use_key_choice,
+            title,
+            None,
+            cx.listener(move |app, _, _, cx| {
+                if let Some(editor) = editor_mut(app) {
+                    editor.use_key = use_key_choice;
                 }
-                label { class: "flex flex-col gap-1",
-                    span { class: "text-xs text-muted-foreground", "Author name" }
-                    input { class: FIELD, initial_value: "{profile.author_name}", placeholder: "Ada Lovelace", oninput: move |e| author.set(e.value()) }
-                }
-                label { class: "flex flex-col gap-1",
-                    span { class: "text-xs text-muted-foreground", "Author email" }
-                    input { class: FIELD, initial_value: "{profile.author_email}", placeholder: "ada@company.com", oninput: move |e| email.set(e.value()) }
-                }
-                p { class: "col-span-2 -mt-1 text-[11px] text-muted-foreground", "Leave both empty to use your global git identity." }
-            }
-            div { class: "flex flex-col gap-2 rounded-md border p-3",
-                span { class: "text-xs font-semibold uppercase tracking-wide text-muted-foreground", "SSH" }
-                label { class: "flex items-center gap-2",
-                    input { r#type: "radio", name: "ssh-mode", checked: !*use_key.read(), onchange: move |_| use_key.set(false) }
-                    "System SSH — ssh-agent and ~/.ssh/config decide"
-                }
-                label { class: "flex items-center gap-2",
-                    input { r#type: "radio", name: "ssh-mode", checked: *use_key.read(), onchange: move |_| use_key.set(true) }
-                    "Use a specific private key"
-                }
-                if *use_key.read() {
-                    div { class: "flex flex-col gap-2 pl-6",
-                        div { class: "flex gap-2",
-                            for r in [*key_rev.read()] {
-                                input { key: "{r}", class: "{FIELD} font-mono text-xs", placeholder: "~/.ssh/id_ed25519_work", initial_value: "{key_path.peek()}",
-                                    oninput: move |e| { key_path.set(e.value()); public.set(None); } }
-                            }
-                            Button { size: ButtonSize::Sm, variant: ButtonVariant::Outline,
-                                onclick: move |_| { spawn(async move {
-                                    if let Some(f) = rfd::AsyncFileDialog::new().set_title("Choose a private key").pick_file().await {
-                                        key_path.set(f.path().display().to_string());
-                                        key_rev += 1;
-                                        public.set(None);
-                                    }
-                                }); },
-                                "Browse…" }
-                        }
-                        if !keys.read().is_empty() {
-                            div { class: "flex flex-wrap gap-1",
-                                span { class: "text-[11px] text-muted-foreground", "Found in ~/.ssh:" }
-                                for k in keys.read().clone() {
-                                    {
-                                        let label = k.rsplit('/').next().unwrap_or(&k).to_owned();
-                                        rsx! { button { key: "{k}", class: "rounded border px-1.5 text-[11px] hover:bg-accent", title: "{k}",
-                                            onclick: move |_| { key_path.set(k.clone()); key_rev += 1; public.set(None); }, "{label}" } }
-                                    }
-                                }
-                            }
-                        }
-                        div { class: "flex flex-col gap-1",
-                            span { class: "text-xs text-muted-foreground", "Key passphrase" }
-                            div { class: "flex gap-2",
-                                input { class: FIELD, r#type: "password", placeholder: if stored { "•••••••• (stored)" } else { "Optional" },
-                                    autocomplete: "off",
-                                    oninput: move |e| passphrase.set(Some(PassphraseChange::Set(Secret::new(e.value())))) }
-                                if stored { Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, onclick: move |_| passphrase.set(Some(PassphraseChange::Clear)), "Forget" } }
-                            }
-                            span { class: "text-[11px] text-muted-foreground", "{pass_state}" }
-                        }
-                        div { class: "flex flex-wrap gap-2",
-                            Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, disabled: key_path.read().trim().is_empty(),
-                                onclick: move |_| {
-                                    let (s, k) = (s_pub.clone(), key_path.peek().clone());
-                                    spawn(async move {
-                                        let s2 = s.clone();
-                                        match run(&s, async move { s2.public_key(&k).await }).await {
-                                            Ok(p) => public.set(Some(p)),
-                                            Err(e) => state.notify(e, true),
-                                        }
-                                    });
-                                },
-                                "Show public key" }
-                            Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, title: "Creates {gen_path} (ed25519, no passphrase)",
-                                onclick: move |_| {
-                                    let (s, path, comment) = (s_gen.clone(), gen_path.clone(), email.peek().clone());
-                                    spawn(async move {
-                                        let s2 = s.clone();
-                                        let p2 = path.clone();
-                                        match run(&s, async move { s2.generate_key(&p2, &comment).await }).await {
-                                            Ok(pubkey) => {
-                                                key_path.set(path);
-                                                key_rev += 1;
-                                                public.set(Some(pubkey));
-                                                state.notify("Key generated. Add the public key to your Git host, then Save.", false);
-                                            }
-                                            Err(e) => state.notify(e, true),
-                                        }
-                                    });
-                                },
-                                "Generate new key" }
-                        }
-                        if let Some(pk) = public.read().clone() {
-                            div { class: "flex items-start gap-2 rounded-md bg-muted p-2",
-                                code { class: "min-w-0 flex-1 break-all text-[11px] select-text", "{pk}" }
-                                Button { size: ButtonSize::Sm, variant: ButtonVariant::Outline,
-                                    onclick: move |_| { commands::copy(&pk); state.notify("Public key copied — paste it into GitHub/GitLab → SSH keys", false); }, "Copy" }
-                            }
-                        }
-                    }
-                }
-                p { class: "font-mono text-[11px] text-muted-foreground", "GIT_SSH_COMMAND: {preview}" }
-            }
-            div { class: "flex flex-col gap-2 rounded-md border p-3",
-                span { class: "text-xs font-semibold uppercase tracking-wide text-muted-foreground", "Test connection" }
-                div { class: "flex gap-2",
-                    input { class: FIELD, initial_value: "github.com", placeholder: "github.com, gitlab.com, git@host…", oninput: move |e| host.set(e.value()) }
-                    Button { size: ButtonSize::Sm, variant: ButtonVariant::Outline, disabled: *testing.read(),
-                        onclick: move |_| {
-                            let (s, p, h) = (s_test.clone(), build(), host.peek().clone());
-                            testing.set(true);
-                            test.set(None);
-                            spawn(async move {
-                                let s2 = s.clone();
-                                let r = run(&s, async move { s2.test_profile(&p, &h).await }).await;
-                                testing.set(false);
-                                test.set(Some(r));
+                cx.notify();
+            }),
+            cx,
+        )
+    };
+
+    let key_section = use_key.then(|| {
+        let keys: Vec<AnyElement> = editor
+            .keys
+            .iter()
+            .map(|k| {
+                let label = k.rsplit('/').next().unwrap_or(k).to_owned();
+                let path = k.clone();
+                ghost_button(SharedString::from(format!("key-{k}")), label)
+                    .tooltip(ui::Tooltip::text(k.clone()))
+                    .on_click(cx.listener(move |app, _, _, cx| app.set_key_path(path.clone(), cx)))
+                    .into_any_element()
+            })
+            .collect();
+        let has_keys = !keys.is_empty();
+        let gen_for_click = gen_path.clone();
+        v_flex()
+            .gap_2()
+            .pl_6()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(div().flex_1().child(editor.key_path.clone()))
+                    .child(small_button("key-browse", "Browse…").on_click(cx.listener(
+                        |app, _, _, cx| {
+                            app.pick_path(cx, "Choose a private key", false, |app, path, cx| {
+                                app.set_key_path(path.display().to_string(), cx);
                             });
                         },
-                        if *testing.read() { "Testing…" } else { "Test" } }
-                }
-                p { class: "text-[11px] text-muted-foreground", "Runs ssh -T with this key (unsaved edits included). A host seen for the first time is trusted and added to known_hosts." }
-                match test.read().clone() {
-                    Some(Ok(m)) => rsx! { p { class: "whitespace-pre-wrap text-xs text-success select-text", "✓ {m}" } },
-                    Some(Err(e)) => rsx! { p { class: "whitespace-pre-wrap text-xs text-destructive select-text", "✕ {e}" } },
-                    None => rsx! {},
-                }
-            }
-            div { class: "flex items-center gap-2",
-                if !is_new {
-                    if *confirm_delete.read() {
-                        span { class: "text-xs text-destructive", "Repositories using it fall back to System default." }
-                        Button { size: ButtonSize::Sm, variant: ButtonVariant::Destructive,
-                            onclick: move |_| { profiles::delete(state, s_del.clone(), id); on_deleted.call(()); }, "Delete profile" }
-                        Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, onclick: move |_| confirm_delete.set(false), "Keep" }
-                    } else {
-                        Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, class: "text-destructive", onclick: move |_| confirm_delete.set(true), "Delete…" }
-                    }
-                }
-                div { class: "flex-1" }
-                Button { variant: ButtonVariant::Ghost, onclick: move |_| { let mut st = state; st.dialog.set(None::<Dialog>); }, "Close" }
-                Button { disabled: name.read().trim().is_empty(),
-                    onclick: move |_| {
-                        let change = passphrase.peek().clone().unwrap_or(PassphraseChange::Keep);
-                        passphrase.set(None);
-                        profiles::save(state, s_save.clone(), build(), change, move |p| on_saved.call(p.id));
+                    ))),
+            )
+            .when(has_keys, |d| {
+                d.child(
+                    h_flex()
+                        .flex_wrap()
+                        .gap_1()
+                        .child(hint("Found in ~/.ssh:"))
+                        .children(keys),
+                )
+            })
+            .child(field(
+                "Key passphrase",
+                h_flex()
+                    .gap_2()
+                    .child(div().flex_1().child(editor.passphrase.clone()))
+                    .when(editor.stored, |d| {
+                        d.child(ghost_button("pass-forget", "Forget").on_click(cx.listener(
+                            |app, _, _, cx| {
+                                if let Some(editor) = editor_mut(app) {
+                                    editor.passphrase_change = Some(PassphraseChange::Clear);
+                                }
+                                cx.notify();
+                            },
+                        )))
+                    }),
+            ))
+            .child(hint(pass_state))
+            .child(
+                h_flex()
+                    .flex_wrap()
+                    .gap_2()
+                    .child(
+                        ghost_button("show-public", "Show public key")
+                            .disabled(key_empty)
+                            .on_click(cx.listener(|app, _, _, cx| app.show_public_key(cx))),
+                    )
+                    .child(
+                        ghost_button("generate-key", "Generate new key")
+                            .tooltip(ui::Tooltip::text(format!(
+                                "Creates {gen_path} (ed25519, no passphrase)"
+                            )))
+                            .on_click(cx.listener(move |app, _, _, cx| {
+                                app.generate_key(gen_for_click.clone(), cx)
+                            })),
+                    ),
+            )
+            .children(editor.public.clone().map(|pk| {
+                let copy = pk.clone();
+                h_flex()
+                    .items_start()
+                    .gap_2()
+                    .p_2()
+                    .rounded_md()
+                    .bg(colors.element_background)
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .font_buffer(cx)
+                            .text_ui_xs(cx)
+                            .child(pk),
+                    )
+                    .child(small_button("copy-public", "Copy").on_click(cx.listener(
+                        move |app, _, _, cx| {
+                            app.copy(&copy, cx);
+                            app.notify(
+                                "Public key copied — paste it into GitHub/GitLab → SSH keys",
+                                false,
+                                cx,
+                            );
+                        },
+                    )))
+            }))
+    });
+
+    let test_result = editor.test.clone().map(|r| match r {
+        Ok(m) => Label::new(format!("✓ {m}"))
+            .size(LabelSize::Small)
+            .color(Color::Success),
+        Err(e) => Label::new(format!("✕ {e}"))
+            .size(LabelSize::Small)
+            .color(Color::Error),
+    });
+
+    let delete_row: Option<AnyElement> = (!editor.is_new).then(|| {
+        if editor.confirm_delete {
+            h_flex()
+                .gap_2()
+                .child(
+                    Label::new("Repositories using it fall back to System default.")
+                        .size(LabelSize::Small)
+                        .color(Color::Error),
+                )
+                .child(
+                    danger_button("delete-profile", "Delete profile").on_click(cx.listener(
+                        move |app, _, window, cx| {
+                            app.delete_profile(id, cx);
+                            app.select_profile(None, false, window, cx);
+                        },
+                    )),
+                )
+                .child(ghost_button("keep-profile", "Keep").on_click(cx.listener(
+                    |app, _, _, cx| {
+                        if let Some(editor) = editor_mut(app) {
+                            editor.confirm_delete = false;
+                        }
+                        cx.notify();
                     },
-                    if is_new { "Create profile" } else { "Save" } }
-            }
+                )))
+                .into_any_element()
+        } else {
+            ghost_button("ask-delete", "Delete…")
+                .color(Color::Error)
+                .on_click(cx.listener(|app, _, _, cx| {
+                    if let Some(editor) = editor_mut(app) {
+                        editor.confirm_delete = true;
+                    }
+                    cx.notify();
+                }))
+                .into_any_element()
         }
-    }
+    });
+
+    v_flex()
+        .gap_4()
+        .child(
+            v_flex()
+                .gap_3()
+                .child(field("Profile name", editor.name.clone()))
+                .child(
+                    h_flex()
+                        .gap_3()
+                        .child(div().flex_1().child(field("Author name", editor.author.clone())))
+                        .child(div().flex_1().child(field("Author email", editor.email.clone()))),
+                )
+                .child(hint("Leave both empty to use your global git identity.")),
+        )
+        .child(
+            card(cx)
+                .child(caption("SSH"))
+                .child(ssh_mode(false, "System SSH — ssh-agent and ~/.ssh/config decide", cx))
+                .child(ssh_mode(true, "Use a specific private key", cx))
+                .children(key_section)
+                .child(
+                    div()
+                        .font_buffer(cx)
+                        .text_ui_xs(cx)
+                        .text_color(colors.text_muted)
+                        .child(format!("GIT_SSH_COMMAND: {preview}")),
+                ),
+        )
+        .child(
+            card(cx)
+                .child(caption("Test connection"))
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .child(div().flex_1().child(editor.host.clone()))
+                        .child(
+                            small_button("test-connection", if editor.testing { "Testing…" } else { "Test" })
+                                .disabled(editor.testing)
+                                .on_click(cx.listener(|app, _, _, cx| app.test_editor(cx))),
+                        ),
+                )
+                .child(hint(
+                    "Runs ssh -T with this key (unsaved edits included). A host seen for the first time is trusted and added to known_hosts.",
+                ))
+                .children(test_result),
+        )
+        .child(
+            h_flex()
+                .gap_2()
+                .children(delete_row)
+                .child(div().flex_1())
+                .child(ghost_button("profiles-close", "Close").on_click(cx.listener(|app, _, window, cx| app.close_dialog(window, cx))))
+                .child(
+                    primary_button("profiles-save", if editor.is_new { "Create profile" } else { "Save" })
+                        .disabled(name_empty)
+                        .on_click(cx.listener(|app, _, _, cx| app.save_editor(cx))),
+                ),
+        )
+        .into_any_element()
 }

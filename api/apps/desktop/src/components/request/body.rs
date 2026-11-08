@@ -1,14 +1,19 @@
-//! Body mode radio and per-mode editors.
+//! Body mode selector and per-mode editors.
 
-use super::form_data::FormDataTable;
-use crate::commands::files::{file_name, pick_file};
-use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
-use crate::components::widgets::KvTable;
-use crate::state::AppState;
-use crate::state::kv::{self, RowEdit};
-use dioxus::prelude::*;
+use crate::app::FerrumApi;
+use crate::commands::files::file_name;
+use crate::components::fields::{FieldSpec, on_request_edit};
+use crate::components::widgets::RowEditor;
+use crate::components::{hint, select};
+use crate::state::kv;
 use ferrumapi_domain::text::pretty_json;
 use ferrumapi_domain::{RawLanguage, RequestBody, TabId, VariableSet};
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
+use std::rc::Rc;
+use ui::{
+    Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Color, Label,
+    LabelCommon as _, LabelSize, StyledTypography as _, Toggleable as _, Tooltip, h_flex, v_flex,
+};
 
 const MODES: [&str; 5] = [
     "none",
@@ -31,114 +36,168 @@ fn empty_body(mode: &str) -> RequestBody {
     }
 }
 
-#[component]
-pub fn BodyEditor(tab_id: TabId, body: RequestBody, vars: VariableSet, rev: u64) -> Element {
-    let state = use_context::<AppState>();
-    let mode = body.mode_label();
-    let set_body = move |b: RequestBody| state.edit_request(tab_id, |r| r.body = b);
+impl FerrumApi {
+    pub(super) fn render_body_editor(
+        &mut self,
+        tab_id: TabId,
+        body: RequestBody,
+        vars: &VariableSet,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let mode = body.mode_label();
+        let modes = h_flex()
+            .gap_1()
+            .flex_wrap()
+            .children(MODES.into_iter().map(|m| {
+                Button::new(SharedString::from(format!("body-mode-{m}")), m)
+                    .style(ButtonStyle::Subtle)
+                    .size(ButtonSize::Compact)
+                    .label_size(LabelSize::Small)
+                    .toggle_state(m == mode)
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        let current = this.state.tab(tab_id).map(|t| t.request.body.mode_label());
+                        if current != Some(m) {
+                            this.state.edit_request(tab_id, |r| r.body = empty_body(m));
+                        }
+                        cx.notify();
+                    }))
+            }));
 
-    rsx! {
-        div { class: "flex h-full min-h-0 flex-col gap-3",
-            div { class: "flex flex-wrap items-center gap-4 text-xs", role: "radiogroup", "aria-label": "Body type",
-                for m in MODES {
-                    label { key: "{m}", class: "flex cursor-pointer items-center gap-1.5",
-                        input {
-                            r#type: "radio",
-                            name: "body-mode-{tab_id}",
-                            checked: m == mode,
-                            onchange: move |_| if m != mode { set_body(empty_body(m)) },
-                        }
-                        "{m}"
-                    }
-                }
+        let editor = match body {
+            RequestBody::None => hint("This request does not have a body.").into_any_element(),
+            RequestBody::Raw { language, text } => {
+                self.render_raw_editor(tab_id, language, text, window, cx)
             }
-            match body {
-                RequestBody::None => rsx! {
-                    p { class: "text-xs text-muted-foreground", "This request does not have a body." }
-                },
-                RequestBody::Raw { language, text } => rsx! { RawEditor { tab_id, language, text, rev } },
-                RequestBody::UrlEncoded { fields } => rsx! {
-                    KvTable {
-                        rows: fields, rev, vars,
-                        on_edit: move |(i, edit): (usize, RowEdit)| state.edit_request(tab_id, |r| {
-                            if let RequestBody::UrlEncoded { fields } = &mut r.body { kv::apply(fields, i, edit); }
-                        }),
-                    }
-                },
-                RequestBody::FormData { fields } => rsx! { FormDataTable { tab_id, fields, vars } },
-                RequestBody::Binary { path } => rsx! {
-                    div { class: "flex items-center gap-3 text-xs",
-                        Button { size: ButtonSize::Sm, variant: ButtonVariant::Outline,
-                            onclick: move |_| {
-                                spawn(async move {
-                                    if let Some(p) = pick_file("Choose a file to send", false).await {
-                                        set_body(RequestBody::Binary { path: Some(p.to_string_lossy().into_owned()) });
-                                    }
-                                });
-                            },
-                            "Select file…"
+            RequestBody::UrlEncoded { fields } => {
+                let on_edit: RowEditor = Rc::new(move |this, i, edit, _| {
+                    this.state.edit_request(tab_id, |r| {
+                        if let RequestBody::UrlEncoded { fields } = &mut r.body {
+                            kv::apply(fields, i, edit);
                         }
-                        match path {
-                            Some(p) => rsx! { span { class: "font-mono", title: "{p}", "{file_name(&p)}" } },
-                            None => rsx! { span { class: "text-muted-foreground", "No file selected" } },
-                        }
-                    }
-                },
+                    });
+                });
+                self.render_kv_table(
+                    format!("urlencoded:{tab_id}"),
+                    fields,
+                    vars,
+                    "Key",
+                    on_edit,
+                    window,
+                    cx,
+                )
             }
-        }
+            RequestBody::FormData { fields } => {
+                self.render_form_data(tab_id, fields, vars, window, cx)
+            }
+            RequestBody::Binary { path } => h_flex()
+                .gap_3()
+                .child(
+                    Button::new("binary-pick", "Select file…")
+                        .style(ButtonStyle::Outlined)
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.pick_then(
+                                cx,
+                                "Choose a file to send",
+                                false,
+                                move |this, path, _| {
+                                    let path = path.to_string_lossy().into_owned();
+                                    this.state.edit_request(tab_id, |r| {
+                                        r.body = RequestBody::Binary { path: Some(path) };
+                                    });
+                                },
+                            );
+                        })),
+                )
+                .child(match path {
+                    Some(p) => div()
+                        .id("binary-path")
+                        .text_xs()
+                        .font_buffer(cx)
+                        .tooltip(Tooltip::text(p.clone()))
+                        .child(file_name(&p))
+                        .into_any_element(),
+                    None => Label::new("No file selected")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted)
+                        .into_any_element(),
+                })
+                .into_any_element(),
+        };
+
+        v_flex()
+            .size_full()
+            .gap_3()
+            .child(modes)
+            .child(editor)
+            .into_any_element()
     }
-}
 
-#[component]
-fn RawEditor(tab_id: TabId, language: RawLanguage, text: String, rev: u64) -> Element {
-    let mut state = use_context::<AppState>();
-    let t2 = text.clone();
-    rsx! {
-        div { class: "flex items-center gap-2",
-            select {
-                class: "h-7 rounded-md border bg-background px-2 text-xs",
-                "aria-label": "Raw body language",
-                onchange: move |e| {
-                    let lang = RawLanguage::ALL.into_iter().find(|l| l.label() == e.value()).unwrap_or_default();
-                    state.edit_request(tab_id, |r| {
-                        if let RequestBody::Raw { language, .. } = &mut r.body { *language = lang; }
-                    });
+    fn render_raw_editor(
+        &mut self,
+        tab_id: TabId,
+        language: RawLanguage,
+        text: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let language_select = select(
+            SharedString::from(format!("raw-language-{tab_id}")),
+            language.label(),
+            RawLanguage::ALL
+                .into_iter()
+                .map(|l| (SharedString::from(l.label()), l))
+                .collect(),
+            move |this, lang, _| {
+                this.state.edit_request(tab_id, |r| {
+                    if let RequestBody::Raw { language, .. } = &mut r.body {
+                        *language = lang;
+                    }
+                });
+            },
+            window,
+            cx,
+        );
+        let editor = self.field(
+            FieldSpec::new(format!("raw:{tab_id}"))
+                .value(text.clone())
+                .multiline(10)
+                .mono(),
+            on_request_edit(move |this, value, _| {
+                this.state.edit_request(tab_id, |r| {
+                    if let RequestBody::Raw { text, .. } = &mut r.body {
+                        *text = value;
+                    }
+                });
+            }),
+            window,
+            cx,
+        );
+        v_flex()
+            .gap_2()
+            .child(h_flex().gap_2().child(language_select).when(
+                language == RawLanguage::Json,
+                |this| {
+                    this.child(
+                        Button::new("beautify", "Beautify")
+                            .style(ButtonStyle::Subtle)
+                            .size(ButtonSize::Compact)
+                            .tooltip(Tooltip::text("Pretty-print the JSON body"))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                match pretty_json(&text) {
+                                    Some(pretty) => this.state.edit_request(tab_id, |r| {
+                                        if let RequestBody::Raw { text, .. } = &mut r.body {
+                                            *text = pretty;
+                                        }
+                                    }),
+                                    None => this.notify("The body is not valid JSON.", true, cx),
+                                }
+                                cx.notify();
+                            })),
+                    )
                 },
-                for l in RawLanguage::ALL {
-                    option { key: "{l.label()}", value: l.label(), selected: l == language, "{l.label()}" }
-                }
-            }
-            if language == RawLanguage::Json {
-                Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, class: "h-7 px-2 text-xs",
-                    title: "Pretty-print the JSON body",
-                    onclick: move |_| match pretty_json(&t2) {
-                        Some(pretty) => {
-                            state.edit_request(tab_id, |r| {
-                                if let RequestBody::Raw { text, .. } = &mut r.body { *text = pretty; }
-                            });
-                            state.revs.write().body += 1;
-                        }
-                        None => state.notify("The body is not valid JSON.", true),
-                    },
-                    "Beautify"
-                }
-            }
-        }
-        // Single-item loop so the key re-mounts the uncontrolled textarea.
-        for k in [format!("{tab_id}-{rev}")] {
-            textarea {
-                key: "{k}",
-                class: "min-h-40 flex-1 resize-none rounded-md border bg-background p-2 font-mono text-xs leading-5 outline-none focus:border-ring select-text whitespace-pre",
-                spellcheck: "false",
-                "aria-label": "Raw body",
-                initial_value: "{text}",
-                oninput: move |e| {
-                    let v = e.value();
-                    state.edit_request(tab_id, |r| {
-                        if let RequestBody::Raw { text, .. } = &mut r.body { *text = v; }
-                    });
-                },
-            }
-        }
+            ))
+            .child(div().min_h(px(160.)).child(editor))
+            .into_any_element()
     }
 }

@@ -1,6 +1,6 @@
 # ADR-001: Dioxus desktop (webview) as the UI runtime
 
-Status: Accepted · 2026-10-18
+Status: Superseded by [ADR-011](ADR-011-gpui.md) · 2026-11-08 (accepted 2026-10-18)
 
 ## Context
 The spec requires Rust application code with no React, TypeScript, Tauri or Electron.

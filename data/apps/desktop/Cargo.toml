@@ -1,6 +1,6 @@
 [package]
 name = "ferrumdata-desktop"
-description = "FerrumData database IDE — Dioxus desktop shell."
+description = "FerrumData database IDE — GPUI desktop shell."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,12 +14,10 @@ path = "src/main.rs"
 ferrumdata-domain.workspace = true
 ferrumdata-application.workspace = true
 ferrumdata-result-grid-core.workspace = true
-dioxus = { workspace = true, features = ["desktop", "launch", "macro", "html", "signals", "hooks", "document"] }
-tw_merge.workspace = true
-strum = { version = "0.28", features = ["derive"] }
 ferrumdata-editor-core.workspace = true
+ferrum-ui.workspace = true
+menu.workspace = true
 tokio.workspace = true
-futures.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 directories.workspace = true

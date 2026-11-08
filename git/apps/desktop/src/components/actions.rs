@@ -1,12 +1,11 @@
 //! Context-menu actions for branches, tags, stashes, remotes and commits.
 //! Destructive ones go through a confirmation dialog.
 
-use crate::commands::{self, repo};
+use crate::app::FerrumGit;
 use crate::components::menu::MenuItem;
-use crate::state::{AppState, Dialog, PromptKind};
-use dioxus::prelude::*;
-use ferrumgit_application::AppServices;
+use crate::state::{Dialog, PromptKind};
 use ferrumgit_domain::{GitRef, Oid, RefKind, RepoOp};
+use gpui::{Context, Window};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
@@ -145,85 +144,185 @@ pub fn for_commit(oid: &Oid) -> Vec<Action> {
     ]
 }
 
-fn confirm(mut state: AppState, title: String, body: String, confirm: &str, op: RepoOp) {
-    state.dialog.set(Some(Dialog::Confirm {
+fn confirm(title: String, body: String, confirm: &str, op: RepoOp) -> Dialog {
+    Dialog::Confirm {
         title,
         body,
         confirm: confirm.to_owned(),
         destructive: true,
         op,
-    }));
-}
-
-pub fn perform(mut state: AppState, services: AppServices, action: Action) {
-    let Some(id) = *state.active.peek() else {
-        return;
-    };
-    let run = |op: RepoOp| repo::op(state, services.clone(), id, op);
-    let refs = state
-        .view(id)
-        .data
-        .map(|d| d.snapshot.refs.clone())
-        .unwrap_or_default();
-    let prompt = |kind: PromptKind, initial: String| {
-        let mut st = state;
-        st.dialog.set(Some(Dialog::Prompt { kind, initial }));
-    };
-    match action {
-        Action::Checkout(b) => run(RepoOp::Checkout(b)),
-        Action::CheckoutRemote(rb) => {
-            let local_name = rb.split_once('/').map_or(rb.as_str(), |(_, b)| b).to_owned();
-            if refs.iter().any(|r| r.is(RefKind::LocalBranch) && r.name == local_name) {
-                if refs.iter().any(|r| r.name == local_name && r.upstream.as_deref() == Some(&rb)) {
-                    run(RepoOp::Checkout(local_name));
-                } else {
-                    prompt(PromptKind::CheckoutRemoteAs { remote_branch: rb }, format!("{local_name}-2"));
-                }
-            } else {
-                run(RepoOp::CheckoutRemote { remote_branch: rb, local: local_name });
-            }
-        }
-        Action::CheckoutCommit(oid) => run(RepoOp::CheckoutDetached(oid)),
-        Action::MergeIntoCurrent(b) => run(RepoOp::Merge { branch: b, no_ff: false }),
-        Action::RebaseCurrentOnto(b) => run(RepoOp::Rebase { onto: b }),
-        Action::BranchFrom(start) => prompt(PromptKind::CreateBranch { start: Some(start) }, String::new()),
-        Action::Rename(b) => prompt(PromptKind::RenameBranch { old: b.clone() }, b),
-        Action::Delete(b) => {
-            let merged_hint = "Unmerged commits are only reachable from this branch and will be lost.";
-            confirm(state, format!("Delete branch {b}?"), format!("The local branch “{b}” will be force-deleted. {merged_hint}"), "Delete", RepoOp::DeleteBranch { name: b, force: true });
-        }
-        Action::DeleteRemote(r, b) => confirm(state, format!("Delete {r}/{b}?"), format!("The branch “{b}” will be deleted on the remote “{r}” for everyone."), "Delete on remote", RepoOp::DeleteRemoteBranch { remote: r, branch: b }),
-        Action::Pull => run(RepoOp::Pull(state.settings.peek().pull_mode)),
-        Action::Push => run(RepoOp::Push { remote: None, force_with_lease: false }),
-        Action::ForcePush => confirm(state, "Force push?".into(), "Overwrites the remote branch with your local one. --force-with-lease refuses if someone else pushed since your last fetch.".into(), "Force push", RepoOp::Push { remote: None, force_with_lease: true }),
-        Action::PushTag(t) => run(RepoOp::PushTag { remote: "origin".into(), tag: t }),
-        Action::DeleteTag(t) => confirm(state, format!("Delete tag {t}?"), "The local tag is deleted; the remote is not touched.".into(), "Delete", RepoOp::DeleteTag(t)),
-        Action::DeleteRemoteTag(t) => confirm(state, format!("Delete tag {t} from origin?"), "The tag is deleted on the remote for everyone.".into(), "Delete on remote", RepoOp::DeleteRemoteTag { remote: "origin".into(), tag: t }),
-        Action::TagAt(target) => prompt(PromptKind::CreateTag { target }, String::new()),
-        Action::CherryPick(oid) => run(RepoOp::CherryPick(oid)),
-        Action::Revert(oid) => {
-            let mut st = state;
-            st.dialog.set(Some(Dialog::Confirm { title: "Revert commit?".into(), body: format!("Creates a new commit that undoes {}.", oid.short()), confirm: "Revert".into(), destructive: false, op: RepoOp::Revert(oid) }));
-        }
-        Action::Reset(oid) => {
-            let label = oid.short().to_owned();
-            state.dialog.set(Some(Dialog::Reset { target: oid.0, label }));
-        }
-        Action::StashApply(i) => run(RepoOp::StashApply(i)),
-        Action::StashPop(i) => run(RepoOp::StashPop(i)),
-        Action::StashDrop(i) => confirm(state, "Drop stash?".into(), format!("stash@{{{i}}} will be deleted permanently."), "Drop", RepoOp::StashDrop(i)),
-        Action::FetchRemote(r) => run(RepoOp::Fetch { remote: Some(r), prune: state.settings.peek().prune_on_fetch }),
-        Action::RemoveRemote(r) => confirm(state, format!("Remove remote {r}?"), "The remote and its remote-tracking branches are removed from this repository.".into(), "Remove", RepoOp::RemoveRemote(r)),
-        Action::Copy(text) => {
-            commands::copy(&text);
-            state.notify(format!("Copied {text}"), false);
-        }
     }
 }
 
-/// Click on a ref: select and scroll to its commit.
-pub fn reveal(state: AppState, services: AppServices, target: &Oid) {
-    if let Some(id) = *state.active.peek() {
-        repo::reveal_commit(state, services, id, target);
+impl FerrumGit {
+    pub fn perform(&mut self, action: Action, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(id) = self.state.active else {
+            return;
+        };
+        let refs = self
+            .state
+            .view(id)
+            .data
+            .map(|d| d.snapshot.refs.clone())
+            .unwrap_or_default();
+        let pull_mode = self.state.settings.pull_mode;
+        let prune = self.state.settings.prune_on_fetch;
+        let dialog = match action {
+            Action::Checkout(b) => return self.op(id, RepoOp::Checkout(b), cx),
+            Action::CheckoutRemote(rb) => {
+                let local_name = rb.split_once('/').map_or(rb.as_str(), |(_, b)| b).to_owned();
+                if refs.iter().any(|r| r.is(RefKind::LocalBranch) && r.name == local_name) {
+                    if refs
+                        .iter()
+                        .any(|r| r.name == local_name && r.upstream.as_deref() == Some(&rb))
+                    {
+                        return self.op(id, RepoOp::Checkout(local_name), cx);
+                    }
+                    Dialog::Prompt {
+                        kind: PromptKind::CheckoutRemoteAs { remote_branch: rb },
+                        initial: format!("{local_name}-2"),
+                    }
+                } else {
+                    return self.op(
+                        id,
+                        RepoOp::CheckoutRemote {
+                            remote_branch: rb,
+                            local: local_name,
+                        },
+                        cx,
+                    );
+                }
+            }
+            Action::CheckoutCommit(oid) => return self.op(id, RepoOp::CheckoutDetached(oid), cx),
+            Action::MergeIntoCurrent(b) => {
+                return self.op(id, RepoOp::Merge { branch: b, no_ff: false }, cx);
+            }
+            Action::RebaseCurrentOnto(b) => return self.op(id, RepoOp::Rebase { onto: b }, cx),
+            Action::BranchFrom(start) => Dialog::Prompt {
+                kind: PromptKind::CreateBranch { start: Some(start) },
+                initial: String::new(),
+            },
+            Action::Rename(b) => Dialog::Prompt {
+                kind: PromptKind::RenameBranch { old: b.clone() },
+                initial: b,
+            },
+            Action::Delete(b) => {
+                let merged_hint =
+                    "Unmerged commits are only reachable from this branch and will be lost.";
+                confirm(
+                    format!("Delete branch {b}?"),
+                    format!("The local branch “{b}” will be force-deleted. {merged_hint}"),
+                    "Delete",
+                    RepoOp::DeleteBranch { name: b, force: true },
+                )
+            }
+            Action::DeleteRemote(r, b) => confirm(
+                format!("Delete {r}/{b}?"),
+                format!("The branch “{b}” will be deleted on the remote “{r}” for everyone."),
+                "Delete on remote",
+                RepoOp::DeleteRemoteBranch { remote: r, branch: b },
+            ),
+            Action::Pull => return self.op(id, RepoOp::Pull(pull_mode), cx),
+            Action::Push => {
+                return self.op(
+                    id,
+                    RepoOp::Push {
+                        remote: None,
+                        force_with_lease: false,
+                    },
+                    cx,
+                );
+            }
+            Action::ForcePush => confirm(
+                "Force push?".into(),
+                "Overwrites the remote branch with your local one. --force-with-lease refuses if someone else pushed since your last fetch.".into(),
+                "Force push",
+                RepoOp::Push {
+                    remote: None,
+                    force_with_lease: true,
+                },
+            ),
+            Action::PushTag(t) => {
+                return self.op(
+                    id,
+                    RepoOp::PushTag {
+                        remote: "origin".into(),
+                        tag: t,
+                    },
+                    cx,
+                );
+            }
+            Action::DeleteTag(t) => confirm(
+                format!("Delete tag {t}?"),
+                "The local tag is deleted; the remote is not touched.".into(),
+                "Delete",
+                RepoOp::DeleteTag(t),
+            ),
+            Action::DeleteRemoteTag(t) => confirm(
+                format!("Delete tag {t} from origin?"),
+                "The tag is deleted on the remote for everyone.".into(),
+                "Delete on remote",
+                RepoOp::DeleteRemoteTag {
+                    remote: "origin".into(),
+                    tag: t,
+                },
+            ),
+            Action::TagAt(target) => Dialog::Prompt {
+                kind: PromptKind::CreateTag { target },
+                initial: String::new(),
+            },
+            Action::CherryPick(oid) => return self.op(id, RepoOp::CherryPick(oid), cx),
+            Action::Revert(oid) => Dialog::Confirm {
+                title: "Revert commit?".into(),
+                body: format!("Creates a new commit that undoes {}.", oid.short()),
+                confirm: "Revert".into(),
+                destructive: false,
+                op: RepoOp::Revert(oid),
+            },
+            Action::Reset(oid) => {
+                let label = oid.short().to_owned();
+                Dialog::Reset {
+                    target: oid.0,
+                    label,
+                }
+            }
+            Action::StashApply(i) => return self.op(id, RepoOp::StashApply(i), cx),
+            Action::StashPop(i) => return self.op(id, RepoOp::StashPop(i), cx),
+            Action::StashDrop(i) => confirm(
+                "Drop stash?".into(),
+                format!("stash@{{{i}}} will be deleted permanently."),
+                "Drop",
+                RepoOp::StashDrop(i),
+            ),
+            Action::FetchRemote(r) => {
+                return self.op(
+                    id,
+                    RepoOp::Fetch {
+                        remote: Some(r),
+                        prune,
+                    },
+                    cx,
+                );
+            }
+            Action::RemoveRemote(r) => confirm(
+                format!("Remove remote {r}?"),
+                "The remote and its remote-tracking branches are removed from this repository."
+                    .into(),
+                "Remove",
+                RepoOp::RemoveRemote(r),
+            ),
+            Action::Copy(text) => {
+                self.copy(&text, cx);
+                return self.notify(format!("Copied {text}"), false, cx);
+            }
+        };
+        self.open_dialog(dialog, window, cx);
+    }
+
+    /// Click on a ref: select and scroll to its commit.
+    pub fn reveal(&mut self, target: &Oid, cx: &mut Context<Self>) {
+        if let Some(id) = self.state.active {
+            self.reveal_commit(id, target, cx);
+        }
     }
 }

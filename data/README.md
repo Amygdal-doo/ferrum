@@ -1,7 +1,8 @@
 # FerrumData
 
-A local-first, DataGrip-class database IDE written in Rust: Dioxus 0.7 desktop, Rust/UI
-components, SQLx. No backend server, no React/TypeScript/Tauri/Electron.
+A local-first, DataGrip-class database IDE written in Rust: GPUI desktop (the UI framework
+from Zed, via the FerrumIDE fork) with the shared `ferrum-ui` crate, SQLx. No backend server,
+no webview, no React/TypeScript/Tauri/Electron. Part of the Ferrum monorepo (`../`).
 
 > **Status: M0/M1 foundation + first PostgreSQL slice.** See "What works" below; nothing
 > beyond that list should be assumed. The full specification lives in your planning
@@ -11,7 +12,8 @@ components, SQLx. No backend server, no React/TypeScript/Tauri/Electron.
 | Area | State |
 |------|-------|
 | Cargo workspace, pinned toolchain (1.99.1), CI (fmt, clippy, tests on macOS/Linux/Windows, PG integration) | ✅ |
-| Desktop shell: header, connections sidebar, tabbed editor, results panel, status bar, resizable + persisted panels, light/dark/system theme | ✅ (manual smoke tested for start/quit only, see QA plan) |
+| Desktop shell: header, connections sidebar, tabbed editor, results panel, status bar, resizable + persisted panels | ✅ (manual smoke tested for start/quit only, see QA plan) |
+| Theme setting (system/light/dark) | ⚠️ persisted, but only the built-in One Dark theme is rendered since the GPUI port (ADR-011) |
 | PostgreSQL profiles: create/edit/test/delete, TLS mode, environment tag, read-only session | ✅ |
 | Passwords in OS keychain (or session-only), never in the app DB | ✅ |
 | Query execution: run selection or statement under caret (⌘/Ctrl+Enter), streaming batches, bounded channels, row limit, timeout, cancel with server-side `pg_cancel_backend` | ✅ integration-tested |
@@ -29,10 +31,11 @@ and signing, MongoDB/Redis, AI. The grid shows at most `max_rows` (default 10,00
 ## Prerequisites
 - Rust via rustup. `rust-toolchain.toml` installs **1.99.1** automatically. SQLx 0.9
   needs ≥ 1.94.
-- macOS: Xcode command line tools. Linux: `libwebkit2gtk-4.1-dev libxdo-dev libssl-dev
-  libayatana-appindicator3-dev librsvg2-dev`. Windows: WebView2 (preinstalled on 10/11).
-- Optional: Docker (local PostgreSQL), Node 22 + pnpm (only to rebuild CSS),
-  `cargo install dioxus-cli@0.7.10 --locked` (only for `dx serve` / `dx bundle`).
+- macOS: Xcode command line tools (Metal shaders are compiled at build time). Linux: the
+  GPUI system packages listed in `../ide/script/linux` (Vulkan, Wayland/X11, fontconfig).
+- Build from the monorepo root (`../`): the workspace and Cargo aliases live there, and GPUI
+  is a path dependency into `../ide`.
+- Optional: Docker (local PostgreSQL).
 
 ## Commands
 ```bash
@@ -49,22 +52,19 @@ RUST_LOG=debug cargo desktop                     # verbose logs (never include S
 ```
 
 ### Styling
-Tailwind v4 compiles `apps/desktop/tailwind.css` (scanning `src/**/*.rs`) into
-`apps/desktop/assets/tailwind.css`. That file is committed and embedded at compile time,
-so `cargo run` needs no Node. After changing Tailwind classes:
-```bash
-pnpm --dir apps/desktop install
-pnpm --dir apps/desktop css      # or css:watch
-```
-CI fails if the committed CSS is stale.
+There is no CSS. Views are GPUI elements styled with Tailwind-like builder methods and
+colours from the active theme (`cx.theme().colors()`). Shared widgets (text input, splitter,
+modal, notice, toolbar/status bar) come from `ferrum-ui` (`../shared/ui`); buttons, labels,
+icons, menus and tooltips come from FerrumIDE's `ui` crate. Fonts and icons are embedded
+from `../ide/assets`.
 
 ### Packaging
-`apps/desktop/Dioxus.toml` is in place for `dx bundle`, but bundling, signing and
-notarization are **not yet tested** (ADR-009, IDE-018).
+Bundling, signing and notarization are **not yet set up** for the GPUI build (ADR-009,
+IDE-018).
 
 ## Layout
 ```
-apps/desktop/            Dioxus app: components/{shell,connection,sql_editor,result_grid,dialogs,rust_ui}, state/, commands/
+apps/desktop/            GPUI app: root view (app.rs), components/{shell,connection,explorer,sql_editor,result_grid,table_view,dialogs}, state/, commands/
 crates/domain/           pure types: profiles, Secret, CellValue, QueryEvent, QueryState
 crates/db-driver-api/    DatabaseDriver / DbConnection traits, bounded event channel, cancellation
 crates/db-postgres/      SQLx PostgreSQL adapter (streaming, cancel, exact NUMERIC decoding)

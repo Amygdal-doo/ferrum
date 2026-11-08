@@ -1,63 +1,156 @@
 //! A file row with change letter, name, directory and hover actions.
 
-use crate::components::{change_class, split_path};
-use dioxus::prelude::*;
+use crate::app::FerrumGit;
+use crate::components::{change_color, split_path};
 use ferrumgit_domain::ChangeKind;
+use gpui::{AnyElement, ClickEvent, Context, SharedString, Window, div, prelude::*, px};
+use theme::ActiveTheme;
+use ui::{Color, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RowAction {
     pub label: &'static str,
     pub title: &'static str,
     pub danger: bool,
 }
 
-#[component]
-pub fn FileRow(
-    path: String,
-    kind: ChangeKind,
-    #[props(default)] stats: Option<(u32, u32)>,
-    #[props(default)] active: bool,
-    #[props(default)] actions: Vec<RowAction>,
-    on_open: EventHandler<()>,
-    #[props(default)] on_action: Option<EventHandler<usize>>,
-) -> Element {
-    let (name, dir) = split_path(&path);
-    let kind_class = change_class(kind);
-    let tone = if active {
-        "bg-selection text-selection-foreground"
-    } else {
-        "hover:bg-accent/60"
-    };
-    rsx! {
-        div { class: "group flex h-7 cursor-pointer items-center gap-2 rounded px-2 text-xs {tone}", title: "{path}",
-            onclick: move |_| on_open.call(()),
-            span { class: "w-3 shrink-0 font-mono font-semibold {kind_class}", "{kind.letter()}" }
-            span { class: "shrink-0 truncate", "{name}" }
-            span { class: "min-w-0 flex-1 truncate text-muted-foreground", "{dir}" }
-            if let Some((a, d)) = stats {
-                span { class: "shrink-0 font-mono text-[10px] text-success", "+{a}" }
-                span { class: "shrink-0 font-mono text-[10px] text-destructive", "−{d}" }
-            }
-            for (i, a) in actions.into_iter().enumerate() {
-                button {
-                    key: "{a.label}",
-                    class: if a.danger { "hidden shrink-0 rounded border bg-background px-1.5 text-[10px] text-destructive hover:bg-accent group-hover:block" } else { "hidden shrink-0 rounded border bg-background px-1.5 text-[10px] hover:bg-accent group-hover:block" },
-                    title: a.title,
-                    onclick: move |e| { e.stop_propagation(); if let Some(h) = on_action { h.call(i) } },
-                    "{a.label}"
-                }
-            }
+type Handler = Box<dyn Fn(&mut FerrumGit, &ClickEvent, &mut Window, &mut Context<FerrumGit>)>;
+
+pub struct FileRow {
+    pub key: String,
+    pub path: String,
+    pub kind: ChangeKind,
+    pub active: bool,
+    pub actions: Vec<(RowAction, Handler)>,
+    pub on_open: Handler,
+}
+
+impl FileRow {
+    pub fn new(
+        key: String,
+        path: String,
+        kind: ChangeKind,
+        active: bool,
+        on_open: impl Fn(&mut FerrumGit, &ClickEvent, &mut Window, &mut Context<FerrumGit>) + 'static,
+    ) -> Self {
+        Self {
+            key,
+            path,
+            kind,
+            active,
+            actions: Vec::new(),
+            on_open: Box::new(on_open),
         }
+    }
+
+    pub fn action(
+        mut self,
+        action: RowAction,
+        handler: impl Fn(&mut FerrumGit, &ClickEvent, &mut Window, &mut Context<FerrumGit>) + 'static,
+    ) -> Self {
+        self.actions.push((action, Box::new(handler)));
+        self
+    }
+
+    pub fn render(self, cx: &mut Context<FerrumGit>) -> AnyElement {
+        let theme = cx.theme().clone();
+        let colors = theme.colors();
+        let (name, dir) = split_path(&self.path);
+        let (name, dir) = (name.to_owned(), dir.to_owned());
+        let kind_color = change_color(self.kind, cx);
+        let group = SharedString::from(format!("file-{}", self.key));
+        let on_open = self.on_open;
+        let buttons: Vec<AnyElement> = self
+            .actions
+            .into_iter()
+            .enumerate()
+            .map(|(i, (action, handler))| {
+                div()
+                    .id(SharedString::from(format!("{}-act-{i}", self.key)))
+                    .flex_none()
+                    .px_1p5()
+                    .rounded_sm()
+                    .border_1()
+                    .border_color(colors.border)
+                    .bg(colors.editor_background)
+                    .invisible()
+                    .group_hover(group.clone(), |s| s.visible())
+                    .hover(|s| s.bg(colors.element_hover))
+                    .tooltip(Tooltip::text(action.title))
+                    .child(Label::new(action.label).size(LabelSize::XSmall).color(
+                        if action.danger {
+                            Color::Error
+                        } else {
+                            Color::Default
+                        },
+                    ))
+                    .on_click(cx.listener(move |app, event, window, cx| {
+                        cx.stop_propagation();
+                        handler(app, event, window, cx);
+                    }))
+                    .into_any_element()
+            })
+            .collect();
+        h_flex()
+            .id(SharedString::from(self.key.clone()))
+            .group(group.clone())
+            .h(px(28.))
+            .gap_2()
+            .px_2()
+            .rounded_sm()
+            .cursor_pointer()
+            .text_ui_xs(cx)
+            .when(self.active, |d| d.bg(colors.element_selected))
+            .when(!self.active, |d| d.hover(|s| s.bg(colors.element_hover)))
+            .tooltip(Tooltip::text(self.path.clone()))
+            .on_click(cx.listener(move |app, event, window, cx| on_open(app, event, window, cx)))
+            .child(
+                div()
+                    .w(px(12.))
+                    .flex_none()
+                    .font_buffer(cx)
+                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .text_color(kind_color)
+                    .child(self.kind.letter().to_string()),
+            )
+            .child(div().flex_none().truncate().child(name))
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .truncate()
+                    .text_color(colors.text_muted)
+                    .child(dir),
+            )
+            .children(buttons)
+            .into_any_element()
     }
 }
 
 /// Section header with count and trailing buttons.
-#[component]
-pub fn ListHeader(title: String, count: usize, children: Element) -> Element {
-    rsx! {
-        div { class: "flex h-8 shrink-0 items-center gap-1 border-b bg-sidenav px-3",
-            span { class: "flex-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground", "{title} ({count})" }
-            {children}
-        }
-    }
+pub fn list_header(
+    title: &str,
+    count: usize,
+    buttons: Vec<AnyElement>,
+    cx: &Context<FerrumGit>,
+) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    h_flex()
+        .flex_none()
+        .h(px(32.))
+        .gap_1()
+        .px_3()
+        .border_b_1()
+        .border_color(colors.border)
+        .bg(colors.panel_background)
+        .child(
+            div().flex_1().child(
+                Label::new(format!("{} ({count})", title.to_uppercase()))
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted),
+            ),
+        )
+        .children(buttons)
+        .into_any_element()
 }

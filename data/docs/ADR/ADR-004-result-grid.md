@@ -2,6 +2,11 @@
 
 Status: Accepted (interim) · benchmark numbers pending · 2026-10-18
 
+> **Update 2026-11-08 (ADR-011):** the grid is now a GPUI `uniform_list` (only visible rows
+> are built each frame) inside a horizontally scrolling container so the header moves with
+> the rows. Viewport maths from `result-grid-core` is no longer used by the UI; the bounded
+> `ResultBuffer` and width estimation still are.
+
 ## Decision
 - Custom grid in `apps/desktop/src/components/result_grid/` driven by Dioxus `onscroll`
   and `onresize` events (no `web_sys`). Rust/UI's grid is web-only (ADR-002).

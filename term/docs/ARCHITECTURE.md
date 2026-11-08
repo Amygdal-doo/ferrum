@@ -1,7 +1,7 @@
 # Architecture
 
 ```
-apps/gui (winit event loop) ──┐
+apps/gui (GPUI window) ───────┐
 apps/cli (fterm, attach) ─────┼── crates/client ── Unix socket / TCP+token ── crates/server
 agents (fterm via skill) ─────┘                                                │
                                                      per block: PTY + reader thread + crates/emulator
@@ -34,9 +34,15 @@ can wait and keep working. Targets are strings resolved server-side (`b3`, `w2`,
 name, a window name, or a block label).
 
 ## GUI
-One wgpu render pass draws coloured quads (backgrounds, decorations, cursor, dividers, tab bar)
-and then glyphon text. Each pane is a cosmic-text buffer with monospace width forced to the cell
-width, rebuilt only when that pane's frame changes. Bitmap-only system faces (macOS
-`GB18030Bitmap`) are removed from the font database: their broken metrics produced infinite
-glyph widths for CJK fallback. Keys are sent as key specs, so the server encodes them against the
+The window is a GPUI view built on the shared `ferrum-ui` crate (theme, fonts and window
+bootstrap shared with the other Ferrum tools and FerrumIDE). A canvas paints each pane from its
+latest frame: background quads per span, then each row shaped with per-span `TextRun`s
+(bold/italic/dim/underline/strike) in the monospace buffer font. Narrow characters are shaped
+together with glyph advances forced to the cell width; wide characters (CJK, emoji) are shaped on
+their own so they cover two cells. The cursor, dividers and the unfocused-pane hollow cursor are
+quads. The tab bar and message strip are ordinary GPUI elements. GPUI's line-layout cache means
+unchanged rows are not reshaped. The view's tokio side (client connection, requests) talks to the
+GPUI foreground through an unbounded channel. Printable text arrives through GPUI's input handler,
+so IME composition works (the marked text is drawn at the cursor); everything else goes through
+`input::translate`. Keys are sent as key specs, so the server encodes them against the
 program's current modes (application cursor, bracketed paste).

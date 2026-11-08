@@ -17,11 +17,11 @@ static CACHE: LazyLock<Mutex<HashMap<u64, Highlighted>>> = LazyLock::new(Mutex::
 /// Lines longer than this are not highlighted (minified files).
 const MAX_LINE: usize = 2000;
 
-/// A run of text and its CSS colour (`None` = inherit).
+/// A run of text and its `0xRRGGBB` colour (`None` = inherit).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
     pub text: String,
-    pub color: Option<String>,
+    pub color: Option<u32>,
 }
 
 fn theme(dark: bool) -> Option<&'static Theme> {
@@ -74,7 +74,9 @@ pub fn highlight(path: &str, lines: &[&str], dark: bool) -> Highlighted {
                                 let c = style.foreground;
                                 Token {
                                     text: text.trim_end_matches('\n').to_owned(),
-                                    color: Some(format!("#{:02x}{:02x}{:02x}", c.r, c.g, c.b)),
+                                    color: Some(
+                                        u32::from(c.r) << 16 | u32::from(c.g) << 8 | u32::from(c.b),
+                                    ),
                                 }
                             })
                             .filter(|t| !t.text.is_empty())

@@ -1,14 +1,13 @@
-//! Reactive UI state. Result rows live in bounded [`ResultBuffer`]s; the grid
-//! only ever renders the visible slice.
+//! UI state owned by the root view. Result rows live in bounded
+//! [`ResultBuffer`](ferrumdata_result_grid_core::ResultBuffer)s; the grid only
+//! ever renders the visible slice.
 
 mod run;
 
 pub use run::TabRun;
 
-use dioxus::prelude::*;
 use ferrumdata_domain::{
     AppSettings, ConnectionProfile, EditorTabId, EditorTabState, ProfileId, TableInfo, TableRef,
-    Theme,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -90,86 +89,61 @@ pub enum Dialog {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Notice {
-    pub message: String,
-    pub error: bool,
-}
-
-/// All signals are `Copy`; pass `AppState` freely into closures.
-#[derive(Clone, Copy)]
+#[derive(Default)]
 pub struct AppState {
-    pub loaded: Signal<bool>,
-    pub settings: Signal<AppSettings>,
-    pub system_dark: Signal<bool>,
-    pub profiles: Signal<Vec<ConnectionProfile>>,
-    pub conn_status: Signal<HashMap<ProfileId, ConnStatus>>,
-    pub schemas: Signal<HashMap<ProfileId, SchemaLoad>>,
-    pub expanded: Signal<HashSet<ProfileId>>,
-    pub tabs: Signal<Vec<EditorTab>>,
-    pub active_tab: Signal<Option<EditorTabId>>,
-    pub runs: Signal<HashMap<EditorTabId, TabRun>>,
-    pub dialog: Signal<Option<Dialog>>,
-    pub notice: Signal<Option<Notice>>,
+    pub loaded: bool,
+    pub settings: AppSettings,
+    pub profiles: Vec<ConnectionProfile>,
+    pub conn_status: HashMap<ProfileId, ConnStatus>,
+    pub schemas: HashMap<ProfileId, SchemaLoad>,
+    pub expanded: HashSet<ProfileId>,
+    pub tabs: Vec<EditorTab>,
+    pub active_tab: Option<EditorTabId>,
+    pub runs: HashMap<EditorTabId, TabRun>,
+    pub dialog: Option<Dialog>,
 }
 
 impl AppState {
     #[must_use]
-    pub fn new() -> Self {
-        Self {
-            loaded: Signal::new(false),
-            settings: Signal::new(AppSettings::default()),
-            system_dark: Signal::new(false),
-            profiles: Signal::new(Vec::new()),
-            conn_status: Signal::new(HashMap::new()),
-            schemas: Signal::new(HashMap::new()),
-            expanded: Signal::new(HashSet::new()),
-            tabs: Signal::new(Vec::new()),
-            active_tab: Signal::new(None),
-            runs: Signal::new(HashMap::new()),
-            dialog: Signal::new(None),
-            notice: Signal::new(None),
-        }
+    pub fn active_tab(&self) -> Option<&EditorTab> {
+        let id = self.active_tab?;
+        self.tabs.iter().find(|t| t.id == id)
     }
 
     #[must_use]
-    pub fn is_dark(&self) -> bool {
-        match self.settings.read().theme {
-            Theme::Dark => true,
-            Theme::Light => false,
-            Theme::System => *self.system_dark.read(),
-        }
-    }
-
-    #[must_use]
-    pub fn active_tab(&self) -> Option<EditorTab> {
-        let id = (*self.active_tab.read())?;
-        self.tabs.read().iter().find(|t| t.id == id).cloned()
-    }
-
-    #[must_use]
-    pub fn profile(&self, id: ProfileId) -> Option<ConnectionProfile> {
-        self.profiles.read().iter().find(|p| p.id == id).cloned()
+    pub fn profile(&self, id: ProfileId) -> Option<&ConnectionProfile> {
+        self.profiles.iter().find(|p| p.id == id)
     }
 
     /// Profile bound to the active tab.
     #[must_use]
-    pub fn active_profile(&self) -> Option<ConnectionProfile> {
+    pub fn active_profile(&self) -> Option<&ConnectionProfile> {
         self.active_tab()
             .and_then(|t| t.profile_id)
             .and_then(|id| self.profile(id))
     }
 
-    pub fn notify(mut self, message: impl Into<String>, error: bool) {
-        self.notice.set(Some(Notice {
-            message: message.into(),
-            error,
-        }));
+    /// The active tab's run, if one is in flight.
+    #[must_use]
+    pub fn active_run_in_flight(&self) -> bool {
+        self.active_tab
+            .and_then(|id| self.runs.get(&id))
+            .is_some_and(|r| !r.state.is_terminal())
     }
 
-    pub fn update_tab(mut self, id: EditorTabId, f: impl FnOnce(&mut EditorTab)) {
-        if let Some(tab) = self.tabs.write().iter_mut().find(|t| t.id == id) {
+    pub fn update_tab(&mut self, id: EditorTabId, f: impl FnOnce(&mut EditorTab)) {
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.id == id) {
             f(tab);
+        }
+    }
+
+    /// Binds the active tab to `profile_id` (or unbinds it).
+    pub fn bind_active_tab(&mut self, profile_id: Option<ProfileId>) {
+        if let Some(tab_id) = self.active_tab {
+            self.update_tab(tab_id, |t| {
+                t.profile_id = profile_id;
+                t.unsaved = true;
+            });
         }
     }
 }

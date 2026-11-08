@@ -2,6 +2,13 @@
 
 Status: **Open — blocking spike not yet executed** · 2026-10-18
 
+> **Update 2026-11-08 (ADR-011):** the interim editor is no longer a `<textarea>`. It is a
+> multi-line monospace `ferrum_ui::TextInput` (GPUI) with a line-number gutter; the run
+> command reads the selection/caret directly from it as byte offsets. Unlike the textarea it
+> has **no undo/redo and no spellcheck/accessibility tree yet**; IME and clipboard work via
+> GPUI's input handler. The spike options below should now be evaluated against GPUI
+> (including reusing FerrumIDE's `editor` crate).
+
 ## Context
 An IDE-grade editor (highlighting, completion, multi-cursor, IME, 1 MB documents) is the
 highest UI risk. Options per spec: **A** custom Rust editor over a rope with a browser

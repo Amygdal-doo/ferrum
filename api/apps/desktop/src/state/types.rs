@@ -1,13 +1,8 @@
 //! Small UI-state value types.
 
-use ferrumapi_domain::{CollectionId, EnvironmentId, HttpResponse, ItemId, TabId};
+use ferrumapi_application::interop::codegen::CodeTarget;
+use ferrumapi_domain::{Collection, CollectionId, Environment, HttpResponse, ItemId, TabId};
 use std::time::Instant;
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Notice {
-    pub message: String,
-    pub error: bool,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SidebarView {
@@ -46,14 +41,24 @@ impl RequestSection {
     }
 }
 
-/// Remount counters for uncontrolled inputs. Inputs use `initial_value`
-/// (avoids lost keystrokes); bumping a counter re-keys them so a value
-/// changed from elsewhere (e.g. URL ↔ params sync) is shown.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct EditorRevs {
-    pub url: u64,
-    pub params: u64,
-    pub body: u64,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResponseView {
+    Body,
+    Headers,
+    Cookies,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BodyMode {
+    Pretty,
+    Raw,
+    Preview,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SettingsPane {
+    Auth,
+    Variables,
 }
 
 /// The in-memory response state of one tab.
@@ -72,20 +77,36 @@ impl TabResponse {
     }
 }
 
+/// The open modal and its working copy (drafts are applied on Save).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Dialog {
-    /// Save an unsaved tab into a collection.
-    SaveRequest(TabId),
+    /// Save an unsaved tab into a collection. `target` is the chosen
+    /// (collection, folder) destination.
+    SaveRequest {
+        tab_id: TabId,
+        name: String,
+        new_collection: String,
+        target: Option<(CollectionId, Option<ItemId>)>,
+    },
     /// Delete a collection (`item: None`) or a folder/request in it.
     DeleteItem {
         collection: CollectionId,
         item: Option<ItemId>,
         name: String,
     },
-    CollectionSettings(CollectionId),
-    EditEnvironment(EnvironmentId),
-    DeleteEnvironment(EnvironmentId, String),
+    CollectionSettings {
+        draft: Box<Collection>,
+        pane: SettingsPane,
+    },
+    EditEnvironment(Box<Environment>),
+    DeleteEnvironment(ferrumapi_domain::EnvironmentId, String),
     ClearHistory,
-    Import,
-    Code(TabId),
+    Import {
+        curl: String,
+        error: Option<String>,
+    },
+    Code {
+        tab_id: TabId,
+        target: CodeTarget,
+    },
 }

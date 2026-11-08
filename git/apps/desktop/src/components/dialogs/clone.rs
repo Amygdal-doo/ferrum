@@ -1,14 +1,26 @@
 //! Clone a repository with a chosen profile (its SSH key is used for the clone
 //! and the repository keeps that profile afterwards).
 
-use super::{FIELD, Modal};
-use crate::commands::{run, workspace};
-use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
-use crate::state::AppState;
-use dioxus::prelude::*;
-use ferrumgit_application::{AppServices, CancellationToken};
+use super::{DialogState, WIDE, modal, width};
+use crate::app::FerrumGit;
+use crate::components::widgets::{
+    field, ghost_button, hint, primary_button, radio_row, small_button,
+};
+use ferrum_ui::{TextInput, TextInputEvent};
+use ferrumgit_application::CancellationToken;
 use ferrumgit_domain::ProfileId;
-use uuid::Uuid;
+use gpui::{AnyElement, Context, Entity, SharedString, Window, div, prelude::*};
+use theme::ActiveTheme;
+use ui::{Clickable, Color, Disableable, Label, LabelCommon, LabelSize, h_flex, v_flex};
+
+pub struct CloneForm {
+    pub url: Entity<TextInput>,
+    pub parent: Entity<TextInput>,
+    pub name: Entity<TextInput>,
+    pub name_edited: bool,
+    pub profile: Option<ProfileId>,
+    pub running: Option<CancellationToken>,
+}
 
 /// `git@host:o/repo.git` → `repo`.
 fn repo_name(url: &str) -> String {
@@ -17,111 +29,209 @@ fn repo_name(url: &str) -> String {
     last.strip_suffix(".git").unwrap_or(last).to_owned()
 }
 
-#[component]
-pub fn CloneDialog() -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let home = std::env::var("HOME").unwrap_or_default();
-    let mut url = use_signal(String::new);
-    let mut parent = use_signal(|| home.clone());
-    let mut parent_rev = use_signal(|| 0u64);
-    let mut name = use_signal(String::new);
-    let mut name_edited = use_signal(|| false);
-    let mut name_rev = use_signal(|| 0u64);
-    let profiles = state.profiles.read().clone();
-    let mut profile = use_signal(|| profiles.first().map(|p| p.id));
-    let mut running = use_signal(|| None::<CancellationToken>);
-    let dest = format!(
-        "{}/{}",
-        parent.read().trim_end_matches('/'),
-        name.read().trim()
-    );
-    let valid =
-        !url.read().trim().is_empty() && !name.read().trim().is_empty() && running.read().is_none();
-    let dest2 = dest.clone();
-
-    let start = move |_| {
-        let token = CancellationToken::new();
-        running.set(Some(token.clone()));
-        let p = (*profile.peek())
-            .and_then(|id| state.profiles.peek().iter().find(|p| p.id == id).cloned());
-        let (s, u, d) = (services.clone(), url.peek().clone(), dest2.clone());
-        spawn(async move {
-            let s2 = s.clone();
-            let result = run(
-                &s,
-                async move { s2.clone_repo(&u, &d, p, Some(token)).await },
-            )
-            .await;
-            running.set(None);
-            match result {
-                Ok(entry) => {
-                    state.dialog.set(None);
-                    state.notify(format!("Cloned {}", entry.name), false);
-                    workspace::upsert_and_open(state, s, entry);
-                }
-                Err(e) => state.notify(e, true),
-            }
+impl CloneForm {
+    pub fn new(app: &mut FerrumGit, window: &mut Window, cx: &mut Context<FerrumGit>) -> Self {
+        let home = std::env::var("HOME").unwrap_or_default();
+        let url = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("git@github.com:owner/repo.git")
+                .monospace()
         });
-    };
-
-    rsx! {
-        Modal { title: "Clone repository", width: "max-w-xl", on_close: move |_| if running.peek().is_none() { state.dialog.set(None) },
-            div { class: "flex flex-col gap-3 text-sm",
-                label { class: "flex flex-col gap-1",
-                    span { class: "text-xs text-muted-foreground", "Repository URL" }
-                    input { class: "{FIELD} font-mono text-xs", placeholder: "git@github.com:owner/repo.git",
-                        onmounted: |e: MountedEvent| async move { let _ = e.data().set_focus(true).await; },
-                        oninput: move |e| {
-                            url.set(e.value());
-                            if !*name_edited.peek() { name.set(repo_name(&e.value())); name_rev += 1; }
-                        } }
-                }
-                div { class: "flex flex-col gap-1",
-                    span { class: "text-xs text-muted-foreground", "Clone into" }
-                    div { class: "flex gap-2",
-                        for r in [*parent_rev.read()] {
-                            input { key: "{r}", class: "{FIELD} font-mono text-xs", initial_value: "{parent.peek()}", oninput: move |e| parent.set(e.value()) }
-                        }
-                        Button { size: ButtonSize::Sm, variant: ButtonVariant::Outline,
-                            onclick: move |_| { spawn(async move {
-                                if let Some(d) = rfd::AsyncFileDialog::new().set_title("Clone into folder").pick_folder().await {
-                                    parent.set(d.path().display().to_string());
-                                    parent_rev += 1;
-                                }
-                            }); },
-                            "Browse…" }
+        let parent = cx.new(|cx| TextInput::new(window, cx).monospace().with_text(home));
+        let name = app.input("Folder name", window, cx);
+        app.dialog_subscriptions.push(cx.subscribe_in(
+            &url,
+            window,
+            |app, input, event, window, cx| match event {
+                TextInputEvent::Changed => {
+                    let derived = repo_name(input.read(cx).text());
+                    if let Some(DialogState::Clone(form)) = &app.dialog
+                        && !form.name_edited
+                    {
+                        form.name.update(cx, |name, cx| name.set_text(derived, cx));
                     }
+                    cx.notify();
                 }
-                label { class: "flex flex-col gap-1",
-                    span { class: "text-xs text-muted-foreground", "Folder name" }
-                    for r in [*name_rev.read()] {
-                        input { key: "{r}", class: FIELD, initial_value: "{name.peek()}", oninput: move |e| { name_edited.set(true); name.set(e.value()); } }
+                TextInputEvent::Submit => app.submit_dialog(window, cx),
+                TextInputEvent::Blurred => {}
+            },
+        ));
+        app.dialog_subscriptions.push(cx.subscribe_in(
+            &name,
+            window,
+            |app, _, event, window, cx| match event {
+                TextInputEvent::Changed => {
+                    if let Some(DialogState::Clone(form)) = &mut app.dialog {
+                        form.name_edited = true;
                     }
-                    span { class: "truncate font-mono text-[11px] text-muted-foreground", "{dest}" }
+                    cx.notify();
                 }
-                label { class: "flex flex-col gap-1",
-                    span { class: "text-xs text-muted-foreground", "Profile (SSH key + identity for this repository)" }
-                    select { class: FIELD,
-                        onchange: move |e| profile.set(Uuid::parse_str(&e.value()).ok().map(ProfileId)),
-                        option { value: "", selected: profile.read().is_none(), "System default (ssh-agent / ~/.ssh/config)" }
-                        for p in profiles {
-                            option { key: "{p.id}", value: "{p.id}", selected: *profile.read() == Some(p.id), "{p.name} — {p.ssh_label()}" }
-                        }
-                    }
-                }
-            }
-            div { class: "mt-5 flex items-center justify-end gap-2",
-                if let Some(token) = running.read().clone() {
-                    span { class: "flex-1 text-xs text-muted-foreground", "Cloning…" }
-                    Button { variant: ButtonVariant::Ghost, onclick: move |_| token.cancel(), "Cancel clone" }
-                } else {
-                    Button { variant: ButtonVariant::Ghost, onclick: move |_| state.dialog.set(None), "Cancel" }
-                }
-                Button { disabled: !valid, onclick: start, "Clone" }
-            }
+                TextInputEvent::Submit => app.submit_dialog(window, cx),
+                TextInputEvent::Blurred => {}
+            },
+        ));
+        app.watch_input(&parent, window, cx);
+        Self {
+            url,
+            parent,
+            name,
+            name_edited: false,
+            profile: app.state.profiles.first().map(|p| p.id),
+            running: None,
         }
     }
+
+    fn destination(&self, cx: &gpui::App) -> String {
+        format!(
+            "{}/{}",
+            self.parent.read(cx).text().trim_end_matches('/'),
+            self.name.read(cx).text().trim()
+        )
+    }
+
+    fn valid(&self, cx: &gpui::App) -> bool {
+        !self.url.read(cx).text().trim().is_empty()
+            && !self.name.read(cx).text().trim().is_empty()
+            && self.running.is_none()
+    }
+}
+
+impl FerrumGit {
+    pub fn start_clone(&mut self, cx: &mut Context<Self>) {
+        let Some(DialogState::Clone(form)) = &mut self.dialog else {
+            return;
+        };
+        if !form.valid(cx) {
+            return;
+        }
+        let token = CancellationToken::new();
+        form.running = Some(token.clone());
+        let profile = form
+            .profile
+            .and_then(|id| self.state.profiles.iter().find(|p| p.id == id).cloned());
+        let url = form.url.read(cx).text().to_owned();
+        let dest = form.destination(cx);
+        let services = self.services.clone();
+        self.spawn_run(
+            cx,
+            async move { services.clone_repo(&url, &dest, profile, Some(token)).await },
+            |app, result, cx| {
+                if let Some(DialogState::Clone(form)) = &mut app.dialog {
+                    form.running = None;
+                }
+                match result {
+                    Ok(entry) => {
+                        app.dialog = None;
+                        app.dialog_subscriptions.clear();
+                        app.notify(format!("Cloned {}", entry.name), false, cx);
+                        app.upsert_and_open(entry, cx);
+                    }
+                    Err(e) => app.notify(e, true, cx),
+                }
+            },
+        );
+        cx.notify();
+    }
+}
+
+pub fn render(app: &FerrumGit, cx: &mut Context<FerrumGit>) -> AnyElement {
+    let Some(DialogState::Clone(form)) = &app.dialog else {
+        return div().into_any_element();
+    };
+    let dest = form.destination(cx);
+    let valid = form.valid(cx);
+    let selected = form.profile;
+    let running = form.running.clone();
+    let mut profiles: Vec<AnyElement> = vec![
+        radio_row(
+            "clone-profile-none",
+            selected.is_none(),
+            "System default",
+            Some("ssh-agent / ~/.ssh/config".into()),
+            cx.listener(|app, _, _, cx| {
+                if let Some(DialogState::Clone(form)) = &mut app.dialog {
+                    form.profile = None;
+                }
+                cx.notify();
+            }),
+            cx,
+        )
+        .into_any_element(),
+    ];
+    for p in &app.state.profiles {
+        let pid = p.id;
+        profiles.push(
+            radio_row(
+                SharedString::from(format!("clone-profile-{pid}")),
+                selected == Some(pid),
+                p.name.clone(),
+                Some(p.ssh_label().into()),
+                cx.listener(move |app, _, _, cx| {
+                    if let Some(DialogState::Clone(form)) = &mut app.dialog {
+                        form.profile = Some(pid);
+                    }
+                    cx.notify();
+                }),
+                cx,
+            )
+            .into_any_element(),
+        );
+    }
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    let mut m = modal("Clone repository", cx)
+        .width(width(WIDE))
+        .child(field("Repository URL", form.url.clone()))
+        .child(field(
+            "Clone into",
+            h_flex()
+                .gap_2()
+                .child(div().flex_1().child(form.parent.clone()))
+                .child(
+                    small_button("clone-browse", "Browse…").on_click(cx.listener(
+                        |app, _, _, cx| {
+                            app.pick_path(cx, "Clone into folder", true, |app, path, cx| {
+                                if let Some(DialogState::Clone(form)) = &app.dialog {
+                                    form.parent.update(cx, |input, cx| {
+                                        input.set_text(path.display().to_string(), cx)
+                                    });
+                                }
+                            });
+                        },
+                    )),
+                ),
+        ))
+        .child(
+            field("Folder name", form.name.clone()).child(
+                Label::new(dest)
+                    .size(LabelSize::XSmall)
+                    .color(Color::Muted)
+                    .truncate(),
+            ),
+        )
+        .child(field(
+            "Profile (SSH key + identity for this repository)",
+            v_flex()
+                .rounded_md()
+                .border_1()
+                .border_color(colors.border)
+                .children(profiles),
+        ));
+    m = match running {
+        Some(token) => m.footer(hint("Cloning…")).footer(
+            ghost_button("clone-cancel", "Cancel clone").on_click(move |_, _, _| token.cancel()),
+        ),
+        None => m.footer(
+            ghost_button("clone-close", "Cancel")
+                .on_click(cx.listener(|app, _, window, cx| app.close_dialog(window, cx))),
+        ),
+    };
+    m.footer(
+        primary_button("clone-start", "Clone")
+            .disabled(!valid)
+            .on_click(cx.listener(|app, _, _, cx| app.start_clone(cx))),
+    )
+    .into_any_element()
 }
 
 #[cfg(test)]

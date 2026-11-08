@@ -5,18 +5,11 @@ mod kv_table;
 mod secret_input;
 mod vars_table;
 
-pub use auth_editor::AuthEditor;
-pub use kv_table::KvTable;
-pub use secret_input::SecretInput;
-pub use vars_table::VarsTable;
+pub use auth_editor::{AuthTarget, AuthView};
+pub use kv_table::RowEditor;
 
-/// Borderless table cell input.
-pub const CELL: &str =
-    "h-7 w-full bg-transparent px-2 font-mono text-xs outline-none focus:bg-accent/40 select-text";
-/// Cell referencing an unresolved `{{variable}}`.
-pub const CELL_BAD: &str = "h-7 w-full bg-transparent px-2 font-mono text-xs outline-none focus:bg-accent/40 select-text text-destructive underline decoration-destructive decoration-dotted";
-/// Standard bordered field.
-pub const FIELD: &str = "h-8 w-full rounded-md border bg-background px-2 text-sm outline-none focus:border-ring select-text";
+use gpui::{App, Hsla, IntoElement, div, prelude::*};
+use ui::{ActiveTheme as _, Color, Label, LabelCommon as _, LabelSize};
 
 /// Tooltip listing unresolved variables (empty when none).
 #[must_use]
@@ -26,4 +19,30 @@ pub fn unresolved_title(names: &[String]) -> String {
     } else {
         format!("Unresolved: {}", names.join(", "))
     }
+}
+
+/// Column header cell.
+pub fn header_cell(text: &'static str) -> impl IntoElement {
+    div()
+        .px_2()
+        .py_1()
+        .child(Label::new(text).size(LabelSize::XSmall).color(Color::Muted))
+}
+
+/// Row divider colour.
+pub fn row_border(cx: &App) -> Hsla {
+    cx.theme().colors().border_variant
+}
+
+/// Labelled form row: fixed-width label, then the control.
+pub fn form_row(label: &'static str, control: impl IntoElement) -> impl IntoElement {
+    ui::h_flex()
+        .gap_3()
+        .child(
+            div()
+                .w_24()
+                .flex_none()
+                .child(Label::new(label).size(LabelSize::Small).color(Color::Muted)),
+        )
+        .child(div().flex_1().min_w_0().child(control))
 }

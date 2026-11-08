@@ -1,56 +1,86 @@
 //! Per-request transport settings.
 
-use crate::components::widgets::FIELD;
-use crate::state::AppState;
-use dioxus::prelude::*;
+use crate::app::FerrumApi;
+use crate::components::fields::{FieldSpec, on_change};
+use crate::components::{checkbox, hint};
 use ferrumapi_domain::{RequestSettings, TabId};
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
+use ui::{Label, h_flex, v_flex};
 
-#[component]
-pub fn SettingsEditor(tab_id: TabId, settings: RequestSettings) -> Element {
-    let state = use_context::<AppState>();
-    rsx! {
-        div { class: "flex max-w-xl flex-col gap-4 text-sm",
-            label { class: "flex items-center gap-3",
-                span { class: "w-40 shrink-0 text-xs text-muted-foreground", "Timeout (ms)" }
-                input {
-                    class: "{FIELD} w-40",
-                    r#type: "number",
-                    min: "0",
-                    step: "1000",
-                    initial_value: "{settings.timeout_ms}",
-                    oninput: move |e| {
-                        if let Ok(ms) = e.value().trim().parse::<u64>() {
-                            state.edit_request(tab_id, |r| r.settings.timeout_ms = ms);
-                        }
-                    },
+impl FerrumApi {
+    pub(super) fn render_settings_editor(
+        &mut self,
+        tab_id: TabId,
+        settings: RequestSettings,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let timeout = self.field(
+            FieldSpec::new(format!("timeout:{tab_id}")).initial(settings.timeout_ms.to_string()),
+            on_change(move |this, text, _| {
+                if let Ok(ms) = text.trim().parse::<u64>() {
+                    this.state
+                        .edit_request(tab_id, |r| r.settings.timeout_ms = ms);
                 }
-                span { class: "text-xs text-muted-foreground", "0 = no timeout" }
-            }
-            Toggle {
-                label: "Follow redirects",
-                hint: "Automatically follow 3xx responses.",
-                on: settings.follow_redirects,
-                on_change: move |v| state.edit_request(tab_id, |r| r.settings.follow_redirects = v),
-            }
-            Toggle {
-                label: "Verify TLS certificates",
-                hint: "Turn off only for local servers with self-signed certificates.",
-                on: settings.verify_tls,
-                on_change: move |v| state.edit_request(tab_id, |r| r.settings.verify_tls = v),
-            }
-        }
+            }),
+            window,
+            cx,
+        );
+        let follow = toggle_row(
+            format!("follow-{tab_id}"),
+            "Follow redirects",
+            "Automatically follow 3xx responses.",
+            settings.follow_redirects,
+            move |this, on, _| {
+                this.state
+                    .edit_request(tab_id, |r| r.settings.follow_redirects = on)
+            },
+            cx,
+        );
+        let verify = toggle_row(
+            format!("verify-{tab_id}"),
+            "Verify TLS certificates",
+            "Turn off only for local servers with self-signed certificates.",
+            settings.verify_tls,
+            move |this, on, _| {
+                this.state
+                    .edit_request(tab_id, |r| r.settings.verify_tls = on)
+            },
+            cx,
+        );
+        v_flex()
+            .max_w(px(576.))
+            .gap_4()
+            .child(
+                h_flex()
+                    .gap_3()
+                    .child(div().w_40().flex_none().child(hint("Timeout (ms)")))
+                    .child(div().w_40().child(timeout))
+                    .child(hint("0 = no timeout")),
+            )
+            .child(follow)
+            .child(verify)
+            .into_any_element()
     }
 }
 
-#[component]
-fn Toggle(label: String, hint: String, on: bool, on_change: EventHandler<bool>) -> Element {
-    rsx! {
-        label { class: "flex cursor-pointer items-start gap-3",
-            input { class: "mt-0.5", r#type: "checkbox", checked: on, onchange: move |e| on_change.call(e.checked()) }
-            span { class: "flex flex-col gap-0.5",
-                span { class: "text-sm", "{label}" }
-                span { class: "text-xs text-muted-foreground", "{hint}" }
-            }
-        }
-    }
+fn toggle_row(
+    id: String,
+    label: &'static str,
+    detail: &'static str,
+    on: bool,
+    on_change: impl Fn(&mut FerrumApi, bool, &mut Context<FerrumApi>) + 'static,
+    cx: &mut Context<FerrumApi>,
+) -> AnyElement {
+    h_flex()
+        .items_start()
+        .gap_3()
+        .child(checkbox(SharedString::from(id), on, on_change, cx))
+        .child(
+            v_flex()
+                .gap_0p5()
+                .child(Label::new(label))
+                .child(hint(detail)),
+        )
+        .into_any_element()
 }

@@ -1,12 +1,15 @@
 //! Collection tree: collection, folder and request rows.
 
-use super::menu::{ContextMenu, MenuAction, RenameInput};
-use crate::commands::{collections as cmd, files, workspace};
-use crate::components::method_class;
-use crate::state::{AppState, Dialog};
-use dioxus::prelude::*;
-use ferrumapi_application::AppServices;
-use ferrumapi_domain::{Collection, CollectionId, Item, RequestOrigin};
+use super::menu::{MenuAction, more_button, with_context_menu};
+use crate::app::FerrumApi;
+use crate::components::{MenuHandler, menu_item, method_label};
+use crate::state::Dialog;
+use ferrumapi_domain::{Collection, CollectionId, HttpMethod, Item, ItemId, RequestOrigin};
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
+use ui::{
+    ActiveTheme as _, Color, Icon, IconName, IconSize, Label, LabelCommon as _, LabelSize, Tooltip,
+    VisibleOnHover as _, h_flex,
+};
 use uuid::Uuid;
 
 const CONTAINER_ACTIONS: [MenuAction; 6] = [
@@ -18,100 +21,147 @@ const CONTAINER_ACTIONS: [MenuAction; 6] = [
     MenuAction::Delete,
 ];
 
-#[component]
-pub fn CollectionNode(collection: Collection) -> Element {
-    let state = use_context::<AppState>();
-    let cid = collection.id;
-    let expanded = state.expanded.read().contains(&cid.0);
-    let mut actions = CONTAINER_ACTIONS.to_vec();
-    actions.insert(2, MenuAction::Settings);
-    rsx! {
-        Row {
-            uid: cid.0, cid, item: None, depth: 0, name: collection.name.clone(),
-            folder: true, expanded, method: None, actions, active: false,
-        }
-        if expanded {
-            for item in collection.items.clone() {
-                ItemNode { key: "{item.id()}", cid, item, depth: 1 }
-            }
-            if collection.items.is_empty() {
-                p { class: "py-1 pl-8 text-[11px] text-muted-foreground", "Empty collection" }
-            }
-        }
-    }
-}
-
-#[component]
-fn ItemNode(cid: CollectionId, item: Item, depth: usize) -> Element {
-    let state = use_context::<AppState>();
-    let id = item.id();
-    match item {
-        Item::Folder(f) => {
-            let expanded = state.expanded.read().contains(&id.0);
-            let mut actions = CONTAINER_ACTIONS.to_vec();
-            actions.retain(|a| *a != MenuAction::Export);
-            rsx! {
-                Row { uid: id.0, cid, item: Some(id), depth, name: f.name.clone(), folder: true, expanded, method: None, actions, active: false }
-                if expanded {
-                    for child in f.items {
-                        ItemNode { key: "{child.id()}", cid, item: child, depth: depth + 1 }
-                    }
-                }
-            }
-        }
-        Item::Request(r) => {
-            let origin = RequestOrigin {
-                collection: cid,
-                item: id,
-            };
-            let active = state.active_tab().and_then(|t| t.origin) == Some(origin);
-            let actions = vec![
-                MenuAction::Open,
-                MenuAction::Rename,
-                MenuAction::Duplicate,
-                MenuAction::Delete,
-            ];
-            rsx! {
-                Row { uid: id.0, cid, item: Some(id), depth, name: r.name.clone(), folder: false, expanded: false, method: Some(r.request.method), actions, active }
-            }
-        }
-    }
-}
-
-#[component]
-fn Row(
+struct RowSpec {
     uid: Uuid,
     cid: CollectionId,
-    item: Option<ferrumapi_domain::ItemId>,
+    item: Option<ItemId>,
     depth: usize,
     name: String,
     folder: bool,
     expanded: bool,
-    method: Option<ferrumapi_domain::HttpMethod>,
+    method: Option<HttpMethod>,
     actions: Vec<MenuAction>,
     active: bool,
-) -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let mut menu = use_signal(|| None::<(f64, f64)>);
-    let renaming = *state.renaming.read() == Some(uid);
-    let pad = 8 + depth * 14;
-    let bg = if active {
-        "bg-accent"
-    } else {
-        "hover:bg-accent/60"
-    };
-    let weight = if depth == 0 { "font-medium" } else { "" };
-    let chevron = if expanded { "▾" } else { "▸" };
-    let svc = services.clone();
-    let mut open = move || {
+}
+
+impl FerrumApi {
+    pub fn render_collection_node(
+        &mut self,
+        collection: &Collection,
+        rows: &mut Vec<AnyElement>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let cid = collection.id;
+        let expanded = self.state.expanded.contains(&cid.0);
+        let mut actions = CONTAINER_ACTIONS.to_vec();
+        actions.insert(2, MenuAction::Settings);
+        let row = self.render_tree_row(
+            RowSpec {
+                uid: cid.0,
+                cid,
+                item: None,
+                depth: 0,
+                name: collection.name.clone(),
+                folder: true,
+                expanded,
+                method: None,
+                actions,
+                active: false,
+            },
+            window,
+            cx,
+        );
+        rows.push(row);
+        if expanded {
+            for item in &collection.items {
+                self.render_item_node(cid, item, 1, rows, window, cx);
+            }
+            if collection.items.is_empty() {
+                rows.push(
+                    div()
+                        .py_1()
+                        .pl_8()
+                        .child(
+                            Label::new("Empty collection")
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        )
+                        .into_any_element(),
+                );
+            }
+        }
+    }
+
+    fn render_item_node(
+        &mut self,
+        cid: CollectionId,
+        item: &Item,
+        depth: usize,
+        rows: &mut Vec<AnyElement>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let id = item.id();
+        match item {
+            Item::Folder(f) => {
+                let expanded = self.state.expanded.contains(&id.0);
+                let mut actions = CONTAINER_ACTIONS.to_vec();
+                actions.retain(|a| *a != MenuAction::Export);
+                let row = self.render_tree_row(
+                    RowSpec {
+                        uid: id.0,
+                        cid,
+                        item: Some(id),
+                        depth,
+                        name: f.name.clone(),
+                        folder: true,
+                        expanded,
+                        method: None,
+                        actions,
+                        active: false,
+                    },
+                    window,
+                    cx,
+                );
+                rows.push(row);
+                if expanded {
+                    for child in &f.items {
+                        self.render_item_node(cid, child, depth + 1, rows, window, cx);
+                    }
+                }
+            }
+            Item::Request(r) => {
+                let origin = RequestOrigin {
+                    collection: cid,
+                    item: id,
+                };
+                let active = self.state.active_tab().and_then(|t| t.origin) == Some(origin);
+                let row = self.render_tree_row(
+                    RowSpec {
+                        uid: id.0,
+                        cid,
+                        item: Some(id),
+                        depth,
+                        name: r.name.clone(),
+                        folder: false,
+                        expanded: false,
+                        method: Some(r.request.method),
+                        actions: vec![
+                            MenuAction::Open,
+                            MenuAction::Rename,
+                            MenuAction::Duplicate,
+                            MenuAction::Delete,
+                        ],
+                        active,
+                    },
+                    window,
+                    cx,
+                );
+                rows.push(row);
+            }
+        }
+    }
+
+    /// Folders toggle; requests open in a tab.
+    fn open_tree_row(&mut self, uid: Uuid, cid: CollectionId, item: Option<ItemId>, folder: bool) {
         if folder {
-            let mut set = state.expanded.write();
-            if !set.remove(&uid) {
-                set.insert(uid);
+            if !self.state.expanded.remove(&uid) {
+                self.state.expanded.insert(uid);
             }
         } else if let Some(id) = item
-            && let Some(saved) = state
+            && let Some(saved) = self
+                .state
                 .collection(cid)
                 .and_then(|c| c.find_request(id).cloned())
         {
@@ -119,66 +169,141 @@ fn Row(
                 collection: cid,
                 item: id,
             };
-            workspace::open_request(state, saved.name, saved.request, Some(origin));
+            self.open_request(saved.name, saved.request, Some(origin));
         }
-    };
-    let rename_name = name.clone();
-    let pick = move |a: MenuAction| {
-        let svc = svc.clone();
-        match a {
-            MenuAction::Open => open(),
-            MenuAction::AddRequest => cmd::add_request(state, svc, cid, item),
-            MenuAction::AddFolder => cmd::add_folder(state, svc, cid, item),
-            MenuAction::Settings => state.dialog.set(Some(Dialog::CollectionSettings(cid))),
-            MenuAction::Rename => state.renaming.set(Some(uid)),
-            MenuAction::Duplicate => cmd::duplicate(state, svc, cid, item),
-            MenuAction::Export => {
-                if let Some(c) = state.collection(cid) {
-                    files::export_collection(state, svc, c);
-                }
-            }
-            MenuAction::Delete => state.dialog.set(Some(Dialog::DeleteItem {
-                collection: cid,
-                item,
-                name: rename_name.clone(),
-            })),
-        }
-    };
+    }
 
-    rsx! {
-        div {
-            class: "group flex h-7 cursor-default items-center gap-1.5 rounded-md pr-1 text-sm {bg}",
-            style: "padding-left: {pad}px",
-            onclick: move |_| open(),
-            oncontextmenu: move |e: MouseEvent| {
-                e.prevent_default();
-                let p = e.client_coordinates();
-                menu.set(Some((p.x, p.y)));
-            },
-            if folder {
-                span { class: "w-3 shrink-0 text-[10px] text-muted-foreground", "{chevron}" }
-            } else if let Some(m) = method {
-                span { class: "w-10 shrink-0 text-right text-[10px] font-semibold {method_class(m)}", "{m}" }
-            }
-            if renaming {
-                RenameInput { id: uid, value: name.clone(), on_commit: move |n: String| cmd::rename(state, services.clone(), cid, item, n) }
-            } else {
-                span { class: "min-w-0 flex-1 truncate {weight}", title: "{name}", "{name}" }
-                button {
-                    class: "invisible shrink-0 rounded px-1 text-muted-foreground hover:bg-accent hover:text-foreground group-hover:visible",
-                    "aria-label": "More actions",
-                    title: "More actions",
-                    onclick: move |e: MouseEvent| {
-                        e.stop_propagation();
-                        let p = e.client_coordinates();
-                        menu.set(Some((p.x, p.y)));
+    fn render_tree_row(
+        &mut self,
+        spec: RowSpec,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let colors = cx.theme().colors().clone();
+        let RowSpec {
+            uid,
+            cid,
+            item,
+            depth,
+            name,
+            folder,
+            expanded,
+            method,
+            actions,
+            active,
+        } = spec;
+        let renaming = self.state.renaming == Some(uid);
+        let entries: Vec<(SharedString, MenuHandler)> = actions
+            .into_iter()
+            .map(|action| {
+                let name = name.clone();
+                menu_item(
+                    action.label(),
+                    move |this: &mut FerrumApi, _, cx| match action {
+                        MenuAction::Open => this.open_tree_row(uid, cid, item, folder),
+                        MenuAction::AddRequest => this.add_request(cid, item, cx),
+                        MenuAction::AddFolder => this.add_folder(cid, item, cx),
+                        MenuAction::Settings => this.open_collection_settings(cid),
+                        MenuAction::Rename => this.state.renaming = Some(uid),
+                        MenuAction::Duplicate => this.duplicate_item(cid, item, cx),
+                        MenuAction::Export => {
+                            if let Some(c) = this.state.collection(cid).cloned() {
+                                this.export_collection(c, cx);
+                            }
+                        }
+                        MenuAction::Delete => {
+                            this.state.dialog = Some(Dialog::DeleteItem {
+                                collection: cid,
+                                item,
+                                name: name.clone(),
+                            });
+                        }
                     },
-                    "⋯"
+                )
+            })
+            .collect();
+
+        let group: SharedString = format!("tree-row-{uid}").into();
+        let lead = if folder {
+            Icon::new(if expanded {
+                IconName::ChevronDown
+            } else {
+                IconName::ChevronRight
+            })
+            .size(IconSize::XSmall)
+            .color(Color::Muted)
+            .into_any_element()
+        } else if let Some(m) = method {
+            div()
+                .w(px(40.))
+                .flex()
+                .justify_end()
+                .child(method_label(m, cx))
+                .into_any_element()
+        } else {
+            div().into_any_element()
+        };
+        let body = if renaming {
+            let input = self.rename_field(
+                uid,
+                &name,
+                move |this, new_name, cx| this.rename_item(cid, item, new_name, cx),
+                window,
+                cx,
+            );
+            div().flex_1().min_w_0().child(input).into_any_element()
+        } else {
+            h_flex()
+                .flex_1()
+                .min_w_0()
+                .gap_1()
+                .child(
+                    div()
+                        .id(SharedString::from(format!("tree-name-{uid}")))
+                        .flex_1()
+                        .min_w_0()
+                        .truncate()
+                        .text_sm()
+                        .when(depth == 0, |this| {
+                            this.font_weight(gpui::FontWeight::MEDIUM)
+                        })
+                        .tooltip(Tooltip::text(name.clone()))
+                        .child(name.clone()),
+                )
+                .child(div().visible_on_hover(group.clone()).child(more_button(
+                    format!("tree-more-{uid}"),
+                    entries.clone(),
+                    cx,
+                )))
+                .into_any_element()
+        };
+
+        let row = h_flex()
+            .id(SharedString::from(format!("tree-row-{uid}")))
+            .group(group)
+            .h_7()
+            .gap_1p5()
+            .pr_1()
+            .pl(px((8 + depth * 14) as f32))
+            .rounded_md()
+            .cursor_default()
+            .map(|this| {
+                if active {
+                    this.bg(colors.element_selected)
+                } else {
+                    this.hover(|s| s.bg(colors.element_hover))
                 }
-            }
-        }
-        if let Some(pos) = *menu.read() {
-            ContextMenu { pos, actions, on_pick: pick, on_close: move |_| menu.set(None) }
-        }
+            })
+            .on_click(cx.listener(move |this, _, _, cx| {
+                if this.state.renaming == Some(uid) {
+                    return;
+                }
+                this.open_tree_row(uid, cid, item, folder);
+                cx.notify();
+            }))
+            .child(lead)
+            .child(body)
+            .into_any_element();
+        with_context_menu(format!("tree-menu-{uid}"), row, entries, cx)
     }
 }

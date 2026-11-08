@@ -2,100 +2,155 @@
 
 mod grid;
 
-use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
-use crate::state::{AppState, TabRun};
-use dioxus::prelude::*;
+use crate::app::FerrumData;
+use crate::state::TabRun;
+use ferrum_ui::prelude::*;
 use ferrumdata_domain::{
     CellValue, ColumnMeta, EditorTabId, ExecutionId, LogicalType, ProfileId, QueryState,
 };
-use grid::VirtualGrid;
 
-#[component]
-pub fn ResultsPanel() -> Element {
-    let state = use_context::<AppState>();
-    let Some(tab) = state.active_tab() else {
-        return rsx! {};
-    };
-    let runs = state.runs.read();
-    let run = runs.get(&tab.id);
-
-    rsx! {
-        section { class: "flex h-full min-h-0 flex-col bg-background", "aria-label": "Results",
-            div { class: "flex h-8 shrink-0 items-center gap-3 border-b px-3 text-xs",
-                span { class: "font-medium", "Results" }
-                if let Some(run) = run {
-                    span { class: "text-muted-foreground", "{run.status_label()}" }
-                    if let Some(note) = &run.note {
-                        span { class: "text-warning-dark", "{note}" }
-                    }
-                    if run.buffer.is_truncated() {
-                        span { class: "text-warning-dark",
-                            "Showing the first {run.buffer.len()} rows (client fetch limit). The SQL was not modified."
-                        }
-                    }
-                }
-            }
-            div { class: "relative min-h-0 flex-1",
-                match run {
-                    None => rsx! { EmptyState { tab_id: tab.id } },
-                    Some(_) => rsx! { RunView { tab_id: tab.id } },
-                }
-            }
-        }
-    }
-}
-
-/// Takes the tab id, not the run: props are cloned and compared on every
-/// render, which must never touch the row buffer.
-#[component]
-fn RunView(tab_id: EditorTabId) -> Element {
-    let state = use_context::<AppState>();
-    let runs = state.runs.read();
-    let Some(run) = runs.get(&tab_id) else {
-        return rsx! {};
-    };
-    if let Some(err) = &run.error {
-        return rsx! {
-            div { class: "h-full overflow-auto p-4 text-sm select-text",
-                p { class: "font-medium text-destructive", "{err.message}" }
-                if let Some(code) = &err.code { p { class: "mt-1 text-xs text-muted-foreground", "SQLSTATE {code}" } }
-                if let Some(d) = &err.detail { p { class: "mt-2", "Detail: {d}" } }
-                if let Some(h) = &err.hint { p { class: "mt-1", "Hint: {h}" } }
-                if let Some(s) = err.suggestion() { p { class: "mt-2 text-muted-foreground", "{s}" } }
-            }
+impl FerrumData {
+    pub fn render_results(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let colors = cx.theme().colors().clone();
+        let Some(tab_id) = self.state.active_tab else {
+            return div().into_any_element();
         };
-    }
-    match run.state {
-        QueryState::Created | QueryState::Running if run.buffer.columns().is_empty() => rsx! {
-            div { class: "p-4 text-sm text-muted-foreground", "Running…" }
-        },
-        QueryState::Cancelled if run.buffer.is_empty() => rsx! {
-            div { class: "p-4 text-sm text-muted-foreground", "Query cancelled." }
-        },
-        QueryState::TimedOut if run.buffer.is_empty() => rsx! {
-            div { class: "p-4 text-sm text-muted-foreground", "Query timed out." }
-        },
-        QueryState::Completed if run.buffer.columns().is_empty() => rsx! {
-            div { class: "p-4 text-sm", "{run.status_label()}" }
-        },
-        _ => rsx! { VirtualGrid { tab_id } },
-    }
-}
+        let warning = cx.theme().status().warning;
+        let status_line = self.state.runs.get(&tab_id).map(|run| {
+            h_flex()
+                .gap_3()
+                .child(
+                    div()
+                        .text_color(colors.text_muted)
+                        .child(run.status_label()),
+                )
+                .when_some(run.note.clone(), |this, note| {
+                    this.child(div().text_color(warning).child(note))
+                })
+                .when(run.buffer.is_truncated(), |this| {
+                    this.child(div().text_color(warning).child(format!(
+                        "Showing the first {} rows (client fetch limit). The SQL was not modified.",
+                        run.buffer.len()
+                    )))
+                })
+        });
+        let body = if self.state.runs.contains_key(&tab_id) {
+            self.render_run(tab_id, cx)
+        } else {
+            self.render_empty(tab_id, cx)
+        };
 
-#[component]
-fn EmptyState(tab_id: EditorTabId) -> Element {
-    let mut state = use_context::<AppState>();
-    rsx! {
-        div { class: "flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground",
-            p { "Run a statement to see results here." }
-            Button {
-                size: ButtonSize::Sm,
-                variant: ButtonVariant::Outline,
-                title: "Grid spike (ADR-004): renders 100,000 generated rows without a database",
-                onclick: move |_| { state.runs.write().insert(tab_id, synthetic_run(100_000)); },
-                "Load 100k synthetic rows (grid benchmark)"
-            }
+        v_flex()
+            .size_full()
+            .min_h_0()
+            .bg(colors.editor_background)
+            .child(
+                h_flex()
+                    .flex_none()
+                    .h(px(32.))
+                    .gap_3()
+                    .px_3()
+                    .text_xs()
+                    .border_b_1()
+                    .border_color(colors.border)
+                    .child(
+                        div()
+                            .font_weight(ferrum_ui::gpui::FontWeight::MEDIUM)
+                            .child("Results"),
+                    )
+                    .children(status_line),
+            )
+            .child(div().relative().flex_1().min_h_0().child(body))
+            .into_any_element()
+    }
+
+    fn render_run(&mut self, tab_id: EditorTabId, cx: &mut Context<Self>) -> AnyElement {
+        let Some(run) = self.state.runs.get(&tab_id) else {
+            return div().into_any_element();
+        };
+        let message = |text: String| {
+            div()
+                .p_4()
+                .child(Label::new(text).size(LabelSize::Small).color(Color::Muted))
+                .into_any_element()
+        };
+        if let Some(err) = &run.error {
+            let line = |text: String| div().mt_1().child(text);
+            return v_flex()
+                .id("run-error")
+                .size_full()
+                .overflow_y_scroll()
+                .p_4()
+                .text_sm()
+                .child(
+                    div()
+                        .font_weight(ferrum_ui::gpui::FontWeight::MEDIUM)
+                        .text_color(cx.theme().status().error)
+                        .child(err.message.clone()),
+                )
+                .when_some(err.code.clone(), |this, code| {
+                    this.child(
+                        div()
+                            .mt_1()
+                            .text_xs()
+                            .text_color(cx.theme().colors().text_muted)
+                            .child(format!("SQLSTATE {code}")),
+                    )
+                })
+                .when_some(err.detail.clone(), |this, d| {
+                    this.child(line(format!("Detail: {d}")))
+                })
+                .when_some(err.hint.clone(), |this, h| {
+                    this.child(line(format!("Hint: {h}")))
+                })
+                .when_some(err.suggestion(), |this, s| {
+                    this.child(
+                        div()
+                            .mt_2()
+                            .text_color(cx.theme().colors().text_muted)
+                            .child(s),
+                    )
+                })
+                .into_any_element();
         }
+        match run.state {
+            QueryState::Created | QueryState::Running if run.buffer.columns().is_empty() => {
+                message("Running…".into())
+            }
+            QueryState::Cancelled if run.buffer.is_empty() => message("Query cancelled.".into()),
+            QueryState::TimedOut if run.buffer.is_empty() => message("Query timed out.".into()),
+            QueryState::Completed if run.buffer.columns().is_empty() => div()
+                .p_4()
+                .text_sm()
+                .child(run.status_label())
+                .into_any_element(),
+            _ => self.render_grid(tab_id, cx),
+        }
+    }
+
+    fn render_empty(&mut self, tab_id: EditorTabId, cx: &mut Context<Self>) -> AnyElement {
+        v_flex()
+            .size_full()
+            .items_center()
+            .justify_center()
+            .gap_3()
+            .child(
+                Label::new("Run a statement to see results here.")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
+            )
+            .child(
+                Button::new("synthetic", "Load 100k synthetic rows (grid benchmark)")
+                    .style(ButtonStyle::Outlined)
+                    .tooltip(Tooltip::text(
+                        "Grid spike (ADR-004): renders 100,000 generated rows without a database",
+                    ))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.state.runs.insert(tab_id, synthetic_run(100_000));
+                        cx.notify();
+                    })),
+            )
+            .into_any_element()
     }
 }
 
@@ -148,4 +203,18 @@ fn synthetic_run(rows: usize) -> TabRun {
         },
     ));
     run
+}
+
+#[cfg(test)]
+mod tests {
+    use super::synthetic_run;
+
+    #[test]
+    fn synthetic_run_completes_with_all_rows() {
+        let run = synthetic_run(1_000);
+        assert!(run.state.is_terminal());
+        assert_eq!(run.buffer.len(), 1_000);
+        assert_eq!(run.buffer.columns().len(), 5);
+        assert_eq!(run.col_widths.len(), 5);
+    }
 }

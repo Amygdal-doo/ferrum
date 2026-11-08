@@ -1,113 +1,170 @@
-//! Virtualised grid: only rows in the viewport (plus overscan) become DOM
-//! nodes, so DOM size is independent of result size (ADR-004).
+//! Virtualised grid: `uniform_list` only builds the rows in the viewport, so
+//! element count is independent of result size (ADR-004).
 
-use crate::state::AppState;
-use dioxus::prelude::*;
+use crate::app::FerrumData;
+use ferrum_ui::gpui::{Hsla, ListSizingBehavior, uniform_list};
+use ferrum_ui::prelude::*;
 use ferrumdata_domain::{CellValue, EditorTabId};
-use ferrumdata_result_grid_core::{Viewport, visible_range};
+use std::ops::Range;
 
-const ROW_HEIGHT: f64 = 26.0;
-const HEADER_HEIGHT: f64 = 40.0;
+const ROW_HEIGHT: f32 = 26.0;
+const HEADER_HEIGHT: f32 = 40.0;
 const FALLBACK_COL_WIDTH: f64 = 160.0;
-const ROWNUM_WIDTH: f64 = 64.0;
+const ROWNUM_WIDTH: f32 = 64.0;
 
-#[component]
-pub fn VirtualGrid(tab_id: EditorTabId) -> Element {
-    let state = use_context::<AppState>();
-    let mut scroll_top = use_signal(|| 0.0f64);
-    let mut height = use_signal(|| 400.0f64);
-    let runs = state.runs.read();
-    let Some(run) = runs.get(&tab_id) else {
-        return rsx! {};
-    };
-    let buffer = &run.buffer;
-    let total = buffer.len();
-    let vp = Viewport {
-        scroll_top: scroll_top(),
-        height: height(),
-        row_height: ROW_HEIGHT,
-        overscan: 8,
-    };
-    let range = visible_range(&vp, total);
-    let widths: Vec<f64> = (0..buffer.columns().len())
-        .map(|i| run.col_widths.get(i).copied().unwrap_or(FALLBACK_COL_WIDTH))
-        .collect();
-    let width = ROWNUM_WIDTH + widths.iter().sum::<f64>();
-    let content_height = HEADER_HEIGHT + vp.content_height(total);
+impl FerrumData {
+    pub fn render_grid(&mut self, tab_id: EditorTabId, cx: &mut Context<Self>) -> AnyElement {
+        let colors = cx.theme().colors().clone();
+        let Some(run) = self.state.runs.get(&tab_id) else {
+            return div().into_any_element();
+        };
+        let buffer = &run.buffer;
+        let total = buffer.len();
+        let widths: Vec<f32> = (0..buffer.columns().len())
+            .map(|i| run.col_widths.get(i).copied().unwrap_or(FALLBACK_COL_WIDTH) as f32)
+            .collect();
+        let width = ROWNUM_WIDTH + widths.iter().sum::<f32>();
 
-    rsx! {
-        div {
-            class: "absolute inset-0 overflow-auto font-mono text-xs",
-            role: "grid",
-            "aria-rowcount": "{total}",
-            onscroll: move |e| {
-                scroll_top.set(e.data().scroll_top());
-                height.set(f64::from(e.data().client_height()));
-            },
-            onresize: move |e| {
-                if let Ok(size) = e.data().get_border_box_size() { height.set(size.height); }
-            },
-            div { class: "relative", style: "height: {content_height}px; width: {width}px;",
-                // Header (sticky inside the scroll container).
-                div {
-                    class: "sticky top-0 z-10 flex border-b bg-sidenav font-sans",
-                    style: "height: {HEADER_HEIGHT}px; width: {width}px;",
-                    role: "row",
-                    div { class: "shrink-0 border-r", style: "width: {ROWNUM_WIDTH}px" }
-                    for (col, w) in buffer.columns().iter().zip(widths.iter()) {
-                        div {
-                            class: "flex shrink-0 flex-col justify-center overflow-hidden border-r px-2",
-                            style: "width: {w}px",
-                            role: "columnheader",
-                            title: "{col.name} ({col.db_type})",
-                            span { class: "truncate font-medium", "{col.name}" }
-                            span { class: "truncate text-[10px] text-muted-foreground", "{col.db_type.to_lowercase()}" }
-                        }
-                    }
-                }
-                for (i, row) in buffer.rows(range) {
-                    div {
-                        key: "{i}",
-                        class: "absolute left-0 flex border-b hover:bg-accent/50",
-                        style: "top: {HEADER_HEIGHT + i as f64 * ROW_HEIGHT}px; height: {ROW_HEIGHT}px; width: {width}px;",
-                        role: "row",
-                        div {
-                            class: "shrink-0 border-r bg-sidenav px-2 text-right leading-[26px] text-muted-foreground",
-                            style: "width: {ROWNUM_WIDTH}px",
-                            "{i + 1}"
-                        }
-                        for (c, cell) in row.iter().enumerate() {
-                            Cell {
-                                key: "{c}",
-                                cell: cell.clone(),
-                                width: widths.get(c).copied().unwrap_or(FALLBACK_COL_WIDTH),
-                                numeric: buffer.columns().get(c).is_some_and(|m| m.logical_type.is_numeric()),
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        let header = h_flex()
+            .flex_none()
+            .h(px(HEADER_HEIGHT))
+            .w(px(width))
+            .bg(colors.panel_background)
+            .border_b_1()
+            .border_color(colors.border)
+            .child(
+                div()
+                    .flex_none()
+                    .h_full()
+                    .w(px(ROWNUM_WIDTH))
+                    .border_r_1()
+                    .border_color(colors.border),
+            )
+            .children(buffer.columns().iter().zip(widths.iter()).enumerate().map(
+                |(index, (col, w))| {
+                    v_flex()
+                        .id(SharedString::from(format!("col-{index}")))
+                        .flex_none()
+                        .h_full()
+                        .w(px(*w))
+                        .justify_center()
+                        .overflow_hidden()
+                        .px_2()
+                        .border_r_1()
+                        .border_color(colors.border)
+                        .tooltip(Tooltip::text(format!("{} ({})", col.name, col.db_type)))
+                        .child(div().truncate().text_xs().child(col.name.clone()))
+                        .child(
+                            div()
+                                .truncate()
+                                .text_size(px(10.))
+                                .text_color(colors.text_muted)
+                                .child(col.db_type.to_lowercase()),
+                        )
+                },
+            ));
+
+        let rows = uniform_list(
+            "result-rows",
+            total,
+            cx.processor(move |this, range: Range<usize>, _, cx| {
+                this.render_rows(tab_id, range, cx)
+            }),
+        )
+        .with_sizing_behavior(ListSizingBehavior::Infer)
+        .flex_1()
+        .w(px(width))
+        .track_scroll(&self.grid_scroll);
+
+        // Horizontal scrolling lives on the outer container so the header
+        // moves with the rows; the list itself only scrolls vertically.
+        div()
+            .id("result-grid")
+            .absolute()
+            .inset_0()
+            .overflow_x_scroll()
+            .font_buffer(cx)
+            .text_xs()
+            .child(v_flex().h_full().w(px(width)).child(header).child(rows))
+            .into_any_element()
     }
-}
 
-#[component]
-fn Cell(cell: CellValue, width: f64, numeric: bool) -> Element {
-    let align = if numeric { "text-right" } else { "" };
-    let tone = match &cell {
-        CellValue::Null | CellValue::Unsupported(_) => "italic text-muted-foreground",
-        CellValue::Bool(_) => "text-info-dark",
-        _ => "",
-    };
-    // Rendered as a text node: database values are never interpreted as HTML.
-    let text = cell.display();
-    rsx! {
-        div {
-            class: "shrink-0 truncate border-r px-2 leading-[26px] select-text {align} {tone}",
-            style: "width: {width}px",
-            role: "gridcell",
-            title: "{text}",
-            "{text}"
-        }
+    fn render_rows(
+        &mut self,
+        tab_id: EditorTabId,
+        range: Range<usize>,
+        cx: &mut Context<Self>,
+    ) -> Vec<AnyElement> {
+        let colors = cx.theme().colors().clone();
+        let status = cx.theme().status().clone();
+        let Some(run) = self.state.runs.get(&tab_id) else {
+            return Vec::new();
+        };
+        let buffer = &run.buffer;
+        let widths: Vec<f32> = (0..buffer.columns().len())
+            .map(|i| run.col_widths.get(i).copied().unwrap_or(FALLBACK_COL_WIDTH) as f32)
+            .collect();
+        let numeric: Vec<bool> = buffer
+            .columns()
+            .iter()
+            .map(|m| m.logical_type.is_numeric())
+            .collect();
+
+        buffer
+            .rows(range)
+            .map(|(index, row)| {
+                h_flex()
+                    .h(px(ROW_HEIGHT))
+                    .border_b_1()
+                    .border_color(colors.border_variant)
+                    .hover(|s| s.bg(colors.element_hover))
+                    .child(
+                        div()
+                            .flex_none()
+                            .h_full()
+                            .w(px(ROWNUM_WIDTH))
+                            .px_2()
+                            .flex()
+                            .items_center()
+                            .justify_end()
+                            .bg(colors.panel_background)
+                            .border_r_1()
+                            .border_color(colors.border)
+                            .text_color(colors.text_muted)
+                            .child((index + 1).to_string()),
+                    )
+                    .children(row.iter().enumerate().map(|(c, cell)| {
+                        let tone: Option<Hsla> = match cell {
+                            CellValue::Null | CellValue::Unsupported(_) => Some(colors.text_muted),
+                            CellValue::Bool(_) => Some(status.info),
+                            _ => None,
+                        };
+                        // Rendered as plain text: database values are never interpreted.
+                        div()
+                            .flex_none()
+                            .h_full()
+                            .w(px(widths
+                                .get(c)
+                                .copied()
+                                .unwrap_or(FALLBACK_COL_WIDTH as f32)))
+                            .px_2()
+                            .flex()
+                            .items_center()
+                            .when(numeric.get(c).copied().unwrap_or(false), |this| {
+                                this.justify_end()
+                            })
+                            .overflow_hidden()
+                            .border_r_1()
+                            .border_color(colors.border_variant)
+                            .when_some(tone, |this, color| this.text_color(color))
+                            .when(
+                                matches!(cell, CellValue::Null | CellValue::Unsupported(_)),
+                                |this| this.italic(),
+                            )
+                            .child(div().truncate().child(cell.display()))
+                    }))
+                    .into_any_element()
+            })
+            .collect()
     }
 }

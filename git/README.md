@@ -1,13 +1,15 @@
 # FerrumGIT
 
-A local-first, GitKraken/Tower-style Git client written in Rust: Dioxus 0.7 desktop, Rust/UI
-components, the system `git` binary, SQLite. No backend, no account, no Electron. Sibling of
-[FerrumData](../FerrumData) and [FerrumAPI](../FerrumAPI): same workspace layout, toolchain and
-visual language.
+A local-first, GitKraken/Tower-style Git client written in Rust: a native GPUI desktop app
+(the UI framework of Zed, taken from FerrumIDE in `../ide`), the shared `ferrum-ui` crate
+(`../shared/ui`), the system `git` binary, SQLite. No backend, no account, no Electron, no webview.
+Part of the Ferrum monorepo next to [FerrumData](../data) and [FerrumAPI](../api): same toolchain
+and the same FerrumIDE theme, fonts and icons.
 
 > **Status: M0, first vertical slice.** "Tested" means automated tests against the real
 > `git` binary (temp repos plus a local bare remote, so no network). The UI has been
-> smoke-launched on a demo repository and screenshotted, but it has not been clicked through by a person.
+> smoke-launched on a demo repository, but it has not been clicked through by a person since the
+> move from Dioxus to GPUI.
 
 ## Per-project SSH and identity (profiles)
 A **profile** = commit identity (name + email) + SSH authentication (system ssh-agent/config,
@@ -41,7 +43,7 @@ or a specific private key). Each repository is assigned one profile (toolbar →
 | Remotes: fetch (all / one, prune), pull (ff-only / merge / rebase), push (auto-sets upstream; force-with-lease), add/remove remote | ✅ tested against local bare remote |
 | Profiles with per-repo assignment, keychain passphrases, askpass, key generation, test connection | ✅ env/identity tested; real SSH servers not tested automatically |
 | Auto-refresh when the repo changes outside the app (3 s fingerprint poll) | ⚠️ implemented, not hand-tested |
-| Light/dark/system theme, resizable + persisted panels | ✅ |
+| FerrumIDE "One Dark" theme, resizable + persisted panels | ✅ (light theme not available yet) |
 
 ## Not built yet
 Undo/redo of operations, interactive rebase, file history and blame, submodules, LFS, worktrees,
@@ -53,27 +55,30 @@ network ops, and packaging and signing.
 ## Prerequisites
 - Rust via rustup; `rust-toolchain.toml` installs **1.99.1**.
 - `git` ≥ 2.32 and OpenSSH on `PATH` (`ssh`, `ssh-keygen`).
-- macOS: Xcode CLT. Linux: `libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`.
-- Optional: Node 22 + pnpm (only to rebuild CSS).
+- macOS: Xcode (GPUI compiles Metal shaders). Linux: the GPUI/Zed build dependencies
+  (`../ide/script/linux` installs them).
 
 ## Commands
+Run from the monorepo root (`..`):
 ```bash
 cargo git-ui                      # run the app (cargo run -p ferrumgit-desktop)
-cargo test --workspace            # unit + integration tests (real git, temp dirs, no network)
-cargo lint                        # clippy, warnings are errors
-cargo fmt --all
+cargo test -p 'ferrumgit-*'       # unit + integration tests (real git, temp dirs, no network)
+cargo clippy -p ferrumgit-desktop --all-targets -- -D warnings
+cargo fmt -p ferrumgit-desktop
 
 FERRUMGIT_DATA_DIR=/tmp/fg cargo git-ui        # isolated local state
 cargo test -p ferrumgit-credentials -- --ignored   # real OS keychain round trip
 ```
 
 ### Styling
-Tailwind v4 compiles `apps/desktop/tailwind.css` into the committed `apps/desktop/assets/tailwind.css`
-(theme tokens identical to FerrumData/FerrumAPI). After changing classes: `pnpm --dir apps/desktop css`.
+No CSS: views are GPUI elements styled with the FerrumIDE theme (`theme::ActiveTheme`) and built
+from Zed's `ui` components plus `ferrum-ui` (text inputs, modal, splitter, notices). App-only
+widgets live in `apps/desktop/src/components/widgets.rs`.
 
 ## Layout
 ```
-apps/desktop/        Dioxus app: components/{shell,sidebar,graph,detail,diff,dialogs,home,rust_ui}, state/, commands/
+apps/desktop/        GPUI app: root view in app.rs; components/{shell,sidebar,graph,detail,diff,dialogs,home,widgets},
+                     state/ (plain data owned by the root view), commands/ (methods on the root view)
 crates/domain/       pure types: Commit, GitRef, WorkingStatus, FileDiff/Hunk, Stash, Profile/SshAuth, RepoEntry, RepoOp
 crates/git/          git CLI runner (non-interactive env, cancellation), porcelain/log/refs/diff parsers, RepoOp executor,
                      hunk/line patch builder, per-profile SSH env + askpass, ssh -T test

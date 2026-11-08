@@ -1,207 +1,200 @@
 //! Startup, settings, and repository tabs.
 
-use super::{background, repo, run};
-use crate::state::AppState;
-use dioxus::prelude::*;
-use ferrumgit_application::AppServices;
+use crate::app::FerrumGit;
 use ferrumgit_domain::{RepoEntry, RepoId, WorkspaceState};
+use gpui::Context;
 use std::path::PathBuf;
 
-/// Loads settings, repositories, profiles and open tabs. Never fails hard.
-pub async fn bootstrap(mut state: AppState, services: AppServices) {
-    if let Ok(dark) =
-        document::eval("return window.matchMedia('(prefers-color-scheme: dark)').matches")
-            .join::<bool>()
-            .await
-    {
-        state.system_dark.set(dark);
+impl FerrumGit {
+    /// Loads settings, repositories, profiles and open tabs. Never fails hard.
+    pub fn bootstrap(&mut self, cx: &mut Context<Self>) {
+        let services = self.services.clone();
+        self.spawn_run(
+            cx,
+            async move {
+                let s = &services.store;
+                Ok::<_, String>((
+                    s.load_settings().await,
+                    s.list_repos().await,
+                    s.list_profiles().await,
+                    s.load_workspace().await,
+                    services.git.version().await,
+                ))
+            },
+            |app, loaded, cx| {
+                let mut ws = WorkspaceState::default();
+                match loaded {
+                    Ok((settings, repos, profiles, workspace, version)) => {
+                        let mut errors = Vec::new();
+                        match settings {
+                            Ok(s) => app.state.settings = s,
+                            Err(e) => errors.push(format!("settings: {e}")),
+                        }
+                        match repos {
+                            Ok(r) => app.state.repos = r,
+                            Err(e) => errors.push(format!("repositories: {e}")),
+                        }
+                        match profiles {
+                            Ok(p) => app.state.profiles = p,
+                            Err(e) => errors.push(format!("profiles: {e}")),
+                        }
+                        match workspace {
+                            Ok(w) => ws = w,
+                            Err(e) => errors.push(format!("open tabs: {e}")),
+                        }
+                        if let Err(e) = version {
+                            errors.push(e.to_string());
+                        }
+                        if !errors.is_empty() {
+                            app.notify(format!("Could not load {}", errors.join(", ")), true, cx);
+                        }
+                    }
+                    Err(e) => app.notify(e, true, cx),
+                }
+                let known: Vec<RepoId> = app.state.repos.iter().map(|r| r.id).collect();
+                ws.open.retain(|id| known.contains(id));
+                let active = ws.active.filter(|id| ws.open.contains(id));
+                app.state.open = ws.open.clone();
+                app.state.active = active;
+                app.state.loaded = true;
+                if let Some(id) = active {
+                    app.load(id, cx);
+                }
+            },
+        );
     }
-    let svc = services.clone();
-    let loaded = background(&services, async move {
-        let s = &svc.store;
-        (
-            s.load_settings().await,
-            s.list_repos().await,
-            s.list_profiles().await,
-            s.load_workspace().await,
-            svc.git.version().await,
-        )
-    })
-    .await;
-    let mut ws = WorkspaceState::default();
-    match loaded {
-        Ok((settings, repos, profiles, workspace, version)) => {
-            let mut errors = Vec::new();
-            match settings {
-                Ok(s) => state.settings.set(s),
-                Err(e) => errors.push(format!("settings: {e}")),
-            }
-            match repos {
-                Ok(r) => state.repos.set(r),
-                Err(e) => errors.push(format!("repositories: {e}")),
-            }
-            match profiles {
-                Ok(p) => state.profiles.set(p),
-                Err(e) => errors.push(format!("profiles: {e}")),
-            }
-            match workspace {
-                Ok(w) => ws = w,
-                Err(e) => errors.push(format!("open tabs: {e}")),
-            }
-            if let Err(e) = version {
-                errors.push(e.to_string());
-            }
-            if !errors.is_empty() {
-                state.notify(format!("Could not load {}", errors.join(", ")), true);
-            }
-        }
-        Err(e) => state.notify(e, true),
+
+    pub fn save_settings(&mut self, cx: &mut Context<Self>) {
+        let settings = self.state.settings;
+        let services = self.services.clone();
+        self.spawn_run(
+            cx,
+            async move { services.store.save_settings(&settings).await },
+            |app, result, cx| {
+                if let Err(e) = result {
+                    app.notify(format!("Could not save settings: {e}"), true, cx);
+                }
+            },
+        );
     }
-    let known: Vec<RepoId> = state.repos.peek().iter().map(|r| r.id).collect();
-    ws.open.retain(|id| known.contains(id));
-    let active = ws.active.filter(|id| ws.open.contains(id));
-    state.open.set(ws.open.clone());
-    state.active.set(active);
-    state.loaded.set(true);
-    if let Some(id) = active {
-        repo::load(state, services, id);
-    }
-}
 
-pub fn save_settings(state: AppState, services: AppServices) {
-    let settings = *state.settings.peek();
-    let svc = services.clone();
-    spawn(async move {
-        if let Err(e) = run(&services, async move {
-            svc.store.save_settings(&settings).await
-        })
-        .await
-        {
-            state.notify(format!("Could not save settings: {e}"), true);
-        }
-    });
-}
-
-fn save_workspace(state: AppState, services: AppServices) {
-    let ws = WorkspaceState {
-        open: state.open.peek().clone(),
-        active: *state.active.peek(),
-    };
-    let svc = services.clone();
-    spawn(async move {
-        if let Err(e) = run(
-            &services,
-            async move { svc.store.save_workspace(&ws).await },
-        )
-        .await
-        {
-            tracing::warn!(error = %e, "failed to save workspace");
-        }
-    });
-}
-
-/// Switches to a repository tab (`None` = home), loading it on first view.
-pub fn activate(mut state: AppState, services: AppServices, id: Option<RepoId>) {
-    state.active.set(id);
-    if let Some(id) = id {
-        if !state.open.peek().contains(&id) {
-            state.open.write().push(id);
-        }
-        if state
-            .views
-            .peek()
-            .get(&id)
-            .is_none_or(|v| v.data.is_none() && !v.loading)
-        {
-            repo::load(state, services.clone(), id);
-        }
-    }
-    save_workspace(state, services);
-}
-
-pub fn close_tab(mut state: AppState, services: AppServices, id: RepoId) {
-    let mut open = state.open.write();
-    let idx = open.iter().position(|o| *o == id);
-    open.retain(|o| *o != id);
-    let next = idx.and_then(|i| open.get(i.min(open.len().saturating_sub(1))).copied());
-    drop(open);
-    state.views.write().remove(&id);
-    if *state.active.peek() == Some(id) {
-        activate(state, services, next);
-    } else {
-        save_workspace(state, services);
-    }
-}
-
-/// Records `entry` in the known list (replacing by id) and opens it.
-pub fn upsert_and_open(mut state: AppState, services: AppServices, entry: RepoEntry) {
-    let id = entry.id;
-    {
-        let mut repos = state.repos.write();
-        repos.retain(|r| r.id != id && r.path != entry.path);
-        repos.insert(0, entry);
-    }
-    state.views.write().remove(&id);
-    activate(state, services, Some(id));
-}
-
-/// Opens (and remembers) the repository containing `path`.
-pub fn open_path(state: AppState, services: AppServices, path: PathBuf) {
-    let svc = services.clone();
-    spawn(async move {
-        let p = path.display().to_string();
-        match run(&services, async move { svc.add_repo(&p).await }).await {
-            Ok(entry) => upsert_and_open(state, services, entry),
-            Err(e) => state.notify(e, true),
-        }
-    });
-}
-
-pub fn pick_and_open(state: AppState, services: AppServices) {
-    spawn(async move {
-        if let Some(dir) = rfd::AsyncFileDialog::new()
-            .set_title("Open repository")
-            .pick_folder()
-            .await
-        {
-            open_path(state, services, dir.path().to_path_buf());
-        }
-    });
-}
-
-pub fn pick_and_init(state: AppState, services: AppServices) {
-    spawn(async move {
-        let Some(dir) = rfd::AsyncFileDialog::new()
-            .set_title("Create a new repository in…")
-            .pick_folder()
-            .await
-        else {
-            return;
+    fn save_workspace(&mut self, cx: &mut Context<Self>) {
+        let ws = WorkspaceState {
+            open: self.state.open.clone(),
+            active: self.state.active,
         };
-        let svc = services.clone();
-        let p = dir.path().display().to_string();
-        match run(&services, async move { svc.init_repo(&p).await }).await {
-            Ok(entry) => {
-                state.notify(format!("Initialized {}", entry.name), false);
-                upsert_and_open(state, services, entry);
-            }
-            Err(e) => state.notify(e, true),
-        }
-    });
-}
-
-/// Forgets a repository (the files are not touched).
-pub fn forget(mut state: AppState, services: AppServices, id: RepoId) {
-    if state.open.peek().contains(&id) {
-        close_tab(state, services.clone(), id);
+        let services = self.services.clone();
+        self.spawn_run(
+            cx,
+            async move { services.store.save_workspace(&ws).await },
+            |_, result, _| {
+                if let Err(e) = result {
+                    tracing::warn!(error = %e, "failed to save workspace");
+                }
+            },
+        );
     }
-    state.repos.write().retain(|r| r.id != id);
-    let svc = services.clone();
-    spawn(async move {
-        if let Err(e) = run(&services, async move { svc.store.delete_repo(id).await }).await {
-            state.notify(e, true);
+
+    /// Switches to a repository tab (`None` = home), loading it on first view.
+    pub fn activate(&mut self, id: Option<RepoId>, cx: &mut Context<Self>) {
+        self.state.active = id;
+        if let Some(id) = id {
+            if !self.state.open.contains(&id) {
+                self.state.open.push(id);
+            }
+            if self
+                .state
+                .views
+                .get(&id)
+                .is_none_or(|v| v.data.is_none() && !v.loading)
+            {
+                self.load(id, cx);
+            }
         }
-    });
+        self.save_workspace(cx);
+        cx.notify();
+    }
+
+    pub fn close_tab(&mut self, id: RepoId, cx: &mut Context<Self>) {
+        let open = &mut self.state.open;
+        let idx = open.iter().position(|o| *o == id);
+        open.retain(|o| *o != id);
+        let next = idx.and_then(|i| open.get(i.min(open.len().saturating_sub(1))).copied());
+        self.state.views.remove(&id);
+        if self.state.active == Some(id) {
+            self.activate(next, cx);
+        } else {
+            self.save_workspace(cx);
+        }
+    }
+
+    /// Records `entry` in the known list (replacing by id) and opens it.
+    pub fn upsert_and_open(&mut self, entry: RepoEntry, cx: &mut Context<Self>) {
+        let id = entry.id;
+        self.state
+            .repos
+            .retain(|r| r.id != id && r.path != entry.path);
+        self.state.repos.insert(0, entry);
+        self.state.views.remove(&id);
+        self.activate(Some(id), cx);
+    }
+
+    /// Opens (and remembers) the repository containing `path`.
+    pub fn open_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        let services = self.services.clone();
+        let p = path.display().to_string();
+        self.spawn_run(
+            cx,
+            async move { services.add_repo(&p).await },
+            |app, result, cx| match result {
+                Ok(entry) => app.upsert_and_open(entry, cx),
+                Err(e) => app.notify(e, true, cx),
+            },
+        );
+    }
+
+    pub fn pick_and_open(&mut self, cx: &mut Context<Self>) {
+        self.pick_path(cx, "Open repository", true, |app, path, cx| {
+            app.open_path(path, cx);
+        });
+    }
+
+    pub fn pick_and_init(&mut self, cx: &mut Context<Self>) {
+        self.pick_path(cx, "Create a new repository in…", true, |app, dir, cx| {
+            let services = app.services.clone();
+            let p = dir.display().to_string();
+            app.spawn_run(
+                cx,
+                async move { services.init_repo(&p).await },
+                |app, result, cx| match result {
+                    Ok(entry) => {
+                        app.notify(format!("Initialized {}", entry.name), false, cx);
+                        app.upsert_and_open(entry, cx);
+                    }
+                    Err(e) => app.notify(e, true, cx),
+                },
+            );
+        });
+    }
+
+    /// Forgets a repository (the files are not touched).
+    pub fn forget(&mut self, id: RepoId, cx: &mut Context<Self>) {
+        if self.state.open.contains(&id) {
+            self.close_tab(id, cx);
+        }
+        self.state.repos.retain(|r| r.id != id);
+        let services = self.services.clone();
+        self.spawn_run(
+            cx,
+            async move { services.store.delete_repo(id).await },
+            |app, result, cx| {
+                if let Err(e) = result {
+                    app.notify(e, true, cx);
+                }
+            },
+        );
+        cx.notify();
+    }
 }
 
 /// Opens the repository folder in the OS file manager.
@@ -215,5 +208,20 @@ pub fn reveal(path: &str) {
     };
     if let Err(e) = std::process::Command::new(opener).arg(path).spawn() {
         tracing::warn!(error = %e, "could not open file manager");
+    }
+}
+
+pub fn open_terminal(path: &str) {
+    let result = if cfg!(target_os = "macos") {
+        std::process::Command::new("open")
+            .args(["-a", "Terminal", path])
+            .spawn()
+    } else {
+        std::process::Command::new("x-terminal-emulator")
+            .current_dir(path)
+            .spawn()
+    };
+    if let Err(e) = result {
+        tracing::warn!(error = %e, "could not open a terminal");
     }
 }

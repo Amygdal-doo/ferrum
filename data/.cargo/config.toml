@@ -1,3 +1,0 @@
-[alias]
-desktop = "run -p ferrumdata-desktop"
-lint = "clippy --workspace --all-targets -- -D warnings"

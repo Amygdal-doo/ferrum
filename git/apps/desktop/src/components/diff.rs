@@ -1,70 +1,164 @@
 //! Working-copy diff (right panel): file header with file-level actions and
 //! the hunks with stage / unstage / discard per hunk or selected lines.
 
-use crate::commands::repo;
+use crate::app::FerrumGit;
 use crate::components::change_word;
-use crate::components::code::CodeDiff;
-use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
-use crate::state::{AppState, Dialog};
-use dioxus::prelude::*;
-use ferrumgit_application::AppServices;
+use crate::components::code::code_diff;
+use crate::components::icons::Icon;
+use crate::components::widgets::{ghost_button, primary_button, small_button};
+use crate::state::Dialog;
 use ferrumgit_domain::{DiffSource, RepoOp};
+use gpui::{AnyElement, Context, div, prelude::*, px};
+use theme::ActiveTheme;
+use ui::{
+    Clickable, Color, Disableable, IconSize, Label, LabelCommon, LabelSize, StyledTypography,
+    Tooltip, h_flex, v_flex,
+};
 
-#[component]
-pub fn DiffPane() -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let Some(id) = *state.active.read() else {
-        return rsx! {};
+pub fn diff_pane(app: &FerrumGit, cx: &mut Context<FerrumGit>) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    let status = theme.status();
+    let Some(id) = app.state.active else {
+        return div().into_any_element();
     };
-    let Some(d) = state.view(id).diff else {
-        return rsx! {};
+    let Some(d) = app.state.view(id).diff else {
+        return div().into_any_element();
     };
     let file = d.file.clone();
     let source = d.source.clone();
-    let busy = state.is_busy(id);
-    let (word, word_cls, badge_cls) = change_word(file.change);
+    let busy = app.state.is_busy(id);
+    let (word, word_color) = change_word(file.change, cx);
     let label = match source {
         DiffSource::Unstaged => "Unstaged",
         DiffSource::Staged => "Staged",
         DiffSource::Untracked => "Untracked",
         DiffSource::Commit => "Commit",
     };
-    let path = file.path.clone();
-    let p_discard = path.clone();
-    let s = services.clone();
-    let run = move |op: RepoOp| repo::op(state, s.clone(), id, op);
-    let (r1, r2) = (run.clone(), run);
     let shown = match &file.old_path {
         Some(old) => format!("{old} → {}", file.path),
         None => file.path.clone(),
     };
-    rsx! {
-        div { class: "flex h-9 shrink-0 items-center gap-2 border-b px-4 text-[12.5px]",
-            span { class: "{word_cls}", "{word}" }
-            span { class: "flex size-4 items-center justify-center rounded-[3px] font-mono text-[10px] font-bold {badge_cls}", "{file.change.letter()}" }
-            span { class: "min-w-0 truncate font-medium select-text", title: "{shown}", "{shown}" }
-            span { class: "rounded bg-muted px-1.5 text-[10.5px] text-muted-foreground", "{label}" }
-            span { class: "font-mono text-[11px] text-green-600 dark:text-green-400", "+{file.additions}" }
-            span { class: "font-mono text-[11px] text-red-600 dark:text-red-400", "−{file.deletions}" }
-            div { class: "flex-1" }
-            match source {
-                DiffSource::Unstaged | DiffSource::Untracked => rsx! {
-                    Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, class: "h-7 text-xs text-destructive", disabled: busy,
-                        onclick: move |_| state.dialog.set(Some(Dialog::Confirm { title: "Discard changes?".into(), body: format!("All unstaged changes to “{p_discard}” will be lost."), confirm: "Discard file".into(), destructive: true, op: RepoOp::Discard(vec![p_discard.clone()]) })),
-                        "Discard file" }
-                    Button { size: ButtonSize::Sm, class: "h-7 bg-primary-accent text-xs text-white hover:bg-primary-accent/90", disabled: busy, onclick: move |_| r1(RepoOp::Stage(vec![path.clone()])), "Stage file" }
-                },
-                DiffSource::Staged => rsx! {
-                    Button { size: ButtonSize::Sm, variant: ButtonVariant::Outline, class: "h-7 text-xs", disabled: busy, onclick: move |_| r2(RepoOp::Unstage(vec![path.clone()])), "Unstage file" }
-                },
-                DiffSource::Commit => rsx! {},
-            }
-            button { class: "ml-1 rounded px-2 py-1 text-muted-foreground hover:bg-accent", title: "Close (Esc)", "aria-label": "Close diff",
-                onclick: move |_| state.update_view(id, |v| v.diff = None), "✕" }
-        }
-        div { class: "min-h-0 flex-1 overflow-auto",
-            CodeDiff { file, source, repo: Some(id) }
-        }
-    }
+    let (p_discard, p_stage, p_unstage) = (file.path.clone(), file.path.clone(), file.path.clone());
+    let actions: Vec<AnyElement> = match source {
+        DiffSource::Unstaged | DiffSource::Untracked => vec![
+            ghost_button("diff-discard", "Discard file")
+                .color(Color::Error)
+                .disabled(busy)
+                .on_click(cx.listener(move |app, _, window, cx| {
+                    app.open_dialog(
+                        Dialog::Confirm {
+                            title: "Discard changes?".into(),
+                            body: format!("All unstaged changes to “{p_discard}” will be lost."),
+                            confirm: "Discard file".into(),
+                            destructive: true,
+                            op: RepoOp::Discard(vec![p_discard.clone()]),
+                        },
+                        window,
+                        cx,
+                    );
+                }))
+                .into_any_element(),
+            primary_button("diff-stage", "Stage file")
+                .disabled(busy)
+                .on_click(cx.listener(move |app, _, _, cx| {
+                    app.op(id, RepoOp::Stage(vec![p_stage.clone()]), cx);
+                }))
+                .into_any_element(),
+        ],
+        DiffSource::Staged => vec![
+            small_button("diff-unstage", "Unstage file")
+                .disabled(busy)
+                .on_click(cx.listener(move |app, _, _, cx| {
+                    app.op(id, RepoOp::Unstage(vec![p_unstage.clone()]), cx);
+                }))
+                .into_any_element(),
+        ],
+        DiffSource::Commit => Vec::new(),
+    };
+    v_flex()
+        .size_full()
+        .child(
+            h_flex()
+                .flex_none()
+                .h(px(36.))
+                .gap_2()
+                .px_4()
+                .border_b_1()
+                .border_color(colors.border)
+                .text_ui_sm(cx)
+                .child(div().text_color(word_color).child(word))
+                .child(
+                    div()
+                        .size(px(16.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded_sm()
+                        .bg(word_color)
+                        .text_color(colors.background)
+                        .font_buffer(cx)
+                        .text_ui_xs(cx)
+                        .font_weight(gpui::FontWeight::BOLD)
+                        .child(file.change.letter().to_string()),
+                )
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .font_weight(gpui::FontWeight::MEDIUM)
+                        .child(shown),
+                )
+                .child(
+                    div()
+                        .px_1p5()
+                        .rounded_sm()
+                        .bg(colors.element_background)
+                        .child(
+                            Label::new(label)
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        ),
+                )
+                .child(
+                    div()
+                        .font_buffer(cx)
+                        .text_ui_xs(cx)
+                        .text_color(status.created)
+                        .child(format!("+{}", file.additions)),
+                )
+                .child(
+                    div()
+                        .font_buffer(cx)
+                        .text_ui_xs(cx)
+                        .text_color(status.deleted)
+                        .child(format!("−{}", file.deletions)),
+                )
+                .child(div().flex_1())
+                .children(actions)
+                .child(
+                    div()
+                        .id("diff-close")
+                        .ml_1()
+                        .p_1()
+                        .rounded_sm()
+                        .cursor_pointer()
+                        .hover(|s| s.bg(colors.element_hover))
+                        .tooltip(Tooltip::text("Close (Esc)"))
+                        .child(Icon::Close.icon().size(IconSize::Small).color(Color::Muted))
+                        .on_click(cx.listener(move |app, _, _, cx| {
+                            app.state.update_view(id, |v| v.diff = None);
+                            cx.notify();
+                        })),
+                ),
+        )
+        .child(
+            div()
+                .id("diff-scroll")
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .child(code_diff(app, file, source, Some(id), cx)),
+        )
+        .into_any_element()
 }

@@ -2,21 +2,30 @@ pub mod connection;
 pub mod dialogs;
 pub mod explorer;
 pub mod result_grid;
-pub mod rust_ui;
 pub mod shell;
 pub mod sql_editor;
 pub mod table_view;
 
+use ferrum_ui::gpui::{App, Hsla, div, prelude::*, px, rgb};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumdata_domain::EnvironmentTag;
 
-/// Tailwind classes for the environment colour dot. Literal strings so the
-/// Tailwind scanner keeps them.
+/// Colour of the environment dot and badges.
 #[must_use]
-pub const fn env_dot_class(env: EnvironmentTag) -> &'static str {
+pub fn env_color(env: EnvironmentTag, cx: &App) -> Hsla {
     match env {
-        EnvironmentTag::Local => "bg-zinc-400",
-        EnvironmentTag::Development => "bg-sky-500",
-        EnvironmentTag::Staging => "bg-amber-500",
-        EnvironmentTag::Production => "bg-red-600",
+        EnvironmentTag::Local => cx.theme().colors().text_muted,
+        EnvironmentTag::Development => rgb(0x0ea5e9).into(),
+        EnvironmentTag::Staging => rgb(0xf59e0b).into(),
+        EnvironmentTag::Production => rgb(0xdc2626).into(),
     }
+}
+
+/// Small round environment indicator.
+pub fn env_dot(env: EnvironmentTag, size: f32, cx: &App) -> impl IntoElement {
+    div()
+        .flex_none()
+        .size(px(size))
+        .rounded_full()
+        .bg(env_color(env, cx))
 }

@@ -1,12 +1,16 @@
 //! Working copy: operation banner, conflicts, unstaged / staged lists, commit box.
 
-use super::files::{FileRow, ListHeader, RowAction};
-use crate::commands::repo;
-use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
-use crate::state::{AppState, Dialog};
-use dioxus::prelude::*;
-use ferrumgit_application::AppServices;
+use super::files::{FileRow, RowAction, list_header};
+use crate::app::FerrumGit;
+use crate::components::widgets::{ghost_button, primary_button, small_button};
+use crate::state::Dialog;
 use ferrumgit_domain::{DiffSource, FileStatus, RepoId, RepoOp};
+use gpui::{AnyElement, Context, ElementId, Window, div, prelude::*, px};
+use theme::ActiveTheme;
+use ui::{
+    Checkbox, Clickable, Color, Disableable, FixedWidth, Label, LabelCommon, LabelSize,
+    ToggleState, Tooltip, h_flex, v_flex,
+};
 
 const STAGE: RowAction = RowAction {
     label: "Stage",
@@ -40,16 +44,12 @@ const RESOLVED: RowAction = RowAction {
 };
 
 fn discard_dialog(paths: Vec<String>) -> Dialog {
-    let body = if paths.len() == 1 {
-        format!(
-            "Changes to “{}” will be lost. Untracked files are deleted.",
-            paths[0]
-        )
-    } else {
-        format!(
+    let body = match paths.as_slice() {
+        [one] => format!("Changes to “{one}” will be lost. Untracked files are deleted."),
+        _ => format!(
             "Changes to {} files will be lost. Untracked files are deleted.",
             paths.len()
-        )
+        ),
     };
     Dialog::Confirm {
         title: "Discard changes?".into(),
@@ -60,13 +60,41 @@ fn discard_dialog(paths: Vec<String>) -> Dialog {
     }
 }
 
-#[component]
-pub fn WipPanel(id: RepoId) -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let view = state.view(id);
+fn header_button(
+    id: &'static str,
+    label: &'static str,
+    danger: bool,
+    disabled: bool,
+    on_click: impl Fn(&mut FerrumGit, &gpui::ClickEvent, &mut Window, &mut Context<FerrumGit>) + 'static,
+    cx: &mut Context<FerrumGit>,
+) -> AnyElement {
+    ghost_button(id, label)
+        .color(if danger { Color::Error } else { Color::Default })
+        .disabled(disabled)
+        .on_click(cx.listener(on_click))
+        .into_any_element()
+}
+
+fn placeholder(text: &'static str) -> AnyElement {
+    div()
+        .px_2()
+        .py_3()
+        .child(Label::new(text).size(LabelSize::Small).color(Color::Muted))
+        .into_any_element()
+}
+
+pub fn wip_panel(
+    app: &mut FerrumGit,
+    id: RepoId,
+    _: &mut Window,
+    cx: &mut Context<FerrumGit>,
+) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    let status_colors = theme.status();
+    let view = app.state.view(id);
     let Some(data) = view.data.clone() else {
-        return rsx! {};
+        return div().into_any_element();
     };
     let status = data.snapshot.status.clone();
     let conflicted: Vec<FileStatus> = status.conflicted().into_iter().cloned().collect();
@@ -81,182 +109,276 @@ pub fn WipPanel(id: RepoId) -> Element {
         .diff
         .as_ref()
         .map(|d| (d.file.path.clone(), d.source.clone()));
-    let is_open = move |p: &str, staged: bool| {
+    let is_open = |p: &str, staged: bool| {
         open_diff
             .as_ref()
             .is_some_and(|(path, src)| path == p && (*src == DiffSource::Staged) == staged)
     };
-    let busy = state.is_busy(id);
-    let run = {
-        let s = services.clone();
-        move |op: RepoOp| repo::op(state, s.clone(), id, op)
-    };
+    let busy = app.state.is_busy(id);
     let unstaged_paths: Vec<String> = unstaged.iter().map(|f| f.path.clone()).collect();
-    let (r_stage_all, r_unstage_all, r_cont, r_abort) =
-        (run.clone(), run.clone(), run.clone(), run.clone());
 
-    rsx! {
-        div { class: "flex min-h-0 flex-1 flex-col",
-            if let Some(op) = status.operation {
-                div { class: "flex shrink-0 items-center gap-2 border-b bg-warning-light px-3 py-2 text-xs text-warning-dark",
-                    span { class: "flex-1 font-medium",
-                        if conflicted.is_empty() { "{op.label()} in progress — ready to continue" } else { "{op.label()} in progress — resolve {conflicted.len()} conflict(s)" }
-                    }
-                    Button { size: ButtonSize::Sm, variant: ButtonVariant::Outline, class: "h-6 text-xs", disabled: busy, onclick: move |_| r_abort(RepoOp::Abort), "Abort" }
-                    Button { size: ButtonSize::Sm, class: "h-6 text-xs", disabled: busy || !conflicted.is_empty(), onclick: move |_| r_cont(RepoOp::Continue), "Continue" }
-                }
-            }
-            div { class: "flex min-h-0 flex-1 flex-col overflow-y-auto",
-                if !conflicted.is_empty() {
-                    ListHeader { title: "Conflicts", count: conflicted.len() }
-                    div { class: "p-1",
-                        for f in conflicted {
-                            {
-                                let (p, s1, run) = (f.path.clone(), services.clone(), run.clone());
-                                let file = f.clone();
-                                rsx! {
-                                    FileRow { key: "c{f.path}", path: f.path.clone(), kind: f.index, active: is_open(&f.path, false),
-                                        actions: vec![OURS, THEIRS, RESOLVED],
-                                        on_open: move |_| repo::open_file(state, s1.clone(), id, &file, false),
-                                        on_action: move |i: usize| run(match i { 0 => RepoOp::TakeOurs(vec![p.clone()]), 1 => RepoOp::TakeTheirs(vec![p.clone()]), _ => RepoOp::Stage(vec![p.clone()]) }) }
-                                }
-                            }
-                        }
-                    }
-                }
-                ListHeader { title: "Unstaged", count: unstaged.len(),
-                    if !unstaged.is_empty() {
-                        button { class: "rounded px-1.5 text-[11px] text-destructive hover:bg-accent", disabled: busy,
-                            onclick: move |_| state.dialog.set(Some(discard_dialog(unstaged_paths.clone()))), "Discard all" }
-                        button { class: "rounded px-1.5 text-[11px] font-medium hover:bg-accent", disabled: busy,
-                            onclick: move |_| r_stage_all(RepoOp::StageAll), "Stage all" }
-                    }
-                }
-                div { class: "p-1",
-                    if unstaged.is_empty() { p { class: "px-2 py-3 text-xs text-muted-foreground", "No unstaged changes" } }
-                    for f in unstaged {
-                        {
-                            let (p, s1, run) = (f.path.clone(), services.clone(), run.clone());
-                            let file = f.clone();
-                            rsx! {
-                                FileRow { key: "u{f.path}", path: f.path.clone(), kind: f.worktree, active: is_open(&f.path, false),
-                                    actions: vec![DISCARD, STAGE],
-                                    on_open: move |_| repo::open_file(state, s1.clone(), id, &file, false),
-                                    on_action: move |i: usize| if i == 1 { run(RepoOp::Stage(vec![p.clone()])) } else { state.dialog.set(Some(discard_dialog(vec![p.clone()]))) } }
-                            }
-                        }
-                    }
-                }
-                ListHeader { title: "Staged", count: staged.len(),
-                    if !staged.is_empty() {
-                        button { class: "rounded px-1.5 text-[11px] font-medium hover:bg-accent", disabled: busy,
-                            onclick: move |_| r_unstage_all(RepoOp::UnstageAll), "Unstage all" }
-                    }
-                }
-                div { class: "p-1",
-                    if staged.is_empty() { p { class: "px-2 py-3 text-xs text-muted-foreground", "Stage files or hunks to commit them" } }
-                    for f in staged.clone() {
-                        {
-                            let (p, s1, run) = (f.path.clone(), services.clone(), run.clone());
-                            let file = f.clone();
-                            rsx! {
-                                FileRow { key: "s{f.path}", path: f.path.clone(), kind: f.index, active: is_open(&f.path, true),
-                                    actions: vec![UNSTAGE],
-                                    on_open: move |_| repo::open_file(state, s1.clone(), id, &file, true),
-                                    on_action: move |_| run(RepoOp::Unstage(vec![p.clone()])) }
-                            }
-                        }
-                    }
-                }
-            }
-            CommitBox { id, staged: staged.len() }
-        }
+    let mut body: Vec<AnyElement> = Vec::new();
+    if !conflicted.is_empty() {
+        body.push(list_header("Conflicts", conflicted.len(), Vec::new(), cx));
+        let rows: Vec<AnyElement> = conflicted
+            .iter()
+            .map(|f| {
+                let (p1, p2, p3) = (f.path.clone(), f.path.clone(), f.path.clone());
+                let file = f.clone();
+                FileRow::new(
+                    format!("c-{}", f.path),
+                    f.path.clone(),
+                    f.index,
+                    is_open(&f.path, false),
+                    move |app, _, _, cx| app.open_file(id, &file, false, cx),
+                )
+                .action(OURS, move |app, _, _, cx| {
+                    app.op(id, RepoOp::TakeOurs(vec![p1.clone()]), cx);
+                })
+                .action(THEIRS, move |app, _, _, cx| {
+                    app.op(id, RepoOp::TakeTheirs(vec![p2.clone()]), cx);
+                })
+                .action(RESOLVED, move |app, _, _, cx| {
+                    app.op(id, RepoOp::Stage(vec![p3.clone()]), cx);
+                })
+                .render(cx)
+            })
+            .collect();
+        body.push(v_flex().p_1().children(rows).into_any_element());
     }
+
+    let unstaged_buttons = if unstaged.is_empty() {
+        Vec::new()
+    } else {
+        vec![
+            header_button(
+                "discard-all",
+                "Discard all",
+                true,
+                busy,
+                move |app, _, window, cx| {
+                    app.open_dialog(discard_dialog(unstaged_paths.clone()), window, cx);
+                },
+                cx,
+            ),
+            header_button(
+                "stage-all",
+                "Stage all",
+                false,
+                busy,
+                move |app, _, _, cx| app.op(id, RepoOp::StageAll, cx),
+                cx,
+            ),
+        ]
+    };
+    body.push(list_header(
+        "Unstaged",
+        unstaged.len(),
+        unstaged_buttons,
+        cx,
+    ));
+    let mut rows: Vec<AnyElement> = Vec::new();
+    if unstaged.is_empty() {
+        rows.push(placeholder("No unstaged changes"));
+    }
+    for f in &unstaged {
+        let (p1, p2) = (f.path.clone(), f.path.clone());
+        let file = f.clone();
+        rows.push(
+            FileRow::new(
+                format!("u-{}", f.path),
+                f.path.clone(),
+                f.worktree,
+                is_open(&f.path, false),
+                move |app, _, _, cx| app.open_file(id, &file, false, cx),
+            )
+            .action(DISCARD, move |app, _, window, cx| {
+                app.open_dialog(discard_dialog(vec![p1.clone()]), window, cx);
+            })
+            .action(STAGE, move |app, _, _, cx| {
+                app.op(id, RepoOp::Stage(vec![p2.clone()]), cx);
+            })
+            .render(cx),
+        );
+    }
+    body.push(v_flex().p_1().children(rows).into_any_element());
+
+    let staged_buttons = if staged.is_empty() {
+        Vec::new()
+    } else {
+        vec![header_button(
+            "unstage-all",
+            "Unstage all",
+            false,
+            busy,
+            move |app, _, _, cx| app.op(id, RepoOp::UnstageAll, cx),
+            cx,
+        )]
+    };
+    body.push(list_header("Staged", staged.len(), staged_buttons, cx));
+    let mut rows: Vec<AnyElement> = Vec::new();
+    if staged.is_empty() {
+        rows.push(placeholder("Stage files or hunks to commit them"));
+    }
+    for f in &staged {
+        let p = f.path.clone();
+        let file = f.clone();
+        rows.push(
+            FileRow::new(
+                format!("s-{}", f.path),
+                f.path.clone(),
+                f.index,
+                is_open(&f.path, true),
+                move |app, _, _, cx| app.open_file(id, &file, true, cx),
+            )
+            .action(UNSTAGE, move |app, _, _, cx| {
+                app.op(id, RepoOp::Unstage(vec![p.clone()]), cx);
+            })
+            .render(cx),
+        );
+    }
+    body.push(v_flex().p_1().children(rows).into_any_element());
+
+    let banner = status.operation.map(|op| {
+        let text = if conflicted.is_empty() {
+            format!("{} in progress — ready to continue", op.label())
+        } else {
+            format!(
+                "{} in progress — resolve {} conflict(s)",
+                op.label(),
+                conflicted.len()
+            )
+        };
+        h_flex()
+            .flex_none()
+            .gap_2()
+            .px_3()
+            .py_2()
+            .border_b_1()
+            .border_color(colors.border)
+            .bg(status_colors.warning_background)
+            .child(
+                div().flex_1().child(
+                    Label::new(text)
+                        .size(LabelSize::Small)
+                        .color(Color::Warning),
+                ),
+            )
+            .child(
+                small_button("op-abort", "Abort")
+                    .disabled(busy)
+                    .on_click(cx.listener(move |app, _, _, cx| app.op(id, RepoOp::Abort, cx))),
+            )
+            .child(
+                primary_button("op-continue", "Continue")
+                    .disabled(busy || !conflicted.is_empty())
+                    .on_click(cx.listener(move |app, _, _, cx| app.op(id, RepoOp::Continue, cx))),
+            )
+    });
+
+    v_flex()
+        .flex_1()
+        .min_h_0()
+        .children(banner)
+        .child(
+            v_flex()
+                .id("wip-scroll")
+                .flex_1()
+                .min_h_0()
+                .overflow_y_scroll()
+                .children(body),
+        )
+        .child(commit_box(app, id, staged.len(), cx))
+        .into_any_element()
 }
 
-#[component]
-fn CommitBox(id: RepoId, staged: usize) -> Element {
-    let state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let view = state.view(id);
-    let entry = state.entry(id);
-    let profile = entry.as_ref().and_then(|e| state.profile_of(e));
+fn commit_box(
+    app: &FerrumGit,
+    id: RepoId,
+    staged: usize,
+    cx: &mut Context<FerrumGit>,
+) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    let view = app.state.view(id);
+    let entry = app.state.entry(id);
+    let profile = entry.as_ref().and_then(|e| app.state.profile_of(e));
     let who = profile
         .as_ref()
         .and_then(|p| p.identity().map(|(n, e)| format!("{n} <{e}>")));
     let amend = view.amend;
-    let busy = state.is_busy(id);
     let summary_len = view.summary.chars().count();
-    let can_commit = !busy && !view.summary.trim().is_empty() && (staged > 0 || amend);
+    let can_commit = app.can_commit(id);
     let label = match (amend, staged) {
         (true, _) => "Amend previous commit".to_owned(),
         (false, 0) => "Stage changes to commit".to_owned(),
         (false, n) => format!("Commit {n} file{}", if n == 1 { "" } else { "s" }),
     };
-    let rev = view.draft_rev;
-    let (summary0, desc0) = (view.summary.clone(), view.description.clone());
-    let (s_amend, s_commit) = (services.clone(), services.clone());
-    let commit = move || {
-        let v = state.view(id);
-        let msg = if v.description.trim().is_empty() {
-            v.summary.trim().to_owned()
-        } else {
-            format!("{}\n\n{}", v.summary.trim(), v.description.trim())
-        };
-        repo::op(
-            state,
-            s_commit.clone(),
-            id,
-            RepoOp::Commit {
-                message: msg,
-                amend: v.amend,
-            },
-        );
+    let identity = match who {
+        Some(w) => format!("as {w} · ⌘↩ to commit"),
+        None => "as your git config identity · ⌘↩ to commit".to_owned(),
     };
-    let commit2 = commit.clone();
 
-    rsx! {
-        div { class: "flex shrink-0 flex-col gap-2 border-t bg-sidenav p-3",
-            div { class: "flex items-center gap-2 text-xs",
-                span { class: "flex-1 font-semibold", "Commit" }
-                label { class: "flex items-center gap-1 text-muted-foreground",
-                    input { r#type: "checkbox", checked: amend, onchange: move |e| repo::toggle_amend(state, s_amend.clone(), id, e.checked()) }
-                    "Amend"
-                }
-            }
-            for r in [rev] {
-                {
-                let commit = commit.clone();
-                rsx! {
-                div { key: "{r}", class: "flex flex-col gap-2",
-                    div { class: "relative",
-                        input {
-                            class: "h-8 w-full rounded-md border bg-background px-2 pr-10 text-sm outline-none focus:border-ring select-text",
-                            placeholder: "Summary (required)", "aria-label": "Commit summary",
-                            initial_value: "{summary0}",
-                            oninput: move |e| state.update_view(id, |v| v.summary = e.value()),
-                            onkeydown: move |e: KeyboardEvent| {
-                                let m = e.modifiers();
-                                if e.key() == Key::Enter && (m.meta() || m.ctrl()) && can_commit { commit() }
-                            },
-                        }
-                        span { class: if summary_len > 72 { "absolute right-2 top-2 text-[10px] text-warning" } else { "absolute right-2 top-2 text-[10px] text-muted-foreground" }, "{summary_len}" }
+    v_flex()
+        .flex_none()
+        .gap_2()
+        .p_3()
+        .border_t_1()
+        .border_color(colors.border)
+        .bg(colors.panel_background)
+        .child(
+            h_flex()
+                .gap_2()
+                .child(
+                    div().flex_1().child(
+                        Label::new("Commit")
+                            .size(LabelSize::Small)
+                            .weight(gpui::FontWeight::SEMIBOLD),
+                    ),
+                )
+                .child(
+                    Checkbox::new("amend", ToggleState::from(amend))
+                        .label("Amend")
+                        .label_size(LabelSize::Small)
+                        .on_click(cx.listener(move |app, state: &ToggleState, _, cx| {
+                            app.toggle_amend(id, state.selected(), cx);
+                        })),
+                ),
+        )
+        .child(
+            div().relative().child(app.inputs.summary.clone()).child(
+                div().absolute().right(px(8.)).top(px(6.)).child(
+                    Label::new(summary_len.to_string())
+                        .size(LabelSize::XSmall)
+                        .color(if summary_len > 72 {
+                            Color::Warning
+                        } else {
+                            Color::Muted
+                        }),
+                ),
+            ),
+        )
+        .child(app.inputs.description.clone())
+        .child(
+            primary_button(ElementId::Name("commit".into()), label)
+                .full_width()
+                .disabled(!can_commit)
+                .on_click(cx.listener(move |app, _, _, cx| {
+                    if app.can_commit(id) {
+                        app.commit(id, cx);
                     }
-                    textarea {
-                        class: "h-20 w-full resize-none rounded-md border bg-background px-2 py-1.5 text-sm outline-none focus:border-ring select-text",
-                        placeholder: "Description", "aria-label": "Commit description",
-                        initial_value: "{desc0}",
-                        oninput: move |e| state.update_view(id, |v| v.description = e.value()),
-                    }
-                }
-                }
-                }
-            }
-            Button { class: "w-full", disabled: !can_commit, onclick: move |_| commit2(), "{label}" }
-            p { class: "truncate text-[11px] text-muted-foreground", title: "Set per repository via its profile",
-                match who { Some(w) => rsx! { "as {w}" }, None => rsx! { "as your git config identity" } }
-                " · ⌘↩ to commit"
-            }
-        }
-    }
+                })),
+        )
+        .child(
+            div()
+                .id("commit-identity")
+                .tooltip(Tooltip::text("Set per repository via its profile"))
+                .child(
+                    Label::new(identity)
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted)
+                        .truncate(),
+                ),
+        )
+        .into_any_element()
 }

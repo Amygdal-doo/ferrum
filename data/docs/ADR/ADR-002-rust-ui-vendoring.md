@@ -1,6 +1,6 @@
 # ADR-002: Vendor and pin Rust/UI; pin Dioxus exactly
 
-Status: Accepted · 2026-10-18
+Status: Superseded by [ADR-011](ADR-011-gpui.md) · 2026-11-08 (accepted 2026-10-18)
 
 ## Context
 Rust/UI (github.com/rust-ui/ui, MIT) is a copy-paste component registry for Dioxus,

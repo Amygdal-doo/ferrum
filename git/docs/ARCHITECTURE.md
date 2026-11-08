@@ -3,8 +3,8 @@
 One desktop process; no server. Same shape as FerrumData and FerrumAPI.
 
 ```
-apps/desktop (Dioxus UI thread)
-   │ commands::run(...) ──► AppServices::spawn (dedicated Tokio runtime, 2 workers)
+apps/desktop (GPUI foreground thread; root view `FerrumGit`)
+   │ FerrumGit::spawn_run(...) ──► AppServices::spawn (dedicated Tokio runtime, 2 workers)
    ▼
 crates/application   AppServices · add/clone/init · load (snapshot + graph) · run_op(entry, profile, RepoOp)
    │            │              │                 │

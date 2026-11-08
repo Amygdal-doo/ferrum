@@ -3,7 +3,7 @@
 //! disconnects; every program keeps running in the server.
 
 use crate::input::{Action, Shortcut};
-use crate::view::{CellMetrics, TabHit};
+use crate::view::TabKind;
 use ferrumterm_client::{Client, connect_or_start, paths};
 use ferrumterm_protocol::{
     BlockId, Direction, Event, Frame, Input, Request, Response, SessionId, SessionInfo, Spawn,
@@ -11,8 +11,8 @@ use ferrumterm_protocol::{
 };
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
-use winit::event_loop::EventLoopProxy;
 
+/// Messages from the tokio side to the GPUI view.
 pub enum UiEvent {
     Connected(Client),
     Server(Event),
@@ -22,9 +22,11 @@ pub enum UiEvent {
     Clipboard(String),
 }
 
+pub type UiSender = futures::channel::mpsc::UnboundedSender<UiEvent>;
+
 pub struct App {
     pub rt: tokio::runtime::Runtime,
-    pub proxy: EventLoopProxy<UiEvent>,
+    pub proxy: UiSender,
     pub client: Option<Client>,
     pub sessions: Vec<SessionInfo>,
     pub current: Option<SessionId>,
@@ -32,9 +34,7 @@ pub struct App {
     pub dirty: HashSet<BlockId>,
     pub subscribed: Vec<BlockId>,
     pub font_pt: f32,
-    pub metrics: Option<CellMetrics>,
-    pub tabs: Vec<TabHit>,
-    /// Pane rectangles in px from the last draw, for clicks.
+    /// Pane rectangles in window px from the last paint, for clicks.
     pub panes: Vec<(BlockId, f32, f32, f32, f32)>,
     pub message: Option<(String, Instant)>,
     creating: bool,
@@ -55,7 +55,7 @@ fn spawn_env() -> Spawn {
 }
 
 impl App {
-    pub fn new(rt: tokio::runtime::Runtime, proxy: EventLoopProxy<UiEvent>) -> Self {
+    pub fn new(rt: tokio::runtime::Runtime, proxy: UiSender) -> Self {
         Self {
             rt,
             proxy,
@@ -66,8 +66,6 @@ impl App {
             dirty: HashSet::new(),
             subscribed: Vec::new(),
             font_pt: DEFAULT_FONT_PT,
-            metrics: None,
-            tabs: Vec::new(),
             panes: Vec::new(),
             message: None,
             creating: false,
@@ -83,18 +81,18 @@ impl App {
             match connect_or_start(&paths::socket(), "ferrumterm").await {
                 Ok((client, mut events)) => {
                     let _ = client.request(Request::Watch).await;
-                    let _ = proxy.send_event(UiEvent::Connected(client));
+                    let _ = proxy.unbounded_send(UiEvent::Connected(client));
                     while let Some(e) = events.recv().await {
-                        if proxy.send_event(UiEvent::Server(e)).is_err() {
+                        if proxy.unbounded_send(UiEvent::Server(e)).is_err() {
                             return;
                         }
                     }
-                    let _ = proxy.send_event(UiEvent::Disconnected(
+                    let _ = proxy.unbounded_send(UiEvent::Disconnected(
                         "connection to the server was lost".into(),
                     ));
                 }
                 Err(e) => {
-                    let _ = proxy.send_event(UiEvent::Disconnected(e.to_string()));
+                    let _ = proxy.unbounded_send(UiEvent::Disconnected(e.to_string()));
                 }
             }
         });
@@ -105,7 +103,7 @@ impl App {
         let proxy = self.proxy.clone();
         self.rt.spawn(async move {
             if let Err(e) = c.request(req).await {
-                let _ = proxy.send_event(UiEvent::Message(e.to_string()));
+                let _ = proxy.unbounded_send(UiEvent::Message(e.to_string()));
             }
         });
     }
@@ -115,7 +113,7 @@ impl App {
         let proxy = self.proxy.clone();
         self.rt.spawn(async move {
             if let Ok(Response::Sessions { sessions }) = c.request(Request::List).await {
-                let _ = proxy.send_event(UiEvent::Sessions(sessions));
+                let _ = proxy.unbounded_send(UiEvent::Sessions(sessions));
             }
         });
     }
@@ -302,14 +300,8 @@ impl App {
                     self.subscribed.clear();
                 }
             }
-            Shortcut::Paste => match arboard::Clipboard::new().and_then(|mut c| c.get_text()) {
-                Ok(text) if target.is_some() => self.send(Request::Input {
-                    target,
-                    input: vec![Input::Paste(text)],
-                }),
-                Ok(_) => {}
-                Err(e) => self.notify(format!("Clipboard: {e}")),
-            },
+            // The view reads the clipboard (it owns the GPUI context) and calls `paste`.
+            Shortcut::Paste => {}
             Shortcut::CopyScreen => {
                 let Some(c) = self.client.clone() else { return };
                 let proxy = self.proxy.clone();
@@ -321,7 +313,7 @@ impl App {
                         })
                         .await
                     {
-                        let _ = proxy.send_event(UiEvent::Clipboard(text));
+                        let _ = proxy.unbounded_send(UiEvent::Clipboard(text));
                     }
                 });
             }
@@ -331,7 +323,6 @@ impl App {
                     Shortcut::FontSmaller => (self.font_pt - 1.0).max(8.0),
                     _ => DEFAULT_FONT_PT,
                 };
-                self.metrics = None;
             }
             Shortcut::ScrollPageUp => self.send(Request::Scroll {
                 target,
@@ -368,21 +359,26 @@ impl App {
         }
     }
 
-    pub fn click(&mut self, x: f32, y: f32) {
-        if let Some(hit) = self
-            .tabs
-            .iter()
-            .find(|t| x >= t.x && x < t.x + t.w)
-            .cloned()
-            && self.metrics.is_some_and(|m| y < m.tab_h)
-        {
-            match hit.kind {
-                crate::view::TabKind::Session => self.shortcut(Shortcut::NextSession, None),
-                crate::view::TabKind::Window(id) => self.send(Request::Focus { target: id }),
-                crate::view::TabKind::NewWindow => self.shortcut(Shortcut::NewTab, None),
-            }
-            return;
+    pub fn paste(&mut self, text: String) {
+        let target = self.focused().map(|b| b.to_string());
+        if target.is_some() {
+            self.send(Request::Input {
+                target,
+                input: vec![Input::Paste(text)],
+            });
         }
+    }
+
+    pub fn click_tab(&mut self, kind: TabKind) {
+        match kind {
+            TabKind::Session => self.shortcut(Shortcut::NextSession, None),
+            TabKind::Window(id) => self.send(Request::Focus { target: id }),
+            TabKind::NewWindow => self.shortcut(Shortcut::NewTab, None),
+        }
+    }
+
+    /// Focuses the pane under window point `(x, y)`.
+    pub fn click(&mut self, x: f32, y: f32) {
         if let Some((b, ..)) = self
             .panes
             .iter()

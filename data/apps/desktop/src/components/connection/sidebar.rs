@@ -1,154 +1,231 @@
-use crate::commands::{connection, schema};
-use crate::components::env_dot_class;
-use crate::components::explorer::TableTree;
-use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
-use crate::state::SchemaLoad;
-use crate::state::{AppState, ConnStatus, Dialog};
-use dioxus::prelude::*;
-use ferrumdata_application::AppServices;
+use crate::app::FerrumData;
+use crate::components::env_dot;
+use crate::state::{ConnStatus, Dialog, SchemaLoad};
+use ferrum_ui::prelude::*;
 use ferrumdata_domain::ConnectionProfile;
 
-#[component]
-pub fn Sidebar() -> Element {
-    let mut state = use_context::<AppState>();
-    let mut filter = use_signal(String::new);
-    let needle = filter.read().to_lowercase();
-    let schemas = state.schemas.read();
-    let table_match = |p: &ConnectionProfile| match schemas.get(&p.id) {
-        Some(SchemaLoad::Loaded(t)) => t
+impl FerrumData {
+    pub fn render_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let colors = cx.theme().colors().clone();
+        let needle = self.filter.read(cx).text().to_lowercase();
+        let schemas = &self.state.schemas;
+        let table_match = |p: &ConnectionProfile| match schemas.get(&p.id) {
+            Some(SchemaLoad::Loaded(t)) => t
+                .iter()
+                .any(|t| t.table.name.to_lowercase().contains(&needle)),
+            _ => false,
+        };
+        let profiles: Vec<ConnectionProfile> = self
+            .state
+            .profiles
             .iter()
-            .any(|t| t.table.name.to_lowercase().contains(&needle)),
-        _ => false,
-    };
-    let profiles: Vec<ConnectionProfile> = state
-        .profiles
-        .read()
-        .iter()
-        .filter(|p| {
-            needle.is_empty() || p.display_name.to_lowercase().contains(&needle) || table_match(p)
-        })
-        .cloned()
-        .collect();
-    drop(schemas);
-    let empty = state.profiles.read().is_empty();
-
-    rsx! {
-        aside { class: "flex h-full flex-col bg-sidenav",
-            div { class: "flex h-10 items-center justify-between px-3",
-                span { class: "text-xs font-semibold uppercase tracking-wide text-muted-foreground", "Connections" }
-                Button {
-                    size: ButtonSize::IconSm,
-                    variant: ButtonVariant::Ghost,
-                    aria_label: "New connection",
-                    title: "New connection",
-                    onclick: move |_| state.dialog.set(Some(Dialog::ConnectionForm(None))),
-                    "+"
-                }
-            }
-            if !empty {
-                div { class: "px-3 pb-2",
-                    input {
-                        class: "h-7 w-full rounded-md border bg-background px-2 text-xs",
-                        placeholder: "Filter connections and tables",
-                        "aria-label": "Filter connections and tables",
-                        value: "{filter}",
-                        oninput: move |e| filter.set(e.value()),
-                    }
-                }
-            }
-            div { class: "min-h-0 flex-1 overflow-y-auto px-2 pb-2",
-                if empty {
-                    div { class: "px-2 py-6 text-center text-xs text-muted-foreground",
-                        p { "No connections yet." }
-                        Button {
-                            class: "mt-3",
-                            size: ButtonSize::Sm,
-                            variant: ButtonVariant::Outline,
-                            onclick: move |_| state.dialog.set(Some(Dialog::ConnectionForm(None))),
-                            "Add PostgreSQL connection"
-                        }
-                    }
-                }
-                for p in profiles {
-                    ProfileRow { key: "{p.id}", profile: p, filter: needle.clone() }
-                }
-            }
+            .filter(|p| {
+                needle.is_empty()
+                    || p.display_name.to_lowercase().contains(&needle)
+                    || table_match(p)
+            })
+            .cloned()
+            .collect();
+        let empty = self.state.profiles.is_empty();
+        let mut rows: Vec<AnyElement> = Vec::with_capacity(profiles.len());
+        for profile in profiles {
+            rows.push(self.render_profile_row(profile, &needle, window, cx));
         }
+
+        v_flex()
+            .size_full()
+            .bg(colors.panel_background)
+            .child(
+                h_flex()
+                    .h(px(40.))
+                    .flex_none()
+                    .justify_between()
+                    .pl_0()
+                    .pr_2()
+                    .child(section_header("Connections"))
+                    .child(
+                        IconButton::new("new-connection", IconName::Plus)
+                            .tooltip(Tooltip::text("New connection"))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.open_dialog(Dialog::ConnectionForm(None), window, cx)
+                            })),
+                    ),
+            )
+            .when(!empty, |this| {
+                this.child(div().px_3().pb_2().child(self.filter.clone()))
+            })
+            .child(
+                v_flex()
+                    .id("profiles")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .px_2()
+                    .pb_2()
+                    .when(empty, |this| {
+                        this.child(
+                            v_flex()
+                                .items_center()
+                                .gap_3()
+                                .px_2()
+                                .py_6()
+                                .child(
+                                    Label::new("No connections yet.")
+                                        .size(LabelSize::Small)
+                                        .color(Color::Muted),
+                                )
+                                .child(
+                                    Button::new("add-first", "Add PostgreSQL connection")
+                                        .style(ButtonStyle::Outlined)
+                                        .on_click(cx.listener(|this, _, window, cx| {
+                                            this.open_dialog(
+                                                Dialog::ConnectionForm(None),
+                                                window,
+                                                cx,
+                                            )
+                                        })),
+                                ),
+                        )
+                    })
+                    .children(rows),
+            )
+            .into_any_element()
     }
-}
 
-#[component]
-fn ProfileRow(profile: ConnectionProfile, filter: String) -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let status = state.conn_status.read().get(&profile.id).cloned();
-    let active = state.active_tab().and_then(|t| t.profile_id) == Some(profile.id);
-    let row_class = if active {
-        "bg-accent"
-    } else {
-        "hover:bg-accent/60"
-    };
-    let (status_text, status_class) = match &status {
-        None => ("", ""),
-        Some(ConnStatus::Connecting) => ("connecting…", "text-muted-foreground"),
-        Some(ConnStatus::Ready(_)) => ("connected", "text-success"),
-        Some(ConnStatus::Failed(_)) => ("failed", "text-destructive"),
-    };
-    let error = match &status {
-        Some(ConnStatus::Failed(m)) => Some(m.clone()),
-        _ => None,
-    };
-    let connected = matches!(status, Some(ConnStatus::Ready(_)));
-    let id = profile.id;
-    let expanded = state.expanded.read().contains(&id);
-    let chevron = if expanded { "▾" } else { "▸" };
-    let svc_tree = services.clone();
-    let (svc_a, svc_b) = (services.clone(), services.clone());
-    let edit = profile.clone();
-    let delete = profile.clone();
+    fn render_profile_row(
+        &mut self,
+        profile: ConnectionProfile,
+        filter: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let colors = cx.theme().colors().clone();
+        let status_colors = cx.theme().status().clone();
+        let id = profile.id;
+        let status = self.state.conn_status.get(&id).cloned();
+        let active = self.state.active_tab().and_then(|t| t.profile_id) == Some(id);
+        let (status_text, status_color) = match &status {
+            None => ("", colors.text_muted),
+            Some(ConnStatus::Connecting) => ("connecting…", colors.text_muted),
+            Some(ConnStatus::Ready(_)) => ("connected", status_colors.success),
+            Some(ConnStatus::Failed(_)) => ("failed", status_colors.error),
+        };
+        let error = match &status {
+            Some(ConnStatus::Failed(m)) => Some(m.clone()),
+            _ => None,
+        };
+        let connected = matches!(status, Some(ConnStatus::Ready(_)));
+        let expanded = self.state.expanded.contains(&id);
+        let group: SharedString = format!("profile-{id}").into();
+        let target = profile.target_label();
+        let tree = if expanded {
+            Some(self.render_table_tree(id, filter, window, cx))
+        } else {
+            None
+        };
+        let (edit, delete) = (profile.clone(), profile.clone());
 
-    rsx! {
-        div { class: "group rounded-md px-2 py-1.5 {row_class}",
-            div {
-                class: "flex cursor-default items-center gap-2",
-                title: "{profile.target_label()}",
-                onclick: move |_| {
-                    if let Some(tab_id) = *state.active_tab.peek() {
-                        state.update_tab(tab_id, |t| { t.profile_id = Some(id); t.unsaved = true; });
-                    }
-                },
-                ondoubleclick: move |_| connection::connect(state, svc_a.clone(), id),
-                button {
-                    class: "w-3 shrink-0 text-[10px] text-muted-foreground hover:text-foreground",
-                    "aria-label": if expanded { "Collapse tables" } else { "Expand tables" },
-                    "aria-expanded": expanded,
-                    onclick: move |e| { e.stop_propagation(); schema::toggle(state, svc_tree.clone(), id); },
-                    "{chevron}"
-                }
-                span { class: "size-2 shrink-0 rounded-full {env_dot_class(profile.env)}" }
-                span { class: "truncate text-sm", "{profile.display_name}" }
-                span { class: "ml-auto text-[10px] {status_class}", "{status_text}" }
-            }
-            div { class: "truncate pl-9 text-[11px] text-muted-foreground", "{profile.target_label()}" }
-            if let Some(err) = error {
-                div { class: "mt-1 pl-4 text-[11px] text-destructive select-text", "{err}" }
-            }
-            div { class: "mt-1 hidden gap-1 pl-3 group-hover:flex",
-                if connected {
-                    Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, class: "h-6 px-2 text-xs",
-                        onclick: move |_| connection::disconnect(state, svc_b.clone(), id), "Disconnect" }
-                } else {
-                    Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, class: "h-6 px-2 text-xs",
-                        onclick: move |_| connection::connect(state, svc_b.clone(), id), "Connect" }
-                }
-                Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, class: "h-6 px-2 text-xs",
-                    onclick: move |_| state.dialog.set(Some(Dialog::ConnectionForm(Some(edit.clone())))), "Edit" }
-                Button { size: ButtonSize::Sm, variant: ButtonVariant::Ghost, class: "h-6 px-2 text-xs text-destructive",
-                    onclick: move |_| state.dialog.set(Some(Dialog::DeleteProfile(delete.clone()))), "Delete" }
-            }
-            if expanded {
-                TableTree { profile_id: id, filter }
-            }
-        }
+        let action = |label: &'static str, key: &'static str| {
+            Button::new(SharedString::from(format!("{key}-{id}")), label)
+                .label_size(LabelSize::XSmall)
+        };
+
+        v_flex()
+            .group(group.clone())
+            .rounded_md()
+            .px_2()
+            .py_1p5()
+            .when(active, |this| this.bg(colors.element_selected))
+            .when(!active, |this| this.hover(|s| s.bg(colors.element_hover)))
+            .child(
+                h_flex()
+                    .id(SharedString::from(format!("profile-row-{id}")))
+                    .gap_2()
+                    .tooltip(Tooltip::text(target.clone()))
+                    .on_click(cx.listener(move |this, event: &ClickEvent, _, cx| {
+                        if event.click_count() >= 2 {
+                            this.connect(id, cx);
+                        } else {
+                            this.state.bind_active_tab(Some(id));
+                            cx.notify();
+                        }
+                    }))
+                    .child(
+                        IconButton::new(
+                            SharedString::from(format!("expand-{id}")),
+                            if expanded {
+                                IconName::ChevronDown
+                            } else {
+                                IconName::ChevronRight
+                            },
+                        )
+                        .icon_size(IconSize::XSmall)
+                        .tooltip(Tooltip::text(if expanded {
+                            "Collapse tables"
+                        } else {
+                            "Expand tables"
+                        }))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            cx.stop_propagation();
+                            this.toggle_tables(id, cx);
+                        })),
+                    )
+                    .child(env_dot(profile.env, 8., cx))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .truncate()
+                            .text_sm()
+                            .child(profile.display_name.clone()),
+                    )
+                    .child(div().text_xs().text_color(status_color).child(status_text)),
+            )
+            .child(
+                div()
+                    .pl(px(36.))
+                    .truncate()
+                    .text_xs()
+                    .text_color(colors.text_muted)
+                    .child(target),
+            )
+            .when_some(error, |this, err| {
+                this.child(
+                    div()
+                        .mt_1()
+                        .pl_4()
+                        .text_xs()
+                        .text_color(status_colors.error)
+                        .child(err),
+                )
+            })
+            .child(
+                h_flex()
+                    .mt_1()
+                    .gap_1()
+                    .pl_3()
+                    .visible_on_hover(group)
+                    .child(if connected {
+                        action("Disconnect", "disconnect")
+                            .on_click(cx.listener(move |this, _, _, cx| this.disconnect(id, cx)))
+                    } else {
+                        action("Connect", "connect")
+                            .on_click(cx.listener(move |this, _, _, cx| this.connect(id, cx)))
+                    })
+                    .child(action("Edit", "edit").on_click(cx.listener(
+                        move |this, _, window, cx| {
+                            this.open_dialog(Dialog::ConnectionForm(Some(edit.clone())), window, cx)
+                        },
+                    )))
+                    .child(
+                        action("Delete", "delete")
+                            .color(Color::Error)
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.open_dialog(Dialog::DeleteProfile(delete.clone()), window, cx)
+                            })),
+                    ),
+            )
+            .children(tree)
+            .into_any_element()
     }
 }

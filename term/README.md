@@ -1,14 +1,15 @@
 # FerrumTerm
 
-A Rust terminal for humans and AI agents, inspired by Ghostty (GPU window), tmux
+A Rust terminal for humans and AI agents, inspired by Ghostty (GPU-rendered window), tmux
 (persistent sessions, attach from anywhere) and Rex (agent status, scriptable CLI,
 Tailscale access). Every line is Rust: `alacritty_terminal` for VT emulation,
-`portable-pty`, Tokio, winit + wgpu + glyphon for the GPU window, crossterm for `attach`.
+`portable-pty`, Tokio, GPUI (via the shared `ferrum-ui` crate, same UI stack as FerrumIDE) for
+the window, crossterm for `attach`.
 
 > **Status: M0, first vertical slice.** The server, CLI and attach are covered by
-> automated tests (real PTYs, no network). The GPU window was launched and screenshotted on a demo
-> session (splits, tabs, colours, CJK, status badges, close → reopen) but has not been
-> used day-to-day by a person yet.
+> automated tests (real PTYs, no network). The window was ported from winit + wgpu + glyphon to
+> GPUI; the GPUI version has been launch-tested (connects, creates a session, sizes the grid) but
+> not yet visually re-checked or used day-to-day by a person.
 
 ## The idea: terminals live in a server
 ```
@@ -37,12 +38,12 @@ override that. Use `fterm awake always` to hold the assertion permanently.
 | Agent skill for Claude Code (`~/.claude/skills/fterm`) and Codex (`~/.agents/skills/fterm`); `--hooks` adds Claude Code hooks for working/done/blocked status | ✅ implemented, not yet used with a live agent |
 | tmux-style `fterm attach` (renders splits, status line, `C-b` prefix: d c % " o n p 0-9 x [ ]) | ✅ attach/detach checked in a real PTY |
 | Remote: TCP listeners on loopback/Tailscale addresses only, 256-bit token, `--tailscale` auto-detects this Mac's tailnet IP, `fterm hosts add` + `fterm -S host …` | ✅ token auth tested on loopback; not tested across two machines |
-| GPU window: tabs, splits with focus accent, truecolor/256/16 colours, bold/italic/underline/strike/dim/inverse, block/beam/underline cursor, CJK and emoji fallback, scrollback (wheel / Cmd+PgUp), paste (bracketed), copy screen, font size | ✅ rendered and screenshotted |
+| GPUI window: tabs, splits with focus accent, truecolor/256/16 colours, bold/italic/underline/strike/dim/inverse, block/beam/underline cursor, wide (CJK/emoji) cells, scrollback (wheel / Cmd+PgUp), paste (bracketed), copy screen, font size, IME composition | ⚠️ ported to GPUI; launch-tested, not yet visually re-checked |
 | Shortcuts: ⌘T tab · ⌘N session · ⌘D / ⌘⇧D split · ⌘W close · ⌘[ ⌘] pane · ⌘⇧[ ⌘⇧] / ⌘1–9 tabs · ⌘⇧S next session · ⌘V · ⌘⇧C copy screen · ⌘= ⌘- ⌘0 | ⚠️ wired, not hand-tested |
 
 ## Not built yet
 Mouse selection and copy, mouse reporting to programs, OSC 8 hyperlinks, ligatures,
-IME/dead keys, kitty keyboard and graphics protocols, a config file and themes, ⌘F search,
+dead keys, kitty keyboard and graphics protocols, a config file and themes, ⌘F search,
 restoring sessions after the *server* restarts (programs can't survive their PTY owner),
 built-in Tailscale node (Rex embeds Go's tsnet; there is no Rust equivalent, so FerrumTerm
 listens on the tailnet IP of your running Tailscale), iOS client, Linux packaging (the code is
@@ -50,7 +51,7 @@ portable; only macOS was exercised), app bundle and signing.
 
 ## Commands
 ```bash
-cargo term                         # GPU window (starts the server if needed)
+cargo term                         # GPUI window (starts the server if needed)
 cargo fterm -- ls                  # CLI via cargo; or use target/debug/fterm directly
 cargo test --workspace             # real PTYs, temp dirs, no network
 cargo lint && cargo fmt --all
@@ -80,7 +81,7 @@ any address that isn't loopback or in Tailscale's ranges.
 
 ## Layout
 ```
-apps/gui/            FerrumTerm window: winit + wgpu quads + glyphon text (gpu, view, input, app)
+apps/gui/            FerrumTerm window: GPUI view painting frames as quads + shaped text (view, input, app)
 apps/cli/            fterm: commands, server management + LaunchAgent, attach (crossterm), skill, hosts
 crates/protocol/     wire types, length-prefixed JSON framing, layouts, OSC 7501 parser/scanner
 crates/emulator/     alacritty_terminal wrapper: frames, capture, replies, key-spec encoding, palette

@@ -1,108 +1,111 @@
 //! Table explorer: lazy table lists and opening tables in browser tabs.
 
-use super::{background, query};
-use crate::state::{AppState, ConnStatus, EditorTab, SchemaLoad};
-use dioxus::prelude::*;
-use ferrumdata_application::{AppServices, browse::browse_query};
+use super::{background, log_dropped};
+use crate::app::FerrumData;
+use crate::state::{ConnStatus, EditorTab, SchemaLoad};
+use ferrum_ui::prelude::*;
+use ferrumdata_application::browse::browse_query;
 use ferrumdata_domain::{ProfileId, TableInfo};
 
-/// Expands/collapses a connection's table tree, loading it on first expand.
-pub fn toggle(mut state: AppState, services: AppServices, id: ProfileId) {
-    let now_open = {
-        let mut expanded = state.expanded.write();
-        if !expanded.remove(&id) {
-            expanded.insert(id);
-            true
-        } else {
+impl FerrumData {
+    /// Expands/collapses a connection's table tree, loading it on first expand.
+    pub fn toggle_tables(&mut self, id: ProfileId, cx: &mut Context<Self>) {
+        let now_open = if self.state.expanded.remove(&id) {
             false
-        }
-    };
-    if now_open && !matches!(state.schemas.peek().get(&id), Some(SchemaLoad::Loaded(_))) {
-        load_tables(state, services, id);
-    }
-}
-
-pub fn load_tables(mut state: AppState, services: AppServices, id: ProfileId) {
-    state.schemas.write().insert(id, SchemaLoad::Loading);
-    spawn(async move {
-        let svc = services.clone();
-        let result = background(
-            &services,
-            async move { svc.connections.list_tables(id).await },
-        )
-        .await;
-        let load = match result {
-            Ok(Ok(tables)) => {
-                if !matches!(
-                    state.conn_status.peek().get(&id),
-                    Some(ConnStatus::Ready(_))
-                ) {
-                    state
-                        .conn_status
-                        .write()
-                        .insert(id, ConnStatus::Ready("PostgreSQL".into()));
-                }
-                SchemaLoad::Loaded(tables)
-            }
-            Ok(Err(e)) => SchemaLoad::Failed(e.message),
-            Err(e) => SchemaLoad::Failed(e),
+        } else {
+            self.state.expanded.insert(id);
+            true
         };
-        state.schemas.write().insert(id, load);
-    });
-}
-
-/// Focuses the tab already showing this table, or opens a new one and runs it.
-pub fn open_table(
-    mut state: AppState,
-    services: AppServices,
-    profile_id: ProfileId,
-    info: TableInfo,
-) {
-    let Some(profile) = state.profile(profile_id) else {
-        return;
-    };
-    let existing = state
-        .tabs
-        .peek()
-        .iter()
-        .find(|t| t.profile_id == Some(profile_id) && t.table.as_ref() == Some(&info.table))
-        .map(|t| t.id);
-    if let Some(id) = existing {
-        state.active_tab.set(Some(id));
-        return;
+        if now_open && !matches!(self.state.schemas.get(&id), Some(SchemaLoad::Loaded(_))) {
+            self.load_tables(id, cx);
+        }
+        cx.notify();
     }
 
-    let max_rows = state.settings.peek().query_limits.max_rows;
-    let query = browse_query(profile.engine, &info, max_rows);
-    let mut tab = EditorTab::new(0, Some(profile_id));
-    tab.title = info.table.name.clone();
-    tab.sql = query.sql.clone();
-    tab.table = Some(info.table.clone());
-    tab.unsaved = true;
-    let tab_id = tab.id;
-    state.tabs.write().push(tab);
-    state.active_tab.set(Some(tab_id));
-
-    query::start_run(state, services, tab_id, profile, query.sql);
-    if !query.deterministic
-        && let Some(run) = state.runs.write().get_mut(&tab_id)
-    {
-        run.note = Some("No primary key: row order is not guaranteed between refreshes.".into());
+    pub fn load_tables(&mut self, id: ProfileId, cx: &mut Context<Self>) {
+        self.state.schemas.insert(id, SchemaLoad::Loading);
+        cx.notify();
+        let services = self.services.clone();
+        cx.spawn(async move |this, cx| {
+            let svc = services.clone();
+            let result = background(
+                &services,
+                async move { svc.connections.list_tables(id).await },
+            )
+            .await;
+            log_dropped(this.update(cx, |this, cx| {
+                let load = match result {
+                    Ok(Ok(tables)) => {
+                        if !matches!(this.state.conn_status.get(&id), Some(ConnStatus::Ready(_))) {
+                            this.state
+                                .conn_status
+                                .insert(id, ConnStatus::Ready("PostgreSQL".into()));
+                        }
+                        SchemaLoad::Loaded(tables)
+                    }
+                    Ok(Err(e)) => SchemaLoad::Failed(e.message),
+                    Err(e) => SchemaLoad::Failed(e),
+                };
+                this.state.schemas.insert(id, load);
+                cx.notify();
+            }));
+        })
+        .detach();
     }
-}
 
-/// Re-runs a table tab's current SQL (refresh button).
-pub fn refresh(state: AppState, services: AppServices) {
-    let Some(tab) = state.active_tab() else {
-        return;
-    };
-    let Some(profile) = tab.profile_id.and_then(|id| state.profile(id)) else {
-        return;
-    };
-    let note = state.runs.peek().get(&tab.id).and_then(|r| r.note.clone());
-    query::start_run(state, services, tab.id, profile, tab.sql.clone());
-    let mut runs = state.runs;
-    if let Some(run) = runs.write().get_mut(&tab.id) {
-        run.note = note;
+    /// Focuses the tab already showing this table, or opens a new one and runs it.
+    pub fn open_table(&mut self, profile_id: ProfileId, info: TableInfo, cx: &mut Context<Self>) {
+        let Some(profile) = self.state.profile(profile_id).cloned() else {
+            return;
+        };
+        let existing = self
+            .state
+            .tabs
+            .iter()
+            .find(|t| t.profile_id == Some(profile_id) && t.table.as_ref() == Some(&info.table))
+            .map(|t| t.id);
+        if let Some(id) = existing {
+            self.state.active_tab = Some(id);
+            cx.notify();
+            return;
+        }
+
+        let max_rows = self.state.settings.query_limits.max_rows;
+        let query = browse_query(profile.engine, &info, max_rows);
+        let mut tab = EditorTab::new(0, Some(profile_id));
+        tab.title = info.table.name.clone();
+        tab.sql = query.sql.clone();
+        tab.table = Some(info.table.clone());
+        tab.unsaved = true;
+        let tab_id = tab.id;
+        self.state.tabs.push(tab);
+        self.state.active_tab = Some(tab_id);
+
+        self.start_run(tab_id, profile, query.sql, cx);
+        if !query.deterministic
+            && let Some(run) = self.state.runs.get_mut(&tab_id)
+        {
+            run.note =
+                Some("No primary key: row order is not guaranteed between refreshes.".into());
+        }
+    }
+
+    /// Re-runs a table tab's current SQL (refresh button).
+    pub fn refresh_table(&mut self, cx: &mut Context<Self>) {
+        let Some(tab) = self.state.active_tab().cloned() else {
+            return;
+        };
+        let Some(profile) = tab
+            .profile_id
+            .and_then(|id| self.state.profile(id))
+            .cloned()
+        else {
+            return;
+        };
+        let note = self.state.runs.get(&tab.id).and_then(|r| r.note.clone());
+        self.start_run(tab.id, profile, tab.sql.clone(), cx);
+        if let Some(run) = self.state.runs.get_mut(&tab.id) {
+            run.note = note;
+        }
     }
 }

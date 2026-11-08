@@ -1,235 +1,812 @@
-//! Scene building: frames → quads (backgrounds, cursor, decorations) and
-//! glyphon text buffers. Pure layout math; no GPU calls.
+//! The FerrumTerm window as a GPUI view: tab bar, the active window's panes
+//! (painted cell-by-cell from server frames), and the transient message strip.
 
-use crate::gpu::Quad;
-use ferrumterm_protocol::{CursorShape, Frame, ProgramState, SessionInfo, WindowInfo, flags};
-use glyphon::{Attrs, Buffer, Color, Family, FontSystem, Metrics, Shaping, Style, Weight, Wrap};
-use unicode_width::UnicodeWidthStr;
+use crate::app::{App, UiEvent};
+use crate::input::{self, Action, Shortcut};
+use ferrum_ui::gpui::{
+    self, Bounds, ClipboardItem, Context, ElementId, ElementInputHandler, Entity, FocusHandle,
+    Focusable, Font, FontStyle, FontWeight, Hsla, KeyDownEvent, MouseButton, MouseDownEvent,
+    Pixels, Point, ScrollDelta, ScrollEvent, SharedString, Size, StrikethroughStyle, Task,
+    TextRun, UTF16Selection, UnderlineStyle, Window, canvas, div, fill, point, prelude::*, px,
+    size,
+};
+use ferrum_ui::theme::{self, ActiveTheme};
+use ferrum_ui::ui::{StyledTypography, h_flex, v_flex};
+use ferrumterm_protocol::{
+    BlockId, CursorShape, Frame, ProgramState, Rect, Span, WindowInfo, flags,
+};
+use futures::StreamExt as _;
+use futures::channel::mpsc::UnboundedReceiver;
+use std::ops::Range;
+use std::time::{Duration, Instant};
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
-/// Theme (Ghostty-like dark).
-pub const BG: u32 = 0x161719;
-pub const FG: u32 = 0xd8d8d8;
-pub const BAR_BG: u32 = 0x1f2023;
-pub const TAB_ACTIVE: u32 = 0x2a2d33;
-pub const DIVIDER: u32 = 0x34373d;
-pub const ACCENT: u32 = 0x5a8dd6;
-pub const MUTED: u32 = 0x8a8f98;
-
-pub fn rgb(c: u32) -> Color {
-    Color::rgb((c >> 16) as u8, (c >> 8) as u8, c as u8)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CellMetrics {
-    pub font_px: f32,
-    pub cell_w: f32,
-    pub cell_h: f32,
-    pub tab_h: f32,
-    pub pad: f32,
-}
-
-impl CellMetrics {
-    pub fn measure(fs: &mut FontSystem, font_px: f32, scale: f32) -> Self {
-        let line_h = (font_px * 1.25).round();
-        let mut b = Buffer::new(fs, Metrics::new(font_px, line_h));
-        b.set_size(fs, Some(10_000.0), Some(line_h * 2.0));
-        b.set_text(
-            fs,
-            &"M".repeat(20),
-            &Attrs::new().family(Family::Monospace),
-            Shaping::Advanced,
-            None,
-        );
-        b.shape_until_scroll(fs, false);
-        let w = b
-            .layout_runs()
-            .next()
-            .map_or(font_px * 0.6 * 20.0, |r| r.line_w);
-        Self {
-            font_px,
-            cell_w: (w / 20.0).max(1.0),
-            cell_h: line_h,
-            tab_h: (34.0 * scale).round(),
-            pad: (6.0 * scale).round(),
-        }
-    }
-
-    /// Cells that fit in a `w`×`h` px window (below the tab bar).
-    pub fn grid(&self, w: f32, h: f32) -> (u16, u16) {
-        let cols = ((w - 2.0 * self.pad) / self.cell_w).floor().max(4.0);
-        let rows = ((h - self.tab_h - 2.0 * self.pad) / self.cell_h)
-            .floor()
-            .max(2.0);
-        (cols as u16, rows as u16)
-    }
-
-    pub fn origin(&self) -> (f32, f32) {
-        (self.pad, self.tab_h + self.pad)
-    }
-}
-
-/// One shaped text buffer for a pane's frame.
-pub fn pane_text(fs: &mut FontSystem, frame: &Frame, m: &CellMetrics) -> Buffer {
-    let mut b = Buffer::new(fs, Metrics::new(m.font_px, m.cell_h));
-    b.set_size(
-        fs,
-        Some(f32::from(frame.cols) * m.cell_w + m.cell_w),
-        Some(f32::from(frame.rows) * m.cell_h),
-    );
-    b.set_wrap(fs, Wrap::None);
-    b.set_monospace_width(fs, Some(m.cell_w));
-    let base = Attrs::new().family(Family::Monospace).color(rgb(FG));
-    let mut spans: Vec<(&str, Attrs<'_>)> = Vec::new();
-    for (i, line) in frame.lines.iter().enumerate() {
-        if i > 0 {
-            spans.push(("\n", base.clone()));
-        }
-        for s in line {
-            let mut a = base.clone().color(match s.fg {
-                Some(c) => rgb(c),
-                None => rgb(FG),
-            });
-            if s.f & flags::BOLD != 0 {
-                a = a.weight(Weight::BOLD);
-            }
-            if s.f & flags::ITALIC != 0 {
-                a = a.style(Style::Italic);
-            }
-            if s.f & flags::DIM != 0 {
-                let c = s.fg.unwrap_or(FG);
-                a = a.color(Color::rgba((c >> 16) as u8, (c >> 8) as u8, c as u8, 150));
-            }
-            spans.push((s.t.as_str(), a));
-        }
-    }
-    // Keep empty trailing rows so line positions stay fixed.
-    for _ in frame.lines.len()..usize::from(frame.rows) {
-        spans.push(("\n", base.clone()));
-    }
-    b.set_rich_text(fs, spans, &base, Shaping::Advanced, None);
-    b.shape_until_scroll(fs, false);
-    b
-}
-
-/// Backgrounds, underline/strike lines and the cursor for a pane at `(x, y)` px.
-pub fn pane_quads(
-    frame: &Frame,
-    x: f32,
-    y: f32,
-    m: &CellMetrics,
-    focused: bool,
-    out: &mut Vec<Quad>,
-) {
-    let thin = (m.cell_h / 14.0).max(1.0);
-    for (row, line) in frame.lines.iter().enumerate() {
-        let top = y + row as f32 * m.cell_h;
-        let mut col = 0usize;
-        for s in line {
-            let width = UnicodeWidthStr::width(s.t.as_str());
-            let left = x + col as f32 * m.cell_w;
-            let w = width as f32 * m.cell_w;
-            if let Some(bg) = s.bg {
-                out.push(Quad {
-                    x: left,
-                    y: top,
-                    w,
-                    h: m.cell_h,
-                    rgb: bg,
-                    alpha: 1.0,
-                });
-            }
-            let fg = s.fg.unwrap_or(FG);
-            if s.f & flags::UNDERLINE != 0 {
-                out.push(Quad {
-                    x: left,
-                    y: top + m.cell_h - thin * 2.0,
-                    w,
-                    h: thin,
-                    rgb: fg,
-                    alpha: 1.0,
-                });
-            }
-            if s.f & flags::STRIKE != 0 {
-                out.push(Quad {
-                    x: left,
-                    y: top + m.cell_h / 2.0,
-                    w,
-                    h: thin,
-                    rgb: fg,
-                    alpha: 1.0,
-                });
-            }
-            col += width;
-        }
-    }
-    if let Some(c) = frame.cursor {
-        let (cx, cy) = (
-            x + f32::from(c.col) * m.cell_w,
-            y + f32::from(c.row) * m.cell_h,
-        );
-        let beam = (m.cell_w / 6.0).max(2.0);
-        if !focused {
-            // Hollow box when the pane is not focused.
-            for q in [
-                (cx, cy, m.cell_w, thin),
-                (cx, cy + m.cell_h - thin, m.cell_w, thin),
-                (cx, cy, thin, m.cell_h),
-                (cx + m.cell_w - thin, cy, thin, m.cell_h),
-            ] {
-                out.push(Quad {
-                    x: q.0,
-                    y: q.1,
-                    w: q.2,
-                    h: q.3,
-                    rgb: MUTED,
-                    alpha: 0.9,
-                });
-            }
-            return;
-        }
-        let q = match c.shape {
-            CursorShape::Block => Quad {
-                x: cx,
-                y: cy,
-                w: m.cell_w,
-                h: m.cell_h,
-                rgb: FG,
-                alpha: 0.55,
-            },
-            CursorShape::Beam => Quad {
-                x: cx,
-                y: cy,
-                w: beam,
-                h: m.cell_h,
-                rgb: FG,
-                alpha: 1.0,
-            },
-            CursorShape::Underline => Quad {
-                x: cx,
-                y: cy + m.cell_h - beam,
-                w: m.cell_w,
-                h: beam,
-                rgb: FG,
-                alpha: 1.0,
-            },
-        };
-        out.push(q);
-    }
-}
+const TAB_BAR_HEIGHT: f32 = 34.0;
+const PADDING: f32 = 6.0;
+const MESSAGE_TTL: Duration = Duration::from_secs(6);
 
 /// A clickable tab-bar element.
-#[derive(Debug, Clone)]
-pub struct TabHit {
-    pub x: f32,
-    pub w: f32,
-    pub kind: TabKind,
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum TabKind {
     Session,
     Window(String),
     NewWindow,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct CellMetrics {
+    font_pt: f32,
+    font_size: Pixels,
+    cell_width: Pixels,
+    cell_height: Pixels,
+}
+
+impl CellMetrics {
+    fn measure(font_pt: f32, font: &Font, window: &Window) -> Self {
+        let font_size = px(font_pt);
+        let text_system = window.text_system();
+        let font_id = text_system.resolve_font(font);
+        let cell_width = match text_system.advance(font_id, font_size, 'M') {
+            Ok(advance) => advance.width,
+            Err(error) => {
+                tracing::warn!(%error, "could not measure the monospace font");
+                font_size * 0.6
+            }
+        };
+        Self {
+            font_pt,
+            font_size,
+            cell_width: cell_width.max(px(1.)),
+            cell_height: (font_size * 1.25).round(),
+        }
+    }
+
+    /// Cells that fit in the terminal area.
+    fn grid(&self, area: Size<Pixels>) -> (u16, u16) {
+        let padding = px(PADDING) * 2.;
+        let cols = ((area.width - padding) / self.cell_width).floor().max(4.0);
+        let rows = ((area.height - padding) / self.cell_height).floor().max(2.0);
+        (cols as u16, rows as u16)
+    }
+}
+
+pub struct TermView {
+    app: App,
+    focus_handle: FocusHandle,
+    metrics: Option<CellMetrics>,
+    grid: Option<(u16, u16)>,
+    wheel: f32,
+    /// IME composition in progress (not yet sent to the program).
+    ime_marked: Option<String>,
+    /// Caret of the focused pane in window coordinates, for IME popups.
+    cursor_bounds: Option<Bounds<Pixels>>,
+    message_scheduled: Option<Instant>,
+    _message_timer: Option<Task<()>>,
+    _events: Task<()>,
+}
+
+impl TermView {
+    pub fn new(
+        app: App,
+        mut events: UnboundedReceiver<UiEvent>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        app.connect(Duration::ZERO);
+        let events = cx.spawn(async move |this, cx| {
+            while let Some(event) = events.next().await {
+                if this
+                    .update(cx, |view, cx| view.handle_event(event, cx))
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+        let focus_handle = cx.focus_handle();
+        window.focus(&focus_handle, cx);
+        Self {
+            app,
+            focus_handle,
+            metrics: None,
+            grid: None,
+            wheel: 0.0,
+            ime_marked: None,
+            cursor_bounds: None,
+            message_scheduled: None,
+            _message_timer: None,
+            _events: events,
+        }
+    }
+
+    fn handle_event(&mut self, event: UiEvent, cx: &mut Context<Self>) {
+        match event {
+            UiEvent::Connected(client) => {
+                self.app.client = Some(client);
+                self.app.subscribed.clear();
+                self.app.refresh();
+            }
+            UiEvent::Server(event) => {
+                let frame = matches!(event, ferrumterm_protocol::Event::Frame { .. });
+                self.app.on_event(event);
+                if frame {
+                    cx.notify();
+                    return;
+                }
+            }
+            UiEvent::Sessions(sessions) => self.app.set_sessions(sessions),
+            UiEvent::Message(message) => self.app.notify(message),
+            UiEvent::Disconnected(why) => {
+                self.app.client = None;
+                self.app.notify(format!("{why} — retrying…"));
+                self.app.connect(Duration::from_secs(2));
+            }
+            UiEvent::Clipboard(text) => {
+                cx.write_to_clipboard(ClipboardItem::new_string(text));
+                self.app.notify("Copied screen to clipboard");
+            }
+        }
+        self.after_change(cx);
+    }
+
+    /// Resizes/subscribes the visible window and re-renders.
+    fn after_change(&mut self, cx: &mut Context<Self>) {
+        self.app.sync(self.grid);
+        if let Some((_, shown_at)) = &self.app.message
+            && self.message_scheduled != Some(*shown_at)
+        {
+            self.message_scheduled = Some(*shown_at);
+            self._message_timer = Some(cx.spawn(async move |this, cx| {
+                cx.background_executor().timer(MESSAGE_TTL).await;
+                if let Err(error) = this.update(cx, |_, cx| cx.notify()) {
+                    tracing::debug!(%error, "view closed before the message expired");
+                }
+            }));
+        }
+        cx.notify();
+    }
+
+    fn act(&mut self, action: Action, cx: &mut Context<Self>) {
+        match action {
+            Action::Shortcut(Shortcut::Paste) => {
+                if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
+                    self.app.paste(text);
+                }
+            }
+            action => self.app.act(action),
+        }
+        self.after_change(cx);
+    }
+
+    fn key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(action) = input::translate(&event.keystroke) {
+            cx.stop_propagation();
+            self.ime_marked = None;
+            self.act(action, cx);
+        }
+    }
+
+    fn mouse_down(&mut self, event: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        window.focus(&self.focus_handle, cx);
+        self.app
+            .click(f32::from(event.position.x), f32::from(event.position.y));
+        self.after_change(cx);
+    }
+
+    fn scroll_wheel(&mut self, event: &ScrollEvent, _: &mut Window, _: &mut Context<Self>) {
+        let cell_height = self.metrics.map_or(px(16.), |metrics| metrics.cell_height);
+        self.wheel += match event.delta {
+            ScrollDelta::Lines(lines) => lines.y * 3.0,
+            ScrollDelta::Pixels(pixels) => pixels.y / cell_height,
+        };
+        let lines = self.wheel.trunc();
+        self.wheel -= lines;
+        self.app.scroll(lines as i32);
+    }
+
+    fn title(&self) -> String {
+        let Some(session) = self.app.session() else {
+            return "FerrumTerm".to_owned();
+        };
+        let title = self
+            .app
+            .window()
+            .and_then(|window| window.blocks.iter().find(|block| block.id == window.focused))
+            .map(|block| block.title.clone())
+            .unwrap_or_default();
+        if title.is_empty() {
+            format!("FerrumTerm — {}", session.name)
+        } else {
+            format!("{title} — {}", session.name)
+        }
+    }
+
+    fn render_tab_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
+        let mut bar = h_flex()
+            .flex_none()
+            .h(px(TAB_BAR_HEIGHT))
+            .w_full()
+            .px_2()
+            .gap(px(2.))
+            .bg(colors.tab_bar_background)
+            .border_b_1()
+            .border_color(colors.border)
+            .font_ui(cx)
+            .text_size(px(13.));
+        let Some(session) = self.app.session() else {
+            return bar;
+        };
+        bar = bar.child(
+            self.tab(
+                "session",
+                format!("◆ {}", session.name),
+                false,
+                colors.text,
+                0.0,
+                TabKind::Session,
+                cx,
+            )
+            .mr(px(6.)),
+        );
+        for window in &session.windows {
+            let active = window.id == session.active_window;
+            bar = bar.child(self.tab(
+                ElementId::Name(format!("window-{}", window.id).into()),
+                tab_label(window),
+                active,
+                if active { colors.text } else { colors.text_muted },
+                110.0,
+                TabKind::Window(window.id.to_string()),
+                cx,
+            ));
+        }
+        bar.child(self.tab(
+            "new-window",
+            "+".to_owned(),
+            false,
+            colors.text_muted,
+            32.0,
+            TabKind::NewWindow,
+            cx,
+        ))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn tab(
+        &self,
+        id: impl Into<ElementId>,
+        label: String,
+        active: bool,
+        color: Hsla,
+        min_width: f32,
+        kind: TabKind,
+        cx: &mut Context<Self>,
+    ) -> gpui::Stateful<gpui::Div> {
+        let colors = cx.theme().colors().clone();
+        div()
+            .id(id)
+            .h_full()
+            .px(px(14.))
+            .min_w(px(min_width))
+            .flex()
+            .items_center()
+            .justify_center()
+            .text_color(color)
+            .cursor_pointer()
+            .hover(|style| style.bg(colors.ghost_element_hover))
+            .when(active, |tab| {
+                tab.bg(colors.tab_active_background)
+                    .border_b_2()
+                    .border_color(colors.text_accent)
+            })
+            .on_click(cx.listener(move |view, _, _, cx| {
+                view.app.click_tab(kind.clone());
+                view.after_change(cx);
+            }))
+            .child(label)
+    }
+}
+
+impl Render for TermView {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let font = theme::theme_settings(cx).buffer_font(cx).clone();
+        if self
+            .metrics
+            .is_none_or(|metrics| metrics.font_pt != self.app.font_pt)
+        {
+            self.metrics = Some(CellMetrics::measure(self.app.font_pt, &font, window));
+        }
+        window.set_window_title(&self.title());
+
+        let colors = cx.theme().colors().clone();
+        let status = cx.theme().status().clone();
+        let message = self
+            .app
+            .message
+            .as_ref()
+            .filter(|(_, shown_at)| shown_at.elapsed() < MESSAGE_TTL)
+            .map(|(text, _)| SharedString::from(text.clone()));
+        let entity = cx.entity();
+
+        v_flex()
+            .relative()
+            .size_full()
+            .key_context("FerrumTerm")
+            .track_focus(&self.focus_handle)
+            .on_key_down(cx.listener(Self::key_down))
+            .bg(colors.terminal_background)
+            .text_color(colors.terminal_foreground)
+            .child(self.render_tab_bar(cx))
+            .child(
+                div()
+                    .id("terminal")
+                    .flex_1()
+                    .min_h_0()
+                    .w_full()
+                    .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
+                    .on_scroll(cx.listener(Self::scroll_wheel))
+                    .child(
+                        canvas(
+                            {
+                                let entity = entity.clone();
+                                move |bounds, _, cx| update_grid(&entity, bounds, cx)
+                            },
+                            move |bounds, _, window, cx| {
+                                paint_terminal(&entity, &font, bounds, window, cx)
+                            },
+                        )
+                        .size_full(),
+                    ),
+            )
+            .when_some(message, |root, message| {
+                root.child(
+                    div()
+                        .absolute()
+                        .bottom_0()
+                        .left_0()
+                        .right_0()
+                        .h(px(28.))
+                        .px(px(14.))
+                        .flex()
+                        .items_center()
+                        .bg(status.warning_background)
+                        .text_color(status.warning)
+                        .font_ui(cx)
+                        .text_size(px(13.))
+                        .child(message),
+                )
+            })
+    }
+}
+
+impl Focusable for TermView {
+    fn focus_handle(&self, _: &gpui::App) -> FocusHandle {
+        self.focus_handle.clone()
+    }
+}
+
+fn update_grid(entity: &Entity<TermView>, bounds: Bounds<Pixels>, cx: &mut gpui::App) {
+    let view = entity.read(cx);
+    let Some(grid) = view.metrics.map(|metrics| metrics.grid(bounds.size)) else {
+        return;
+    };
+    if view.grid != Some(grid) {
+        entity.update(cx, |view, _| {
+            view.grid = Some(grid);
+            view.app.sync(Some(grid));
+        });
+    }
+}
+
+fn color(rgb: u32) -> Hsla {
+    gpui::rgb(rgb).into()
+}
+
+struct Pane {
+    block: BlockId,
+    rect: Rect,
+    frame: Option<Frame>,
+}
+
+fn paint_terminal(
+    entity: &Entity<TermView>,
+    font: &Font,
+    bounds: Bounds<Pixels>,
+    window: &mut Window,
+    cx: &mut gpui::App,
+) {
+    let view = entity.read(cx);
+    let focus_handle = view.focus_handle.clone();
+    window.handle_input(
+        &focus_handle,
+        ElementInputHandler::new(bounds, entity.clone()),
+        cx,
+    );
+
+    let view = entity.read(cx);
+    let (Some(metrics), Some(info)) = (view.metrics, view.app.window()) else {
+        return;
+    };
+    let area = Rect {
+        x: 0,
+        y: 0,
+        cols: info.cols,
+        rows: info.rows,
+    };
+    let focused_block = info.focused;
+    let split = info.blocks.len() > 1;
+    let panes: Vec<Pane> = info
+        .layout
+        .rects(area)
+        .into_iter()
+        .map(|(block, rect)| Pane {
+            block,
+            rect,
+            frame: view.app.frames.get(&block).cloned(),
+        })
+        .collect();
+    let ime_marked = view.ime_marked.clone();
+    let theme = cx.theme();
+    let colors = Colors {
+        foreground: theme.colors().terminal_foreground,
+        muted: theme.colors().text_muted,
+        divider: theme.colors().border,
+        accent: theme.colors().text_accent,
+        background: theme.colors().terminal_background,
+    };
+
+    let cell_width = metrics.cell_width;
+    let cell_height = metrics.cell_height;
+    let origin = bounds.origin + point(px(PADDING), px(PADDING));
+    let thin = (cell_height / 14.0).max(px(1.));
+    let mut pane_hits = Vec::new();
+    let mut cursor_bounds = None;
+
+    window.with_content_mask(Some(gpui::ContentMask { bounds }), |window| {
+        for pane in &panes {
+            let pane_origin = origin
+                + point(
+                    cell_width * f32::from(pane.rect.x),
+                    cell_height * f32::from(pane.rect.y),
+                );
+            let pane_size = size(
+                cell_width * f32::from(pane.rect.cols),
+                cell_height * f32::from(pane.rect.rows),
+            );
+            pane_hits.push((
+                pane.block,
+                f32::from(pane_origin.x),
+                f32::from(pane_origin.y),
+                f32::from(pane_size.width),
+                f32::from(pane_size.height),
+            ));
+            let focused = pane.block == focused_block;
+            if let Some(frame) = &pane.frame {
+                let pane_bounds = Bounds::new(pane_origin, pane_size);
+                window.with_content_mask(Some(gpui::ContentMask { bounds: pane_bounds }), |window| {
+                    for (row, line) in frame.lines.iter().enumerate() {
+                        let row_origin = pane_origin + point(px(0.), cell_height * row as f32);
+                        paint_backgrounds(line, row_origin, cell_width, cell_height, window);
+                        paint_row(line, row_origin, &metrics, font, &colors, window, cx);
+                    }
+                    if let Some(cursor) = frame.cursor {
+                        let caret = Bounds::new(
+                            pane_origin
+                                + point(
+                                    cell_width * f32::from(cursor.col),
+                                    cell_height * f32::from(cursor.row),
+                                ),
+                            size(cell_width, cell_height),
+                        );
+                        if focused {
+                            cursor_bounds = Some(caret);
+                        }
+                        paint_cursor(cursor.shape, caret, focused, thin, &colors, window);
+                        if focused && let Some(marked) = &ime_marked {
+                            paint_marked_text(marked, caret, &metrics, font, &colors, window, cx);
+                        }
+                    }
+                });
+            }
+
+            let divider = if focused && split {
+                colors.accent
+            } else {
+                colors.divider
+            };
+            if pane.rect.x + pane.rect.cols < area.cols {
+                window.paint_quad(fill(
+                    Bounds::new(
+                        pane_origin + point(pane_size.width + cell_width / 2., px(0.)),
+                        size(px(1.), pane_size.height),
+                    ),
+                    divider,
+                ));
+            }
+            if pane.rect.y + pane.rect.rows < area.rows {
+                window.paint_quad(fill(
+                    Bounds::new(
+                        pane_origin + point(px(0.), pane_size.height + cell_height / 2.),
+                        size(pane_size.width, px(1.)),
+                    ),
+                    divider,
+                ));
+            }
+        }
+    });
+
+    entity.update(cx, |view, _| {
+        view.app.panes = pane_hits;
+        view.cursor_bounds = cursor_bounds;
+    });
+}
+
+#[derive(Clone, Copy)]
+struct Colors {
+    foreground: Hsla,
+    muted: Hsla,
+    divider: Hsla,
+    accent: Hsla,
+    background: Hsla,
+}
+
+fn paint_backgrounds(
+    line: &[Span],
+    origin: Point<Pixels>,
+    cell_width: Pixels,
+    cell_height: Pixels,
+    window: &mut Window,
+) {
+    let mut col = 0usize;
+    for span in line {
+        let width = UnicodeWidthStr::width(span.t.as_str());
+        if let Some(background) = span.bg {
+            window.paint_quad(fill(
+                Bounds::new(
+                    origin + point(cell_width * col as f32, px(0.)),
+                    size(cell_width * width as f32, cell_height),
+                ),
+                color(background),
+            ));
+        }
+        col += width;
+    }
+}
+
+fn span_run(span: &Span, len: usize, font: &Font, colors: &Colors, thin: Pixels) -> TextRun {
+    let mut font = font.clone();
+    if span.f & flags::BOLD != 0 {
+        font.weight = FontWeight::BOLD;
+    }
+    if span.f & flags::ITALIC != 0 {
+        font.style = FontStyle::Italic;
+    }
+    let mut foreground = span.fg.map_or(colors.foreground, color);
+    if span.f & flags::DIM != 0 {
+        foreground = foreground.opacity(150.0 / 255.0);
+    }
+    TextRun {
+        len,
+        font,
+        color: foreground,
+        background_color: None,
+        underline: (span.f & flags::UNDERLINE != 0).then_some(UnderlineStyle {
+            color: Some(foreground),
+            thickness: thin,
+            wavy: false,
+        }),
+        strikethrough: (span.f & flags::STRIKE != 0).then_some(StrikethroughStyle {
+            color: Some(foreground),
+            thickness: thin,
+        }),
+    }
+}
+
+/// Paints one row. Narrow characters are shaped together and snapped to the
+/// cell grid; wide characters (CJK, emoji) are painted on their own so they
+/// take two cells.
+fn paint_row(
+    line: &[Span],
+    origin: Point<Pixels>,
+    metrics: &CellMetrics,
+    font: &Font,
+    colors: &Colors,
+    window: &mut Window,
+    cx: &mut gpui::App,
+) {
+    let thin = (metrics.cell_height / 14.0).max(px(1.));
+    let mut segment = Segment::default();
+    let mut col = 0usize;
+    for (span_index, span) in line.iter().enumerate() {
+        for character in span.t.chars() {
+            let width = UnicodeWidthChar::width(character).unwrap_or(0);
+            if width >= 2 {
+                segment.paint(origin, metrics, window, cx);
+                let mut wide = Segment {
+                    col,
+                    ..Segment::default()
+                };
+                wide.push(character, span_index, span, font, colors, thin);
+                wide.paint_unforced(origin, metrics, window, cx);
+                col += width;
+                segment.col = col;
+                continue;
+            }
+            if segment.text.is_empty() {
+                segment.col = col;
+            }
+            segment.push(character, span_index, span, font, colors, thin);
+            col += width;
+        }
+    }
+    segment.paint(origin, metrics, window, cx);
+}
+
+#[derive(Default)]
+struct Segment {
+    col: usize,
+    text: String,
+    runs: Vec<TextRun>,
+    last_span: Option<usize>,
+    decorated: bool,
+}
+
+impl Segment {
+    fn push(
+        &mut self,
+        character: char,
+        span_index: usize,
+        span: &Span,
+        font: &Font,
+        colors: &Colors,
+        thin: Pixels,
+    ) {
+        self.text.push(character);
+        let len = character.len_utf8();
+        match self.runs.last_mut() {
+            Some(run) if self.last_span == Some(span_index) => run.len += len,
+            _ => {
+                let run = span_run(span, len, font, colors, thin);
+                self.decorated |= run.underline.is_some() || run.strikethrough.is_some();
+                self.runs.push(run);
+                self.last_span = Some(span_index);
+            }
+        }
+    }
+
+    fn paint(
+        &mut self,
+        origin: Point<Pixels>,
+        metrics: &CellMetrics,
+        window: &mut Window,
+        cx: &mut gpui::App,
+    ) {
+        self.paint_with(origin, metrics, Some(metrics.cell_width), window, cx);
+    }
+
+    fn paint_unforced(
+        &mut self,
+        origin: Point<Pixels>,
+        metrics: &CellMetrics,
+        window: &mut Window,
+        cx: &mut gpui::App,
+    ) {
+        self.paint_with(origin, metrics, None, window, cx);
+    }
+
+    fn paint_with(
+        &mut self,
+        origin: Point<Pixels>,
+        metrics: &CellMetrics,
+        force_width: Option<Pixels>,
+        window: &mut Window,
+        cx: &mut gpui::App,
+    ) {
+        let text = std::mem::take(&mut self.text);
+        let runs = std::mem::take(&mut self.runs);
+        self.last_span = None;
+        let decorated = std::mem::take(&mut self.decorated);
+        if text.is_empty() || (!decorated && text.chars().all(|character| character == ' ')) {
+            return;
+        }
+        let shaped = window.text_system().shape_line(
+            text.into(),
+            metrics.font_size,
+            &runs,
+            force_width,
+        );
+        let position = origin + point(metrics.cell_width * self.col as f32, px(0.));
+        if let Err(error) = shaped.paint(
+            position,
+            metrics.cell_height,
+            gpui::TextAlign::Left,
+            None,
+            window,
+            cx,
+        ) {
+            tracing::warn!(%error, "failed to paint terminal text");
+        }
+    }
+}
+
+fn paint_cursor(
+    shape: CursorShape,
+    caret: Bounds<Pixels>,
+    focused: bool,
+    thin: Pixels,
+    colors: &Colors,
+    window: &mut Window,
+) {
+    let cell = caret.size;
+    if !focused {
+        // Hollow box when the pane is not focused.
+        let muted = colors.muted.opacity(0.9);
+        for (offset, extent) in [
+            (point(px(0.), px(0.)), size(cell.width, thin)),
+            (point(px(0.), cell.height - thin), size(cell.width, thin)),
+            (point(px(0.), px(0.)), size(thin, cell.height)),
+            (point(cell.width - thin, px(0.)), size(thin, cell.height)),
+        ] {
+            window.paint_quad(fill(Bounds::new(caret.origin + offset, extent), muted));
+        }
+        return;
+    }
+    let beam = (cell.width / 6.0).max(px(2.));
+    let quad = match shape {
+        CursorShape::Block => fill(caret, colors.foreground.opacity(0.55)),
+        CursorShape::Beam => fill(
+            Bounds::new(caret.origin, size(beam, cell.height)),
+            colors.foreground,
+        ),
+        CursorShape::Underline => fill(
+            Bounds::new(
+                caret.origin + point(px(0.), cell.height - beam),
+                size(cell.width, beam),
+            ),
+            colors.foreground,
+        ),
+    };
+    window.paint_quad(quad);
+}
+
+fn paint_marked_text(
+    marked: &str,
+    caret: Bounds<Pixels>,
+    metrics: &CellMetrics,
+    font: &Font,
+    colors: &Colors,
+    window: &mut Window,
+    cx: &mut gpui::App,
+) {
+    let run = TextRun {
+        len: marked.len(),
+        font: font.clone(),
+        color: colors.foreground,
+        background_color: Some(colors.background),
+        underline: Some(UnderlineStyle {
+            color: Some(colors.foreground),
+            thickness: px(1.),
+            wavy: false,
+        }),
+        strikethrough: None,
+    };
+    let shaped = window.text_system().shape_line(
+        marked.to_owned().into(),
+        metrics.font_size,
+        &[run],
+        None,
+    );
+    if let Err(error) = shaped.paint(
+        caret.origin,
+        metrics.cell_height,
+        gpui::TextAlign::Left,
+        None,
+        window,
+        cx,
+    ) {
+        tracing::warn!(%error, "failed to paint IME composition");
+    }
 }
 
 /// Label for a tab: window name, else the focused block's title / command.
@@ -277,139 +854,90 @@ fn tab_label(w: &WindowInfo) -> String {
     label
 }
 
-/// Tab bar quads + text buffers + hit areas.
-pub fn tab_bar(
-    fs: &mut FontSystem,
-    session: &SessionInfo,
-    m: &CellMetrics,
-    width: f32,
-    scale: f32,
-    quads: &mut Vec<Quad>,
-) -> (Vec<(Buffer, f32, Color)>, Vec<TabHit>) {
-    quads.push(Quad {
-        x: 0.0,
-        y: 0.0,
-        w: width,
-        h: m.tab_h,
-        rgb: BAR_BG,
-        alpha: 1.0,
-    });
-    quads.push(Quad {
-        x: 0.0,
-        y: m.tab_h - 1.0,
-        w: width,
-        h: 1.0,
-        rgb: DIVIDER,
-        alpha: 1.0,
-    });
-    let ui_px = (13.0 * scale).round();
-    let line = (ui_px * 1.3).round();
-    let mut texts = Vec::new();
-    let mut hits = Vec::new();
-    // Leave room for the macOS traffic lights.
-    let mut x = (78.0 * scale).round();
-    let mut item = |fs: &mut FontSystem,
-                    text: &str,
-                    color: u32,
-                    min_w: f32,
-                    x: &mut f32,
-                    active: bool,
-                    kind: TabKind| {
-        let mut b = Buffer::new(fs, Metrics::new(ui_px, line));
-        b.set_size(fs, Some(400.0 * scale), Some(line));
-        b.set_text(
-            fs,
-            text,
-            &Attrs::new().family(Family::SansSerif),
-            Shaping::Advanced,
-            None,
-        );
-        b.shape_until_scroll(fs, false);
-        let text_w = b.layout_runs().next().map_or(0.0, |r| r.line_w);
-        let w = (text_w + 28.0 * scale).max(min_w);
-        if active {
-            quads.push(Quad {
-                x: *x,
-                y: 4.0 * scale,
-                w,
-                h: m.tab_h - 4.0 * scale,
-                rgb: TAB_ACTIVE,
-                alpha: 1.0,
-            });
-            quads.push(Quad {
-                x: *x,
-                y: m.tab_h - 2.0 * scale,
-                w,
-                h: 2.0 * scale,
-                rgb: ACCENT,
-                alpha: 1.0,
-            });
+impl gpui::EntityInputHandler for TermView {
+    fn text_for_range(
+        &mut self,
+        _: Range<usize>,
+        _: &mut Option<Range<usize>>,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) -> Option<String> {
+        None
+    }
+
+    fn selected_text_range(
+        &mut self,
+        _ignore_disabled_input: bool,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) -> Option<UTF16Selection> {
+        let end = self
+            .ime_marked
+            .as_ref()
+            .map_or(0, |marked| marked.encode_utf16().count());
+        Some(UTF16Selection {
+            range: end..end,
+            reversed: false,
+        })
+    }
+
+    fn marked_text_range(&self, _: &mut Window, _: &mut Context<Self>) -> Option<Range<usize>> {
+        self.ime_marked
+            .as_ref()
+            .map(|marked| 0..marked.encode_utf16().count())
+    }
+
+    fn unmark_text(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        self.ime_marked = None;
+        cx.notify();
+    }
+
+    fn replace_text_in_range(
+        &mut self,
+        _: Option<Range<usize>>,
+        text: &str,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.ime_marked = None;
+        if text.is_empty() {
+            cx.notify();
+            return;
         }
-        texts.push((b, *x + (w - text_w) / 2.0, rgb(color)));
-        hits.push(TabHit { x: *x, w, kind });
-        *x += w + 2.0 * scale;
-    };
-    item(
-        fs,
-        &format!("◆ {}", session.name),
-        FG,
-        0.0,
-        &mut x,
-        false,
-        TabKind::Session,
-    );
-    x += 6.0 * scale;
-    for w in &session.windows {
-        let active = w.id == session.active_window;
-        item(
-            fs,
-            &tab_label(w),
-            if active { FG } else { MUTED },
-            110.0 * scale,
-            &mut x,
-            active,
-            TabKind::Window(w.id.to_string()),
+        self.act(
+            Action::Send(ferrumterm_protocol::Input::Text(text.to_owned())),
+            cx,
         );
     }
-    item(
-        fs,
-        "+",
-        MUTED,
-        32.0 * scale,
-        &mut x,
-        false,
-        TabKind::NewWindow,
-    );
-    (texts, hits)
-}
 
-#[cfg(test)]
-mod fonts {
-    use super::*;
+    fn replace_and_mark_text_in_range(
+        &mut self,
+        _: Option<Range<usize>>,
+        text: &str,
+        _: Option<Range<usize>>,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.ime_marked = (!text.is_empty()).then(|| text.to_owned());
+        cx.notify();
+    }
 
-    #[test]
-    #[ignore = "depends on installed system fonts"]
-    fn fallback_glyphs_have_finite_metrics() {
-        let mut fs = FontSystem::new();
-        crate::gpu::pick_monospace(&mut fs);
-        for t in ["abc", "日本語", "✓", "😀", "→", "─│", "⚠"] {
-            let mut b = Buffer::new(&mut fs, Metrics::new(28.0, 35.0));
-            b.set_size(&mut fs, Some(2000.0), Some(100.0));
-            b.set_text(
-                &mut fs,
-                t,
-                &Attrs::new().family(Family::Monospace),
-                Shaping::Advanced,
-                None,
-            );
-            b.shape_until_scroll(&mut fs, false);
-            for r in b.layout_runs() {
-                assert!(r.line_y.is_finite(), "{t:?}");
-                assert!(
-                    r.glyphs.iter().all(|g| g.w.is_finite() && g.x.is_finite()),
-                    "{t:?}"
-                );
-            }
-        }
+    fn bounds_for_range(
+        &mut self,
+        _: Range<usize>,
+        _: Bounds<Pixels>,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) -> Option<Bounds<Pixels>> {
+        self.cursor_bounds
+    }
+
+    fn character_index_for_point(
+        &mut self,
+        _: Point<Pixels>,
+        _: &mut Window,
+        _: &mut Context<Self>,
+    ) -> Option<usize> {
+        None
     }
 }

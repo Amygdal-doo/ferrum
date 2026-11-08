@@ -1,75 +1,60 @@
 //! Table browser tab: breadcrumb, refresh, one-line SQL bar, full-height grid.
 
-use crate::commands::{query, schema};
-use crate::components::result_grid::ResultsPanel;
-use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
-use crate::state::AppState;
-use dioxus::prelude::*;
-use ferrumdata_application::AppServices;
+use crate::app::FerrumData;
+use ferrum_ui::prelude::*;
 
-#[component]
-pub fn TableView() -> Element {
-    let state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let Some(tab) = state.active_tab() else {
-        return rsx! {};
-    };
-    let Some(table) = tab.table.clone() else {
-        return rsx! {};
-    };
-    let running = state
-        .runs
-        .read()
-        .get(&tab.id)
-        .is_some_and(|r| !r.state.is_terminal());
-    let id = tab.id;
-    let (svc_refresh, svc_run) = (services.clone(), services.clone());
+impl FerrumData {
+    pub fn render_table_view(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let colors = cx.theme().colors().clone();
+        let Some(tab) = self.state.active_tab() else {
+            return div().into_any_element();
+        };
+        let Some(table) = tab.table.clone() else {
+            return div().into_any_element();
+        };
+        let tab_id = tab.id;
+        let running = self.state.active_run_in_flight();
+        let input = self.tab_input(tab_id, true, window, cx);
+        let crumb = |text: String| Label::new(text).size(LabelSize::Small).color(Color::Muted);
 
-    rsx! {
-        div { class: "flex h-full min-h-0 flex-col",
-            div { class: "flex shrink-0 items-center gap-3 px-4 pt-3",
-                nav { class: "flex items-center gap-2 text-sm", "aria-label": "Breadcrumb",
-                    span { class: "text-muted-foreground", "Tables" }
-                    if let Some(s) = &table.schema {
-                        span { class: "text-muted-foreground", "/" }
-                        span { class: "text-muted-foreground", "{s}" }
-                    }
-                    span { class: "text-muted-foreground", "/" }
-                    span { class: "font-medium", "{table.name}" }
-                }
-                div { class: "flex-1" }
-                Button {
-                    size: ButtonSize::Sm,
-                    variant: ButtonVariant::Outline,
-                    disabled: running,
-                    title: "Refresh rows",
-                    aria_label: "Refresh rows",
-                    onclick: move |_| schema::refresh(state, svc_refresh.clone()),
-                    "⟳ Refresh"
-                }
-            }
-            div { class: "shrink-0 px-4 py-3",
-                // Uncontrolled, keyed per tab (same reason as the SQL editor).
-                input {
-                    key: "{id}",
-                    id: query::EDITOR_ID,
-                    class: "h-10 w-full rounded-md border bg-background px-3 font-mono text-[13px] outline-none select-text focus-visible:ring-2 focus-visible:ring-ring/50",
-                    spellcheck: "false",
-                    "aria-label": "SQL for this table view",
-                    initial_value: "{tab.sql}",
-                    oninput: move |e| {
-                        let sql = e.value();
-                        state.update_tab(id, |t| { t.sql = sql; t.unsaved = true; });
-                    },
-                    onkeydown: move |e: KeyboardEvent| {
-                        if e.key() == Key::Enter {
-                            e.prevent_default();
-                            spawn(query::run_from_editor(state, svc_run.clone()));
-                        }
-                    },
-                }
-            }
-            div { class: "min-h-0 flex-1 border-t", ResultsPanel {} }
-        }
+        v_flex()
+            .flex_1()
+            .min_h_0()
+            .child(
+                h_flex()
+                    .flex_none()
+                    .gap_3()
+                    .px_4()
+                    .pt_3()
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .child(crumb("Tables".into()))
+                            .when_some(table.schema.clone(), |this, schema| {
+                                this.child(crumb("/".into())).child(crumb(schema))
+                            })
+                            .child(crumb("/".into()))
+                            .child(Label::new(table.name.clone()).size(LabelSize::Small)),
+                    )
+                    .child(div().flex_1())
+                    .child(
+                        Button::new("refresh-table", "Refresh")
+                            .start_icon(Icon::new(IconName::RotateCw).size(IconSize::Small))
+                            .style(ButtonStyle::Outlined)
+                            .disabled(running)
+                            .tooltip(Tooltip::text("Refresh rows"))
+                            .on_click(cx.listener(|this, _, _, cx| this.refresh_table(cx))),
+                    ),
+            )
+            .child(div().flex_none().px_4().py_3().child(input))
+            .child(
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .border_t_1()
+                    .border_color(colors.border)
+                    .child(self.render_results(cx)),
+            )
+            .into_any_element()
     }
 }

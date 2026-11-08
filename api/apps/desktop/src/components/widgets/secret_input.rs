@@ -1,36 +1,51 @@
 //! Masked input with a show / hide toggle.
 
-use super::FIELD;
-use dioxus::prelude::*;
+use crate::app::FerrumApi;
+use crate::components::fields::{FieldEvent, FieldSpec};
+use gpui::{AnyElement, Context, SharedString, Window, prelude::*};
+use ui::{
+    Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Toggleable as _, h_flex,
+};
 
-#[component]
-pub fn SecretInput(
-    value: String,
-    on_input: EventHandler<String>,
-    #[props(default)] placeholder: String,
-    #[props(default)] label: String,
-) -> Element {
-    let mut shown = use_signal(|| false);
-    let kind = if *shown.read() { "text" } else { "password" };
-    let toggle = if *shown.read() { "Hide" } else { "Show" };
-    rsx! {
-        div { class: "flex items-center gap-1",
-            input {
-                class: "{FIELD} font-mono",
-                r#type: kind,
-                placeholder,
-                "aria-label": "{label}",
-                spellcheck: "false",
-                autocomplete: "off",
-                initial_value: "{value}",
-                oninput: move |e| on_input.call(e.value()),
-            }
-            button {
-                class: "h-8 shrink-0 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground",
-                "aria-pressed": *shown.read(),
-                onclick: move |_| { let v = !*shown.peek(); shown.set(v); },
-                "{toggle}"
-            }
-        }
+impl FerrumApi {
+    pub fn render_secret_input(
+        &mut self,
+        key: String,
+        value: &str,
+        placeholder: &'static str,
+        handler: impl Fn(&mut FerrumApi, FieldEvent, &mut Window, &mut Context<FerrumApi>) + 'static,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let shown = self.state.revealed.contains(&key);
+        let input = self.field(
+            FieldSpec::new(key.clone())
+                .value(value)
+                .placeholder(placeholder)
+                .masked(!shown)
+                .mono(),
+            handler,
+            window,
+            cx,
+        );
+        h_flex()
+            .gap_1()
+            .child(input)
+            .child(
+                Button::new(
+                    SharedString::from(format!("{key}-reveal")),
+                    if shown { "Hide" } else { "Show" },
+                )
+                .style(ButtonStyle::Subtle)
+                .size(ButtonSize::Compact)
+                .toggle_state(shown)
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    if !this.state.revealed.remove(&key) {
+                        this.state.revealed.insert(key.clone());
+                    }
+                    cx.notify();
+                })),
+            )
+            .into_any_element()
     }
 }

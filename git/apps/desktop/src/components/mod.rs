@@ -8,34 +8,49 @@ pub mod highlight;
 pub mod home;
 pub mod icons;
 pub mod menu;
-pub mod rust_ui;
 pub mod shell;
 pub mod sidebar;
+pub mod widgets;
 
 use ferrumgit_domain::ChangeKind;
+use gpui::{App, Hsla, rgb};
+use theme::ActiveTheme;
 
-/// Lane colours (used as SVG strokes; readable on light and dark backgrounds).
-pub const LANE_COLORS: [&str; 8] = [
-    "#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#ec4899", "#84cc16",
+/// Lane colours (readable on the dark theme).
+pub const LANE_COLORS: [u32; 8] = [
+    0x3b82f6, 0x22c55e, 0xf59e0b, 0xef4444, 0xa855f7, 0x06b6d4, 0xec4899, 0x84cc16,
 ];
 
 #[must_use]
-pub fn lane_color(i: usize) -> &'static str {
-    LANE_COLORS[i % LANE_COLORS.len()]
+pub fn lane_color(i: usize) -> Hsla {
+    rgb(LANE_COLORS[i % LANE_COLORS.len()]).into()
 }
 
-/// Colour class for a change letter. Literal strings so Tailwind keeps them.
+/// Colour of a change letter in file lists.
 #[must_use]
-pub const fn change_class(k: ChangeKind) -> &'static str {
+pub fn change_color(k: ChangeKind, cx: &App) -> Hsla {
+    let status = cx.theme().status();
     match k {
-        ChangeKind::Added | ChangeKind::Untracked => "text-green-600 dark:text-green-400",
-        ChangeKind::Deleted => "text-red-600 dark:text-red-400",
-        ChangeKind::Renamed | ChangeKind::Copied => "text-blue-600 dark:text-blue-400",
-        ChangeKind::Conflicted => "text-orange-600 dark:text-orange-400",
-        ChangeKind::Modified | ChangeKind::TypeChanged | ChangeKind::Unmodified => {
-            "text-amber-600 dark:text-amber-400"
-        }
+        ChangeKind::Added | ChangeKind::Untracked => status.created,
+        ChangeKind::Deleted => status.deleted,
+        ChangeKind::Renamed | ChangeKind::Copied => status.renamed,
+        ChangeKind::Conflicted => status.conflict,
+        ChangeKind::Modified | ChangeKind::TypeChanged | ChangeKind::Unmodified => status.modified,
     }
+}
+
+/// `added` / `modified` / … and its colour, as in the details file list.
+#[must_use]
+pub fn change_word(k: ChangeKind, cx: &App) -> (&'static str, Hsla) {
+    let word = match k {
+        ChangeKind::Added | ChangeKind::Untracked => "added",
+        ChangeKind::Deleted => "deleted",
+        ChangeKind::Renamed => "renamed",
+        ChangeKind::Copied => "copied",
+        ChangeKind::Conflicted => "conflict",
+        ChangeKind::Modified | ChangeKind::TypeChanged | ChangeKind::Unmodified => "modified",
+    };
+    (word, change_color(k, cx))
 }
 
 /// `dir/sub/file.rs` → (`file.rs`, `dir/sub/`).
@@ -55,54 +70,16 @@ pub fn now_secs() -> i64 {
 
 /// Avatar background derived from the author's email (stable per person).
 #[must_use]
-pub fn avatar_class(seed: &str) -> &'static str {
-    const PALETTE: [&str; 6] = [
-        "bg-slate-500/30 text-foreground",
-        "bg-sky-500/30 text-foreground",
-        "bg-emerald-500/30 text-foreground",
-        "bg-amber-500/30 text-foreground",
-        "bg-violet-500/30 text-foreground",
-        "bg-rose-500/30 text-foreground",
-    ];
+pub fn avatar_color(seed: &str) -> Hsla {
+    const PALETTE: [u32; 6] = [0x64748b, 0x0ea5e9, 0x10b981, 0xf59e0b, 0x8b5cf6, 0xf43f5e];
     let h = seed
         .bytes()
         .fold(0u32, |h, b| h.wrapping_mul(31).wrapping_add(u32::from(b)));
-    PALETTE[h as usize % PALETTE.len()]
+    let color: Hsla = rgb(PALETTE[h as usize % PALETTE.len()]).into();
+    color.opacity(0.35)
 }
 
-/// `added` / `modified` / … and its colour, as in the details file list.
 #[must_use]
-pub const fn change_word(k: ChangeKind) -> (&'static str, &'static str, &'static str) {
-    match k {
-        ChangeKind::Added | ChangeKind::Untracked => (
-            "added",
-            "text-green-600 dark:text-green-400",
-            "bg-green-600 text-white",
-        ),
-        ChangeKind::Deleted => (
-            "deleted",
-            "text-red-600 dark:text-red-400",
-            "bg-red-600 text-white",
-        ),
-        ChangeKind::Renamed => (
-            "renamed",
-            "text-violet-600 dark:text-violet-400",
-            "bg-violet-600 text-white",
-        ),
-        ChangeKind::Copied => (
-            "copied",
-            "text-violet-600 dark:text-violet-400",
-            "bg-violet-600 text-white",
-        ),
-        ChangeKind::Conflicted => (
-            "conflict",
-            "text-orange-600 dark:text-orange-400",
-            "bg-orange-600 text-white",
-        ),
-        ChangeKind::Modified | ChangeKind::TypeChanged | ChangeKind::Unmodified => (
-            "modified",
-            "text-blue-600 dark:text-blue-400",
-            "bg-blue-600 text-white",
-        ),
-    }
+pub fn plural(n: usize) -> &'static str {
+    if n == 1 { "" } else { "s" }
 }

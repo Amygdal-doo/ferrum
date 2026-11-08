@@ -1,79 +1,172 @@
 //! Variable table (environments, globals, collection variables): enabled,
 //! key, value (masked when secret) and a secret toggle.
 
-use super::CELL;
+use super::{RowEditor, header_cell, row_border};
+use crate::app::FerrumApi;
+use crate::components::checkbox;
+use crate::components::fields::{FieldSpec, on_change};
 use crate::state::kv::RowEdit;
-use dioxus::prelude::*;
 use ferrumapi_domain::Variable;
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
+use ui::{
+    ButtonCommon as _, Clickable as _, IconButton, IconName, IconSize, Tooltip,
+    VisibleOnHover as _, h_flex, v_flex,
+};
 
-#[component]
-pub fn VarsTable(rows: Vec<Variable>, on_edit: EventHandler<(usize, RowEdit)>) -> Element {
-    let mut local = use_signal(|| 0u64);
-    let mut revealed = use_signal(|| None::<usize>);
-    let n = rows.len();
-    let mut display = rows;
-    display.push(Variable::default());
+impl FerrumApi {
+    pub fn render_vars_table(
+        &mut self,
+        scope: String,
+        rows: Vec<Variable>,
+        on_edit: RowEditor,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let border = row_border(cx);
+        let n = rows.len();
+        let mut display = rows;
+        display.push(Variable::default());
 
-    rsx! {
-        table { class: "w-full table-fixed border-collapse text-xs",
-            thead {
-                tr { class: "text-left text-[11px] text-muted-foreground",
-                    th { class: "w-8 border-b px-2 py-1 font-medium" }
-                    th { class: "border-b px-2 py-1 font-medium", "Variable" }
-                    th { class: "border-b px-2 py-1 font-medium", "Value" }
-                    th { class: "w-16 border-b px-2 py-1 font-medium", "Secret" }
-                    th { class: "w-8 border-b" }
-                }
-            }
-            tbody {
-                for (i, row) in display.into_iter().enumerate() {
-                    {
-                        let blank = i == n;
-                        let masked = row.secret && *revealed.read() != Some(i);
-                        let kind = if masked { "password" } else { "text" };
-                        let dim = if row.enabled || blank { "" } else { "opacity-50" };
-                        rsx! {
-                            tr { key: "{local}-{i}", class: "group border-b {dim}",
-                                td { class: "px-2 text-center",
-                                    if !blank {
-                                        input { r#type: "checkbox", "aria-label": "Enabled", checked: row.enabled,
-                                            onchange: move |e| on_edit.call((i, RowEdit::Enabled(e.checked()))) }
-                                    }
-                                }
-                                td { class: "p-0",
-                                    input { class: CELL, placeholder: if blank { "Add variable" } else { "" },
-                                        spellcheck: "false", initial_value: "{row.key}",
-                                        oninput: move |e| on_edit.call((i, RowEdit::Key(e.value()))) }
-                                }
-                                td { class: "p-0",
-                                    input { class: CELL, r#type: kind, autocomplete: "off",
-                                        spellcheck: "false", initial_value: "{row.value}",
-                                        onfocus: move |_| revealed.set(Some(i)),
-                                        onblur: move |_| revealed.set(None),
-                                        oninput: move |e| on_edit.call((i, RowEdit::Value(e.value()))) }
-                                }
-                                td { class: "px-2 text-center",
-                                    if !blank {
-                                        input { r#type: "checkbox", "aria-label": "Secret", checked: row.secret,
-                                            title: "Mask this value",
-                                            onchange: move |e| on_edit.call((i, RowEdit::Secret(e.checked()))) }
-                                    }
-                                }
-                                td { class: "text-center",
-                                    if !blank {
-                                        button {
-                                            class: "invisible rounded px-1 text-muted-foreground hover:bg-accent hover:text-destructive group-hover:visible",
-                                            "aria-label": "Delete variable",
-                                            onclick: move |_| { on_edit.call((i, RowEdit::Remove)); *local.write() += 1; },
-                                            "×"
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+        let mut body = Vec::new();
+        for (i, row) in display.into_iter().enumerate() {
+            let blank = i == n;
+            let value_key = format!("{scope}:{i}:value");
+            let shown = self.state.revealed.contains(&value_key);
+            let key_input = self.field(
+                FieldSpec::new(format!("{scope}:{i}:key"))
+                    .value(row.key.clone())
+                    .placeholder(if blank { "Add variable" } else { "" })
+                    .mono()
+                    .borderless(),
+                on_change({
+                    let on_edit = on_edit.clone();
+                    move |this, text, cx| on_edit(this, i, RowEdit::Key(text), cx)
+                }),
+                window,
+                cx,
+            );
+            let value_input = self.field(
+                FieldSpec::new(value_key.clone())
+                    .value(row.value.clone())
+                    .masked(row.secret && !shown)
+                    .mono()
+                    .borderless(),
+                on_change({
+                    let on_edit = on_edit.clone();
+                    move |this, text, cx| on_edit(this, i, RowEdit::Value(text), cx)
+                }),
+                window,
+                cx,
+            );
+            let group: SharedString = format!("{scope}-row-{i}").into();
+            body.push(
+                h_flex()
+                    .group(group.clone())
+                    .border_b_1()
+                    .border_color(border)
+                    .when(!row.enabled && !blank, |this| this.opacity(0.5))
+                    .child(div().w_8().flex().justify_center().when(!blank, |this| {
+                        let on_edit = on_edit.clone();
+                        this.child(checkbox(
+                            SharedString::from(format!("{scope}-enabled-{i}")),
+                            row.enabled,
+                            move |this, on, cx| on_edit(this, i, RowEdit::Enabled(on), cx),
+                            cx,
+                        ))
+                    }))
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .h(px(28.))
+                            .px_2()
+                            .flex()
+                            .items_center()
+                            .child(key_input),
+                    )
+                    .child(
+                        h_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .h(px(28.))
+                            .px_2()
+                            .child(value_input)
+                            .when(row.secret, |this| {
+                                let value_key = value_key.clone();
+                                this.child(
+                                    IconButton::new(
+                                        SharedString::from(format!("{scope}-reveal-{i}")),
+                                        if shown {
+                                            IconName::EyeOff
+                                        } else {
+                                            IconName::Eye
+                                        },
+                                    )
+                                    .icon_size(IconSize::XSmall)
+                                    .tooltip(Tooltip::text(if shown {
+                                        "Hide value"
+                                    } else {
+                                        "Show value"
+                                    }))
+                                    .on_click(cx.listener(
+                                        move |this, _, _, cx| {
+                                            if !this.state.revealed.remove(&value_key) {
+                                                this.state.revealed.insert(value_key.clone());
+                                            }
+                                            cx.notify();
+                                        },
+                                    )),
+                                )
+                            }),
+                    )
+                    .child(div().w_16().flex().justify_center().when(!blank, |this| {
+                        let on_edit = on_edit.clone();
+                        this.child(
+                            checkbox(
+                                SharedString::from(format!("{scope}-secret-{i}")),
+                                row.secret,
+                                move |this, on, cx| on_edit(this, i, RowEdit::Secret(on), cx),
+                                cx,
+                            )
+                            .tooltip(Tooltip::text("Mask this value")),
+                        )
+                    }))
+                    .child(div().w_8().flex().justify_center().when(!blank, |this| {
+                        let on_edit = on_edit.clone();
+                        this.child(
+                            div().visible_on_hover(group).child(
+                                IconButton::new(
+                                    SharedString::from(format!("{scope}-delete-{i}")),
+                                    IconName::Close,
+                                )
+                                .icon_size(IconSize::XSmall)
+                                .tooltip(Tooltip::text("Delete variable"))
+                                .on_click(cx.listener(
+                                    move |this, _, _, cx| {
+                                        on_edit(this, i, RowEdit::Remove, cx);
+                                        cx.notify();
+                                    },
+                                )),
+                            ),
+                        )
+                    }))
+                    .into_any_element(),
+            );
         }
+
+        v_flex()
+            .w_full()
+            .child(
+                h_flex()
+                    .border_b_1()
+                    .border_color(border)
+                    .child(div().w_8())
+                    .child(div().flex_1().child(header_cell("Variable")))
+                    .child(div().flex_1().child(header_cell("Value")))
+                    .child(div().w_16().child(header_cell("Secret")))
+                    .child(div().w_8()),
+            )
+            .children(body)
+            .into_any_element()
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "ferrumterm-gui"
-description = "FerrumTerm: GPU terminal window (winit + wgpu + glyphon) on the FerrumTerm server."
+description = "FerrumTerm: GPUI terminal window on the FerrumTerm server."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,11 +16,8 @@ path = "src/main.rs"
 [dependencies]
 ferrumterm-protocol.workspace = true
 ferrumterm-client.workspace = true
-winit.workspace = true
-wgpu.workspace = true
-glyphon.workspace = true
-pollster.workspace = true
-arboard.workspace = true
+ferrum-ui.workspace = true
+futures.workspace = true
 unicode-width.workspace = true
 tokio.workspace = true
 tracing.workspace = true

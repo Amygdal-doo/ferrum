@@ -1,70 +1,126 @@
-//! Unified titlebar toolbar (Tower style): repositories / profiles over the
-//! sidebar, then quick open, back / forward, the repo title, actions and search.
+//! Toolbar (Tower style): repositories / profiles over the sidebar, then
+//! quick open, back / forward, the repo title, actions and search.
 
-use crate::commands::{repo, workspace};
-use crate::components::icons::{Icon, Svg};
-use crate::state::{AppState, Dialog, Page, PromptKind};
-use dioxus::prelude::*;
-use ferrumgit_application::AppServices;
+use crate::app::FerrumGit;
+use crate::commands::workspace::{open_terminal, reveal};
+use crate::components::icons::Icon;
+use crate::state::{Dialog, Page, PromptKind};
 use ferrumgit_domain::RepoOp;
+use gpui::{AnyElement, ClickEvent, Context, ElementId, Window, div, prelude::*, px};
+use theme::ActiveTheme;
+use ui::{
+    Color, IconSize, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex, v_flex,
+};
 
-/// Room for the macOS traffic lights.
-const TRAFFIC_LIGHTS: f64 = 78.0;
-
-fn drag(e: MouseEvent) {
-    // Only a press on the bar itself moves the window, not on its buttons.
-    if e.trigger_button() == Some(dioxus::html::input_data::MouseButton::Primary) {
-        dioxus::desktop::window().drag();
-    }
-}
-
-#[component]
-fn Tool(
+fn tool(
+    id: impl Into<ElementId>,
     icon: Icon,
-    label: String,
-    #[props(default)] disabled: bool,
-    #[props(default)] badge: Option<u32>,
-    onclick: EventHandler<()>,
-) -> Element {
-    rsx! {
-        button {
-            class: "relative flex h-11 min-w-12 flex-col items-center justify-center gap-0.5 rounded-md px-1.5 text-[10.5px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-35",
-            title: "{label}", disabled,
-            onmousedown: move |e| e.stop_propagation(),
-            onclick: move |_| onclick.call(()),
-            span { class: "text-foreground", Svg { icon, class: "size-[18px]" } }
-            "{label}"
-            if let Some(n) = badge.filter(|n| *n > 0) {
-                span { class: "absolute right-0.5 top-0.5 rounded-full bg-primary-accent px-1 text-[9px] font-semibold text-white", "{n}" }
-            }
-        }
-    }
+    label: &'static str,
+    disabled: bool,
+    badge: Option<u32>,
+    on_click: impl Fn(&mut FerrumGit, &ClickEvent, &mut Window, &mut Context<FerrumGit>) + 'static,
+    cx: &mut Context<FerrumGit>,
+) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    div()
+        .id(id)
+        .relative()
+        .flex()
+        .flex_col()
+        .items_center()
+        .justify_center()
+        .gap_0p5()
+        .h(px(44.))
+        .min_w(px(48.))
+        .px_1p5()
+        .rounded_md()
+        .text_ui_xs(cx)
+        .text_color(colors.text_muted)
+        .tooltip(Tooltip::text(label))
+        .when(disabled, |d| d.opacity(0.35))
+        .when(!disabled, |d| {
+            d.cursor_pointer()
+                .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+                .on_click(cx.listener(on_click))
+        })
+        .child(icon.icon().size(IconSize::Medium).color(Color::Default))
+        .child(label)
+        .children(badge.filter(|n| *n > 0).map(|n| {
+            div()
+                .absolute()
+                .right(px(2.))
+                .top(px(2.))
+                .px_1()
+                .rounded_full()
+                .bg(colors.text_accent)
+                .text_color(colors.background)
+                .text_ui_xs(cx)
+                .child(n.to_string())
+        }))
+        .into_any_element()
 }
 
-#[component]
-pub fn Toolbar() -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let sidebar = state.sidebar_width();
-    let entry = state.active_entry();
-    let s_home = services.clone();
-    let left = rsx! {
-        div { class: "flex h-full shrink-0 items-center justify-end gap-1 border-r pr-2", style: "width: {sidebar}px; padding-left: {TRAFFIC_LIGHTS}px", onmousedown: drag,
-            Tool { icon: Icon::Bookmark, label: "Repositories", onclick: move |_| workspace::activate(state, s_home.clone(), None) }
-            Tool { icon: Icon::User, label: "Profiles", onclick: move |_| state.dialog.set(Some(Dialog::Profiles(None))) }
-        }
-    };
-    let Some(entry) = entry else {
-        return rsx! {
-            header { class: "flex h-[52px] shrink-0 items-center border-b bg-sidenav", onmousedown: drag,
-                {left}
-                div { class: "flex-1 px-4 text-[13px] font-semibold", "FerrumGIT" }
-            }
-        };
+fn separator(cx: &Context<FerrumGit>) -> impl IntoElement {
+    div()
+        .mx_1()
+        .h(px(28.))
+        .w(px(1.))
+        .bg(cx.theme().colors().border)
+}
+
+pub fn render(app: &FerrumGit, _: &mut Window, cx: &mut Context<FerrumGit>) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    let sidebar = px(app.state.sidebar_width() as f32);
+    let left = h_flex()
+        .flex_none()
+        .h_full()
+        .w(sidebar)
+        .justify_end()
+        .gap_1()
+        .pr_2()
+        .border_r_1()
+        .border_color(colors.border)
+        .child(tool(
+            "tool-repos",
+            Icon::Bookmark,
+            "Repositories",
+            false,
+            None,
+            |app, _, _, cx| app.activate(None, cx),
+            cx,
+        ))
+        .child(tool(
+            "tool-profiles",
+            Icon::User,
+            "Profiles",
+            false,
+            None,
+            |app, _, window, cx| app.open_dialog(Dialog::Profiles(None), window, cx),
+            cx,
+        ));
+    let bar = h_flex()
+        .flex_none()
+        .h(px(52.))
+        .border_b_1()
+        .border_color(colors.border)
+        .bg(colors.title_bar_background)
+        .child(left);
+
+    let Some(entry) = app.state.active_entry() else {
+        return bar
+            .child(
+                div()
+                    .flex_1()
+                    .px_4()
+                    .child(Label::new("FerrumGIT").weight(gpui::FontWeight::SEMIBOLD)),
+            )
+            .into_any_element();
     };
     let id = entry.id;
-    let view = state.view(id);
-    let busy = state.busy.read().get(&id).cloned();
+    let view = app.state.view(id);
+    let busy = app.state.busy.get(&id).cloned();
     let is_busy = busy.is_some();
     let snap = view
         .data
@@ -81,121 +137,270 @@ pub fn Toolbar() -> Element {
         Page::WorkingCopy => format!("Working Copy ({} changes)", status.files.len()),
         Page::Stashes => format!("Stashes ({})", snap.stashes.len()),
     };
-    let profile = state
+    let profile = app
+        .state
         .profile_of(&entry)
         .map_or_else(|| "System default".to_owned(), |p| p.name);
-    let pull_mode = state.settings.read().pull_mode;
-    let prune = state.settings.read().prune_on_fetch;
+    let pull_mode = app.state.settings.pull_mode;
+    let prune = app.state.settings.prune_on_fetch;
     let has_stash = !snap.stashes.is_empty();
     let dirty = !status.is_clean();
     let detached = status.branch.head.is_none();
-    let s = services.clone();
-    let run = move |op: RepoOp| repo::op(state, s.clone(), id, op);
-    let (r_fetch, r_pull, r_push, r_apply) = (run.clone(), run.clone(), run.clone(), run);
-    let (s_back, s_fwd, s_sync, s_refresh, s_search) = (
-        services.clone(),
-        services.clone(),
-        services.clone(),
-        services.clone(),
-        services.clone(),
-    );
     let (path_term, path_finder) = (entry.path.clone(), entry.path.clone());
-    let search = view.search.clone();
 
-    rsx! {
-        header { class: "flex h-[52px] shrink-0 items-center border-b bg-sidenav", onmousedown: drag,
-            {left}
-            div { class: "flex items-center gap-0.5 px-2",
-                Tool { icon: Icon::QuickOpen, label: "Quick Open", onclick: move |_| state.dialog.set(Some(Dialog::QuickOpen)) }
-                Tool { icon: Icon::ChevronLeft, label: "Prev", disabled: view.back.is_empty(), onclick: move |_| repo::go(state, s_back.clone(), id, true) }
-                Tool { icon: Icon::ChevronRight, label: "Next", disabled: view.forward.is_empty(), onclick: move |_| repo::go(state, s_fwd.clone(), id, false) }
-            }
-            div { class: "flex min-w-0 flex-1 flex-col justify-center px-2",
-                div { class: "flex min-w-0 items-center gap-2",
-                    span { class: "truncate text-[13.5px] font-semibold", "{entry.name}" }
-                    button { class: "flex shrink-0 items-center gap-1 rounded-full border px-2 text-[10.5px] text-muted-foreground hover:bg-accent hover:text-foreground",
-                        title: "Identity and SSH key for this repository",
-                        onmousedown: move |e| e.stop_propagation(),
-                        onclick: move |_| state.dialog.set(Some(Dialog::RepoSettings(id))),
-                        Svg { icon: Icon::User, class: "size-3" } "{profile}" }
-                }
-                if let Some(b) = busy {
-                    div { class: "flex items-center gap-2 text-[11.5px] text-muted-foreground",
-                        span { class: "size-1.5 animate-pulse rounded-full bg-primary-accent" }
-                        "{b.label}…"
-                        if b.cancel.is_some() {
-                            button { class: "underline hover:text-foreground", onmousedown: move |e| e.stop_propagation(), onclick: move |_| repo::cancel(state, id), "Cancel" }
-                        }
-                    }
-                } else {
-                    span { class: "truncate text-[11.5px] text-muted-foreground", "{subtitle}" }
-                }
-            }
-            div { class: "flex items-center gap-0.5 px-1",
-                Tool { icon: Icon::Terminal, label: "Terminal", onclick: move |_| open_terminal(&path_term) }
-                Tool { icon: Icon::Folder, label: "Finder", onclick: move |_| workspace::reveal(&path_finder) }
-                div { class: "mx-1 h-7 w-px bg-border" }
-                Tool { icon: Icon::Fetch, label: "Fetch", disabled: is_busy, onclick: move |_| r_fetch(RepoOp::Fetch { remote: None, prune }) }
-                Tool { icon: Icon::Pull, label: "Pull", disabled: is_busy || detached, badge: Some(status.branch.behind), onclick: move |_| r_pull(RepoOp::Pull(pull_mode)) }
-                Tool { icon: Icon::Push, label: "Push", disabled: is_busy || detached, badge: Some(status.branch.ahead), onclick: move |_| r_push(RepoOp::Push { remote: None, force_with_lease: false }) }
-                Tool { icon: Icon::Sync, label: "Sync", disabled: is_busy || detached, onclick: move |_| sync(state, s_sync.clone(), id) }
-                div { class: "mx-1 h-7 w-px bg-border" }
-                Tool { icon: Icon::Merge, label: "Merge", disabled: is_busy || detached, onclick: move |_| state.dialog.set(Some(Dialog::PickBranch { rebase: false })) }
-                Tool { icon: Icon::Rebase, label: "Rebase", disabled: is_busy || detached, onclick: move |_| state.dialog.set(Some(Dialog::PickBranch { rebase: true })) }
-                div { class: "mx-1 h-7 w-px bg-border" }
-                Tool { icon: Icon::ArchiveRestore, label: "Apply", disabled: is_busy || !has_stash, onclick: move |_| r_apply(RepoOp::StashPop(0)) }
-                Tool { icon: Icon::Archive, label: "Save", disabled: is_busy || !dirty, onclick: move |_| state.dialog.set(Some(Dialog::Prompt { kind: PromptKind::StashSave, initial: String::new() })) }
-                Tool { icon: Icon::Refresh, label: "Refresh", onclick: move |_| repo::load(state, s_refresh.clone(), id) }
-            }
-            div { class: "mr-3 ml-1 flex h-8 w-52 items-center gap-1.5 rounded-md border bg-background px-2", onmousedown: move |e| e.stop_propagation(),
-                Svg { icon: Icon::Search, class: "size-3.5 text-muted-foreground" }
-                input { class: "h-full min-w-0 flex-1 bg-transparent text-[12.5px] outline-none select-text", placeholder: "Search for Message",
-                    "aria-label": "Search commits", value: "{search}",
-                    oninput: move |e| {
-                        let v = e.value();
-                        if state.view(id).page != Page::History { repo::set_page(state, s_search.clone(), id, Page::History); }
-                        state.update_view(id, |x| x.search = v);
-                    } }
-            }
-        }
-    }
-}
+    let title = v_flex()
+        .flex_1()
+        .min_w_0()
+        .justify_center()
+        .px_2()
+        .child(
+            h_flex()
+                .min_w_0()
+                .gap_2()
+                .child(
+                    Label::new(entry.name.clone())
+                        .weight(gpui::FontWeight::SEMIBOLD)
+                        .truncate(),
+                )
+                .child(
+                    h_flex()
+                        .id("tool-repo-profile")
+                        .flex_none()
+                        .gap_1()
+                        .px_2()
+                        .rounded_full()
+                        .border_1()
+                        .border_color(colors.border)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(colors.element_hover))
+                        .tooltip(Tooltip::text("Identity and SSH key for this repository"))
+                        .child(Icon::User.icon().size(IconSize::XSmall).color(Color::Muted))
+                        .child(
+                            Label::new(profile)
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        )
+                        .on_click(cx.listener(move |app, _, window, cx| {
+                            app.open_dialog(Dialog::RepoSettings(id), window, cx);
+                        })),
+                ),
+        )
+        .child(match busy {
+            Some(b) => h_flex()
+                .gap_2()
+                .child(div().size(px(6.)).rounded_full().bg(colors.text_accent))
+                .child(
+                    Label::new(format!("{}…", b.label))
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+                .when(b.cancel.is_some(), |d| {
+                    d.child(
+                        div()
+                            .id("tool-cancel")
+                            .cursor_pointer()
+                            .text_ui_sm(cx)
+                            .text_color(colors.text_muted)
+                            .hover(|s| s.text_color(colors.text))
+                            .child("Cancel")
+                            .on_click(cx.listener(move |app, _, _, _| app.cancel(id))),
+                    )
+                })
+                .into_any_element(),
+            None => Label::new(subtitle)
+                .size(LabelSize::Small)
+                .color(Color::Muted)
+                .truncate()
+                .into_any_element(),
+        });
 
-fn open_terminal(path: &str) {
-    let result = if cfg!(target_os = "macos") {
-        std::process::Command::new("open")
-            .args(["-a", "Terminal", path])
-            .spawn()
-    } else {
-        std::process::Command::new("x-terminal-emulator")
-            .current_dir(path)
-            .spawn()
-    };
-    if let Err(e) = result {
-        tracing::warn!(error = %e, "could not open a terminal");
-    }
-}
+    let nav = h_flex()
+        .gap_0p5()
+        .px_2()
+        .child(tool(
+            "tool-quick-open",
+            Icon::QuickOpen,
+            "Quick Open",
+            false,
+            None,
+            |app, _, window, cx| app.open_dialog(Dialog::QuickOpen, window, cx),
+            cx,
+        ))
+        .child(tool(
+            "tool-prev",
+            Icon::ChevronLeft,
+            "Prev",
+            view.back.is_empty(),
+            None,
+            move |app, _, _, cx| app.go(id, true, cx),
+            cx,
+        ))
+        .child(tool(
+            "tool-next",
+            Icon::ChevronRight,
+            "Next",
+            view.forward.is_empty(),
+            None,
+            move |app, _, _, cx| app.go(id, false, cx),
+            cx,
+        ));
 
-/// Pull, then push once the pull has finished.
-fn sync(state: AppState, services: AppServices, id: ferrumgit_domain::RepoId) {
-    let mode = state.settings.peek().pull_mode;
-    repo::op(state, services.clone(), id, RepoOp::Pull(mode));
-    spawn(async move {
-        while state.is_busy(id) {
-            let _ = crate::commands::background(
-                &services,
-                tokio::time::sleep(std::time::Duration::from_millis(150)),
-            )
-            .await;
-        }
-        repo::op(
-            state,
-            services,
-            id,
-            RepoOp::Push {
-                remote: None,
-                force_with_lease: false,
+    let actions = h_flex()
+        .gap_0p5()
+        .px_1()
+        .child(tool(
+            "tool-terminal",
+            Icon::Terminal,
+            "Terminal",
+            false,
+            None,
+            move |_, _, _, _| open_terminal(&path_term),
+            cx,
+        ))
+        .child(tool(
+            "tool-finder",
+            Icon::Folder,
+            "Finder",
+            false,
+            None,
+            move |_, _, _, _| reveal(&path_finder),
+            cx,
+        ))
+        .child(separator(cx))
+        .child(tool(
+            "tool-fetch",
+            Icon::Fetch,
+            "Fetch",
+            is_busy,
+            None,
+            move |app, _, _, cx| {
+                app.op(
+                    id,
+                    RepoOp::Fetch {
+                        remote: None,
+                        prune,
+                    },
+                    cx,
+                )
             },
-        );
-    });
+            cx,
+        ))
+        .child(tool(
+            "tool-pull",
+            Icon::Pull,
+            "Pull",
+            is_busy || detached,
+            Some(status.branch.behind),
+            move |app, _, _, cx| app.op(id, RepoOp::Pull(pull_mode), cx),
+            cx,
+        ))
+        .child(tool(
+            "tool-push",
+            Icon::Push,
+            "Push",
+            is_busy || detached,
+            Some(status.branch.ahead),
+            move |app, _, _, cx| {
+                app.op(
+                    id,
+                    RepoOp::Push {
+                        remote: None,
+                        force_with_lease: false,
+                    },
+                    cx,
+                );
+            },
+            cx,
+        ))
+        .child(tool(
+            "tool-sync",
+            Icon::Sync,
+            "Sync",
+            is_busy || detached,
+            None,
+            move |app, _, _, cx| app.sync(id, cx),
+            cx,
+        ))
+        .child(separator(cx))
+        .child(tool(
+            "tool-merge",
+            Icon::Merge,
+            "Merge",
+            is_busy || detached,
+            None,
+            |app, _, window, cx| app.open_dialog(Dialog::PickBranch { rebase: false }, window, cx),
+            cx,
+        ))
+        .child(tool(
+            "tool-rebase",
+            Icon::Rebase,
+            "Rebase",
+            is_busy || detached,
+            None,
+            |app, _, window, cx| app.open_dialog(Dialog::PickBranch { rebase: true }, window, cx),
+            cx,
+        ))
+        .child(separator(cx))
+        .child(tool(
+            "tool-apply",
+            Icon::ArchiveRestore,
+            "Apply",
+            is_busy || !has_stash,
+            None,
+            move |app, _, _, cx| app.op(id, RepoOp::StashPop(0), cx),
+            cx,
+        ))
+        .child(tool(
+            "tool-save",
+            Icon::Archive,
+            "Save",
+            is_busy || !dirty,
+            None,
+            |app, _, window, cx| {
+                app.open_dialog(
+                    Dialog::Prompt {
+                        kind: PromptKind::StashSave,
+                        initial: String::new(),
+                    },
+                    window,
+                    cx,
+                );
+            },
+            cx,
+        ))
+        .child(tool(
+            "tool-refresh",
+            Icon::Refresh,
+            "Refresh",
+            false,
+            None,
+            move |app, _, _, cx| app.load(id, cx),
+            cx,
+        ));
+
+    let search = h_flex()
+        .flex_none()
+        .mr_3()
+        .ml_1()
+        .h(px(32.))
+        .w(px(208.))
+        .gap_1p5()
+        .px_2()
+        .rounded_md()
+        .border_1()
+        .border_color(colors.border)
+        .bg(colors.editor_background)
+        .child(
+            Icon::Search
+                .icon()
+                .size(IconSize::Small)
+                .color(Color::Muted),
+        )
+        .child(div().flex_1().min_w_0().child(app.inputs.search.clone()));
+
+    bar.child(nav)
+        .child(title)
+        .child(actions)
+        .child(search)
+        .into_any_element()
 }

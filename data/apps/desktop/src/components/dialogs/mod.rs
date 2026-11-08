@@ -1,83 +1,80 @@
-//! In-app modal dialogs (never browser `alert`/`confirm`).
+//! In-app modal dialogs.
 
-use crate::commands::{connection, query};
-use crate::components::connection::ConnectionForm;
-use crate::components::rust_ui::button::{Button, ButtonVariant};
-use crate::state::{AppState, Dialog};
-use dioxus::prelude::*;
-use ferrumdata_application::AppServices;
+use crate::app::FerrumData;
+use crate::state::Dialog;
+use ferrum_ui::prelude::*;
+use ferrum_ui::ui::TintColor;
 
-#[component]
-pub fn Modal(title: String, on_close: EventHandler<()>, children: Element) -> Element {
-    rsx! {
-        div {
-            class: "fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4",
-            onkeydown: move |e: KeyboardEvent| if e.key() == Key::Escape { on_close.call(()) },
-            div {
-                class: "w-full max-w-xl rounded-lg border bg-background p-5 shadow-xl",
-                role: "dialog",
-                "aria-modal": "true",
-                "aria-label": "{title}",
-                h2 { class: "mb-4 text-base font-semibold", "{title}" }
-                {children}
-            }
+impl FerrumData {
+    pub fn render_dialog(&mut self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let dialog = self.state.dialog.clone()?;
+        fn close(
+            cx: &mut Context<FerrumData>,
+        ) -> impl Fn(&ClickEvent, &mut Window, &mut App) + 'static {
+            cx.listener(|this, _: &ClickEvent, window, cx| this.close_dialog(window, cx))
         }
-    }
-}
-
-#[component]
-pub fn DialogHost() -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let dialog = state.dialog.read().clone();
-    let close = move |_| state.dialog.set(None);
-
-    match dialog {
-        None => rsx! {},
-        Some(Dialog::ConnectionForm(existing)) => rsx! { ConnectionForm { existing } },
-        Some(Dialog::DeleteProfile(profile)) => {
-            let id = profile.id;
-            rsx! {
-                Modal { title: "Delete connection?".to_owned(), on_close: close,
-                    p { class: "text-sm", "“{profile.display_name}” and its saved password will be removed. Editor tabs are kept." }
-                    div { class: "mt-5 flex justify-end gap-2",
-                        Button { variant: ButtonVariant::Ghost, onclick: move |_| state.dialog.set(None), "Cancel" }
-                        Button { variant: ButtonVariant::Destructive,
-                            onclick: move |_| { state.dialog.set(None); connection::delete(state, services.clone(), id); },
-                            "Delete"
-                        }
-                    }
-                }
+        match dialog {
+            Dialog::ConnectionForm(_) => self.form.clone().map(IntoElement::into_any_element),
+            Dialog::DeleteProfile(profile) => {
+                let id = profile.id;
+                Some(
+                    Modal::new("Delete connection?")
+                        .on_dismiss(close(cx))
+                        .child(Label::new(format!(
+                            "“{}” and its saved password will be removed. Editor tabs are kept.",
+                            profile.display_name
+                        )))
+                        .footer(Button::new("delete-cancel", "Cancel").on_click(close(cx)))
+                        .footer(
+                            Button::new("delete-confirm", "Delete")
+                                .style(ButtonStyle::Tinted(TintColor::Error))
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.close_dialog(window, cx);
+                                    this.delete_profile(id, cx);
+                                })),
+                        )
+                        .into_any_element(),
+                )
             }
-        }
-        Some(Dialog::ConfirmRun {
-            tab_id,
-            profile,
-            sql,
-        }) => {
-            let preview: String = sql.chars().take(600).collect();
-            let (p, s) = (profile.clone(), sql.clone());
-            rsx! {
-                Modal { title: "Run on production?".to_owned(), on_close: close,
-                    p { class: "text-sm",
-                        "This statement may modify data or schema on "
-                        strong { "{profile.display_name}" }
-                        " ({profile.target_label()}), tagged "
-                        strong { class: "text-destructive", "Production" }
-                        "."
-                    }
-                    pre { class: "mt-3 max-h-48 overflow-auto rounded-md bg-muted p-3 font-mono text-xs select-text whitespace-pre-wrap", "{preview}" }
-                    div { class: "mt-5 flex justify-end gap-2",
-                        Button { variant: ButtonVariant::Ghost, onclick: move |_| state.dialog.set(None), "Cancel" }
-                        Button { variant: ButtonVariant::Destructive,
-                            onclick: move |_| {
-                                state.dialog.set(None);
-                                query::start_run(state, services.clone(), tab_id, p.clone(), s.clone());
-                            },
-                            "Run on production"
-                        }
-                    }
-                }
+            Dialog::ConfirmRun {
+                tab_id,
+                profile,
+                sql,
+            } => {
+                let colors = cx.theme().colors().clone();
+                let preview: String = sql.chars().take(600).collect();
+                let target = format!(
+                    "This statement may modify data or schema on {} ({}), tagged Production.",
+                    profile.display_name,
+                    profile.target_label()
+                );
+                Some(
+                    Modal::new("Run on production?")
+                        .on_dismiss(close(cx))
+                        .child(Label::new(target))
+                        .child(
+                            div()
+                                .id("confirm-preview")
+                                .max_h(px(192.))
+                                .overflow_y_scroll()
+                                .rounded_md()
+                                .p_3()
+                                .bg(colors.editor_background)
+                                .font_buffer(cx)
+                                .text_xs()
+                                .child(preview),
+                        )
+                        .footer(Button::new("confirm-cancel", "Cancel").on_click(close(cx)))
+                        .footer(
+                            Button::new("confirm-run", "Run on production")
+                                .style(ButtonStyle::Tinted(TintColor::Error))
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.close_dialog(window, cx);
+                                    this.start_run(tab_id, profile.clone(), sql.clone(), cx);
+                                })),
+                        )
+                        .into_any_element(),
+                )
             }
         }
     }

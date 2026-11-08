@@ -1,6 +1,6 @@
 [package]
 name = "ferrumgit-desktop"
-description = "FerrumGIT Git client — Dioxus desktop shell."
+description = "FerrumGIT Git client — GPUI desktop shell."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,18 +13,18 @@ path = "src/main.rs"
 [dependencies]
 ferrumgit-domain.workspace = true
 ferrumgit-application.workspace = true
-dioxus = { workspace = true, features = ["desktop", "launch", "macro", "html", "signals", "hooks", "document"] }
-tw_merge.workspace = true
-strum = { version = "0.28", features = ["derive"] }
+ferrum-ui.workspace = true
+gpui.workspace = true
+ui.workspace = true
+theme.workspace = true
+menu.workspace = true
 tokio.workspace = true
 futures.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 directories.workspace = true
 uuid.workspace = true
-rfd.workspace = true
 chrono.workspace = true
-serde_json.workspace = true
 syntect = { version = "5", default-features = false, features = ["default-fancy"] }
 
 [lints]

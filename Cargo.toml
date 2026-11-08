@@ -1,0 +1,138 @@
+# Ferrum monorepo — one Cargo workspace for the Ferrum desktop tools.
+#
+# `ide/` (the Zed fork) keeps its own workspace so upstream merges stay easy;
+# the apps here depend on its GPUI/`ui`/`theme` crates by path.
+# `web/` is a standalone package (own Dockerfile / Railway build context).
+[workspace]
+resolver = "3"
+members = [
+    "shared/*",
+    "api/apps/*",
+    "api/crates/*",
+    "git/apps/*",
+    "git/crates/*",
+    "data/apps/*",
+    "data/crates/*",
+    "term/apps/*",
+    "term/crates/*",
+]
+exclude = ["ide", "web"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[workspace.dependencies]
+# Shared
+ferrum-ui = { path = "shared/ui" }
+
+# GPUI + Zed UI (from the FerrumIDE fork)
+gpui = { path = "ide/crates/gpui" }
+gpui_platform = { path = "ide/crates/gpui_platform" }
+ui = { path = "ide/crates/ui" }
+ui_input = { path = "ide/crates/ui_input" }
+theme = { path = "ide/crates/theme" }
+menu = { path = "ide/crates/menu" }
+assets = { path = "ide/crates/assets" }
+# `assets` reads files relative to a `.git` root in debug builds, which does not
+# match the monorepo layout; `debug-embed` embeds them at compile time instead.
+util = { path = "ide/crates/util", features = ["debug-embed"] }
+
+# FerrumAPI
+ferrumapi-domain = { path = "api/crates/domain" }
+ferrumapi-http = { path = "api/crates/http" }
+ferrumapi-persistence = { path = "api/crates/persistence" }
+ferrumapi-interop = { path = "api/crates/interop" }
+ferrumapi-application = { path = "api/crates/application" }
+
+# FerrumGIT
+ferrumgit-domain = { path = "git/crates/domain" }
+ferrumgit-git = { path = "git/crates/git" }
+ferrumgit-graph = { path = "git/crates/graph" }
+ferrumgit-persistence = { path = "git/crates/persistence" }
+ferrumgit-credentials = { path = "git/crates/credentials" }
+ferrumgit-application = { path = "git/crates/application" }
+
+# FerrumData
+ferrumdata-domain = { path = "data/crates/domain" }
+ferrumdata-db-driver-api = { path = "data/crates/db-driver-api" }
+ferrumdata-db-postgres = { path = "data/crates/db-postgres" }
+ferrumdata-persistence = { path = "data/crates/persistence" }
+ferrumdata-credentials = { path = "data/crates/credentials" }
+ferrumdata-application = { path = "data/crates/application" }
+ferrumdata-result-grid-core = { path = "data/crates/result-grid-core" }
+ferrumdata-editor-core = { path = "data/crates/editor-core" }
+
+# FerrumTerm
+ferrumterm-protocol = { path = "term/crates/protocol" }
+ferrumterm-emulator = { path = "term/crates/emulator" }
+ferrumterm-server = { path = "term/crates/server" }
+ferrumterm-client = { path = "term/crates/client" }
+
+# Terminal
+alacritty_terminal = "0.25"
+portable-pty = "0.9"
+clap = { version = "4", features = ["derive", "env"] }
+crossterm = "0.29"
+unicode-width = "0.2"
+
+# Desktop
+rfd = "0.17"
+
+# Async
+tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util", "fs", "process", "signal"] }
+tokio-util = "0.7.20"
+futures = "0.3.34"
+async-trait = "0.1.92"
+
+# HTTP
+reqwest = { version = "0.13", default-features = false }
+url = "2.5"
+base64 = "0.22"
+percent-encoding = "2.3"
+mime_guess = "2.0"
+
+# Database
+sqlx = { version = "0.9.0", default-features = false }
+
+# Utilities
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+uuid = { version = "1.28", features = ["v4", "serde"] }
+thiserror = "2.0"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "serde"] }
+directories = "6.0"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+keyring = "4.2"
+tempfile = "3"
+getrandom = "0.3"
+unicode-segmentation = "1.10"
+smallvec = { version = "1.6", features = ["union", "const_new"] }
+
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"
+
+# GPUI is unusably slow unoptimized; keep our code fast to rebuild.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+# Mirrors ide/Cargo.toml: GPUI relies on Zed's forks of these crates.
+[patch.crates-io]
+async-process = { git = "https://github.com/zed-industries/async-process.git", rev = "0b6d6713570af61806e1e5cb40e0f757cb93fd9d" }
+async-task = { git = "https://github.com/zed-industries/async-task.git", rev = "015845a19fc31752c02367567d3b8900a406f9da" }
+calloop = { git = "https://github.com/zed-industries/calloop", rev = "3759371fee14c40066d64777e2a36b6ffcc22590" }
+khronos-egl = { git = "https://github.com/zed-industries/khronos-egl", rev = "42214b36347b108fd9630ca6254b96dde59e04fe" }

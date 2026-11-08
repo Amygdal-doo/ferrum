@@ -1,22 +1,48 @@
 //! Start screen: open / clone / init, and recent repositories with their profiles.
 
-use crate::commands::workspace;
+use crate::app::FerrumGit;
 use crate::components::now_secs;
-use crate::components::rust_ui::button::{Button, ButtonVariant};
-use crate::state::{AppState, Dialog};
-use dioxus::prelude::*;
-use ferrumgit_application::AppServices;
+use crate::components::widgets::small_button;
+use crate::state::Dialog;
 use ferrumgit_domain::text::relative_time;
+use gpui::{AnyElement, ClickEvent, Context, ElementId, Window, div, prelude::*, px};
+use theme::ActiveTheme;
+use ui::{
+    Clickable, Color, Headline, HeadlineSize, Label, LabelCommon, LabelSize, Tooltip, h_flex,
+    v_flex,
+};
 
-#[component]
-pub fn Home() -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let mut filter = use_signal(String::new);
-    let needle = filter.read().to_lowercase();
-    let repos: Vec<_> = state
+fn home_action(
+    id: impl Into<ElementId>,
+    title: &'static str,
+    hint: &'static str,
+    on_click: impl Fn(&mut FerrumGit, &ClickEvent, &mut Window, &mut Context<FerrumGit>) + 'static,
+    cx: &mut Context<FerrumGit>,
+) -> impl IntoElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    v_flex()
+        .id(id)
+        .flex_1()
+        .gap_1()
+        .p_4()
+        .rounded_lg()
+        .border_1()
+        .border_color(colors.border)
+        .cursor_pointer()
+        .hover(|s| s.bg(colors.element_hover))
+        .child(Label::new(title).weight(gpui::FontWeight::SEMIBOLD))
+        .child(Label::new(hint).size(LabelSize::Small).color(Color::Muted))
+        .on_click(cx.listener(on_click))
+}
+
+pub fn render(app: &FerrumGit, _: &mut Window, cx: &mut Context<FerrumGit>) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    let needle = app.inputs.home_filter.read(cx).text().to_lowercase();
+    let repos: Vec<_> = app
+        .state
         .repos
-        .read()
         .iter()
         .filter(|r| {
             needle.is_empty()
@@ -25,81 +51,200 @@ pub fn Home() -> Element {
         })
         .cloned()
         .collect();
-    let none = state.repos.read().is_empty();
-    let no_profiles = state.profiles.read().is_empty();
-    let (s_open, s_init) = (services.clone(), services.clone());
+    let none = app.state.repos.is_empty();
+    let no_profiles = app.state.profiles.is_empty();
     let now = now_secs();
 
-    rsx! {
-        div { class: "flex min-h-0 flex-1 justify-center overflow-y-auto p-10",
-            div { class: "flex w-full max-w-3xl flex-col gap-8",
-                div {
-                    h1 { class: "text-2xl font-semibold tracking-tight", "Repositories" }
-                    p { class: "mt-1 text-sm text-muted-foreground",
-                        "Each repository can use its own profile — a commit identity and an SSH key — for commit, fetch, pull and push." }
-                }
-                div { class: "grid grid-cols-3 gap-3",
-                    HomeAction { title: "Open", hint: "An existing local repository", onclick: move |_| workspace::pick_and_open(state, s_open.clone()) }
-                    HomeAction { title: "Clone", hint: "From a URL, with a chosen SSH profile", onclick: move |_| state.dialog.set(Some(Dialog::Clone)) }
-                    HomeAction { title: "Init", hint: "Start a new repository in a folder", onclick: move |_| workspace::pick_and_init(state, s_init.clone()) }
-                }
-                if no_profiles {
-                    div { class: "flex items-center gap-3 rounded-lg border border-dashed p-4 text-sm",
-                        div { class: "flex-1",
-                            p { class: "font-medium", "Set up a profile" }
-                            p { class: "text-muted-foreground", "Add your work and personal identities with their SSH keys, then pick one per repository." }
-                        }
-                        Button { variant: ButtonVariant::Outline, onclick: move |_| state.dialog.set(Some(Dialog::Profiles(None))), "Add profile" }
-                    }
-                }
-                div { class: "flex flex-col gap-2",
-                    div { class: "flex items-center gap-2",
-                        h2 { class: "flex-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground", "Recent" }
-                        if !none {
-                            input { class: "h-7 w-56 rounded-md border bg-background px-2 text-xs select-text", placeholder: "Filter",
-                                "aria-label": "Filter repositories", value: "{filter}", oninput: move |e| filter.set(e.value()) }
-                        }
-                    }
-                    if none {
-                        p { class: "rounded-lg border p-6 text-center text-sm text-muted-foreground", "No repositories yet. Open, clone or init one above." }
-                    }
-                    div { class: "divide-y rounded-lg border",
-                        for r in repos {
-                            {
-                                let id = r.id;
-                                let profile = state.profile_of(&r).map_or_else(|| "System default".to_owned(), |p| p.name);
-                                let when = if r.last_opened_ms > 0 { relative_time(r.last_opened_ms / 1000, now) } else { String::new() };
-                                let (s1, s2) = (services.clone(), services.clone());
-                                rsx! {
-                                    div { key: "{id}", class: "group flex cursor-pointer items-center gap-3 px-4 py-2.5 hover:bg-accent/60",
-                                        onclick: move |_| workspace::activate(state, s1.clone(), Some(id)),
-                                        div { class: "min-w-0 flex-1",
-                                            p { class: "truncate text-sm font-medium", "{r.name}" }
-                                            p { class: "truncate text-xs text-muted-foreground", "{r.path}" }
-                                        }
-                                        span { class: "rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground", title: "Profile", "{profile}" }
-                                        span { class: "w-20 text-right text-[11px] text-muted-foreground", "{when}" }
-                                        button { class: "rounded px-1.5 text-xs text-muted-foreground opacity-0 hover:bg-background group-hover:opacity-100",
-                                            title: "Remove from list (files are kept)",
-                                            onclick: move |e| { e.stop_propagation(); workspace::forget(state, s2.clone(), id); }, "×" }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+    let rows = repos
+        .into_iter()
+        .map(|r| {
+            let id = r.id;
+            let profile = app
+                .state
+                .profile_of(&r)
+                .map_or_else(|| "System default".to_owned(), |p| p.name);
+            let when = if r.last_opened_ms > 0 {
+                relative_time(r.last_opened_ms / 1000, now)
+            } else {
+                String::new()
+            };
+            h_flex()
+                .id(ElementId::Name(format!("repo-{id}").into()))
+                .group("repo-row")
+                .gap_3()
+                .px_4()
+                .py_2p5()
+                .cursor_pointer()
+                .border_b_1()
+                .border_color(colors.border_variant)
+                .hover(|s| s.bg(colors.element_hover))
+                .on_click(cx.listener(move |app, _, _, cx| app.activate(Some(id), cx)))
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .child(Label::new(r.name.clone()).truncate())
+                        .child(
+                            Label::new(r.path.clone())
+                                .size(LabelSize::Small)
+                                .color(Color::Muted)
+                                .truncate(),
+                        ),
+                )
+                .child(
+                    div()
+                        .px_2()
+                        .rounded_md()
+                        .bg(colors.element_background)
+                        .child(
+                            Label::new(profile)
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        ),
+                )
+                .child(
+                    div()
+                        .w(px(80.))
+                        .flex()
+                        .justify_end()
+                        .child(Label::new(when).size(LabelSize::XSmall).color(Color::Muted)),
+                )
+                .child(
+                    div()
+                        .id(ElementId::Name(format!("forget-{id}").into()))
+                        .px_1p5()
+                        .rounded_sm()
+                        .invisible()
+                        .group_hover("repo-row", |s| s.visible())
+                        .hover(|s| s.bg(colors.element_active))
+                        .tooltip(Tooltip::text("Remove from list (files are kept)"))
+                        .child(Label::new("×").color(Color::Muted))
+                        .on_click(cx.listener(move |app, _, _, cx| {
+                            cx.stop_propagation();
+                            app.forget(id, cx);
+                        })),
+                )
+        })
+        .collect::<Vec<_>>();
 
-#[component]
-fn HomeAction(title: String, hint: String, onclick: EventHandler<()>) -> Element {
-    rsx! {
-        button { class: "flex flex-col items-start gap-1 rounded-lg border p-4 text-left hover:bg-accent/60",
-            onclick: move |_| onclick.call(()),
-            span { class: "text-sm font-semibold", "{title}" }
-            span { class: "text-xs text-muted-foreground", "{hint}" }
-        }
-    }
+    div()
+        .id("home")
+        .flex_1()
+        .min_h_0()
+        .overflow_y_scroll()
+        .flex()
+        .justify_center()
+        .p_10()
+        .child(
+            v_flex()
+                .w_full()
+                .max_w(px(768.))
+                .gap_8()
+                .child(
+                    v_flex()
+                        .gap_1()
+                        .child(Headline::new("Repositories").size(HeadlineSize::Large))
+                        .child(
+                            Label::new(
+                                "Each repository can use its own profile — a commit identity and an SSH key — for commit, fetch, pull and push.",
+                            )
+                            .color(Color::Muted),
+                        ),
+                )
+                .child(
+                    h_flex()
+                        .gap_3()
+                        .child(home_action(
+                            "home-open",
+                            "Open",
+                            "An existing local repository",
+                            |app, _, _, cx| app.pick_and_open(cx),
+                            cx,
+                        ))
+                        .child(home_action(
+                            "home-clone",
+                            "Clone",
+                            "From a URL, with a chosen SSH profile",
+                            |app, _, window, cx| app.open_dialog(Dialog::Clone, window, cx),
+                            cx,
+                        ))
+                        .child(home_action(
+                            "home-init",
+                            "Init",
+                            "Start a new repository in a folder",
+                            |app, _, _, cx| app.pick_and_init(cx),
+                            cx,
+                        )),
+                )
+                .when(no_profiles, |d| {
+                    d.child(
+                        h_flex()
+                            .gap_3()
+                            .p_4()
+                            .rounded_lg()
+                            .border_1()
+                            .border_dashed()
+                            .border_color(colors.border)
+                            .child(
+                                v_flex()
+                                    .flex_1()
+                                    .child(Label::new("Set up a profile"))
+                                    .child(
+                                        Label::new("Add your work and personal identities with their SSH keys, then pick one per repository.")
+                                            .size(LabelSize::Small)
+                                            .color(Color::Muted),
+                                    ),
+                            )
+                            .child(small_button("home-add-profile", "Add profile").on_click(
+                                cx.listener(|app, _, window, cx| {
+                                    app.open_dialog(Dialog::Profiles(None), window, cx);
+                                }),
+                            )),
+                    )
+                })
+                .child(
+                    v_flex()
+                        .gap_2()
+                        .child(
+                            h_flex()
+                                .gap_2()
+                                .child(
+                                    div().flex_1().child(
+                                        Label::new("RECENT")
+                                            .size(LabelSize::XSmall)
+                                            .color(Color::Muted),
+                                    ),
+                                )
+                                .when(!none, |d| {
+                                    d.child(div().w(px(224.)).child(app.inputs.home_filter.clone()))
+                                }),
+                        )
+                        .when(none, |d| {
+                            d.child(
+                                div()
+                                    .p_6()
+                                    .rounded_lg()
+                                    .border_1()
+                                    .border_color(colors.border)
+                                    .flex()
+                                    .justify_center()
+                                    .child(
+                                        Label::new("No repositories yet. Open, clone or init one above.")
+                                            .color(Color::Muted),
+                                    ),
+                            )
+                        })
+                        .when(!none, |d| {
+                            d.child(
+                                v_flex()
+                                    .rounded_lg()
+                                    .border_1()
+                                    .border_color(colors.border)
+                                    .overflow_hidden()
+                                    .children(rows),
+                            )
+                        }),
+                ),
+        )
+        .into_any_element()
 }

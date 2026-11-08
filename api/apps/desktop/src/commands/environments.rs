@@ -1,104 +1,99 @@
 //! Environment and globals mutations.
 
-use super::run;
-use crate::state::{AppState, Dialog};
-use dioxus::prelude::*;
-use ferrumapi_application::AppServices;
+use crate::app::FerrumApi;
+use crate::state::Dialog;
 use ferrumapi_domain::{Environment, EnvironmentId};
+use gpui::Context;
 
-fn persist(state: AppState, services: AppServices, env: Environment) {
-    let svc = services.clone();
-    spawn(async move {
-        let result = run(&services, async move {
-            if env.id.is_globals() {
-                svc.store.save_globals(&env).await
-            } else {
-                svc.store.save_environment(&env).await
+impl FerrumApi {
+    fn persist_environment(&mut self, env: Environment, cx: &mut Context<Self>) {
+        let svc = self.services.clone();
+        self.io(
+            cx,
+            async move {
+                if env.id.is_globals() {
+                    svc.store.save_globals(&env).await
+                } else {
+                    svc.store.save_environment(&env).await
+                }
+            },
+            Self::report("Could not save environment"),
+        );
+    }
+
+    /// Stores `env` (globals or a regular environment) in memory and on disk.
+    pub fn save_environment(&mut self, env: Environment, cx: &mut Context<Self>) {
+        if env.id.is_globals() {
+            self.state.globals = env.clone();
+        } else {
+            let list = &mut self.state.environments;
+            match list.iter_mut().find(|e| e.id == env.id) {
+                Some(existing) => *existing = env.clone(),
+                None => list.push(env.clone()),
             }
-        })
-        .await;
-        if let Err(e) = result {
-            state.notify(format!("Could not save environment: {e}"), true);
         }
-    });
-}
+        self.persist_environment(env, cx);
+    }
 
-/// Stores `env` (globals or a regular environment) in memory and on disk.
-pub fn save(mut state: AppState, services: AppServices, env: Environment) {
-    if env.id.is_globals() {
-        state.globals.set(env.clone());
-    } else {
-        let mut list = state.environments.write();
-        match list.iter_mut().find(|e| e.id == env.id) {
-            Some(existing) => *existing = env.clone(),
-            None => list.push(env.clone()),
+    #[must_use]
+    pub fn environment(&self, id: EnvironmentId) -> Option<Environment> {
+        if id.is_globals() {
+            Some(self.state.globals.clone())
+        } else {
+            self.state.environments.iter().find(|e| e.id == id).cloned()
         }
     }
-    persist(state, services, env);
-}
 
-#[must_use]
-pub fn get(state: AppState, id: EnvironmentId) -> Option<Environment> {
-    if id.is_globals() {
-        Some(state.globals.peek().clone())
-    } else {
-        state
-            .environments
-            .peek()
-            .iter()
-            .find(|e| e.id == id)
-            .cloned()
+    pub fn edit_environment(&mut self, id: EnvironmentId) {
+        if let Some(env) = self.environment(id) {
+            self.state.dialog = Some(Dialog::EditEnvironment(Box::new(env)));
+        }
     }
-}
 
-pub fn create(mut state: AppState, services: AppServices) {
-    let env = Environment::new("New Environment");
-    let id = env.id;
-    save(state, services, env);
-    state.dialog.set(Some(Dialog::EditEnvironment(id)));
-}
+    pub fn create_environment(&mut self, cx: &mut Context<Self>) {
+        let env = Environment::new("New Environment");
+        let id = env.id;
+        self.save_environment(env, cx);
+        self.edit_environment(id);
+    }
 
-pub fn rename(state: AppState, services: AppServices, id: EnvironmentId, name: String) {
-    let name = name.trim().to_owned();
-    if name.is_empty() || id.is_globals() {
-        return;
+    pub fn rename_environment(&mut self, id: EnvironmentId, name: String, cx: &mut Context<Self>) {
+        let name = name.trim().to_owned();
+        if name.is_empty() || id.is_globals() {
+            return;
+        }
+        if let Some(mut env) = self.environment(id) {
+            env.name = name;
+            self.save_environment(env, cx);
+        }
     }
-    if let Some(mut env) = get(state, id) {
-        env.name = name;
-        save(state, services, env);
-    }
-}
 
-pub fn duplicate(state: AppState, services: AppServices, id: EnvironmentId) {
-    if let Some(env) = get(state, id) {
-        let mut copy = Environment::new(format!("{} Copy", env.name));
-        copy.variables = env.variables;
-        save(state, services, copy);
+    pub fn duplicate_environment(&mut self, id: EnvironmentId, cx: &mut Context<Self>) {
+        if let Some(env) = self.environment(id) {
+            let mut copy = Environment::new(format!("{} Copy", env.name));
+            copy.variables = env.variables;
+            self.save_environment(copy, cx);
+        }
     }
-}
 
-pub fn delete(mut state: AppState, services: AppServices, id: EnvironmentId) {
-    if id.is_globals() {
-        return;
-    }
-    state.environments.write().retain(|e| e.id != id);
-    if *state.active_env.peek() == Some(id) {
-        set_active(state, None);
-    }
-    let svc = services.clone();
-    spawn(async move {
-        if let Err(e) = run(
-            &services,
+    pub fn delete_environment(&mut self, id: EnvironmentId, cx: &mut Context<Self>) {
+        if id.is_globals() {
+            return;
+        }
+        self.state.environments.retain(|e| e.id != id);
+        if self.state.active_env == Some(id) {
+            self.set_active_environment(None);
+        }
+        let svc = self.services.clone();
+        self.io(
+            cx,
             async move { svc.store.delete_environment(id).await },
-        )
-        .await
-        {
-            state.notify(format!("Could not delete environment: {e}"), true);
-        }
-    });
-}
+            Self::report("Could not delete environment"),
+        );
+    }
 
-pub fn set_active(mut state: AppState, id: Option<EnvironmentId>) {
-    state.active_env.set(id);
-    state.touch();
+    pub fn set_active_environment(&mut self, id: Option<EnvironmentId>) {
+        self.state.active_env = id;
+        self.state.touch();
+    }
 }

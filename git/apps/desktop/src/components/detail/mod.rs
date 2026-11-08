@@ -6,45 +6,54 @@ mod files;
 mod stashes;
 mod wip;
 
-use crate::components::diff::DiffPane;
-use crate::components::graph::CommitList;
-use crate::state::{AppState, Page};
-use dioxus::prelude::*;
+use crate::app::FerrumGit;
+use crate::components::diff::diff_pane;
+use crate::components::graph::commit_list;
+use crate::components::widgets::empty;
+use crate::state::{Page, Selection};
+use gpui::{AnyElement, Context, Window, div, prelude::*};
+use theme::ActiveTheme;
+use ui::v_flex;
 
-fn empty(text: &str) -> Element {
-    rsx! { div { class: "flex flex-1 items-center justify-center p-8 text-[13px] text-muted-foreground", "{text}" } }
-}
-
-#[component]
-pub fn MiddleColumn() -> Element {
-    let state = use_context::<AppState>();
-    let Some(id) = *state.active.read() else {
-        return rsx! {};
+pub fn middle_column(
+    app: &mut FerrumGit,
+    window: &mut Window,
+    cx: &mut Context<FerrumGit>,
+) -> AnyElement {
+    let Some(id) = app.state.active else {
+        return div().into_any_element();
     };
-    let view = state.view(id);
+    let view = app.state.view(id);
     let body = match view.page {
-        Page::History => rsx! { CommitList {} },
-        Page::WorkingCopy if view.data.is_some() => rsx! { wip::WipPanel { id } },
-        Page::Stashes if view.data.is_some() => rsx! { stashes::StashList { id } },
+        Page::History => commit_list(app, window, cx),
+        Page::WorkingCopy if view.data.is_some() => wip::wip_panel(app, id, window, cx),
+        Page::Stashes if view.data.is_some() => stashes::stash_list(app, id, cx),
         _ => empty("Loading…"),
     };
-    rsx! { section { class: "flex h-full min-w-0 flex-col bg-background", {body} } }
+    v_flex()
+        .size_full()
+        .min_w_0()
+        .bg(cx.theme().colors().editor_background)
+        .child(body)
+        .into_any_element()
 }
 
-#[component]
-pub fn RightColumn() -> Element {
-    let state = use_context::<AppState>();
-    let Some(id) = *state.active.read() else {
-        return rsx! {};
+pub fn right_column(
+    app: &mut FerrumGit,
+    _: &mut Window,
+    cx: &mut Context<FerrumGit>,
+) -> AnyElement {
+    let Some(id) = app.state.active else {
+        return div().into_any_element();
     };
-    let view = state.view(id);
+    let view = app.state.view(id);
     let body = match view.page {
         Page::WorkingCopy => match view.diff {
-            Some(_) => rsx! { DiffPane {} },
+            Some(_) => diff_pane(app, cx),
             None => empty("Select a file to see its changes"),
         },
         Page::History | Page::Stashes => match view.details.clone() {
-            Some(d) => rsx! { commit::CommitPanel { id, details: d } },
+            Some(d) => commit::commit_panel(app, id, d, cx),
             None if view.page == Page::Stashes
                 && view
                     .data
@@ -53,11 +62,15 @@ pub fn RightColumn() -> Element {
             {
                 empty("No stashes")
             }
-            None if matches!(view.selection, crate::state::Selection::Wip) => {
-                empty("Select a commit")
-            }
+            None if matches!(view.selection, Selection::Wip) => empty("Select a commit"),
             None => empty("Loading…"),
         },
     };
-    rsx! { section { class: "flex h-full min-w-0 flex-1 flex-col bg-background", {body} } }
+    v_flex()
+        .flex_1()
+        .h_full()
+        .min_w_0()
+        .bg(cx.theme().colors().editor_background)
+        .child(body)
+        .into_any_element()
 }

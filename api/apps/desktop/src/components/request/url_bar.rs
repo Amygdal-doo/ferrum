@@ -1,115 +1,204 @@
-//! Method select, URL input with variable highlighting, Send / Cancel,
-//! Save and Code.
+//! Method select, URL input, variable strip, Send / Cancel, Save and Code.
 
-use crate::commands::{collections, send};
-use crate::components::method_class;
-use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
-use crate::components::rust_ui::kbd::Kbd;
-use crate::state::{AppState, Dialog};
-use dioxus::prelude::*;
-use ferrumapi_application::AppServices;
+use crate::app::FerrumApi;
+use crate::components::fields::{FieldSpec, on_request_edit};
+use crate::components::{method_color, select};
+use crate::state::Dialog;
+use ferrum_ui::kbd;
+use ferrumapi_application::interop::codegen::CodeTarget;
 use ferrumapi_domain::urlparams::params_from_url;
 use ferrumapi_domain::vars::Segment;
 use ferrumapi_domain::{HttpMethod, RequestTab, VariableSet};
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 use std::collections::HashSet;
+use ui::{
+    ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _,
+    StyledTypography as _, Tooltip, h_flex, v_flex,
+};
 
-#[component]
-pub fn UrlBar(tab: RequestTab, vars: VariableSet, secrets: Vec<String>, loading: bool) -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let id = tab.id;
-    let method = tab.request.method;
-    let url_rev = state.revs.read().url;
-    let svc_send = services.clone();
-    let svc_save = services.clone();
-    let segments = vars.segments(&tab.request.url);
-    let has_vars = segments.iter().any(|s| matches!(s, Segment::Var { .. }));
+impl FerrumApi {
+    pub(super) fn render_url_bar(
+        &mut self,
+        tab: &RequestTab,
+        vars: &VariableSet,
+        secrets: Vec<String>,
+        loading: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let colors = cx.theme().colors().clone();
+        let id = tab.id;
+        let method = tab.request.method;
+        let method_select = select(
+            SharedString::from(format!("method-{id}")),
+            method.to_string(),
+            HttpMethod::ALL
+                .into_iter()
+                .map(|m| (SharedString::from(m.to_string()), m))
+                .collect(),
+            move |this, m, _| this.state.edit_request(id, |r| r.method = m),
+            window,
+            cx,
+        );
+        let url = self.field(
+            FieldSpec::new(format!("url:{id}"))
+                .value(tab.request.url.clone())
+                .placeholder("Enter URL, e.g. https://api.example.com/users")
+                .mono()
+                .borderless()
+                .autofocus(),
+            on_request_edit(move |this, url, _| {
+                this.state.edit_request(id, |r| {
+                    r.params = params_from_url(&url, &r.params);
+                    r.url = url;
+                });
+            }),
+            window,
+            cx,
+        );
+        let segments = vars.segments(&tab.request.url);
+        let has_vars = segments.iter().any(|s| matches!(s, Segment::Var { .. }));
 
-    rsx! {
-        div { class: "flex flex-col gap-1 px-3 pt-3",
-            div { class: "flex items-center gap-2",
-                div { class: "flex h-9 min-w-0 flex-1 items-center rounded-md border bg-background focus-within:border-ring",
-                    select {
-                        class: "h-full w-28 shrink-0 rounded-l-md border-r bg-transparent px-2 text-sm font-semibold {method_class(method)}",
-                        "aria-label": "HTTP method",
-                        onchange: move |e| {
-                            if let Some(m) = HttpMethod::parse(&e.value()) {
-                                state.edit_request(id, |r| r.method = m);
-                            }
-                        },
-                        for m in HttpMethod::ALL {
-                            option { key: "{m}", value: "{m}", selected: m == method, class: method_class(m), "{m}" }
-                        }
-                    }
-                    for k in [format!("{id}-{url_rev}")] {
-                        input {
-                            key: "{k}",
-                            class: "h-full min-w-0 flex-1 bg-transparent px-3 font-mono text-sm outline-none select-text",
-                            placeholder: "Enter URL, e.g. https://api.example.com/users",
-                            "aria-label": "Request URL",
-                            spellcheck: "false",
-                            autofocus: true,
-                            initial_value: "{tab.request.url}",
-                            oninput: move |e| {
-                                let url = e.value();
-                                state.edit_request(id, |r| {
-                                    r.params = params_from_url(&url, &r.params);
-                                    r.url = url;
+        let send = if loading {
+            Button::new("cancel-request", "Cancel")
+                .style(ButtonStyle::Outlined)
+                .tooltip(Tooltip::text("Cancel the request (⌘/Ctrl+Enter)"))
+                .on_click(cx.listener(move |this, _, _, cx| {
+                    this.cancel(id);
+                    cx.notify();
+                }))
+                .into_any_element()
+        } else {
+            h_flex()
+                .gap_1()
+                .child(
+                    Button::new("send-request", "Send")
+                        .style(ButtonStyle::Filled)
+                        .tooltip(Tooltip::text("Send (⌘/Ctrl+Enter)"))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.send(id, cx);
+                            cx.notify();
+                        })),
+                )
+                .child(kbd("⌘↵", cx))
+                .into_any_element()
+        };
+
+        v_flex()
+            .gap_1()
+            .px_3()
+            .pt_3()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(
+                        h_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .h_9()
+                            .rounded_md()
+                            .border_1()
+                            .border_color(colors.border)
+                            .bg(colors.editor_background)
+                            .child(
+                                div()
+                                    .flex_none()
+                                    .w(px(112.))
+                                    .h_full()
+                                    .flex()
+                                    .items_center()
+                                    .px_1()
+                                    .border_r_1()
+                                    .border_color(colors.border)
+                                    .text_color(method_color(method, cx))
+                                    .child(method_select),
+                            )
+                            .child(div().flex_1().min_w_0().px_3().child(url)),
+                    )
+                    .child(send)
+                    .child(
+                        Button::new("save-request", "Save")
+                            .style(ButtonStyle::Outlined)
+                            .tooltip(Tooltip::text("Save (⌘/Ctrl+S)"))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.save_tab(id, cx);
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        Button::new("generate-code", "</>")
+                            .style(ButtonStyle::Subtle)
+                            .tooltip(Tooltip::text("Generate code"))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.state.dialog = Some(Dialog::Code {
+                                    tab_id: id,
+                                    target: CodeTarget::Curl,
                                 });
-                                state.revs.write().params += 1;
-                            },
-                        }
-                    }
-                }
-                if loading {
-                    Button { size: ButtonSize::Default, variant: ButtonVariant::Outline, class: "w-24",
-                        title: "Cancel the request (⌘/Ctrl+Enter)",
-                        onclick: move |_| send::cancel(state, id),
-                        "Cancel"
-                    }
-                } else {
-                    Button { size: ButtonSize::Default, class: "w-24",
-                        title: "Send (⌘/Ctrl+Enter)",
-                        onclick: move |_| send::send(state, svc_send.clone(), id),
-                        "Send"
-                        Kbd { class: "bg-primary-foreground/20 text-primary-foreground", "⌘↵" }
-                    }
-                }
-                Button { variant: ButtonVariant::Outline, title: "Save (⌘/Ctrl+S)",
-                    onclick: move |_| collections::save_tab(state, svc_save.clone(), id),
-                    "Save"
-                }
-                Button { variant: ButtonVariant::Ghost, title: "Generate code",
-                    onclick: move |_| state.dialog.set(Some(Dialog::Code(id))),
-                    "</>"
-                }
-            }
-            if has_vars {
-                VarStrip { segments, vars, secrets }
-            }
-        }
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .when(has_vars, |this| {
+                this.child(var_strip(segments, vars, secrets, cx))
+            })
+            .into_any_element()
     }
 }
 
 /// The URL split into text and `{{variables}}`: resolved in the info colour,
-/// unresolved in the destructive colour. Hover shows the value (secrets masked).
-#[component]
-fn VarStrip(segments: Vec<Segment>, vars: VariableSet, secrets: Vec<String>) -> Element {
+/// unresolved in the error colour. Hover shows the value (secrets masked).
+fn var_strip(
+    segments: Vec<Segment>,
+    vars: &VariableSet,
+    secrets: Vec<String>,
+    cx: &mut Context<FerrumApi>,
+) -> AnyElement {
+    let colors = cx.theme().colors().clone();
+    let status = cx.theme().status().clone();
     let secret: HashSet<String> = secrets.into_iter().collect();
-    rsx! {
-        div { class: "truncate pl-28 font-mono text-[11px] text-muted-foreground", "aria-label": "URL variables",
-            for (i, seg) in segments.into_iter().enumerate() {
-                match seg {
-                    Segment::Text(t) => rsx! { span { key: "{i}", "{t}" } },
-                    Segment::Var { name, resolved: true } => {
-                        let value = if secret.contains(&name) { "••••••".to_owned() } else { vars.get(&name).unwrap_or_default().to_owned() };
-                        rsx! { span { key: "{i}", class: "rounded bg-info-light px-0.5 text-info-dark", title: "{name} = {value}", "{{{{{name}}}}}" } }
-                    }
-                    Segment::Var { name, resolved: false } => rsx! {
-                        span { key: "{i}", class: "rounded bg-destructive/15 px-0.5 text-destructive", title: "{name} is not defined in the active environment, collection or globals", "{{{{{name}}}}}" }
-                    },
+    h_flex()
+        .pl(px(112.))
+        .overflow_hidden()
+        .text_xs()
+        .font_buffer(cx)
+        .text_color(colors.text_muted)
+        .children(segments.into_iter().enumerate().map(|(i, seg)| {
+            match seg {
+                Segment::Text(t) => div().child(t).into_any_element(),
+                Segment::Var {
+                    name,
+                    resolved: true,
+                } => {
+                    let value = if secret.contains(&name) {
+                        "••••••".to_owned()
+                    } else {
+                        vars.get(&name).unwrap_or_default().to_owned()
+                    };
+                    div()
+                        .id(SharedString::from(format!("url-var-{i}")))
+                        .px_0p5()
+                        .rounded_sm()
+                        .bg(status.info_background)
+                        .text_color(status.info)
+                        .tooltip(Tooltip::text(format!("{name} = {value}")))
+                        .child(format!("{{{{{name}}}}}"))
+                        .into_any_element()
                 }
+                Segment::Var {
+                    name,
+                    resolved: false,
+                } => div()
+                    .id(SharedString::from(format!("url-var-{i}")))
+                    .px_0p5()
+                    .rounded_sm()
+                    .bg(status.error_background)
+                    .text_color(status.error)
+                    .tooltip(Tooltip::text(format!(
+                        "{name} is not defined in the active environment, collection or globals"
+                    )))
+                    .child(format!("{{{{{name}}}}}"))
+                    .into_any_element(),
             }
-        }
-    }
+        }))
+        .into_any_element()
 }

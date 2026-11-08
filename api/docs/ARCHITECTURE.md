@@ -3,8 +3,8 @@
 One desktop process. No backend server. Same shape as FerrumData.
 
 ```
-apps/desktop (Dioxus UI, UI thread)
-   │  commands::background(...) ──► AppServices::spawn (dedicated Tokio runtime, 2 workers)
+apps/desktop (GPUI UI, main thread; root view `FerrumApi` owns `AppState`)
+   │  cx.spawn + commands::run(...) ──► AppServices::spawn (dedicated Tokio runtime, 2 workers)
    ▼
 crates/application   AppServices · prepare (auth inheritance + variable layers) · send (+history) · import/export
    │                      │                        │
@@ -18,10 +18,11 @@ crates/domain  ◄── every crate (pure serde types; no UI, no I/O)
 ```
 
 ## Dependency rules (enforced by Cargo manifests)
-- `domain` depends on nothing internal, and on neither Dioxus, reqwest nor SQLx.
+- `domain` depends on nothing internal, and on neither GPUI, reqwest nor SQLx.
 - `http`, `persistence`, `interop` depend on `domain` only — never on each other.
-- `application` wires them together and never depends on Dioxus.
-- `desktop` depends on `application` (which re-exports the other crates) and `domain`.
+- `application` wires them together and never depends on GPUI.
+- `desktop` depends on `application` (which re-exports the other crates), `domain`, and the
+  UI stack: `ferrum-ui` plus GPUI / `ui` from `ide/`.
 
 ## Request lifecycle
 ```
@@ -46,6 +47,14 @@ The HTTP layer therefore never re-appends `params`.
 ### Variables
 `{{name}}` substitution is single-pass (a value containing `{{x}}` is not expanded
 again), unknown names are left verbatim and reported as unresolved for highlighting.
+
+## UI state
+The root GPUI view (`app.rs`, `FerrumApi`) owns a plain `AppState` and renders the whole
+window from it; mutations happen through `cx.listener` / `cx.spawn` and end in
+`cx.notify()`. Text fields are the only stateful widgets: `components/fields.rs` keeps one
+`ferrum_ui::TextInput` entity per field key, re-syncs controlled fields from state on every
+render (so URL ↔ params edits show up in the other field) and drops fields a render no
+longer uses. Dialogs keep their working copy inside `state::Dialog` until Save.
 
 ## Local state
 `~/Library/Application Support/dev.FerrumAPI.FerrumAPI/ferrumapi.db` (platform equivalent

@@ -1,29 +1,53 @@
-//! History: commits grouped by month, with graph rails, virtualized.
+//! History: commits grouped by month, with graph rails, virtualized with a GPUI `list`.
 
 mod lanes;
 mod row;
 
-pub use row::RefBadge;
+pub use row::ref_badge;
 
-use crate::commands::{repo, workspace};
-use crate::components::actions::{self, Action};
-use crate::components::icons::{Icon, Svg};
-use crate::components::menu::ContextMenu;
-use crate::state::{AppState, Selection};
-use dioxus::prelude::*;
-use ferrumgit_application::AppServices;
-use ferrumgit_domain::{Commit, GitRef};
+use crate::app::FerrumGit;
+use crate::components::icons::Icon;
+use crate::components::widgets::small_button;
+use crate::state::Selection;
+use ferrumgit_application::RepoData;
+use ferrumgit_domain::{Commit, GitRef, RepoId};
+use gpui::{AnyElement, Context, Window, div, list, prelude::*, px};
+use row::{CommitRowProps, commit_row, month_row};
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::Arc;
+use theme::ActiveTheme;
+use ui::{Clickable, Color, IconSize, Label, LabelCommon, LabelSize, Tooltip, h_flex, v_flex};
 
-pub const ROW_H: f64 = 50.0;
-pub const MONTH_H: f64 = 34.0;
-pub const LANE_W: f64 = 11.0;
+pub const ROW_H: f32 = 50.0;
+pub const MONTH_H: f32 = 34.0;
+pub const LANE_W: f32 = 11.0;
 const MAX_LANES: usize = 16;
-const OVERSCAN_PX: f64 = 600.0;
+
+/// What the history list was last built from; a change resets the list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HistoryKey {
+    repo: RepoId,
+    data: usize,
+    search: String,
+}
 
 enum Item {
     Month(String),
     Commit(usize),
+    More,
+}
+
+struct History {
+    repo: RepoId,
+    items: Vec<Item>,
+    data: Arc<RepoData>,
+    by_oid: HashMap<String, Vec<GitRef>>,
+    selection: Selection,
+    head: Option<ferrumgit_domain::Oid>,
+    lanes: usize,
+    graph_px: f32,
+    searching: bool,
 }
 
 fn month(unix: i64) -> String {
@@ -42,50 +66,47 @@ fn matches(c: &Commit, needle: &str) -> bool {
         || c.oid.as_str().starts_with(needle)
 }
 
-#[component]
-pub fn CommitList() -> Element {
-    let mut state = use_context::<AppState>();
-    let services = use_context::<AppServices>();
-    let mut scroll_top = use_signal(|| 0.0f64);
-    let mut viewport = use_signal(|| 900.0f64);
-    let mut menu = use_signal(|| None::<((f64, f64), Vec<Action>)>);
-    let Some(id) = *state.active.read() else {
-        return rsx! {};
+pub fn commit_list(app: &mut FerrumGit, _: &mut Window, cx: &mut Context<FerrumGit>) -> AnyElement {
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    let Some(id) = app.state.active else {
+        return div().into_any_element();
     };
-    let view = state.view(id);
+    let view = app.state.view(id);
     let Some(data) = view.data.clone() else {
-        let svc = services.clone();
-        return rsx! {
-            div { class: "flex flex-1 flex-col items-center justify-center gap-3 p-8 text-sm text-muted-foreground",
-                if let Some(e) = view.error.clone() {
-                    p { class: "max-w-lg whitespace-pre-wrap text-center text-destructive select-text", "{e}" }
-                    button { class: "rounded-md border px-3 py-1 hover:bg-accent", onclick: move |_| repo::load(state, svc.clone(), id), "Retry" }
-                } else { "Loading repository…" }
-            }
-        };
+        return v_flex()
+            .flex_1()
+            .items_center()
+            .justify_center()
+            .gap_3()
+            .p_8()
+            .map(|d| match view.error.clone() {
+                Some(e) => d.child(Label::new(e).color(Color::Error)).child(
+                    small_button("history-retry", "Retry")
+                        .on_click(cx.listener(move |app, _, _, cx| app.load(id, cx))),
+                ),
+                None => d.child(Label::new("Loading repository…").color(Color::Muted)),
+            })
+            .into_any_element();
     };
-    if let Some(row) = view.scroll_to {
-        state.update_view(id, |v| v.scroll_to = None);
-        // Approximate: rows plus a header per month boundary before it.
-        let top = (row as f64 * ROW_H - 200.0).max(0.0);
-        document::eval(&format!(
-            "const g = document.getElementById('ferrumgit-history'); if (g) g.scrollTop = {top};"
-        ));
-    }
     let snap = &data.snapshot;
     let needle = view.search.trim().to_lowercase();
     let searching = !needle.is_empty();
-    let mut by_oid: HashMap<&str, Vec<GitRef>> = HashMap::new();
+    let mut by_oid: HashMap<String, Vec<GitRef>> = HashMap::new();
     for r in &snap.refs {
-        by_oid.entry(r.target.as_str()).or_default().push(r.clone());
+        by_oid
+            .entry(r.target.as_str().to_owned())
+            .or_default()
+            .push(r.clone());
     }
-    // Build items (month headers + commits) and their offsets.
     let mut items = Vec::new();
     let mut last_month = String::new();
+    let mut matched = 0;
     for (i, c) in snap.commits.iter().enumerate() {
         if searching && !matches(c, &needle) {
             continue;
         }
+        matched += 1;
         let m = month(c.author_time);
         if m != last_month {
             items.push(Item::Month(m.clone()));
@@ -93,22 +114,9 @@ pub fn CommitList() -> Element {
         }
         items.push(Item::Commit(i));
     }
-    let mut offsets = Vec::with_capacity(items.len() + 1);
-    let mut y = 6.0;
-    for it in &items {
-        offsets.push(y);
-        y += match it {
-            Item::Month(_) => MONTH_H,
-            Item::Commit(_) => ROW_H,
-        };
+    if snap.has_more && !searching {
+        items.push(Item::More);
     }
-    let total_h = y + if snap.has_more { 56.0 } else { 12.0 };
-    let (top, bottom) = (
-        *scroll_top.read() - OVERSCAN_PX,
-        *scroll_top.read() + *viewport.read() + OVERSCAN_PX,
-    );
-    let first = offsets.partition_point(|o| *o < top).saturating_sub(1);
-    let last = offsets.partition_point(|o| *o < bottom).min(items.len());
     let lanes = if searching {
         0
     } else {
@@ -122,87 +130,186 @@ pub fn CommitList() -> Element {
     let graph_px = if searching {
         0.0
     } else {
-        lanes as f64 * LANE_W + 12.0
+        lanes as f32 * LANE_W + 12.0
     };
-    let head = snap.status.branch.oid.clone();
     let count = if searching {
-        format!(
-            "{} of {}",
-            items
-                .iter()
-                .filter(|i| matches!(i, Item::Commit(_)))
-                .count(),
-            snap.commits.len()
-        )
+        format!("{matched} of {}", snap.commits.len())
     } else {
         snap.commits.len().to_string()
     };
-    let svc_more = services.clone();
 
-    rsx! {
-        div { class: "flex h-9 shrink-0 items-center gap-2 border-b px-3 text-[12.5px] text-muted-foreground",
-            span { class: "flex-1 truncate", if searching { "Search results" } else { "All Branches, Remotes, Tags" } }
-            span { class: "text-[11px]", "{count}" }
-            button { class: "rounded p-1 hover:bg-accent hover:text-foreground", title: if state.settings.read().hide_invisibles { "Show whitespace in diffs" } else { "Hide whitespace in diffs" },
-                onclick: move |_| { let v = state.settings.peek().hide_invisibles; state.settings.write().hide_invisibles = !v; },
-                Svg { icon: Icon::Sliders, class: "size-3.5" } }
+    let key = HistoryKey {
+        repo: id,
+        data: Arc::as_ptr(&data) as usize,
+        search: needle.clone(),
+    };
+    if app.history_key.as_ref() != Some(&key) || app.history.item_count() != items.len() {
+        app.history.reset(items.len());
+        app.history_key = Some(key);
+    }
+    if let Some(row) = view.scroll_to {
+        app.state.update_view(id, |v| v.scroll_to = None);
+        if let Some(ix) = items
+            .iter()
+            .position(|it| matches!(it, Item::Commit(n) if *n == row))
+        {
+            app.history.scroll_to_reveal_item(ix);
         }
-        div {
-            id: "ferrumgit-history",
-            class: "relative min-h-0 flex-1 overflow-y-auto",
-            onscroll: move |e| scroll_top.set(e.data().scroll_top()),
-            onmounted: move |e: MountedEvent| async move {
-                if let Ok(r) = e.data().get_client_rect().await { viewport.set(r.height()); }
-            },
-            div { class: "relative", style: "height: {total_h}px",
-                for i in first..last {
-                    match &items[i] {
-                        Item::Month(label) => {
-                            // Rails of lanes continuing through the header into the next commit.
-                            let rails: Vec<(usize, usize)> = match items.get(i + 1) {
-                                Some(Item::Commit(n)) if !searching => data.graph[*n].up.iter().filter(|e| e.from < lanes).map(|e| (e.from, e.color)).collect(),
-                                _ => Vec::new(),
-                            };
-                            rsx! { row::MonthRow { key: "m{label}", label: label.clone(), top: offsets[i], graph_px, rails } }
-                        }
-                        Item::Commit(n) => {
-                            let c = snap.commits[*n].clone();
-                            let refs = by_oid.get(c.oid.as_str()).cloned().unwrap_or_default();
-                            let selected = view.selection == Selection::Commit(c.oid.clone());
-                            let oid = c.oid.clone();
-                            let graph = (!searching).then(|| data.graph[*n].clone());
-                            rsx! {
-                                row::CommitRow { key: "{c.oid}", is_head: head.as_ref() == Some(&c.oid), commit: c, graph, refs, selected, graph_px, lanes, top: offsets[i],
-                                    on_menu: move |pos: (f64, f64)| menu.set(Some((pos, actions::for_commit(&oid)))) }
+    }
+
+    let history = Rc::new(History {
+        repo: id,
+        items,
+        head: snap.status.branch.oid.clone(),
+        data: data.clone(),
+        by_oid,
+        selection: view.selection.clone(),
+        lanes,
+        graph_px,
+        searching,
+    });
+    let weak = cx.entity().downgrade();
+    let item_theme = theme.clone();
+    let hide_invisibles = app.state.settings.hide_invisibles;
+
+    v_flex()
+        .size_full()
+        .child(
+            h_flex()
+                .flex_none()
+                .h(px(36.))
+                .gap_2()
+                .px_3()
+                .border_b_1()
+                .border_color(colors.border)
+                .child(
+                    div().flex_1().min_w_0().child(
+                        Label::new(if searching {
+                            "Search results"
+                        } else {
+                            "All Branches, Remotes, Tags"
+                        })
+                        .size(LabelSize::Small)
+                        .color(Color::Muted)
+                        .truncate(),
+                    ),
+                )
+                .child(
+                    Label::new(count)
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted),
+                )
+                .child(
+                    div()
+                        .id("toggle-invisibles")
+                        .p_1()
+                        .rounded_sm()
+                        .cursor_pointer()
+                        .hover(|s| s.bg(colors.element_hover))
+                        .tooltip(Tooltip::text(if hide_invisibles {
+                            "Show whitespace in diffs"
+                        } else {
+                            "Hide whitespace in diffs"
+                        }))
+                        .child(
+                            Icon::Sliders
+                                .icon()
+                                .size(IconSize::Small)
+                                .color(Color::Muted),
+                        )
+                        .on_click(cx.listener(|app, _, _, cx| {
+                            app.state.settings.hide_invisibles =
+                                !app.state.settings.hide_invisibles;
+                            app.save_settings(cx);
+                            cx.notify();
+                        })),
+                ),
+        )
+        .child(
+            list(app.history.clone(), move |ix, _, cx| {
+                render_item(&history, ix, weak.clone(), item_theme.clone(), cx)
+            })
+            .flex_1()
+            .min_h_0()
+            .pt_1p5(),
+        )
+        .into_any_element()
+}
+
+fn render_item(
+    history: &History,
+    ix: usize,
+    view: gpui::WeakEntity<FerrumGit>,
+    theme: Arc<theme::Theme>,
+    cx: &mut gpui::App,
+) -> AnyElement {
+    let Some(item) = history.items.get(ix) else {
+        return div().into_any_element();
+    };
+    match item {
+        Item::Month(label) => {
+            let rails = match history.items.get(ix + 1) {
+                Some(Item::Commit(n)) if !history.searching => history
+                    .data
+                    .graph
+                    .get(*n)
+                    .map(|g| {
+                        g.up.iter()
+                            .filter(|e| e.from < history.lanes)
+                            .map(|e| (e.from, e.color))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                _ => Vec::new(),
+            };
+            month_row(label.clone(), history.graph_px, rails, &theme, cx)
+        }
+        Item::Commit(n) => {
+            let Some(commit) = history.data.snapshot.commits.get(*n).cloned() else {
+                return div().into_any_element();
+            };
+            let refs = history
+                .by_oid
+                .get(commit.oid.as_str())
+                .cloned()
+                .unwrap_or_default();
+            let props = CommitRowProps {
+                repo: history.repo,
+                is_head: history.head.as_ref() == Some(&commit.oid),
+                selected: history.selection == Selection::Commit(commit.oid.clone()),
+                graph: (!history.searching)
+                    .then(|| history.data.graph.get(*n).cloned())
+                    .flatten(),
+                commit,
+                refs,
+                graph_px: history.graph_px,
+                lanes: history.lanes,
+            };
+            commit_row(props, view, theme, cx)
+        }
+        Item::More => {
+            let repo = history.repo;
+            div()
+                .w_full()
+                .flex()
+                .justify_center()
+                .py_3()
+                .child(
+                    small_button("load-more", "Load 2000 more commits").on_click(
+                        move |_, _, cx| {
+                            if let Err(error) = view.update(cx, |app, cx| {
+                                let limit = app.state.log_limit() + 2000;
+                                app.state.settings.log_limit =
+                                    u32::try_from(limit).unwrap_or(u32::MAX);
+                                app.save_settings(cx);
+                                app.load(repo, cx);
+                            }) {
+                                tracing::debug!(error = %error, "view closed");
                             }
-                        }
-                    }
-                }
-                if snap.has_more && !searching {
-                    div { class: "absolute inset-x-0 flex justify-center py-3", style: "top: {y}px",
-                        button { class: "rounded-md border px-3 py-1 text-xs hover:bg-accent",
-                            onclick: move |_| {
-                                let limit = state.log_limit() + 2000;
-                                state.settings.write().log_limit = u32::try_from(limit).unwrap_or(u32::MAX);
-                                workspace::save_settings(state, svc_more.clone());
-                                repo::load(state, svc_more.clone(), id);
-                            },
-                            "Load 2000 more commits"
-                        }
-                    }
-                }
-            }
-        }
-        if let Some((pos, items)) = menu.read().clone() {
-            {
-                let svc = services.clone();
-                let picked = items.clone();
-                rsx! {
-                    ContextMenu { pos, items: items.iter().map(Action::item).collect(),
-                        on_pick: move |i: usize| if let Some(a) = picked.get(i).cloned() { actions::perform(state, svc.clone(), a) },
-                        on_close: move |_| menu.set(None) }
-                }
-            }
+                        },
+                    ),
+                )
+                .into_any_element()
         }
     }
 }

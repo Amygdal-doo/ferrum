@@ -1,5 +1,5 @@
 //! UI commands. Each one hands I/O to the services runtime via
-//! `AppServices::spawn` and only touches signals from the UI task.
+//! `AppServices::spawn` and only touches view state from the UI thread.
 
 pub mod connection;
 pub mod query;
@@ -20,4 +20,11 @@ where
         .spawn(future)
         .await
         .map_err(|e| format!("background task failed: {e}"))
+}
+
+/// Logs when an async command finishes after its view was closed.
+pub fn log_dropped(result: ferrum_ui::gpui::Result<()>) {
+    if let Err(e) = result {
+        tracing::debug!(error = %e, "view dropped before command finished");
+    }
 }

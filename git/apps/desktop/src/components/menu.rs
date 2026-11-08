@@ -1,6 +1,9 @@
-//! Context menu (fixed at the pointer) with a click-away backdrop.
+//! Context menu at the pointer with a click-away backdrop.
 
-use dioxus::prelude::*;
+use crate::app::FerrumGit;
+use gpui::{AnyElement, Context, MouseButton, anchored, deferred, div, prelude::*, px};
+use theme::ActiveTheme;
+use ui::{Color, Label, LabelCommon, LabelSize, v_flex};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MenuItem {
@@ -32,38 +35,72 @@ impl MenuItem {
     }
 }
 
-/// `on_pick` receives the index of the chosen item.
-#[component]
-pub fn ContextMenu(
-    pos: (f64, f64),
-    items: Vec<MenuItem>,
-    on_pick: EventHandler<usize>,
-    on_close: EventHandler<()>,
-) -> Element {
-    let (x, y) = pos;
-    // Keep the menu on screen near the bottom/right edges.
-    let style = format!(
-        "left: min({x}px, calc(100vw - 15rem)); top: min({y}px, calc(100vh - {}rem));",
-        items.len() as f64 * 1.9 + 1.0
-    );
-    rsx! {
-        div { class: "fixed inset-0 z-30", onclick: move |_| on_close.call(()),
-            oncontextmenu: move |e| { e.prevent_default(); on_close.call(()); } }
-        div {
-            class: "fixed z-40 min-w-56 rounded-md border bg-popover py-1 text-xs text-popover-foreground shadow-lg",
-            style,
-            role: "menu",
-            for (i, item) in items.into_iter().enumerate() {
-                div { key: "{i}",
-                if item.separator { div { class: "my-1 h-px bg-border" } }
-                button {
-                    class: if item.danger { "block w-full px-3 py-1.5 text-left hover:bg-accent text-destructive" } else { "block w-full px-3 py-1.5 text-left hover:bg-accent" },
-                    role: "menuitem",
-                    onclick: move |e| { e.stop_propagation(); on_close.call(()); on_pick.call(i); },
-                    "{item.label}"
-                }
-                }
-            }
-        }
-    }
+pub fn render(app: &FerrumGit, cx: &mut Context<FerrumGit>) -> Option<AnyElement> {
+    let (position, actions) = app.menu.clone()?;
+    let theme = cx.theme().clone();
+    let colors = theme.colors();
+    let close = |app: &mut FerrumGit, cx: &mut Context<FerrumGit>| {
+        app.menu = None;
+        cx.notify();
+    };
+    let items =
+        actions.into_iter().enumerate().map(|(i, action)| {
+            let item = action.item();
+            v_flex()
+                .when(item.separator, |d| {
+                    d.child(div().my_1().h(px(1.)).bg(colors.border_variant))
+                })
+                .child(
+                    div()
+                        .id(("ctx-item", i))
+                        .px_3()
+                        .py_1()
+                        .cursor_pointer()
+                        .hover(|s| s.bg(colors.element_hover))
+                        .child(Label::new(item.label).size(LabelSize::Small).color(
+                            if item.danger {
+                                Color::Error
+                            } else {
+                                Color::Default
+                            },
+                        ))
+                        .on_click(cx.listener(move |app, _, window, cx| {
+                            app.menu = None;
+                            app.perform(action.clone(), window, cx);
+                            cx.notify();
+                        })),
+                )
+        });
+    Some(
+        div()
+            .id("ctx-backdrop")
+            .absolute()
+            .inset_0()
+            .occlude()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |app, _, _, cx| close(app, cx)),
+            )
+            .on_mouse_down(
+                MouseButton::Right,
+                cx.listener(move |app, _, _, cx| close(app, cx)),
+            )
+            .child(deferred(
+                anchored().position(position).snap_to_window().child(
+                    v_flex()
+                        .id("ctx-menu")
+                        .min_w(px(224.))
+                        .py_1()
+                        .rounded_md()
+                        .border_1()
+                        .border_color(colors.border)
+                        .bg(colors.elevated_surface_background)
+                        .shadow_lg()
+                        .occlude()
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .children(items),
+                ),
+            ))
+            .into_any_element(),
+    )
 }

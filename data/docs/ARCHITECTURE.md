@@ -3,7 +3,7 @@
 One desktop process. No backend server.
 
 ```
-apps/desktop (Dioxus UI, UI thread)
+apps/desktop (GPUI UI, main thread; widgets from ferrum-ui + FerrumIDE `ui`)
    │  commands::background(...) ──► AppServices::spawn (dedicated Tokio runtime, 2 workers)
    ▼
 crates/application   ConnectionService · QueryService (supervisor) · safety
@@ -18,13 +18,15 @@ crates/result-grid-core, crates/editor-core  (pure, UI-agnostic models)
 ```
 
 ## Dependency rules (enforced by Cargo manifests)
-- `domain` depends on nothing internal, and on neither Dioxus nor SQLx.
+- `domain` depends on nothing internal, and on neither GPUI nor SQLx.
 - `db-*` adapters depend on `domain` and `db-driver-api` only.
-- `application` depends on traits and adapters, never on Dioxus.
+- `application` depends on traits and adapters, never on GPUI.
 - `desktop` depends on `application`, `domain` and the pure model crates.
 
 ## Threading
-- The UI thread runs Dioxus. All DB, disk and keychain I/O runs on the services runtime
+- The main thread runs GPUI (one root `FerrumData` view owns all UI state; commands are
+  methods on it and update it via `cx.spawn` + `WeakEntity::update`). All DB, disk and
+  keychain I/O runs on the services runtime
   owned by `AppServices`. Keychain calls go through `spawn_blocking`.
 - UI tasks await `JoinHandle`s and `tokio::sync::mpsc` receivers, which work from any
   executor.
