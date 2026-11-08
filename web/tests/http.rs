@@ -1,0 +1,202 @@
+//! End-to-end HTTP tests against the full router (no network).
+#![allow(clippy::unwrap_used)]
+
+use axum::{
+    body::Body,
+    http::{HeaderMap, Method, Request, StatusCode, header},
+};
+use http_body_util::BodyExt;
+use tower::ServiceExt;
+use web_ferrum::{Config, app, routes::assets};
+
+struct Res {
+    status: StatusCode,
+    headers: HeaderMap,
+    body: Vec<u8>,
+}
+
+impl Res {
+    fn text(&self) -> String {
+        String::from_utf8_lossy(&self.body).into_owned()
+    }
+    fn header(&self, name: header::HeaderName) -> &str {
+        self.headers
+            .get(name)
+            .map(|v| v.to_str().unwrap())
+            .unwrap_or("")
+    }
+}
+
+async fn send(req: Request<Body>) -> Res {
+    let res = app(Config::default()).oneshot(req).await.unwrap();
+    let status = res.status();
+    let headers = res.headers().clone();
+    let body = res.into_body().collect().await.unwrap().to_bytes().to_vec();
+    Res {
+        status,
+        headers,
+        body,
+    }
+}
+
+async fn get(uri: &str) -> Res {
+    send(Request::get(uri).body(Body::empty()).unwrap()).await
+}
+
+#[tokio::test]
+async fn pages_render_html_with_title() {
+    for path in ["/", "/ferrumdata", "/ferrumapi", "/ferrum-ide", "/about"] {
+        let res = get(path).await;
+        assert_eq!(res.status, StatusCode::OK, "{path}");
+        assert!(
+            res.header(header::CONTENT_TYPE).starts_with("text/html"),
+            "{path}"
+        );
+        assert!(res.text().contains("<title>"), "{path}");
+        assert_eq!(
+            res.header(header::CACHE_CONTROL),
+            "public, max-age=300",
+            "{path}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn unknown_page_is_html_404() {
+    let res = get("/does-not-exist").await;
+    assert_eq!(res.status, StatusCode::NOT_FOUND);
+    assert!(res.header(header::CONTENT_TYPE).starts_with("text/html"));
+    assert_eq!(res.header(header::CACHE_CONTROL), "no-cache");
+}
+
+#[tokio::test]
+async fn healthz_is_plain_ok() {
+    let res = get("/healthz").await;
+    assert_eq!(res.status, StatusCode::OK);
+    assert_eq!(res.text(), "ok");
+    assert!(res.header(header::CONTENT_TYPE).starts_with("text/plain"));
+    assert_eq!(res.header(header::CACHE_CONTROL), "no-store");
+}
+
+#[tokio::test]
+async fn head_is_supported() {
+    let req = Request::builder()
+        .method(Method::HEAD)
+        .uri("/healthz")
+        .body(Body::empty())
+        .unwrap();
+    let res = send(req).await;
+    assert_eq!(res.status, StatusCode::OK);
+    assert!(res.body.is_empty());
+}
+
+#[tokio::test]
+async fn robots_points_to_sitemap() {
+    let res = get("/robots.txt").await;
+    assert_eq!(res.status, StatusCode::OK);
+    assert!(res.header(header::CONTENT_TYPE).starts_with("text/plain"));
+    assert!(
+        res.text()
+            .contains("Sitemap: http://localhost:8080/sitemap.xml")
+    );
+}
+
+#[tokio::test]
+async fn sitemap_lists_all_pages() {
+    let res = get("/sitemap.xml").await;
+    assert_eq!(res.status, StatusCode::OK);
+    assert!(
+        res.header(header::CONTENT_TYPE)
+            .starts_with("application/xml")
+    );
+    let xml = res.text();
+    for path in ["/", "/ferrumdata", "/ferrumapi", "/ferrum-ide", "/about"] {
+        let loc = format!("<loc>http://localhost:8080{path}</loc>");
+        assert!(xml.contains(&loc), "missing {loc}");
+    }
+    assert_eq!(xml.matches("<url>").count(), 5);
+}
+
+#[tokio::test]
+async fn versioned_asset_is_immutable_css() {
+    let url = assets::url("css/tokens.css");
+    assert!(url.contains("?v="));
+    let res = get(&url).await;
+    assert_eq!(res.status, StatusCode::OK);
+    assert!(res.header(header::CONTENT_TYPE).starts_with("text/css"));
+    assert!(res.header(header::CACHE_CONTROL).contains("immutable"));
+    assert!(
+        res.header(header::CACHE_CONTROL)
+            .contains("max-age=31536000")
+    );
+    assert!(!res.header(header::ETAG).is_empty());
+}
+
+#[tokio::test]
+async fn unversioned_asset_revalidates() {
+    let res = get("/assets/css/tokens.css").await;
+    assert_eq!(res.status, StatusCode::OK);
+    assert!(res.header(header::CONTENT_TYPE).starts_with("text/css"));
+    assert!(!res.header(header::CACHE_CONTROL).contains("immutable"));
+}
+
+#[tokio::test]
+async fn etag_round_trip_gives_304() {
+    let first = get("/assets/css/tokens.css").await;
+    let etag = first.header(header::ETAG).to_owned();
+    assert!(etag.starts_with('"'));
+    let req = Request::get("/assets/css/tokens.css")
+        .header(header::IF_NONE_MATCH, &etag)
+        .body(Body::empty())
+        .unwrap();
+    let res = send(req).await;
+    assert_eq!(res.status, StatusCode::NOT_MODIFIED);
+    assert!(res.body.is_empty());
+    assert_eq!(res.header(header::ETAG), etag);
+
+    let req = Request::get("/assets/css/tokens.css")
+        .header(header::IF_NONE_MATCH, "\"stale\"")
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(send(req).await.status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn missing_asset_is_404() {
+    assert_eq!(
+        get("/assets/css/nope.css").await.status,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn gzip_when_accepted() {
+    let req = Request::get("/")
+        .header(header::ACCEPT_ENCODING, "gzip")
+        .body(Body::empty())
+        .unwrap();
+    let res = send(req).await;
+    assert_eq!(res.status, StatusCode::OK);
+    assert_eq!(res.header(header::CONTENT_ENCODING), "gzip");
+    // gzip magic number
+    assert_eq!(res.body.get(..2), Some(&[0x1f, 0x8b][..]));
+}
+
+#[tokio::test]
+async fn security_headers_on_every_response() {
+    for path in ["/", "/healthz", "/assets/css/tokens.css", "/does-not-exist"] {
+        let res = get(path).await;
+        assert_eq!(
+            res.header(header::X_CONTENT_TYPE_OPTIONS),
+            "nosniff",
+            "{path}"
+        );
+        assert_eq!(
+            res.header(header::REFERRER_POLICY),
+            "strict-origin-when-cross-origin",
+            "{path}"
+        );
+        assert_eq!(res.header(header::X_FRAME_OPTIONS), "DENY", "{path}");
+        assert!(res.headers.get(header::CONTENT_SECURITY_POLICY).is_none());
+    }
+}
