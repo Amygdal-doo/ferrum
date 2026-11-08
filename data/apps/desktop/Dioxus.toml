@@ -1,9 +1,9 @@
 [application]
-name = "ferrum"
+name = "ferrumdata"
 default_platform = "desktop"
 
 [bundle]
-identifier = "dev.ferrum.Ferrum"
-publisher = "Ferrum"
+identifier = "dev.ferrumdata.FerrumData"
+publisher = "FerrumData"
 category = "DeveloperTool"
 short_description = "Local-first database IDE"

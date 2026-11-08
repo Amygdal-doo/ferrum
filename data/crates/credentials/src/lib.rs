@@ -5,7 +5,7 @@
 //! falls back to [`SessionStore`], which keeps secrets in memory only and never
 //! writes them to disk (ADR-007).
 
-use ferrum_domain::{Secret, SecretRef};
+use ferrumdata_domain::{Secret, SecretRef};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -133,7 +133,7 @@ pub fn default_store() -> Arc<dyn CredentialStore> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ferrum_domain::ProfileId;
+    use ferrumdata_domain::ProfileId;
 
     #[test]
     fn session_store_roundtrip() {
@@ -147,13 +147,13 @@ mod tests {
         assert!(store.get(&key).expect("get").is_none());
     }
 
-    /// Touches the real OS keychain; run manually: `cargo test -p ferrum-credentials -- --ignored`.
+    /// Touches the real OS keychain; run manually: `cargo test -p ferrumdata-credentials -- --ignored`.
     #[test]
     #[ignore = "requires an unlocked OS keychain and may prompt"]
     fn keyring_roundtrip() {
         let store = KeyringStore::try_new().expect("keychain available");
         let key = SecretRef {
-            service: "dev.ferrum.test".into(),
+            service: "dev.ferrumdata.test".into(),
             account: ProfileId::new().to_string(),
         };
         store.set(&key, &Secret::new("s3cret")).expect("set");

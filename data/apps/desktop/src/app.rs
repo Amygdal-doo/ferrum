@@ -9,7 +9,7 @@ use crate::components::sql_editor::EditorPane;
 use crate::components::table_view::TableView;
 use crate::state::AppState;
 use dioxus::prelude::*;
-use ferrum_application::AppServices;
+use ferrumdata_application::AppServices;
 
 #[component]
 pub fn App() -> Element {

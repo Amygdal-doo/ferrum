@@ -1,7 +1,7 @@
 //! Local application state stored in a dedicated SQLite file.
 
 use chrono::Utc;
-use ferrum_domain::{AppSettings, ConnectionProfile, EditorTabState, ProfileId};
+use ferrumdata_domain::{AppSettings, ConnectionProfile, EditorTabState, ProfileId};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Row, SqlitePool};
 use std::path::Path;

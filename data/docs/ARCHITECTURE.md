@@ -48,7 +48,7 @@ flight are bounded at roughly 2 × 4 × batch size. When the UI drops its receiv
 tab closed), the supervisor cancels the driver.
 
 ## Local state
-`~/Library/Application Support/dev.Ferrum.Ferrum/ferrum.db` (platform equivalent elsewhere),
+`~/Library/Application Support/dev.FerrumData.FerrumData/ferrumdata.db` (platform equivalent elsewhere),
 SQLite with WAL, migrations in `crates/persistence/migrations` (embedded via
 `sqlx::migrate!`). Tables: `settings` (versioned JSON with serde defaults),
 `connection_profiles` (JSON, no secrets) and `editor_tabs` (autosaved every 1.5 s when changed).

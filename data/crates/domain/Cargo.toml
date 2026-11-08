@@ -1,5 +1,5 @@
 [package]
-name = "ferrum-domain"
+name = "ferrumdata-domain"
 description = "Pure domain types. Must not depend on UI or database drivers."
 version.workspace = true
 edition.workspace = true

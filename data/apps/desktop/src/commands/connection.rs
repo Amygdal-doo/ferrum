@@ -3,8 +3,8 @@
 use super::background;
 use crate::state::{AppState, ConnStatus};
 use dioxus::prelude::*;
-use ferrum_application::{AppServices, PasswordChange};
-use ferrum_domain::{ConnectionProfile, ProfileId};
+use ferrumdata_application::{AppServices, PasswordChange};
+use ferrumdata_domain::{ConnectionProfile, ProfileId};
 
 pub async fn reload_profiles(mut state: AppState, services: AppServices) {
     let svc = services.clone();

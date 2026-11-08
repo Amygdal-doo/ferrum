@@ -6,7 +6,7 @@ pub mod query;
 pub mod schema;
 pub mod workspace;
 
-use ferrum_application::AppServices;
+use ferrumdata_application::AppServices;
 use std::future::Future;
 
 /// Runs `future` on the services runtime and awaits it from the UI task.

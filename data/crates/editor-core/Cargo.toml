@@ -1,5 +1,5 @@
 [package]
-name = "ferrum-editor-core"
+name = "ferrumdata-editor-core"
 description = "Editor model helpers: statement splitting and cursor-to-statement mapping."
 version.workspace = true
 edition.workspace = true

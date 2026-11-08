@@ -12,7 +12,7 @@ A native `<textarea>` plus Rust logic:
 - **Uncontrolled** (`initial_value`, keyed per tab), state updated from `oninput`. A
   controlled textarea in Dioxus desktop can overwrite fast typing when a stale render
   lands, so it is avoided by design.
-- `ferrum-editor-core`: lexical statement splitter (quotes, `--`/`/* */` comments,
+- `ferrumdata-editor-core`: lexical statement splitter (quotes, `--`/`/* */` comments,
   PostgreSQL dollar-quoting, `$1` placeholders) and `statement_at(cursor)`; 7 unit tests.
 - Selection bridge via `document::eval` returning `selectionStart/End` (UTF-16 units),
   converted with `utf16_to_byte_offset` (unit-tested with multi-byte and astral chars).

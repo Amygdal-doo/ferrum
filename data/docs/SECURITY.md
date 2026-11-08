@@ -2,7 +2,7 @@
 
 ## Secrets
 - Passwords live only in the OS vault or in process memory (`SessionStore`); see ADR-007.
-- `ferrum_domain::Secret` has a redacting `Debug`, no `Display` and no `Serialize`.
+- `ferrumdata_domain::Secret` has a redacting `Debug`, no `Display` and no `Serialize`.
 - `ConnectionProfile` stores a `SecretRef` (service + account), never secret material.
   A test asserts the serialized profile contains no `password` field.
 - **Known upstream hazard:** SQLx's `PgConnectOptions` prints the password in its `Debug`
@@ -13,7 +13,7 @@
 
 ## Logging
 `tracing` logs ids, states and sanitized errors only. No SQL text, row values or
-credentials. Default filter: `warn,ferrum_*=info`; override with `RUST_LOG`.
+credentials. Default filter: `warn,ferrumdata_*=info`; override with `RUST_LOG`.
 
 ## Database safety
 - Read-only profiles set `default_transaction_read_only=on` for the session (server
@@ -22,8 +22,8 @@ credentials. Default filter: `warn,ferrum_*=info`; override with `RUST_LOG`.
 - Production-tagged profiles get a confirmation dialog for statements that may mutate
   data. This is a keyword heuristic (`application::safety`), a UX guard only, never a
   security control.
-- User SQL is executed verbatim through `AssertSqlSafe`: Ferrum is a SQL client. Any SQL
-  Ferrum generates itself (row editing, IDE-014) must use bind parameters and dialect
+- User SQL is executed verbatim through `AssertSqlSafe`: FerrumData is a SQL client. Any SQL
+  FerrumData generates itself (row editing, IDE-014) must use bind parameters and dialect
   identifier quoting.
 
 ## TLS

@@ -3,8 +3,8 @@
 use crate::decode::{column_meta, decode_row};
 use crate::error::map_sqlx_error;
 use crate::options::PgOptions;
-use ferrum_db_driver_api::CancellationHandle;
-use ferrum_domain::{DbError, QueryEvent, QueryOutcome, QueryRequest, Secret};
+use ferrumdata_db_driver_api::CancellationHandle;
+use ferrumdata_domain::{DbError, QueryEvent, QueryOutcome, QueryRequest, Secret};
 use futures::TryStreamExt;
 use sqlx::pool::PoolConnection;
 use sqlx::postgres::PgConnection;
@@ -106,7 +106,7 @@ async fn stream(
     secret: &Secret,
 ) -> Result<Streamed, DbError> {
     let map = |e: sqlx::Error| map_sqlx_error(&e, secret);
-    // Raw SQL typed by the user is executed as-is, by design: Ferrum is a SQL
+    // Raw SQL typed by the user is executed as-is, by design: FerrumData is a SQL
     // client. Safety is enforced by DB roles/read-only sessions, not parsing.
     let sql = AssertSqlSafe(request.sql.clone()).into_sql_str();
     let statement = (&mut **conn).prepare(sql).await.map_err(map)?;

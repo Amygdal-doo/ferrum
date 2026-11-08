@@ -1,6 +1,6 @@
 use crate::state::{AppState, ConnStatus};
 use dioxus::prelude::*;
-use ferrum_application::AppServices;
+use ferrumdata_application::AppServices;
 
 #[component]
 pub fn StatusBar() -> Element {

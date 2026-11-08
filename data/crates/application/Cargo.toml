@@ -1,5 +1,5 @@
 [package]
-name = "ferrum-application"
+name = "ferrumdata-application"
 description = "In-process application services (connections, queries, settings)."
 version.workspace = true
 edition.workspace = true
@@ -10,11 +10,11 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-ferrum-domain.workspace = true
-ferrum-db-driver-api.workspace = true
-ferrum-db-postgres.workspace = true
-ferrum-persistence.workspace = true
-ferrum-credentials.workspace = true
+ferrumdata-domain.workspace = true
+ferrumdata-db-driver-api.workspace = true
+ferrumdata-db-postgres.workspace = true
+ferrumdata-persistence.workspace = true
+ferrumdata-credentials.workspace = true
 tokio.workspace = true
 tokio-util.workspace = true
 futures.workspace = true
@@ -24,5 +24,5 @@ uuid.workspace = true
 
 [dev-dependencies]
 async-trait.workspace = true
-ferrum-persistence.workspace = true
+ferrumdata-persistence.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }

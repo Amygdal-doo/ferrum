@@ -1,4 +1,4 @@
-use ferrum_domain::{DbError, DbErrorKind, Endpoint, ResolvedConnectionConfig, TlsMode};
+use ferrumdata_domain::{DbError, DbErrorKind, Endpoint, ResolvedConnectionConfig, TlsMode};
 use sqlx::postgres::{PgConnectOptions, PgSslMode};
 
 /// SQLx options with a redacted `Debug`.
@@ -33,7 +33,7 @@ pub fn connect_options(config: &ResolvedConnectionConfig) -> Result<PgOptions, D
         .host(host)
         .port(*port)
         .ssl_mode(ssl_mode(profile.tls))
-        .application_name("Ferrum");
+        .application_name("FerrumData");
     if let Some(user) = profile.username.as_deref().filter(|u| !u.is_empty()) {
         opts = opts.username(user);
     }
@@ -64,7 +64,7 @@ const fn ssl_mode(mode: TlsMode) -> PgSslMode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ferrum_domain::{ConnectionProfile, Secret};
+    use ferrumdata_domain::{ConnectionProfile, Secret};
 
     #[test]
     fn wrapper_debug_never_prints_password() {

@@ -3,8 +3,8 @@
 
 use crate::state::AppState;
 use dioxus::prelude::*;
-use ferrum_domain::{CellValue, EditorTabId};
-use ferrum_result_grid_core::{Viewport, visible_range};
+use ferrumdata_domain::{CellValue, EditorTabId};
+use ferrumdata_result_grid_core::{Viewport, visible_range};
 
 const ROW_HEIGHT: f64 = 26.0;
 const HEADER_HEIGHT: f64 = 40.0;

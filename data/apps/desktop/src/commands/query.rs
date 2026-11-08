@@ -3,9 +3,9 @@
 use super::background;
 use crate::state::{AppState, ConnStatus, Dialog, TabRun};
 use dioxus::prelude::*;
-use ferrum_application::{AppServices, safety};
-use ferrum_domain::{ConnectionProfile, EditorTabId, ExecutionId, QueryRequest};
-use ferrum_editor_core::{statement_at, utf16_to_byte_offset};
+use ferrumdata_application::{AppServices, safety};
+use ferrumdata_domain::{ConnectionProfile, EditorTabId, ExecutionId, QueryRequest};
+use ferrumdata_editor_core::{statement_at, utf16_to_byte_offset};
 
 /// DOM id of the active editor textarea (only one is mounted at a time).
 pub const EDITOR_ID: &str = "sql-editor";
@@ -94,8 +94,8 @@ pub fn start_run(
             }
             Err(e) => {
                 with_run(state, tab_id, execution_id, |r| {
-                    r.fail(ferrum_domain::DbError::new(
-                        ferrum_domain::DbErrorKind::Internal,
+                    r.fail(ferrumdata_domain::DbError::new(
+                        ferrumdata_domain::DbErrorKind::Internal,
                         e,
                     ));
                 });

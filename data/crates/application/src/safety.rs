@@ -4,7 +4,7 @@
 //! keyword checks to be reliable. Real protection comes from read-only
 //! sessions and database roles.
 
-use ferrum_domain::ConnectionProfile;
+use ferrumdata_domain::ConnectionProfile;
 
 const MUTATING: &[&str] = &[
     "INSERT", "UPDATE", "DELETE", "MERGE", "UPSERT", "DROP", "TRUNCATE", "ALTER", "CREATE",
@@ -54,7 +54,7 @@ pub fn requires_confirmation(profile: &ConnectionProfile, sql: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ferrum_domain::EnvironmentTag;
+    use ferrumdata_domain::EnvironmentTag;
 
     #[test]
     fn detects_leading_keyword_through_comments() {

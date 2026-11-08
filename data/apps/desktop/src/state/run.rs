@@ -1,5 +1,5 @@
-use ferrum_domain::{DbError, ExecutionId, ProfileId, QueryEvent, QueryOutcome, QueryState};
-use ferrum_result_grid_core::{ResultBuffer, WIDTH_SAMPLE_ROWS, estimate_widths};
+use ferrumdata_domain::{DbError, ExecutionId, ProfileId, QueryEvent, QueryOutcome, QueryState};
+use ferrumdata_result_grid_core::{ResultBuffer, WIDTH_SAMPLE_ROWS, estimate_widths};
 use std::time::{Duration, Instant};
 
 /// The latest execution for one editor tab.

@@ -1,5 +1,5 @@
 [package]
-name = "ferrum-db-postgres"
+name = "ferrumdata-db-postgres"
 description = "PostgreSQL adapter built on SQLx."
 version.workspace = true
 edition.workspace = true
@@ -10,8 +10,8 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-ferrum-domain.workspace = true
-ferrum-db-driver-api.workspace = true
+ferrumdata-domain.workspace = true
+ferrumdata-db-driver-api.workspace = true
 async-trait.workspace = true
 futures.workspace = true
 tokio.workspace = true

@@ -1,12 +1,12 @@
 //! Driver contract tests against a real PostgreSQL server.
 //!
-//! Skipped unless `FERRUM_TEST_PG=1`. Start the server with
+//! Skipped unless `FERRUMDATA_TEST_PG=1`. Start the server with
 //! `docker compose up -d postgres`. Override the target with
-//! `FERRUM_TEST_PG_HOST`, `_PORT`, `_USER`, `_PASSWORD`, `_DB`.
+//! `FERRUMDATA_TEST_PG_HOST`, `_PORT`, `_USER`, `_PASSWORD`, `_DB`.
 
-use ferrum_db_driver_api::{DatabaseDriver, DbConnection};
-use ferrum_db_postgres::PostgresDriver;
-use ferrum_domain::{
+use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection};
+use ferrumdata_db_postgres::PostgresDriver;
+use ferrumdata_domain::{
     CellValue, ConnectionProfile, DbErrorKind, Endpoint, ExecutionId, ProfileId, QueryEvent,
     QueryLimits, QueryRequest, ResolvedConnectionConfig, Secret, TlsMode,
 };
@@ -14,13 +14,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 fn env(key: &str, default: &str) -> String {
-    std::env::var(format!("FERRUM_TEST_PG_{key}")).unwrap_or_else(|_| default.to_owned())
+    std::env::var(format!("FERRUMDATA_TEST_PG_{key}")).unwrap_or_else(|_| default.to_owned())
 }
 
 fn enabled() -> bool {
-    let on = std::env::var("FERRUM_TEST_PG").is_ok_and(|v| v == "1");
+    let on = std::env::var("FERRUMDATA_TEST_PG").is_ok_and(|v| v == "1");
     if !on {
-        eprintln!("skipping: set FERRUM_TEST_PG=1 to run PostgreSQL integration tests");
+        eprintln!("skipping: set FERRUMDATA_TEST_PG=1 to run PostgreSQL integration tests");
     }
     on
 }
@@ -31,8 +31,8 @@ fn config(password: &str, read_only: bool) -> ResolvedConnectionConfig {
         host: env("HOST", "127.0.0.1"),
         port: env("PORT", "54329").parse().expect("port"),
     };
-    profile.username = Some(env("USER", "ferrum"));
-    profile.database = Some(env("DB", "ferrum_test"));
+    profile.username = Some(env("USER", "ferrumdata"));
+    profile.database = Some(env("DB", "ferrumdata_test"));
     profile.tls = TlsMode::Disable;
     profile.read_only = read_only;
     ResolvedConnectionConfig {
@@ -43,7 +43,7 @@ fn config(password: &str, read_only: bool) -> ResolvedConnectionConfig {
 
 async fn connect() -> Arc<dyn DbConnection> {
     PostgresDriver
-        .connect(&config(&env("PASSWORD", "ferrum-dev-password"), false))
+        .connect(&config(&env("PASSWORD", "ferrumdata-dev-password"), false))
         .await
         .expect("connect")
 }
@@ -277,7 +277,7 @@ async fn read_only_profile_rejects_writes() {
         return;
     }
     let conn = PostgresDriver
-        .connect(&config(&env("PASSWORD", "ferrum-dev-password"), true))
+        .connect(&config(&env("PASSWORD", "ferrumdata-dev-password"), true))
         .await
         .expect("connect");
     let events = run(
@@ -325,7 +325,7 @@ async fn lists_tables_with_case_preserved_names_and_primary_keys() {
         vec!["orgId".to_owned(), "id".to_owned()]
     );
     assert!(tables[1].primary_key.is_empty());
-    assert_eq!(tables[2].kind, ferrum_domain::TableKind::View);
+    assert_eq!(tables[2].kind, ferrumdata_domain::TableKind::View);
     assert!(
         !conn
             .list_tables()

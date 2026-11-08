@@ -6,7 +6,7 @@ mod run;
 pub use run::TabRun;
 
 use dioxus::prelude::*;
-use ferrum_domain::{
+use ferrumdata_domain::{
     AppSettings, ConnectionProfile, EditorTabId, EditorTabState, ProfileId, TableInfo, TableRef,
     Theme,
 };

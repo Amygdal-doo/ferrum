@@ -5,7 +5,7 @@ use crate::components::connection::ConnectionForm;
 use crate::components::rust_ui::button::{Button, ButtonVariant};
 use crate::state::{AppState, Dialog};
 use dioxus::prelude::*;
-use ferrum_application::AppServices;
+use ferrumdata_application::AppServices;
 
 #[component]
 pub fn Modal(title: String, on_close: EventHandler<()>, children: Element) -> Element {

@@ -6,7 +6,7 @@ License: MIT (see `LICENSE-rust-ui`)
 
 | File | Modifications |
 |------|---------------|
-| button.rs | Removed the `href` prop and router `Link` branch (Ferrum has no router). |
+| button.rs | Removed the `href` prop and router `Link` branch (FerrumData has no router). |
 | badge.rs | none |
 | input.rs | none |
 | label.rs | none |
@@ -16,7 +16,7 @@ License: MIT (see `LICENSE-rust-ui`)
 Not vendored on purpose:
 
 - `data_grid.rs` / `hooks/use_virtual_scroll.rs`: the virtual-scroll hook
-  uses `wasm_bindgen`/`web_sys` and only runs on the web target. Ferrum uses
+  uses `wasm_bindgen`/`web_sys` and only runs on the web target. FerrumData uses
   its own grid built on Dioxus `onscroll` events (see ADR-004).
 
 Updating: copy the new upstream file, re-apply the modifications above,

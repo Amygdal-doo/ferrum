@@ -1,4 +1,4 @@
-# Ferrum
+# FerrumData
 
 A local-first, DataGrip-class database IDE written in Rust: Dioxus 0.7 desktop, Rust/UI
 components, SQLx. No backend server, no React/TypeScript/Tauri/Electron.
@@ -36,15 +36,15 @@ and signing, MongoDB/Redis, AI. The grid shows at most `max_rows` (default 10,00
 
 ## Commands
 ```bash
-cargo desktop                    # run the app (alias for: cargo run -p ferrum-desktop)
+cargo desktop                    # run the app (alias for: cargo run -p ferrumdata-desktop)
 cargo test --workspace           # unit + service tests
 cargo lint                       # clippy, warnings are errors
 cargo fmt --all
 
-docker compose up -d postgres    # local PG on 127.0.0.1:54329 (ferrum / ferrum-dev-password, db ferrum_test)
-FERRUM_TEST_PG=1 cargo test -p ferrum-db-postgres --test postgres
+docker compose up -d postgres    # local PG on 127.0.0.1:54329 (ferrumdata / ferrumdata-dev-password, db ferrumdata_test)
+FERRUMDATA_TEST_PG=1 cargo test -p ferrumdata-db-postgres --test postgres
 
-cargo test -p ferrum-credentials -- --ignored   # real OS keychain round trip (may prompt)
+cargo test -p ferrumdata-credentials -- --ignored   # real OS keychain round trip (may prompt)
 RUST_LOG=debug cargo desktop                     # verbose logs (never include SQL or secrets)
 ```
 
@@ -77,6 +77,6 @@ docs/                    ARCHITECTURE, SECURITY, DRIVER_CONTRACT, QA_TEST_PLAN, 
 ```
 
 ## Local data
-`~/Library/Application Support/dev.Ferrum.Ferrum/ferrum.db` on macOS (OS-appropriate
-elsewhere via `directories`). Deleting it resets Ferrum. Saved passwords live in the OS
-keychain under the service `dev.ferrum.connection`.
+`~/Library/Application Support/dev.FerrumData.FerrumData/ferrumdata.db` on macOS (OS-appropriate
+elsewhere via `directories`). Deleting it resets FerrumData. Saved passwords live in the OS
+keychain under the service `dev.ferrumdata.connection`.

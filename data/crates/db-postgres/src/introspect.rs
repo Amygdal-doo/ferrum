@@ -1,8 +1,8 @@
 //! Catalog queries (pg_catalog, not information_schema, for speed and relkind detail).
 
 use crate::error::map_sqlx_error;
-use ferrum_db_driver_api::DbResult;
-use ferrum_domain::{Secret, TableInfo, TableKind, TableRef};
+use ferrumdata_db_driver_api::DbResult;
+use ferrumdata_domain::{Secret, TableInfo, TableKind, TableRef};
 use sqlx::{PgPool, Row};
 
 const LIST_TABLES: &str = r"

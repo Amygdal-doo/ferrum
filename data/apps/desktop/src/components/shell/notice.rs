@@ -1,7 +1,7 @@
 use crate::commands::background;
 use crate::state::AppState;
 use dioxus::prelude::*;
-use ferrum_application::AppServices;
+use ferrumdata_application::AppServices;
 use std::time::Duration;
 
 /// Transient notice in the bottom-right corner; auto-dismisses.

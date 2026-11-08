@@ -7,7 +7,7 @@ pub mod shell;
 pub mod sql_editor;
 pub mod table_view;
 
-use ferrum_domain::EnvironmentTag;
+use ferrumdata_domain::EnvironmentTag;
 
 /// Tailwind classes for the environment colour dot. Literal strings so the
 /// Tailwind scanner keeps them.

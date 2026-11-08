@@ -10,14 +10,14 @@ publish = false
 
 [workspace.dependencies]
 # Internal crates
-ferrum-domain = { path = "crates/domain" }
-ferrum-db-driver-api = { path = "crates/db-driver-api" }
-ferrum-db-postgres = { path = "crates/db-postgres" }
-ferrum-persistence = { path = "crates/persistence" }
-ferrum-credentials = { path = "crates/credentials" }
-ferrum-application = { path = "crates/application" }
-ferrum-result-grid-core = { path = "crates/result-grid-core" }
-ferrum-editor-core = { path = "crates/editor-core" }
+ferrumdata-domain = { path = "crates/domain" }
+ferrumdata-db-driver-api = { path = "crates/db-driver-api" }
+ferrumdata-db-postgres = { path = "crates/db-postgres" }
+ferrumdata-persistence = { path = "crates/persistence" }
+ferrumdata-credentials = { path = "crates/credentials" }
+ferrumdata-application = { path = "crates/application" }
+ferrumdata-result-grid-core = { path = "crates/result-grid-core" }
+ferrumdata-editor-core = { path = "crates/editor-core" }
 
 # UI — pinned exactly; Rust/UI components are vendored against this version (ADR-002).
 dioxus = { version = "=0.7.10", default-features = false }

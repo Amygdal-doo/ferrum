@@ -1,6 +1,6 @@
 //! Column width estimation from the header and a sample of rows.
 
-use ferrum_domain::{CellValue, ColumnMeta};
+use ferrumdata_domain::{CellValue, ColumnMeta};
 
 pub const MIN_COL_WIDTH: f64 = 72.0;
 pub const MAX_COL_WIDTH: f64 = 360.0;
@@ -37,7 +37,7 @@ pub fn estimate_widths<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ferrum_domain::LogicalType;
+    use ferrumdata_domain::LogicalType;
 
     fn col(name: &str) -> ColumnMeta {
         ColumnMeta {

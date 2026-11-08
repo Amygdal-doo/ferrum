@@ -12,7 +12,7 @@ pub mod safety;
 pub use connections::{ConnectionService, PasswordChange};
 pub use queries::QueryService;
 
-use ferrum_persistence::{AppStore, StoreError};
+use ferrumdata_persistence::{AppStore, StoreError};
 use std::future::Future;
 use std::path::Path;
 use std::sync::Arc;
@@ -59,17 +59,17 @@ pub struct AppServices {
 }
 
 impl AppServices {
-    /// Starts the runtime and opens local state at `data_dir/ferrum.db`.
+    /// Starts the runtime and opens local state at `data_dir/ferrumdata.db`.
     /// Blocks the caller briefly; call before the UI event loop starts.
     pub fn start(data_dir: &Path) -> Result<Self, AppError> {
         std::fs::create_dir_all(data_dir)?;
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
-            .thread_name("ferrum-services")
+            .thread_name("ferrumdata-services")
             .enable_all()
             .build()?;
-        let store = runtime.block_on(AppStore::open(&data_dir.join("ferrum.db")))?;
-        let credentials = ferrum_credentials::default_store();
+        let store = runtime.block_on(AppStore::open(&data_dir.join("ferrumdata.db")))?;
+        let credentials = ferrumdata_credentials::default_store();
         let connections = ConnectionService::new(store.clone(), credentials);
         let queries = QueryService::new(connections.clone());
         Ok(Self {
@@ -98,7 +98,7 @@ mod tests {
     /// Regression: dropping the last handle inside an async context must not panic.
     #[test]
     fn dropping_services_inside_async_context_does_not_panic() {
-        let dir = std::env::temp_dir().join(format!("ferrum-svc-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("ferrumdata-svc-{}", uuid::Uuid::new_v4()));
         let services = AppServices::start(&dir).expect("start");
         let outer = tokio::runtime::Builder::new_current_thread()
             .build()

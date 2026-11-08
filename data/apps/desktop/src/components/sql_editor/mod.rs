@@ -4,7 +4,7 @@
 use crate::commands::{query, workspace};
 use crate::state::AppState;
 use dioxus::prelude::*;
-use ferrum_application::AppServices;
+use ferrumdata_application::AppServices;
 
 /// `tabs_only` renders just the tab bar (used above table-browser tabs).
 #[component]

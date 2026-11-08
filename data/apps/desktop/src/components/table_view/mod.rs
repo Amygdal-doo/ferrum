@@ -5,7 +5,7 @@ use crate::components::result_grid::ResultsPanel;
 use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
 use crate::state::AppState;
 use dioxus::prelude::*;
-use ferrum_application::AppServices;
+use ferrumdata_application::AppServices;
 
 #[component]
 pub fn TableView() -> Element {

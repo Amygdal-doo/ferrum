@@ -1,16 +1,16 @@
 # Local databases for development and integration tests.
 #   docker compose up -d postgres
-#   FERRUM_TEST_PG=1 cargo test -p ferrum-db-postgres --test postgres
+#   FERRUMDATA_TEST_PG=1 cargo test -p ferrumdata-db-postgres --test postgres
 services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: ferrum
-      POSTGRES_PASSWORD: ferrum-dev-password
-      POSTGRES_DB: ferrum_test
+      POSTGRES_USER: ferrumdata
+      POSTGRES_PASSWORD: ferrumdata-dev-password
+      POSTGRES_DB: ferrumdata_test
     ports:
       - "54329:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ferrum -d ferrum_test"]
+      test: ["CMD-SHELL", "pg_isready -U ferrumdata -d ferrumdata_test"]
       interval: 2s
       retries: 30

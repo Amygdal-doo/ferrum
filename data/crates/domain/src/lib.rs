@@ -1,4 +1,4 @@
-//! Ferrum domain model.
+//! FerrumData domain model.
 //!
 //! Pure types shared by every layer. This crate must never depend on UI
 //! frameworks or concrete database drivers.

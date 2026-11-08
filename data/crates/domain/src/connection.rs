@@ -121,7 +121,7 @@ pub struct SecretRef {
 }
 
 impl SecretRef {
-    pub const SERVICE: &'static str = "dev.ferrum.connection";
+    pub const SERVICE: &'static str = "dev.ferrumdata.connection";
 
     #[must_use]
     pub fn for_profile(id: ProfileId) -> Self {

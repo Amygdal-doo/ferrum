@@ -1,6 +1,6 @@
 # Driver contract
 
-Every adapter implements `ferrum_db_driver_api::{DatabaseDriver, DbConnection}`.
+Every adapter implements `ferrumdata_db_driver_api::{DatabaseDriver, DbConnection}`.
 
 ## Rules
 1. `connect` builds a pool and proves it with a round trip. Errors are `DbError`s with a

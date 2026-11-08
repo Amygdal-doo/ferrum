@@ -1,13 +1,13 @@
 //! Profile management, secret resolution and live connection pools.
 
-use ferrum_credentials::{CredentialStore, SessionStore};
-use ferrum_db_driver_api::{DatabaseDriver, DbConnection, ServerInfo};
-use ferrum_db_postgres::PostgresDriver;
-use ferrum_domain::{
+use ferrumdata_credentials::{CredentialStore, SessionStore};
+use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection, ServerInfo};
+use ferrumdata_db_postgres::PostgresDriver;
+use ferrumdata_domain::{
     ConnectionProfile, DatabaseEngine, DbError, DbErrorKind, ProfileId, ResolvedConnectionConfig,
     Secret, SecretRef,
 };
-use ferrum_persistence::AppStore;
+use ferrumdata_persistence::AppStore;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -171,7 +171,7 @@ impl ConnectionService {
     pub async fn list_tables(
         &self,
         id: ProfileId,
-    ) -> Result<Vec<ferrum_domain::TableInfo>, DbError> {
+    ) -> Result<Vec<ferrumdata_domain::TableInfo>, DbError> {
         self.ensure_connected(id).await?.list_tables().await
     }
 
@@ -212,7 +212,7 @@ impl ConnectionService {
     async fn vault_call<T, F>(&self, f: F) -> Result<T, DbError>
     where
         T: Send + 'static,
-        F: FnOnce(&dyn CredentialStore) -> ferrum_credentials::CredentialResult<T> + Send + 'static,
+        F: FnOnce(&dyn CredentialStore) -> ferrumdata_credentials::CredentialResult<T> + Send + 'static,
     {
         let vault = self.vault.clone();
         tokio::task::spawn_blocking(move || f(vault.as_ref()))

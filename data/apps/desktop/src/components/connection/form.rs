@@ -8,8 +8,8 @@ use crate::components::rust_ui::input::{Input, InputType};
 use crate::components::rust_ui::label::Label;
 use crate::state::AppState;
 use dioxus::prelude::*;
-use ferrum_application::{AppServices, PasswordChange};
-use ferrum_domain::{ConnectionProfile, Endpoint, EnvironmentTag, Secret, TlsMode};
+use ferrumdata_application::{AppServices, PasswordChange};
+use ferrumdata_domain::{ConnectionProfile, Endpoint, EnvironmentTag, Secret, TlsMode};
 
 #[derive(Clone, PartialEq)]
 enum TestState {

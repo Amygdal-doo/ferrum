@@ -1,4 +1,4 @@
--- Ferrum local application state. Target-database data never lives here,
+-- FerrumData local application state. Target-database data never lives here,
 -- and neither do secrets (those are in the OS credential vault).
 
 CREATE TABLE settings (

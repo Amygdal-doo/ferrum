@@ -1,5 +1,5 @@
 [package]
-name = "ferrum-persistence"
+name = "ferrumdata-persistence"
 description = "Local application state: settings, profiles, workspace (SQLite)."
 version.workspace = true
 edition.workspace = true
@@ -10,7 +10,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
-ferrum-domain.workspace = true
+ferrumdata-domain.workspace = true
 sqlx = { workspace = true, features = ["runtime-tokio", "sqlite", "migrate", "macros"] }
 serde.workspace = true
 serde_json.workspace = true

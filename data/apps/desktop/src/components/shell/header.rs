@@ -5,8 +5,8 @@ use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
 use crate::components::rust_ui::kbd::Kbd;
 use crate::state::AppState;
 use dioxus::prelude::*;
-use ferrum_application::AppServices;
-use ferrum_domain::{ProfileId, Theme};
+use ferrumdata_application::AppServices;
+use ferrumdata_domain::{ProfileId, Theme};
 
 #[component]
 pub fn Header() -> Element {
@@ -34,7 +34,7 @@ pub fn Header() -> Element {
 
     rsx! {
         header { class: "flex h-12 shrink-0 items-center gap-3 border-b bg-sidenav px-3",
-            span { class: "text-sm font-semibold tracking-tight", "Ferrum" }
+            span { class: "text-sm font-semibold tracking-tight", "FerrumData" }
             div { class: "mx-2 h-5 w-px bg-border" }
             if let Some(p) = &profile {
                 span { class: "size-2.5 rounded-full {env_dot_class(p.env)}", title: "{p.env.label()}" }

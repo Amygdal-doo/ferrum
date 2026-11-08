@@ -3,8 +3,8 @@
 use super::{background, query};
 use crate::state::{AppState, ConnStatus, EditorTab, SchemaLoad};
 use dioxus::prelude::*;
-use ferrum_application::{AppServices, browse::browse_query};
-use ferrum_domain::{ProfileId, TableInfo};
+use ferrumdata_application::{AppServices, browse::browse_query};
+use ferrumdata_domain::{ProfileId, TableInfo};
 
 /// Expands/collapses a connection's table tree, loading it on first expand.
 pub fn toggle(mut state: AppState, services: AppServices, id: ProfileId) {

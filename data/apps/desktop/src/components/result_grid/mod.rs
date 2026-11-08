@@ -5,7 +5,7 @@ mod grid;
 use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
 use crate::state::{AppState, TabRun};
 use dioxus::prelude::*;
-use ferrum_domain::{
+use ferrumdata_domain::{
     CellValue, ColumnMeta, EditorTabId, ExecutionId, LogicalType, ProfileId, QueryState,
 };
 use grid::VirtualGrid;
@@ -115,8 +115,8 @@ fn synthetic_run(rows: usize) -> TabRun {
         "-- synthetic".into(),
         rows,
     );
-    run.apply(ferrum_domain::QueryEvent::Started);
-    run.apply(ferrum_domain::QueryEvent::Metadata(vec![
+    run.apply(ferrumdata_domain::QueryEvent::Started);
+    run.apply(ferrumdata_domain::QueryEvent::Metadata(vec![
         col("id", LogicalType::Integer),
         col("email", LogicalType::Text),
         col("score", LogicalType::Float),
@@ -138,9 +138,9 @@ fn synthetic_run(rows: usize) -> TabRun {
             ]
         })
         .collect();
-    run.apply(ferrum_domain::QueryEvent::Rows(batch));
-    run.apply(ferrum_domain::QueryEvent::Completed(
-        ferrum_domain::QueryOutcome {
+    run.apply(ferrumdata_domain::QueryEvent::Rows(batch));
+    run.apply(ferrumdata_domain::QueryEvent::Completed(
+        ferrumdata_domain::QueryOutcome {
             rows_returned: rows,
             rows_affected: None,
             truncated: false,

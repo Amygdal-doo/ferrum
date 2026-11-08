@@ -1,5 +1,5 @@
 {
-  "name": "ferrum-desktop-css",
+  "name": "ferrumdata-desktop-css",
   "private": true,
   "description": "Build-time Tailwind CSS tooling only. No JavaScript ships in the app.",
   "scripts": {

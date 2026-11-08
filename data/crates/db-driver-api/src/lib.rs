@@ -1,10 +1,10 @@
 //! Contract every database adapter implements.
 //!
-//! Adapters depend on this crate and `ferrum-domain`, never on UI code.
+//! Adapters depend on this crate and `ferrumdata-domain`, never on UI code.
 //! See `docs/DRIVER_CONTRACT.md` for the behavioural rules tested per driver.
 
 use async_trait::async_trait;
-use ferrum_domain::{
+use ferrumdata_domain::{
     CapabilitySet, DatabaseEngine, DbError, QueryEvent, QueryRequest, ResolvedConnectionConfig,
     TableInfo,
 };

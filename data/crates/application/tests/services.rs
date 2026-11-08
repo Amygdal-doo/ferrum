@@ -1,17 +1,17 @@
 //! Service-level tests using an in-memory store and a fake driver.
 
 use async_trait::async_trait;
-use ferrum_application::{ConnectionService, PasswordChange, QueryService};
-use ferrum_credentials::{CredentialStore, SessionStore};
-use ferrum_db_driver_api::{
+use ferrumdata_application::{ConnectionService, PasswordChange, QueryService};
+use ferrumdata_credentials::{CredentialStore, SessionStore};
+use ferrumdata_db_driver_api::{
     CancellationHandle, DatabaseDriver, DbConnection, DbResult, QueryExecution, ServerInfo,
     event_channel,
 };
-use ferrum_domain::{
+use ferrumdata_domain::{
     CapabilitySet, CellValue, ConnectionProfile, DatabaseEngine, ExecutionId, QueryEvent,
     QueryLimits, QueryOutcome, QueryRequest, ResolvedConnectionConfig, Secret, SecretRef,
 };
-use ferrum_persistence::AppStore;
+use ferrumdata_persistence::AppStore;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -54,7 +54,7 @@ impl DbConnection for FakeConn {
             version: "Fake 1.0".into(),
         })
     }
-    async fn list_tables(&self) -> DbResult<Vec<ferrum_domain::TableInfo>> {
+    async fn list_tables(&self) -> DbResult<Vec<ferrumdata_domain::TableInfo>> {
         Ok(Vec::new())
     }
     async fn execute(&self, _request: QueryRequest) -> DbResult<QueryExecution> {

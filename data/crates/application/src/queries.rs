@@ -1,8 +1,8 @@
 //! Query execution supervisor: stamps events, tracks cancellation handles.
 
 use crate::ConnectionService;
-use ferrum_db_driver_api::{CancellationHandle, EVENT_CHANNEL_CAPACITY};
-use ferrum_domain::{DbError, ExecutionEnvelope, ExecutionId, QueryEvent, QueryRequest};
+use ferrumdata_db_driver_api::{CancellationHandle, EVENT_CHANNEL_CAPACITY};
+use ferrumdata_domain::{DbError, ExecutionEnvelope, ExecutionId, QueryEvent, QueryRequest};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 use tokio::sync::mpsc;
@@ -66,7 +66,7 @@ impl QueryService {
             }
             if !saw_terminal {
                 let event = QueryEvent::Failed(DbError::new(
-                    ferrum_domain::DbErrorKind::Internal,
+                    ferrumdata_domain::DbErrorKind::Internal,
                     "Driver ended the stream without a result",
                 ));
                 let _ = tx

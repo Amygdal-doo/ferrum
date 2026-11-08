@@ -1,4 +1,4 @@
-use ferrum_domain::{CellValue, ColumnMeta, RowBatch};
+use ferrumdata_domain::{CellValue, ColumnMeta, RowBatch};
 use std::ops::Range;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

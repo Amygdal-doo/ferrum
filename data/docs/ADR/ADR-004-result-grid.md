@@ -5,7 +5,7 @@ Status: Accepted (interim) · benchmark numbers pending · 2026-10-18
 ## Decision
 - Custom grid in `apps/desktop/src/components/result_grid/` driven by Dioxus `onscroll`
   and `onresize` events (no `web_sys`). Rust/UI's grid is web-only (ADR-002).
-- Pure viewport math in `ferrum-result-grid-core::visible_range`; a unit test shows the
+- Pure viewport math in `ferrumdata-result-grid-core::visible_range`; a unit test shows the
   number of rendered rows is bounded by `viewport/row_height + 2·overscan + 1` for 100k rows.
 - Rows live in a `ResultBuffer` capped by the client fetch limit (default 10,000; settings
   `query_limits.max_rows`). The driver stops fetching at the limit, marks the result

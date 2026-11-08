@@ -1,4 +1,4 @@
-//! Ferrum desktop entry point.
+//! FerrumData desktop entry point.
 
 mod app;
 mod commands;
@@ -6,7 +6,7 @@ mod components;
 mod state;
 
 use dioxus::desktop::{Config, LogicalSize, WindowBuilder};
-use ferrum_application::AppServices;
+use ferrumdata_application::AppServices;
 use tracing_subscriber::EnvFilter;
 
 /// Compiled Tailwind output, embedded so `cargo run` works without `dx`.
@@ -15,21 +15,21 @@ const TAILWIND_CSS: &str = include_str!("../assets/tailwind.css");
 
 fn main() {
     init_tracing();
-    let Some(dirs) = directories::ProjectDirs::from("dev", "Ferrum", "Ferrum") else {
-        eprintln!("Ferrum: could not determine a home directory for local state");
+    let Some(dirs) = directories::ProjectDirs::from("dev", "FerrumData", "FerrumData") else {
+        eprintln!("FerrumData: could not determine a home directory for local state");
         std::process::exit(1);
     };
     let services = match AppServices::start(dirs.data_dir()) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("Ferrum failed to start: {e}");
+            eprintln!("FerrumData failed to start: {e}");
             std::process::exit(1);
         }
     };
-    tracing::info!(data_dir = %dirs.data_dir().display(), vault = services.connections.vault_name(), "starting Ferrum");
+    tracing::info!(data_dir = %dirs.data_dir().display(), vault = services.connections.vault_name(), "starting FerrumData");
 
     let window = WindowBuilder::new()
-        .with_title("Ferrum")
+        .with_title("FerrumData")
         .with_inner_size(LogicalSize::new(1360.0, 860.0))
         .with_min_inner_size(LogicalSize::new(900.0, 560.0))
         .with_always_on_top(false);
@@ -48,7 +48,7 @@ fn main() {
 /// sanitized error messages. Override verbosity with `RUST_LOG`.
 fn init_tracing() {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        EnvFilter::new("warn,ferrum_desktop=info,ferrum_application=info,ferrum_db_postgres=info")
+        EnvFilter::new("warn,ferrumdata_desktop=info,ferrumdata_application=info,ferrumdata_db_postgres=info")
     });
     tracing_subscriber::fmt()
         .with_env_filter(filter)

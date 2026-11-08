@@ -3,7 +3,7 @@
 use super::background;
 use crate::state::{AppState, EditorTab};
 use dioxus::prelude::*;
-use ferrum_application::AppServices;
+use ferrumdata_application::AppServices;
 use std::time::Duration;
 
 const AUTOSAVE_INTERVAL: Duration = Duration::from_millis(1500);
@@ -124,7 +124,7 @@ pub fn new_tab(mut state: AppState, services: AppServices) {
     spawn(save_tabs(state, services));
 }
 
-pub fn close_tab(mut state: AppState, services: AppServices, id: ferrum_domain::EditorTabId) {
+pub fn close_tab(mut state: AppState, services: AppServices, id: ferrumdata_domain::EditorTabId) {
     if let Some(run) = state.runs.write().remove(&id) {
         services.queries.cancel(run.execution_id);
     }

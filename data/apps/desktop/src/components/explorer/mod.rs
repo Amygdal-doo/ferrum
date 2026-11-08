@@ -3,8 +3,8 @@
 use crate::commands::schema;
 use crate::state::{AppState, SchemaLoad};
 use dioxus::prelude::*;
-use ferrum_application::AppServices;
-use ferrum_domain::{ProfileId, TableInfo, TableKind};
+use ferrumdata_application::AppServices;
+use ferrumdata_domain::{ProfileId, TableInfo, TableKind};
 
 /// Max rows rendered in one tree; beyond this the user is asked to filter.
 /// Keeps DOM size bounded for schemas with thousands of objects.
@@ -107,7 +107,7 @@ fn TableItem(profile_id: ProfileId, info: TableInfo) -> Element {
     let title = format!(
         "{} ({}) {rows}",
         info.table
-            .qualified(ferrum_domain::DatabaseEngine::Postgres),
+            .qualified(ferrumdata_domain::DatabaseEngine::Postgres),
         info.kind.label()
     );
     let open = info.clone();

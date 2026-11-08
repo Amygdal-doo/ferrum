@@ -1,5 +1,5 @@
 use super::*;
-use ferrum_domain::{EditorTabId, SecretRef, Theme};
+use ferrumdata_domain::{EditorTabId, SecretRef, Theme};
 
 #[tokio::test]
 async fn settings_default_then_roundtrip() {
@@ -48,7 +48,7 @@ async fn tabs_are_replaced_atomically_and_ordered() {
         sql: format!("select {pos};"),
         profile_id: None,
         position: pos,
-        table: (pos == 7).then(|| ferrum_domain::TableRef {
+        table: (pos == 7).then(|| ferrumdata_domain::TableRef {
             schema: Some("public".into()),
             name: "User".into(),
         }),
@@ -70,7 +70,7 @@ async fn tabs_are_replaced_atomically_and_ordered() {
 
 #[tokio::test]
 async fn reopening_a_file_keeps_data() {
-    let dir = std::env::temp_dir().join(format!("ferrum-test-{}", EditorTabId::new()));
+    let dir = std::env::temp_dir().join(format!("ferrumdata-test-{}", EditorTabId::new()));
     std::fs::create_dir_all(&dir).expect("mkdir");
     let path = dir.join("state.db");
     {

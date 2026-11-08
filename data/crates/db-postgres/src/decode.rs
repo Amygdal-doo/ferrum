@@ -1,6 +1,6 @@
 //! PostgreSQL row → engine-neutral cells.
 
-use ferrum_domain::{CellValue, ColumnMeta, LogicalType};
+use ferrumdata_domain::{CellValue, ColumnMeta, LogicalType};
 use sqlx::postgres::{PgColumn, PgRow, PgTypeKind};
 use sqlx::{Column, Row, TypeInfo, ValueRef};
 

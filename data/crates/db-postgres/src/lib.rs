@@ -8,11 +8,11 @@ mod numeric;
 mod options;
 
 use async_trait::async_trait;
-use ferrum_db_driver_api::{
+use ferrumdata_db_driver_api::{
     CancellationHandle, DatabaseDriver, DbConnection, DbResult, QueryExecution, ServerInfo,
     event_channel,
 };
-use ferrum_domain::{
+use ferrumdata_domain::{
     CapabilitySet, DatabaseEngine, QueryRequest, ResolvedConnectionConfig, Secret, TableInfo,
 };
 use sqlx::PgPool;

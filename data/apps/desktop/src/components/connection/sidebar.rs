@@ -5,8 +5,8 @@ use crate::components::rust_ui::button::{Button, ButtonSize, ButtonVariant};
 use crate::state::SchemaLoad;
 use crate::state::{AppState, ConnStatus, Dialog};
 use dioxus::prelude::*;
-use ferrum_application::AppServices;
-use ferrum_domain::ConnectionProfile;
+use ferrumdata_application::AppServices;
+use ferrumdata_domain::ConnectionProfile;
 
 #[component]
 pub fn Sidebar() -> Element {

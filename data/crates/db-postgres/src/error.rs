@@ -1,4 +1,4 @@
-use ferrum_domain::{DbError, DbErrorKind, Secret};
+use ferrumdata_domain::{DbError, DbErrorKind, Secret};
 use sqlx::postgres::PgDatabaseError;
 
 /// Converts a SQLx error into a UI-safe [`DbError`], scrubbing the password
