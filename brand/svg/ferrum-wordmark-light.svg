@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2500 1024" width="2500" height="1024">
+  <title>Ferrum</title>
+    
+  <defs>
+    <linearGradient id="wm-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b241c"/>
+      <stop offset="1" stop-color="#14110d"/>
+    </linearGradient>
+    <radialGradient id="wm-glow" cx="0.3" cy="0.25" r="0.9">
+      <stop offset="0" stop-color="#E8743B" stop-opacity="0.22"/>
+      <stop offset="0.6" stop-color="#E8743B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="48" y="48" width="928" height="928" rx="208" fill="url(#wm-bg)"/>
+  <rect x="48" y="48" width="928" height="928" rx="208" fill="url(#wm-glow)"/>
+  <rect x="96" y="96" width="832" height="832" rx="164" fill="none" stroke="#E8743B" stroke-width="28"/>
+  <g transform="translate(0 -34)">
+  <g fill="none" stroke="#E8743B" stroke-opacity="0.18" stroke-width="12" stroke-linejoin="round">
+    <polygon points="830.0,560.0 671.0,835.4 353.0,835.4 194.0,560.0 353.0,284.6 671.0,284.6"/>
+    <polygon points="712.0,560.0 612.0,733.2 412.0,733.2 312.0,560.0 412.0,386.8 612.0,386.8"/>
+  </g>
+  <g fill="#E8743B" fill-opacity="0.45"><circle cx="830.0" cy="560.0" r="20"/><circle cx="671.0" cy="835.4" r="20"/><circle cx="353.0" cy="835.4" r="20"/><circle cx="194.0" cy="560.0" r="20"/><circle cx="353.0" cy="284.6" r="20"/><circle cx="671.0" cy="284.6" r="20"/></g>
+  <g fill="none" stroke="#f1e9df" stroke-width="62" stroke-linecap="butt" stroke-linejoin="miter"><path d="M330 730 V390 H530"/><path d="M330 555 H485"/></g>
+  <g fill="none" stroke="#E8743B" stroke-width="62" stroke-linecap="butt" stroke-linejoin="round"><path d="M584 605 H768 A92 126 0 1 0 748 692"/></g>
+  
+  </g>
+  
+
+  <g transform="translate(1110 64) scale(0.82)" fill="none" stroke="#1f1913" stroke-width="62" stroke-linecap="butt" stroke-linejoin="round">
+    <path transform="translate(-330 0)" d="M330 730 V390 H530"/><path transform="translate(-330 0)" d="M330 555 H485"/><path transform="translate(-314 0)" d="M584 605 H768 A92 126 0 1 0 748 692"/><path transform="translate(-40 0)" d="M600 730 V480"/><path transform="translate(-40 0)" d="M600 580 Q600 480 700 480 H735"/><path transform="translate(155 0)" d="M600 730 V480"/><path transform="translate(155 0)" d="M600 580 Q600 480 700 480 H735"/><path transform="translate(350 0)" d="M600 480 V640 Q600 730 680 730 Q760 730 760 640"/><path transform="translate(350 0)" d="M760 480 V730"/><path transform="translate(655 0)" d="M560 730 V480"/><path transform="translate(655 0)" d="M560 570 Q560 480 640 480 Q700 480 700 560 V730"/><path transform="translate(655 0)" d="M700 560 Q700 480 770 480 Q840 480 840 560 V730"/>
+  </g>
+</svg>

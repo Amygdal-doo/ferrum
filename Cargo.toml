@@ -7,6 +7,7 @@
 resolver = "3"
 members = [
     "shared/*",
+    "brand/render",
     "api/apps/*",
     "api/crates/*",
     "git/apps/*",
@@ -28,6 +29,7 @@ publish = false
 
 [workspace.dependencies]
 # Shared
+resvg = { version = "0.46", default-features = false }
 ferrum-ui = { path = "shared/ui" }
 
 # GPUI + Zed UI (from the FerrumIDE fork)

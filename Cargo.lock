@@ -2035,6 +2035,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrum-brand"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "resvg",
+]
+
+[[package]]
 name = "ferrum-ui"
 version = "0.1.0"
 dependencies = [

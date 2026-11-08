@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Ferrum data</title>
+  <defs>
+    <linearGradient id="data-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b241c"/>
+      <stop offset="1" stop-color="#14110d"/>
+    </linearGradient>
+    <radialGradient id="data-glow" cx="0.3" cy="0.25" r="0.9">
+      <stop offset="0" stop-color="#A07CF0" stop-opacity="0.22"/>
+      <stop offset="0.6" stop-color="#A07CF0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="48" y="48" width="928" height="928" rx="208" fill="url(#data-bg)"/>
+  <rect x="48" y="48" width="928" height="928" rx="208" fill="url(#data-glow)"/>
+  <rect x="96" y="96" width="832" height="832" rx="164" fill="none" stroke="#A07CF0" stroke-width="28"/>
+  <g transform="translate(0 -34)">
+  <g fill="none" stroke="#A07CF0" stroke-opacity="0.18" stroke-width="12" stroke-linejoin="round">
+    <polygon points="830.0,560.0 671.0,835.4 353.0,835.4 194.0,560.0 353.0,284.6 671.0,284.6"/>
+    <polygon points="712.0,560.0 612.0,733.2 412.0,733.2 312.0,560.0 412.0,386.8 612.0,386.8"/>
+  </g>
+  <g fill="#A07CF0" fill-opacity="0.45"><circle cx="830.0" cy="560.0" r="20"/><circle cx="671.0" cy="835.4" r="20"/><circle cx="353.0" cy="835.4" r="20"/><circle cx="194.0" cy="560.0" r="20"/><circle cx="353.0" cy="284.6" r="20"/><circle cx="671.0" cy="284.6" r="20"/></g>
+  <g fill="none" stroke="#f1e9df" stroke-width="62" stroke-linecap="butt" stroke-linejoin="miter"><path d="M330 730 V390 H530"/><path d="M330 555 H485"/></g>
+  <g fill="none" stroke="#A07CF0" stroke-width="62" stroke-linecap="butt" stroke-linejoin="round"><path d="M762 390 V730"/><path d="M762 605 A88 125 0 1 0 762 605.1"/></g>
+  
+  </g>
+  <circle cx="800" cy="224" r="128" fill="#16130f"/><circle cx="800" cy="224" r="106" fill="#A07CF0"/><g transform="translate(800 224)"><path fill="none" stroke="#16130f" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" d="M-60 -45 A60 22 0 1 0 60 -45 A60 22 0 1 0 -60 -45 V45 A60 22 0 0 0 60 45 V-45 M-60 0 A60 22 0 0 0 60 0"/></g>
+</svg>

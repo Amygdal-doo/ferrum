@@ -1,4 +1,5 @@
 [alias]
+brand = "run -p ferrum-brand --"
 api = "run -p ferrumapi-desktop"
 git-ui = "run -p ferrumgit-desktop"
 desktop = "run -p ferrumdata-desktop"
