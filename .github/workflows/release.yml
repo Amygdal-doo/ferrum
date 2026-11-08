@@ -1,0 +1,126 @@
+# Publishes a Ferrum app release when a tag `<app-id>-v<semver>` is pushed,
+# e.g. `api-v0.2.0`. FerrumToolbox reads these releases.
+#
+# Assets per target: `<app-id>-<version>-<target>.tar.gz` (binary at the archive
+# root) plus `<same>.sha256`.
+#
+# Secrets:
+#   SUBMODULE_TOKEN  A token with read access to Amygdal-doo/ferrum-ide. Every
+#                    app needs the ide/ submodule checked out, because the apps
+#                    depend on its GPUI crates by path.
+name: Release
+
+on:
+  push:
+    tags: ["*-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.parse.outputs.app }}
+      version: ${{ steps.parse.outputs.version }}
+      package: ${{ steps.parse.outputs.package }}
+      binaries: ${{ steps.parse.outputs.binaries }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: parse
+        name: Parse tag
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          app="${tag%%-v*}"
+          version="${tag#*-v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$version' is not a semver version"; exit 1
+          fi
+          case "$app" in
+            ide)     package=zed;                   binaries="zed" ;;
+            api)     package=ferrumapi-desktop;     binaries="ferrumapi" ;;
+            git)     package=ferrumgit-desktop;     binaries="ferrumgit" ;;
+            data)    package=ferrumdata-desktop;    binaries="ferrumdata" ;;
+            term)    package="ferrumterm-gui ferrumterm-cli"; binaries="ferrumterm fterm" ;;
+            toolbox) package=ferrumtoolbox-desktop; binaries="ferrum-toolbox" ;;
+            *) echo "::error::unknown app id '$app'"; exit 1 ;;
+          esac
+          {
+            echo "app=$app"
+            echo "version=$version"
+            echo "package=$package"
+            echo "binaries=$binaries"
+          } >> "$GITHUB_OUTPUT"
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          git fetch --force origin "refs/tags/${tag}:refs/tags/${tag}"
+          notes="$(git tag -l --format='%(contents)' "$tag")"
+          prerelease=""
+          [[ "${{ steps.parse.outputs.version }}" == *-* ]] && prerelease="--prerelease"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag exists; assets will be replaced."
+          elif [ -n "$notes" ] && [ "$notes" != "$tag" ]; then
+            gh release create "$tag" --title "$tag" --notes "$notes" $prerelease
+          else
+            gh release create "$tag" --title "$tag" --generate-notes $prerelease
+          fi
+
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-14
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    env:
+      APP: ${{ needs.prepare.outputs.app }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PACKAGE: ${{ needs.prepare.outputs.package }}
+      BINARIES: ${{ needs.prepare.outputs.binaries }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.SUBMODULE_TOKEN }}
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: ide/script/linux
+      - name: Build
+        run: |
+          if [ "$APP" = "ide" ]; then
+            cd ide
+          fi
+          rustup target add "${{ matrix.target }}"
+          args=()
+          for package in $PACKAGE; do args+=(-p "$package"); done
+          cargo build --release --locked --target "${{ matrix.target }}" "${args[@]}"
+          echo "TARGET_DIR=$PWD/target/${{ matrix.target }}/release" >> "$GITHUB_ENV"
+      - name: Package
+        run: |
+          name="${APP}-${VERSION}-${{ matrix.target }}.tar.gz"
+          staging="$(mktemp -d)"
+          for binary in $BINARIES; do
+            cp "$TARGET_DIR/$binary" "$staging/"
+          done
+          tar -C "$staging" -czf "$name" .
+          if command -v sha256sum >/dev/null; then
+            sha256sum "$name" > "$name.sha256"
+          else
+            shasum -a 256 "$name" > "$name.sha256"
+          fi
+          echo "ASSET=$name" >> "$GITHUB_ENV"
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" "$ASSET" "$ASSET.sha256" --clobber

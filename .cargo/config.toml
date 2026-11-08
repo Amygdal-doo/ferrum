@@ -4,6 +4,7 @@ git-ui = "run -p ferrumgit-desktop"
 desktop = "run -p ferrumdata-desktop"
 term = "run -p ferrumterm-gui"
 fterm = "run -p ferrumterm-cli --"
+toolbox = "run -p ferrumtoolbox-desktop"
 lint = "clippy --workspace --all-targets -- -D warnings"
 
 [env]

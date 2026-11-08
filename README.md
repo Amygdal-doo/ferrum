@@ -11,13 +11,14 @@ one look through `shared/ui`.
 | `git/` | FerrumGIT: Git client | GPUI + `ferrum-ui` |
 | `data/` | FerrumData: database IDE | GPUI + `ferrum-ui` |
 | `term/` | FerrumTerm: terminal server, GUI and CLI | GPUI GUI, crossterm CLI |
+| `toolbox/` | FerrumToolbox: installs, updates and launches the apps | GPUI + `ferrum-ui` |
 | `shared/ui` | `ferrum-ui`: shared shell and widgets | GPUI + Zed `ui`/`theme` |
 | `web/` | Marketing site | axum + maud (standalone package) |
 
 ## Layout
 
 - The root `Cargo.toml` is a single workspace for `shared/`, `api/`, `git/`,
-  `data/` and `term/`. It has one `Cargo.lock` and one toolchain
+  `data/`, `term/` and `toolbox/`. It has one `Cargo.lock` and one toolchain
   (`rust-toolchain.toml`).
 - `ide/` keeps its own workspace and toolchain so merges from upstream Zed
   stay easy. The other tools depend on its `gpui`, `gpui_platform`, `ui`,
@@ -52,6 +53,7 @@ cargo git-ui     # FerrumGIT
 cargo desktop    # FerrumData
 cargo term       # FerrumTerm GUI
 cargo fterm      # FerrumTerm CLI
+cargo toolbox    # FerrumToolbox
 cargo lint       # clippy, whole workspace, -D warnings
 cargo test --workspace
 
@@ -65,3 +67,17 @@ The first build compiles GPUI, which takes a few minutes. Dependencies build at
 `opt-level = 2` even in dev, because GPUI is too slow unoptimized.
 
 Each product folder keeps its own `README.md`, `docs/` and `LICENSE`.
+
+## Releases
+
+Each app is versioned on its own, through GitHub Releases tagged
+`<app-id>-v<semver>` (for example `api-v0.2.0`):
+
+```bash
+scripts/release.sh api 0.2.0 -m "Release notes"
+git push origin api-v0.2.0     # runs .github/workflows/release.yml
+```
+
+FerrumToolbox reads these releases to install and update the apps. See
+`toolbox/README.md` for the conventions and the `SUBMODULE_TOKEN` secret
+that the workflow needs.
