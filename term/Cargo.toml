@@ -1,0 +1,57 @@
+[workspace]
+resolver = "3"
+members = ["apps/*", "crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[workspace.dependencies]
+ferrumterm-protocol = { path = "crates/protocol" }
+ferrumterm-emulator = { path = "crates/emulator" }
+ferrumterm-server = { path = "crates/server" }
+ferrumterm-client = { path = "crates/client" }
+
+# Terminal
+alacritty_terminal = "0.25"
+portable-pty = "0.9"
+
+# GUI (GPU)
+winit = "0.30"
+wgpu = "28"
+glyphon = "0.10"
+pollster = "0.4"
+arboard = "3"
+unicode-width = "0.2"
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+crossterm = "0.29"
+
+# Async
+tokio = { version = "1.53", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util", "fs", "process", "signal"] }
+
+# Utilities
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "fmt"] }
+directories = "6.0"
+base64 = "0.22"
+getrandom = "0.3"
+tempfile = "3"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

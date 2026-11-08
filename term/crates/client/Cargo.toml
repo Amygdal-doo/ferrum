@@ -1,0 +1,19 @@
+[package]
+name = "ferrumterm-client"
+description = "Async client for the FerrumTerm server (Unix socket or token-authenticated TCP)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrumterm-protocol.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+directories.workspace = true

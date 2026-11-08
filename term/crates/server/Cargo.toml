@@ -1,0 +1,25 @@
+[package]
+name = "ferrumterm-server"
+description = "Persistent multiplexer daemon: sessions, windows, split blocks, PTYs, listeners."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrumterm-protocol.workspace = true
+ferrumterm-emulator.workspace = true
+portable-pty.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+getrandom.workspace = true
+
+[dev-dependencies]
+ferrumterm-client.workspace = true
+tempfile.workspace = true

@@ -1,0 +1,4 @@
+[alias]
+term = "run -p ferrumterm-gui"
+fterm = "run -p ferrumterm-cli --"
+lint = "clippy --workspace --all-targets -- -D warnings"

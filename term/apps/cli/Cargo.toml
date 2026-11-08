@@ -1,0 +1,27 @@
+[package]
+name = "ferrumterm-cli"
+description = "fterm: CLI, daemon launcher and tmux-style attach for FerrumTerm."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "fterm"
+path = "src/main.rs"
+
+[dependencies]
+ferrumterm-protocol.workspace = true
+ferrumterm-server.workspace = true
+ferrumterm-client.workspace = true
+clap.workspace = true
+crossterm.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+directories.workspace = true
