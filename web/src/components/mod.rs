@@ -1,10 +1,11 @@
 //! Shared UI components. Owned by the home/components area.
 //!
-//! Public API (stable, used by product/about/404 pages):
+//! Public API (stable, used by product/about/download/404 pages):
 //! - `button::link(label, href, Variant)` / `button::disabled(label, note)`
 //! - `badge::status(Status)`
-//! - `card::product_card(&Product)`, `card::element_tile(symbol, name)`
-//! - `placeholder_link(url, label)`: link that is visibly marked when the URL is a placeholder
+//! - `card::product_card(&Product)`, `card::app_logo(&Product, class)`,
+//!   `card::element_tile(symbol, number, caption, class)`, `card::feature(..)`
+//! - `card::steps(&[(title, body)])`: numbered how-to list
 //! - `nav::render(path)`, `footer::render()`
 
 pub mod badge;
@@ -16,31 +17,12 @@ pub mod nav;
 
 use maud::{Markup, html};
 
-use crate::site;
+use crate::routes::assets;
 
-/// External link that adds a visible "(placeholder)" marker when
-/// `site::is_placeholder(url)` is true. Classes: `.placeholder-link`, `.placeholder-tag`.
-pub fn placeholder_link(url: &str, label: &str) -> Markup {
-    let placeholder = site::is_placeholder(url);
+/// The core Ferrum mark as an `<img>`; decorative unless `alt` is non-empty.
+pub fn ferrum_mark(class: &str, alt: &str) -> Markup {
     html! {
-        a href=(url) class=[placeholder.then_some("placeholder-link")] rel="noopener" {
-            (label)
-            @if placeholder {
-                " " span class="placeholder-tag" { "(placeholder)" }
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn placeholder_links_are_marked() {
-        let html = placeholder_link(site::GITHUB_ORG_URL, "GitHub").into_string();
-        assert!(html.contains("(placeholder)"));
-        let real = placeholder_link(site::ZED_UPSTREAM_URL, "Zed").into_string();
-        assert!(!real.contains("(placeholder)"));
+        img class=(class) src=(assets::url("img/brand/ferrum.svg")) alt=(alt)
+            width="40" height="40" decoding="async";
     }
 }

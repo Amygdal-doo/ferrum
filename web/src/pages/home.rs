@@ -1,16 +1,18 @@
-//! Home page: hero, product cards, why Rust, honest status strip.
+//! Home page: hero, the six apps, built on GPUI, install flow, honest status.
 
 use maud::{Markup, html};
 
 use crate::components::{
     button::{self, Variant},
-    card, icons, placeholder_link,
+    card, icons,
 };
 use crate::layout::{PageMeta, page};
+use crate::routes::assets;
 use crate::{products, site};
 
-const DESCRIPTION: &str = "Ferrum is a family of fast, native, local-first developer tools written \
-     in Rust: FerrumData (database IDE), FerrumAPI (API client) and Ferrum IDE (code editor).";
+const DESCRIPTION: &str = "Ferrum is a family of native developer tools written in Rust and \
+     rendered with GPUI: Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData and FerrumTerm, \
+     installed and updated by Ferrum Toolbox.";
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(None, DESCRIPTION, "/", "page-home");
@@ -19,8 +21,9 @@ pub fn render(site_url: &str) -> Markup {
         &meta,
         html! {
             (hero())
-            (products_section())
-            (why_rust())
+            (apps_section())
+            (gpui_section())
+            (install_section())
             (status_strip())
         },
     )
@@ -31,23 +34,23 @@ fn hero() -> Markup {
         section class="hero" aria-labelledby="hero-title" {
             div class="container hero__inner" {
                 div class="hero__copy" {
-                    p class="eyebrow" { "Fe · 26 · iron oxide" }
+                    img class="hero__wordmark hero__wordmark--dark"
+                        src=(assets::url("img/brand/ferrum-wordmark.svg"))
+                        alt="Ferrum" width="390" height="160";
+                    img class="hero__wordmark hero__wordmark--light"
+                        src=(assets::url("img/brand/ferrum-wordmark-light.svg"))
+                        alt="Ferrum" width="390" height="160";
                     h1 class="hero__title" id="hero-title" {
-                        "Developer tools, " span class="hero__accent" { "forged in Rust." }
+                        "One toolbox, " span class="hero__accent" { "every tool." }
                     }
                     p class="lead" {
-                        "Ferrum is a family of fast, native, local-first tools for working with "
-                        "databases, APIs and code. No Electron, no bundled browser runtime: "
-                        "just compiled Rust talking straight to your machine."
+                        "Ferrum is a family of native developer tools written in Rust: a code "
+                        "editor, an API client, a Git client, a database IDE and a terminal. "
+                        "Install them all, keep them updated and roll back with Ferrum Toolbox."
                     }
                     div class="hero__ctas" {
-                        (button::link("Explore the tools", "#products", Variant::Primary))
-                        a class="btn btn--secondary" href=(site::GITHUB_ORG_URL) rel="noopener" {
-                            "GitHub"
-                            @if site::is_placeholder(site::GITHUB_ORG_URL) {
-                                " " span class="placeholder-tag" { "(placeholder)" }
-                            }
-                        }
+                        (button::link("Get Ferrum Toolbox", site::DOWNLOAD_PATH, Variant::Primary))
+                        (button::link("Explore the apps", "#apps", Variant::Secondary))
                     }
                 }
                 (hero_visual())
@@ -56,30 +59,29 @@ fn hero() -> Markup {
     }
 }
 
-/// Decorative periodic-table cluster: the brand "Fe" tile surrounded by products.
+/// Decorative logo cluster: the toolbox in the middle of the five apps.
 fn hero_visual() -> Markup {
     html! {
         div class="hero__visual" aria-hidden="true" {
-            div class="tile-cluster" {
-                (card::element_tile("Fe", 26, "Ferrum", "element-tile--lg element-tile--brand"))
-                @for (i, p) in products::ALL.iter().enumerate() {
-                    (card::element_tile(p.symbol, 27 + i as u8, p.kind, "tile-cluster__item"))
+            div class="logo-cluster" {
+                @for p in products::ALL {
+                    (card::app_logo(&p, "logo-cluster__item", true))
                 }
             }
         }
     }
 }
 
-fn products_section() -> Markup {
+fn apps_section() -> Markup {
     html! {
-        section class="section" id="products" aria-labelledby="products-title" {
+        section class="section" id="apps" aria-labelledby="apps-title" {
             div class="container" {
                 div class="section-header" {
                     p class="eyebrow" { "The family" }
-                    h2 id="products-title" { "Three tools, one alloy" }
+                    h2 id="apps-title" { "Six apps, one alloy" }
                     p class="lead" {
-                        "Each tool is a native desktop app with a shared focus: start fast, stay "
-                        "responsive with large data, and keep your work on your machine."
+                        "Each app is a native desktop application with the same look, the same \
+                         keyboard-first feel and the same rule: your work stays on your machine."
                     }
                 }
                 div class="grid grid--3" {
@@ -90,26 +92,68 @@ fn products_section() -> Markup {
     }
 }
 
-fn why_rust() -> Markup {
+fn gpui_section() -> Markup {
     html! {
-        section class="section why-rust" aria-labelledby="why-title" {
+        section class="section built-on" aria-labelledby="gpui-title" {
             div class="container" {
                 div class="section-header" {
-                    p class="eyebrow" { "Why Rust" }
-                    h2 id="why-title" { "Built on a stronger metal" }
+                    p class="eyebrow" { "Built on GPUI" }
+                    h2 id="gpui-title" { "The UI framework behind Zed, in every app" }
+                    p class="lead" {
+                        "Every Ferrum desktop app renders with "
+                        a href=(site::GPUI_URL) rel="noopener" { "GPUI" }
+                        ", taken from the Ferrum IDE fork of Zed. One framework, one theme, \
+                         one set of components."
+                    }
                 }
                 ul class="feature-list" {
-                    (card::feature(icons::shield(), "Memory safety without a GC",
-                        "Rust's ownership model rules out whole classes of memory bugs at compile time, \
-                         without a garbage collector pausing your work."))
-                    (card::feature(icons::bolt(), "Native speed, modest memory",
-                        "Compiled to machine code, so the apps start quickly and use memory for your data, \
-                         not for a browser engine."))
-                    (card::feature(icons::cube(), "One binary, no web runtime",
-                        "No Electron and no bundled Chromium. Each tool ships as a native application."))
-                    (card::feature(icons::streams(), "Fearless concurrency",
-                        "Async Rust keeps the UI responsive while queries and requests run, so results \
-                         can stream in and be cancelled."))
+                    (card::feature(icons::bolt(), "GPU-accelerated",
+                        "The interface is drawn on the GPU, so long lists, big result grids and \
+                         deep commit histories stay smooth."))
+                    (card::feature(icons::cube(), "Native, no webview",
+                        "No Electron, no bundled browser, no JavaScript runtime: compiled Rust \
+                         talking straight to your machine."))
+                    (card::feature(icons::layers(), "Shared Ferrum UI",
+                        "Text inputs, dialogs, panes, notices and the FerrumIDE theme come from \
+                         one shared crate, so the apps look and behave alike."))
+                    (card::feature(icons::shield(), "Memory-safe Rust",
+                        "Rust's ownership model rules out whole classes of memory bugs at \
+                         compile time, without a garbage collector."))
+                }
+            }
+        }
+    }
+}
+
+fn install_section() -> Markup {
+    let steps = [
+        (
+            "Get Ferrum Toolbox",
+            html! { p { "Download the toolbox for your Mac and drag it to Applications." } },
+        ),
+        (
+            "Sign in to GitHub",
+            html! { p { "Builds are private for now, so the toolbox uses your GitHub access." } },
+        ),
+        (
+            "Install the apps",
+            html! { p { "Pick any app and click Install. It lands in Applications, ready to launch." } },
+        ),
+        (
+            "Update or roll back",
+            html! { p { "New versions show up automatically. Switch to any version with one click." } },
+        ),
+    ];
+    html! {
+        section class="section install-flow" id="install" aria-labelledby="install-title" {
+            div class="container" {
+                div class="section-header" {
+                    p class="eyebrow" { "Install" }
+                    h2 id="install-title" { "From zero to every tool in four steps" }
+                }
+                (card::steps(&steps))
+                div class="install-flow__cta" {
+                    (button::link("Download & install guide", site::DOWNLOAD_PATH, Variant::Primary))
                 }
             }
         }
@@ -129,21 +173,18 @@ fn status_strip() -> Markup {
                         li {
                             span class="status-dot status-dot--ok" {}
                             strong { "FerrumData" }
-                            " has a working PostgreSQL foundation: streaming queries with cancel, "
-                            "a virtualized results grid and a table explorer."
+                            " is in alpha with a working PostgreSQL foundation."
                         }
                         li {
                             span class="status-dot" {}
-                            strong { "FerrumAPI" } " and " strong { "Ferrum IDE" }
-                            " are in early development."
+                            "The other apps are early previews: their core logic is tested, and "
+                            "their GPUI interfaces have been launch-tested."
                         }
                         li {
-                            span class="status-dot status-dot--off" {}
-                            "Downloads: " (button::disabled(site::DOWNLOAD_LABEL, ""))
+                            span class="status-dot" {}
+                            "Builds are private GitHub Releases for the team. "
+                            a href=(site::DOWNLOAD_PATH) { "How to get access" } "."
                         }
-                    }
-                    p class="status-strip__more muted" {
-                        "Follow along on " (placeholder_link(site::GITHUB_ORG_URL, "GitHub")) "."
                     }
                 }
             }
@@ -156,22 +197,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn lists_all_products_with_links() {
+    fn lists_all_apps_with_links_and_logos() {
         let html = render("https://example.test").into_string();
         for p in products::ALL {
             assert!(html.contains(p.name), "missing {}", p.name);
             assert!(html.contains(&format!(r#"href="{}""#, p.path())));
+            assert!(html.contains(&format!("/assets/{}?v=", p.logo_asset())));
         }
-        assert!(html.contains(r#"id="products""#));
-        assert!(html.contains("Early preview"));
-        assert!(html.contains("Alpha"));
-        assert!(html.contains(site::DOWNLOAD_LABEL));
+        assert!(html.contains(r#"id="apps""#));
+        assert_eq!(html.matches("<h1").count(), 1);
     }
 
     #[test]
-    fn marks_placeholders() {
+    fn has_gpui_and_install_sections_pointing_to_download() {
         let html = render("https://example.test").into_string();
-        assert!(html.contains("(placeholder)"));
-        assert!(html.contains(r#"class="page-home""#));
+        assert!(html.contains("Built on GPUI"));
+        assert!(html.contains(r#"class="steps""#));
+        assert!(html.contains(r#"href="/download""#));
+        assert!(html.contains(r#"alt="Ferrum""#));
     }
 }

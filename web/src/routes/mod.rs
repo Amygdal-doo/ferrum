@@ -38,6 +38,10 @@ pub fn app(config: Config) -> Router {
         .route("/ferrumdata", get(ferrumdata))
         .route("/ferrumapi", get(ferrumapi))
         .route("/ferrum-ide", get(ferrum_ide))
+        .route("/ferrumgit", get(ferrumgit))
+        .route("/ferrumterm", get(ferrumterm))
+        .route("/ferrum-toolbox", get(ferrum_toolbox))
+        .route("/download", get(download))
         .route("/about", get(about))
         .route("/healthz", get(health::healthz))
         .route("/robots.txt", get(seo::robots))
@@ -59,6 +63,18 @@ async fn ferrumapi(State(s): State<AppState>) -> Markup {
 }
 async fn ferrum_ide(State(s): State<AppState>) -> Markup {
     pages::ferrum_ide::render(s.site_url())
+}
+async fn ferrumgit(State(s): State<AppState>) -> Markup {
+    pages::ferrumgit::render(s.site_url())
+}
+async fn ferrumterm(State(s): State<AppState>) -> Markup {
+    pages::ferrumterm::render(s.site_url())
+}
+async fn ferrum_toolbox(State(s): State<AppState>) -> Markup {
+    pages::ferrum_toolbox::render(s.site_url())
+}
+async fn download(State(s): State<AppState>) -> Markup {
+    pages::download::render(s.site_url())
 }
 async fn about(State(s): State<AppState>) -> Markup {
     pages::about::render(s.site_url())

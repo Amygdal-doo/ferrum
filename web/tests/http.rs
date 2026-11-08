@@ -39,13 +39,25 @@ async fn send(req: Request<Body>) -> Res {
     }
 }
 
+const PAGES: [&str; 9] = [
+    "/",
+    "/ferrum-ide",
+    "/ferrumapi",
+    "/ferrumgit",
+    "/ferrumdata",
+    "/ferrumterm",
+    "/ferrum-toolbox",
+    "/download",
+    "/about",
+];
+
 async fn get(uri: &str) -> Res {
     send(Request::get(uri).body(Body::empty()).unwrap()).await
 }
 
 #[tokio::test]
 async fn pages_render_html_with_title() {
-    for path in ["/", "/ferrumdata", "/ferrumapi", "/ferrum-ide", "/about"] {
+    for path in PAGES {
         let res = get(path).await;
         assert_eq!(res.status, StatusCode::OK, "{path}");
         assert!(
@@ -58,6 +70,35 @@ async fn pages_render_html_with_title() {
             "public, max-age=300",
             "{path}"
         );
+    }
+}
+
+#[tokio::test]
+async fn download_page_explains_private_access() {
+    let res = get("/download").await;
+    assert_eq!(res.status, StatusCode::OK);
+    let html = res.text();
+    assert!(html.contains("Get Ferrum Toolbox"));
+    assert!(html.contains("https://github.com/Amygdal-doo/ferrum/releases"));
+    assert!(html.contains("gh auth login"));
+}
+
+#[tokio::test]
+async fn brand_assets_are_served() {
+    for path in [
+        "/assets/img/brand/ferrum.svg",
+        "/assets/img/brand/toolbox.svg",
+        "/assets/img/brand/ferrum-wordmark.svg",
+        "/assets/img/favicon.svg",
+    ] {
+        let res = get(path).await;
+        assert_eq!(res.status, StatusCode::OK, "{path}");
+        assert!(res.header(header::CONTENT_TYPE).starts_with("image/svg+xml"), "{path}");
+    }
+    for path in ["/assets/img/og.png", "/assets/img/apple-touch-icon.png"] {
+        let res = get(path).await;
+        assert_eq!(res.status, StatusCode::OK, "{path}");
+        assert_eq!(res.header(header::CONTENT_TYPE), "image/png", "{path}");
     }
 }
 
@@ -110,11 +151,11 @@ async fn sitemap_lists_all_pages() {
             .starts_with("application/xml")
     );
     let xml = res.text();
-    for path in ["/", "/ferrumdata", "/ferrumapi", "/ferrum-ide", "/about"] {
+    for path in PAGES {
         let loc = format!("<loc>http://localhost:8080{path}</loc>");
         assert!(xml.contains(&loc), "missing {loc}");
     }
-    assert_eq!(xml.matches("<url>").count(), 5);
+    assert_eq!(xml.matches("<url>").count(), PAGES.len());
 }
 
 #[tokio::test]

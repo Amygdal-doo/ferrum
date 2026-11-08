@@ -306,3 +306,103 @@ html:not(.js) .theme-toggle, html:not(.js) .nav-toggle { display: none; }
   .tile-cluster .element-tile__cap { display: none; }
   .tile-cluster { align-items: stretch; }
 }
+
+/* ---------- Brand: logos and per-app accents ---------- */
+/* Components read the app colour from --app-accent (set inline per product). */
+.brand__logo { display: block; width: 34px; height: 34px; }
+.app-logo { display: block; flex: none; width: 56px; height: 56px; }
+.app-logo--hero {
+  width: clamp(8rem, 30vw, 12rem); height: auto; aspect-ratio: 1;
+  filter: drop-shadow(0 18px 40px color-mix(in srgb, var(--app-accent) 35%, transparent));
+}
+.app-logo--sm { width: 40px; height: 40px; }
+.app-logo--xs { width: 28px; height: 28px; }
+
+.card--product::before {
+  background: linear-gradient(90deg, transparent, var(--app-accent), transparent);
+}
+.card--product:hover, .card--product:focus-within {
+  border-color: color-mix(in srgb, var(--app-accent) 60%, var(--border));
+  box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--app-accent) 30%, transparent),
+    0 8px 40px -12px color-mix(in srgb, var(--app-accent) 45%, transparent);
+}
+.card--product {
+  background:
+    radial-gradient(140% 80% at 100% 0%, color-mix(in srgb, var(--app-accent) 10%, transparent), transparent 55%),
+    var(--surface);
+}
+
+/* Download CTA in the primary nav. */
+.nav-link--cta {
+  background: var(--accent); color: var(--accent-text); font-weight: 600;
+}
+.nav-link--cta:hover { background: var(--accent-hover); color: var(--accent-text); }
+.nav-link--cta[aria-current="page"] { box-shadow: none; outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 759px) {
+  html.js .nav-link--cta { text-align: center; margin-top: var(--sp-2); }
+  .nav-link--cta[aria-current="page"] { box-shadow: none; }
+}
+
+/* ---------- Steps ---------- */
+.steps {
+  list-style: none; margin: 0; padding: 0; counter-reset: step; display: grid; gap: var(--sp-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+}
+.step {
+  counter-increment: step; position: relative; min-width: 0;
+  padding: var(--sp-6); padding-top: calc(var(--sp-6) + 2.5rem);
+  border-radius: var(--radius-lg); background: var(--bg-elev); border: 1px solid var(--border);
+}
+.step::before {
+  content: counter(step); position: absolute; top: var(--sp-6); left: var(--sp-6);
+  display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%;
+  font: 700 var(--fs-sm)/1 var(--font-mono); color: var(--accent-text); background: var(--accent);
+}
+.step__title { font-size: var(--fs-lg); margin-bottom: var(--sp-2); }
+.step__body { color: var(--text-muted); font-size: var(--fs-sm); }
+.step__body > :last-child { margin-bottom: 0; }
+.step__body code { color: var(--text); overflow-wrap: anywhere; }
+
+.code-block {
+  margin: var(--sp-3) 0; padding: var(--sp-3) var(--sp-4); overflow-x: auto;
+  border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); font-size: var(--fs-sm);
+}
+
+/* Row of app logos with names (toolbox and download pages). */
+.app-strip {
+  list-style: none; margin: var(--sp-8) 0 0; padding: 0; display: grid; gap: var(--sp-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+.app-strip__link {
+  display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); text-decoration: none; font-weight: 600;
+  transition: border-color 0.2s var(--ease), transform 0.2s var(--ease);
+}
+.app-strip__link:hover { color: var(--text); border-color: var(--app-accent); transform: translateY(-2px); }
+
+/* ---------- Home: wordmark hero, logo cluster, GPUI + install sections ---------- */
+.page-home .hero__wordmark { display: block; width: clamp(220px, 38vw, 360px); height: auto; margin-bottom: var(--sp-6); }
+.page-home .hero__wordmark--light { display: none; }
+:root[data-theme="light"] .page-home .hero__wordmark--dark { display: none; }
+:root[data-theme="light"] .page-home .hero__wordmark--light { display: block; }
+.logo-cluster {
+  display: grid; grid-template-columns: repeat(3, auto); gap: var(--sp-4);
+  justify-content: center; align-items: center;
+}
+.logo-cluster__item {
+  width: clamp(4.5rem, 10vw, 7.5rem); height: auto; aspect-ratio: 1;
+  animation: tile-float 6s var(--ease) infinite alternate;
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.35));
+}
+.logo-cluster__item:nth-child(2n) { animation-delay: -2s; }
+.logo-cluster__item:nth-child(3n) { animation-delay: -4s; }
+.page-home .built-on { background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--surface) 55%, transparent) 30%, transparent); }
+.page-home .install-flow__cta { margin-top: var(--sp-8); }
+@media (max-width: 859px) {
+  .page-home .hero__visual { justify-items: start; }
+  .logo-cluster { grid-template-columns: repeat(6, auto); gap: var(--sp-2); }
+  .logo-cluster__item { width: clamp(2.6rem, 12vw, 3.5rem); }
+}
+.step .code-block { white-space: pre-wrap; overflow-wrap: anywhere; }

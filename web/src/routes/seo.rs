@@ -5,8 +5,8 @@ use axum::{extract::State, http::header, response::IntoResponse};
 use super::AppState;
 use crate::products;
 
-/// Non-product pages listed in the sitemap.
-const STATIC_PATHS: [&str; 2] = ["/", "/about"];
+/// Non-product pages listed in the sitemap: home first, about last.
+const STATIC_PATHS: [&str; 3] = ["/", "/download", "/about"];
 
 pub async fn robots(State(s): State<AppState>) -> impl IntoResponse {
     let body = format!(
@@ -16,7 +16,7 @@ pub async fn robots(State(s): State<AppState>) -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body)
 }
 
-/// Every public page path: "/", each product, then "/about".
+/// Every public page path: "/", each product, then "/download" and "/about".
 pub fn sitemap_paths() -> Vec<String> {
     let (home, rest) = STATIC_PATHS.split_at(1);
     home.iter()
@@ -58,8 +58,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sitemap_covers_home_products_and_about() {
+    fn sitemap_covers_home_products_download_and_about() {
         let paths = sitemap_paths();
+        assert!(paths.iter().any(|p| p == "/download"));
         assert_eq!(paths.first().map(String::as_str), Some("/"));
         assert_eq!(paths.last().map(String::as_str), Some("/about"));
         assert_eq!(paths.len(), products::ALL.len() + STATIC_PATHS.len());

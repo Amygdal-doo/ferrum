@@ -1,1 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#16130f"/><rect x="4" y="4" width="56" height="56" rx="11" fill="none" stroke="#d9622b" stroke-width="3"/><text x="32" y="42" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="28" fill="#ec7f3c">Fe</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Ferrum ferrum</title>
+  <defs>
+    <linearGradient id="ferrum-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b241c"/>
+      <stop offset="1" stop-color="#14110d"/>
+    </linearGradient>
+    <radialGradient id="ferrum-glow" cx="0.3" cy="0.25" r="0.9">
+      <stop offset="0" stop-color="#E8743B" stop-opacity="0.22"/>
+      <stop offset="0.6" stop-color="#E8743B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="48" y="48" width="928" height="928" rx="208" fill="url(#ferrum-bg)"/>
+  <rect x="48" y="48" width="928" height="928" rx="208" fill="url(#ferrum-glow)"/>
+  <rect x="96" y="96" width="832" height="832" rx="164" fill="none" stroke="#E8743B" stroke-width="28"/>
+  <g transform="translate(0 -34)">
+  <g fill="none" stroke="#E8743B" stroke-opacity="0.18" stroke-width="12" stroke-linejoin="round">
+    <polygon points="830.0,560.0 671.0,835.4 353.0,835.4 194.0,560.0 353.0,284.6 671.0,284.6"/>
+    <polygon points="712.0,560.0 612.0,733.2 412.0,733.2 312.0,560.0 412.0,386.8 612.0,386.8"/>
+  </g>
+  <g fill="#E8743B" fill-opacity="0.45"><circle cx="830.0" cy="560.0" r="20"/><circle cx="671.0" cy="835.4" r="20"/><circle cx="353.0" cy="835.4" r="20"/><circle cx="194.0" cy="560.0" r="20"/><circle cx="353.0" cy="284.6" r="20"/><circle cx="671.0" cy="284.6" r="20"/></g>
+  <g fill="none" stroke="#f1e9df" stroke-width="62" stroke-linecap="butt" stroke-linejoin="miter"><path d="M330 730 V390 H530"/><path d="M330 555 H485"/></g>
+  <g fill="none" stroke="#E8743B" stroke-width="62" stroke-linecap="butt" stroke-linejoin="round"><path d="M584 605 H768 A92 126 0 1 0 748 692"/></g>
+  
+  </g>
+  
+</svg>

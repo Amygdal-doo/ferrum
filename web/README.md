@@ -1,7 +1,8 @@
 # web-ferrum
 
 Server-rendered marketing site for the **Ferrum** family of Rust developer tools
-(FerrumData, FerrumAPI, Ferrum IDE). It is a single Rust binary built with
+(Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm and Ferrum Toolbox).
+It is a single Rust binary built with
 Axum 0.8, maud templates and tower-http. All CSS, JS and images are embedded in
 the binary with rust-embed, so there is nothing to upload besides the binary.
 
@@ -39,9 +40,9 @@ If neither `SITE_URL` nor `RAILWAY_PUBLIC_DOMAIN` is set, the site URL is
 
 | Path | Notes |
 |------|-------|
-| `/`, `/ferrumdata`, `/ferrumapi`, `/ferrum-ide`, `/about` | HTML pages, `Cache-Control: public, max-age=300` |
+| `/`, `/ferrum-ide`, `/ferrumapi`, `/ferrumgit`, `/ferrumdata`, `/ferrumterm`, `/ferrum-toolbox`, `/download`, `/about` | HTML pages, `Cache-Control: public, max-age=300` |
 | `/healthz` | `200 ok`, `text/plain`, `no-store`, used by the Railway health check |
-| `/robots.txt`, `/sitemap.xml` | The sitemap is built from `products::ALL` plus `/` and `/about` |
+| `/robots.txt`, `/sitemap.xml` | The sitemap is built from `products::ALL` plus `/`, `/download` and `/about` |
 | `/assets/*` | Embedded files. URLs from `assets::url()` carry `?v=<sha256 prefix>` and are served `immutable` for one year. Every asset has a strong ETag (`304` on `If-None-Match`) |
 | anything else | HTML 404, `no-cache` |
 
@@ -57,7 +58,7 @@ src/
   main.rs          tracing setup, bind, graceful shutdown (SIGTERM / Ctrl+C)
   lib.rs           crate root, re-exports `app` and `Config`
   config.rs        env parsing (pure `Config::from_vars`, unit-tested)
-  site.rs          site-wide constants and ALL placeholder links
+  site.rs          site-wide constants and links (download, releases, upstream credits)
   products.rs      product catalogue (drives nav, cards, sitemap)
   layout.rs        HTML shell (head, meta, nav, footer)
   components/      reusable maud components (nav, footer, card, badge, ...)
@@ -69,12 +70,17 @@ Dockerfile         cargo-chef multi-stage build -> debian:bookworm-slim, uid 100
 railway.toml       Railway build + deploy config
 ```
 
-### Placeholders
+### Links and brand assets
 
-All not-yet-real values live in **`src/site.rs`**: the GitHub org and repo URLs
-(`https://github.com/your-org/...`), the contact email (`None`) and the download
-label ("Coming soon"). Replace them there before launch. Pages must not hard-code
+Site-wide links live in **`src/site.rs`**: every download CTA points to
+`/download`, which explains the private GitHub Releases in `Amygdal-doo/ferrum`
+and links to them. The contact email is still `None`. Pages must not hard-code
 links.
+
+Logos in `assets/img/brand/` are copies of `../brand/svg/` (the Docker build
+context is `web/`, so they must live here). After regenerating the brand,
+copy them again. `assets/img/og.png` (1200×630) is rendered from
+`assets/img/og.svg`, e.g. `sips -s format png assets/img/og.svg --out assets/img/og.png`.
 
 ## Docker
 

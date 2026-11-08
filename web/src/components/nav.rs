@@ -1,26 +1,37 @@
 //! Site header + primary navigation. `current_path` marks the active link.
 //!
-//! Classes: `.site-header`, `.brand`, `.brand__mark`, `.site-nav`, `.nav-list`,
-//! `.theme-toggle`, `.nav-toggle`. Behaviour lives in `assets/js/site.js`.
+//! Classes: `.site-header`, `.brand`, `.brand__logo`, `.site-nav`, `.nav-list`,
+//! `.nav-link--cta`, `.theme-toggle`, `.nav-toggle`. Behaviour lives in `assets/js/site.js`.
 
 use maud::{Markup, html};
 
-use crate::components::icons;
+use crate::components::{ferrum_mark, icons};
 use crate::{products, site};
 
-fn nav_link(href: &str, label: &str, current_path: &str) -> Markup {
-    let active = current_path == href;
+const APPS_HREF: &str = "/#apps";
+
+fn nav_link(href: &str, label: &str, active: bool, extra_class: &str) -> Markup {
     html! {
-        li { a class="nav-link" href=(href) aria-current=[active.then_some("page")] { (label) } }
+        li {
+            a class={ "nav-link " (extra_class) } href=(href) aria-current=[active.then_some("page")] {
+                (label)
+            }
+        }
     }
 }
 
+/// True for product pages managed by the toolbox (they live under "Apps").
+fn is_app_page(path: &str) -> bool {
+    products::apps().any(|p| p.path() == path)
+}
+
 pub fn render(current_path: &str) -> Markup {
+    let toolbox = products::FERRUM_TOOLBOX.path();
     html! {
         header class="site-header" {
             div class="container site-header__inner" {
                 a class="brand" href="/" aria-current=[(current_path == "/").then_some("page")] {
-                    span class="brand__mark" aria-hidden="true" { "Fe" }
+                    (ferrum_mark("brand__logo", ""))
                     span class="brand__name" { (site::SITE_NAME) }
                 }
                 div class="site-header__actions" {
@@ -36,10 +47,11 @@ pub fn render(current_path: &str) -> Markup {
                 }
                 nav class="site-nav" id="site-nav" aria-label="Primary" {
                     ul class="nav-list" {
-                        @for p in products::ALL {
-                            (nav_link(&p.path(), p.name, current_path))
-                        }
-                        (nav_link("/about", "About", current_path))
+                        (nav_link(APPS_HREF, "Apps", is_app_page(current_path), ""))
+                        (nav_link(&toolbox, "Toolbox", current_path == toolbox, ""))
+                        (nav_link("/about", "About", current_path == "/about", ""))
+                        (nav_link(site::DOWNLOAD_PATH, site::DOWNLOAD_LABEL,
+                            current_path == site::DOWNLOAD_PATH, "nav-link--cta"))
                     }
                 }
             }
@@ -52,9 +64,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn marks_active_link() {
+    fn app_pages_mark_apps_active() {
         let html = render("/ferrumapi").into_string();
-        assert!(html.contains(r#"href="/ferrumapi" aria-current="page""#));
+        assert!(html.contains(r##"href="/#apps" aria-current="page""##));
+        assert_eq!(html.matches("aria-current").count(), 1);
+    }
+
+    #[test]
+    fn toolbox_and_download_have_their_own_links() {
+        let html = render("/download").into_string();
+        assert!(html.contains(r#"href="/download" aria-current="page""#));
+        assert!(html.contains(r#"href="/ferrum-toolbox""#));
         assert_eq!(html.matches("aria-current").count(), 1);
     }
 

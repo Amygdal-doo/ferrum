@@ -1,11 +1,15 @@
-//! Shared template for the three product pages.
+//! Shared template for the product pages.
 //!
 //! Each product page fills a [`ProductPage`] with copy and calls [`render`].
-//! Every section is static, honest copy; nothing here claims shipped downloads.
+//! Every section is static, honest copy that follows each app's README.
 
 use maud::{Markup, html};
 
-use crate::components::{self, card};
+use crate::components::{
+    self,
+    button::{self, Variant},
+    card,
+};
 use crate::layout::{PageMeta, page};
 use crate::products::{self, Product};
 use crate::site;
@@ -60,26 +64,12 @@ pub fn render(site_url: &str, p: &ProductPage, extra: Markup) -> Markup {
     )
 }
 
-/// Large decorative element tile; numbering matches the home-page cards.
-fn hero_tile(prod: &Product) -> Markup {
-    let number = products::ALL
-        .iter()
-        .position(|x| x.slug == prod.slug)
-        .map_or(26, |i| 27 + i as u8);
-    card::element_tile(
-        prod.symbol,
-        number,
-        prod.kind,
-        "element-tile--lg element-tile--brand",
-    )
-}
-
 fn hero(p: &ProductPage) -> Markup {
     let prod = &p.product;
     html! {
-        section class="product-hero" aria-labelledby="product-title" {
+        section class="product-hero" style=(prod.accent_style()) aria-labelledby="product-title" {
             div class="container product-hero__inner" {
-                (hero_tile(prod))
+                (card::app_logo(prod, "app-logo--hero", false))
                 div class="product-hero__copy" {
                     p class="eyebrow" { "Ferrum · " (prod.kind) }
                     div class="product-hero__title-row" {
@@ -89,8 +79,11 @@ fn hero(p: &ProductPage) -> Markup {
                     p class="product-hero__tagline" { (prod.tagline) }
                     p class="lead" { (p.intro) }
                     div class="product-hero__ctas" {
-                        (components::button::disabled(site::DOWNLOAD_LABEL, "No installers or downloads are published yet."))
-                        (components::placeholder_link(prod.github_url, "Source on GitHub"))
+                        (button::link(site::DOWNLOAD_LABEL, site::DOWNLOAD_PATH, Variant::Primary))
+                        @if prod.slug != products::FERRUM_TOOLBOX.slug {
+                            (button::link("Install with Ferrum Toolbox",
+                                &products::FERRUM_TOOLBOX.path(), Variant::Secondary))
+                        }
                     }
                 }
             }
@@ -189,7 +182,7 @@ fn related(current: &Product) -> Markup {
             div class="container" {
                 p class="eyebrow" { "The Ferrum family" }
                 h2 id="related-title" { "Other Ferrum tools" }
-                div class="grid grid--2" {
+                div class="grid grid--3" {
                     @for other in products::ALL.iter().filter(|o| o.slug != current.slug) {
                         (card::product_card(other))
                     }

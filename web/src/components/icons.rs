@@ -12,6 +12,10 @@ const BOLT: &str = r#"<svg class="icon" viewBox="0 0 24 24" width="24" height="2
 const CUBE: &str = r#"<svg class="icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>"#;
 const STREAMS: &str = r#"<svg class="icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M3 6h11M3 12h15M3 18h8"/><path d="M17 4l3 2-3 2M20 10l1.5 2-1.5 2M14 16l3 2-3 2"/></svg>"#;
 
+const LAYERS: &str = r#"<svg class="icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/><path d="M3 17.5l9 5 9-5" opacity="0.6"/></svg>"#;
+const DOWNLOAD: &str = r#"<svg class="icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>"#;
+const ROLLBACK: &str = r#"<svg class="icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v5h5"/></svg>"#;
+
 pub fn sun() -> Markup {
     PreEscaped(SUN.to_owned())
 }
@@ -35,4 +39,13 @@ pub fn cube() -> Markup {
 }
 pub fn streams() -> Markup {
     PreEscaped(STREAMS.to_owned())
+}
+pub fn layers() -> Markup {
+    PreEscaped(LAYERS.to_owned())
+}
+pub fn download() -> Markup {
+    PreEscaped(DOWNLOAD.to_owned())
+}
+pub fn rollback() -> Markup {
+    PreEscaped(ROLLBACK.to_owned())
 }

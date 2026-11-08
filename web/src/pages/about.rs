@@ -3,7 +3,7 @@
 
 use maud::{Markup, html};
 
-use crate::components::{badge, placeholder_link};
+use crate::components::{badge, card};
 use crate::layout::{PageMeta, page};
 use crate::{products, site};
 
@@ -15,8 +15,8 @@ const PRINCIPLES: &[(&str, &str)] = &[
     ),
     (
         "Native performance",
-        "Written in Rust and compiled to native desktop apps. No Electron, no bundled \
-         browser runtime pretending to be an app.",
+        "Written in Rust and rendered on the GPU with GPUI. No Electron, no webview, no \
+         bundled browser runtime pretending to be an app.",
     ),
     (
         "Honest status",
@@ -37,15 +37,20 @@ const CREDITS: &[(&str, &str)] = &[
     ),
     (
         "GPUI",
-        "Zed's GPU-accelerated UI framework, used by Ferrum IDE via Zed.",
-    ),
-    (
-        "Dioxus",
-        "The Rust UI framework behind the FerrumData and FerrumAPI desktop apps.",
+        "Zed's GPU-accelerated UI framework. Every Ferrum desktop app renders with it, \
+         together with Zed's ui and theme crates, taken from the Ferrum IDE fork.",
     ),
     (
         "SQLx",
         "Async SQL toolkit powering FerrumData's PostgreSQL support.",
+    ),
+    (
+        "alacritty_terminal",
+        "Terminal emulation behind FerrumTerm, from the Alacritty project.",
+    ),
+    (
+        "reqwest & rustls",
+        "HTTP and TLS for FerrumAPI and Ferrum Toolbox.",
     ),
     (
         "Axum & maud",
@@ -70,9 +75,10 @@ pub fn render(site_url: &str) -> Markup {
                     p class="eyebrow" { "About Ferrum" }
                     h1 id="about-title" { "Developer tools, forged in Rust" }
                     p class="lead" {
-                        "Ferrum is a family of native developer tools written in Rust: a \
-                         database IDE, an API client and a code editor. They are local-first \
-                         and run without Electron."
+                        "Ferrum is a family of native developer tools written in Rust: a code \
+                         editor, an API client, a Git client, a database IDE and a terminal, \
+                         plus Ferrum Toolbox to install and update them. They are local-first, \
+                         share one GPUI-based interface and run without Electron."
                     }
                 }
             }
@@ -97,7 +103,7 @@ pub fn render(site_url: &str) -> Markup {
                     ul class="about-status" {
                         @for p in products::ALL {
                             li class="about-status__row" {
-                                span class="about-status__symbol mono" aria-hidden="true" { (p.symbol) }
+                                (card::app_logo(&p, "app-logo--xs", true))
                                 span class="about-status__name" {
                                     a href=(p.path()) { (p.name) }
                                     span class="muted" { " · " (p.kind) }
@@ -107,8 +113,8 @@ pub fn render(site_url: &str) -> Markup {
                         }
                     }
                     p class="muted" {
-                        "No downloads are published yet. Source code: "
-                        (placeholder_link(site::GITHUB_ORG_URL, "GitHub"))
+                        "Builds are private GitHub Releases for the team for now. "
+                        a href=(site::DOWNLOAD_PATH) { "How to get access" } "."
                     }
                 }
             }
@@ -153,7 +159,7 @@ mod tests {
         let html = render("https://example.test").into_string();
         assert_eq!(html.matches("<h1").count(), 1);
         assert!(html.contains("Local-first"));
-        assert!(html.contains("Dioxus"));
+        assert!(html.contains("GPUI"));
         assert!(html.contains(site::ZED_UPSTREAM_URL));
     }
 

@@ -161,3 +161,29 @@
   display: grid; place-items: center; width: 2.5rem; height: 2.5rem; flex: none;
   border-radius: var(--radius-sm); background: var(--surface-2); color: var(--accent); font-weight: 600;
 }
+
+/* Product hero glow follows the app accent. */
+.page-product .product-hero {
+  background:
+    radial-gradient(60% 80% at 85% 0%, color-mix(in srgb, var(--app-accent) 16%, transparent), transparent 70%),
+    var(--bg);
+}
+.page-about .about-status__row .app-logo,
+.page-404 .notfound__link .app-logo { flex: none; }
+
+/* ---------- Download page ---------- */
+.page-download .download-hero {
+  padding-block: var(--sp-16) var(--sp-12); border-bottom: 1px solid var(--border);
+  background:
+    radial-gradient(60% 80% at 85% 0%, color-mix(in srgb, var(--app-accent) 14%, transparent), transparent 70%),
+    var(--bg);
+}
+.page-download .download-hero__inner { display: grid; gap: var(--sp-8); align-items: center; }
+@media (min-width: 820px) {
+  .page-download .download-hero__inner { grid-template-columns: auto 1fr; gap: var(--sp-12); }
+}
+.page-download .download-hero h1 { font-size: var(--fs-hero); }
+.page-download .download-hero .callout { margin-top: var(--sp-6); max-width: 62ch; }
+.page-download .callout code { color: var(--text); }
+.page-download .callout--warn h2 { font-size: var(--fs-xl); }
+.page-download .download-actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-8); }

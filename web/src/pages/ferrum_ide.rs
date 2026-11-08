@@ -44,9 +44,11 @@ const INHERITED: &[&str] = &[
     "Collaboration features (as in upstream Zed)",
 ];
 
-const PLANNED: &[&str] = &[
-    "Ferrum-specific integrations with FerrumData and FerrumAPI are being explored",
-    "Preview builds once the fork is ready to share",
+const FERRUM: &[&str] = &[
+    "Rebranded as Ferrum IDE",
+    "Its GPUI, UI and theme crates power every other Ferrum app",
+    "Installed and updated through Ferrum Toolbox",
+    "Ferrum-specific integrations with the other apps are being explored",
 ];
 
 const PAGE: ProductPage = ProductPage {
@@ -59,25 +61,26 @@ const PAGE: ProductPage = ProductPage {
                     work is early and is listed under Status.",
     features: FEATURES,
     screenshots: &["Editor with a project open and the built-in terminal"],
-    status_summary: "Ferrum IDE is an early preview. The fork tracks upstream Zed; what it adds \
-                     on top is still being planned.",
+    status_summary: "Ferrum IDE is an early preview. The fork tracks upstream Zed, and its UI \
+                     framework is shared with the rest of the Ferrum family.",
     status_groups: &[
         BulletGroup {
             heading: "Inherited from upstream Zed",
             items: INHERITED,
         },
         BulletGroup {
-            heading: "Planned",
-            items: PLANNED,
+            heading: "Ferrum-specific",
+            items: FERRUM,
         },
     ],
     specs: &[
         ("Upstream", "Zed, by Zed Industries"),
         ("Built with", "Rust, GPUI (via Zed)"),
         ("Licensing", "Follows Zed's open-source licenses"),
-        ("Install", "Not available yet"),
+        ("Install", "Ferrum Toolbox (team access, see Download)"),
     ],
-    specs_note: "There are no Ferrum IDE builds to download yet.",
+    specs_note: "Builds are published as private GitHub Releases and installed through Ferrum \
+                 Toolbox.",
 };
 
 /// Upstream credit and independence disclaimer, shown right after the hero.
@@ -137,6 +140,6 @@ mod tests {
     fn links_to_the_other_products() {
         let html = rendered();
         assert!(html.contains("href=\"/ferrumdata\""));
-        assert!(html.contains("href=\"/ferrumapi\""));
+        assert!(html.contains("href=\"/ferrum-toolbox\""));
     }
 }

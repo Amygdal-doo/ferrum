@@ -2,7 +2,7 @@
 
 use maud::{Markup, html};
 
-use crate::components::placeholder_link;
+use crate::components::ferrum_mark;
 use crate::{products, site};
 
 pub fn render() -> Markup {
@@ -12,13 +12,13 @@ pub fn render() -> Markup {
                 div class="footer-grid" {
                     div class="footer-col footer-col--brand" {
                         a class="brand" href="/" {
-                            span class="brand__mark" aria-hidden="true" { "Fe" }
+                            (ferrum_mark("brand__logo", ""))
                             span class="brand__name" { (site::SITE_NAME) }
                         }
                         p class="muted" { (site::SITE_TAGLINE) }
                     }
                     nav class="footer-col" aria-labelledby="footer-products" {
-                        h2 class="footer-col__title" id="footer-products" { "Products" }
+                        h2 class="footer-col__title" id="footer-products" { "Apps" }
                         ul {
                             @for p in products::ALL {
                                 li { a href=(p.path()) { (p.name) } }
@@ -26,15 +26,16 @@ pub fn render() -> Markup {
                         }
                     }
                     nav class="footer-col" aria-labelledby="footer-project" {
-                        h2 class="footer-col__title" id="footer-project" { "Project" }
+                        h2 class="footer-col__title" id="footer-project" { "Ferrum" }
                         ul {
+                            li { a href=(site::DOWNLOAD_PATH) { "Download & install" } }
                             li { a href="/about" { "About" } }
-                            li { (placeholder_link(site::GITHUB_ORG_URL, "GitHub")) }
+                            li { a href=(site::GPUI_URL) rel="noopener" { "GPUI" } }
                         }
                     }
                 }
                 div class="footer-bottom" {
-                    p { "Built in Rust with Axum and maud." }
+                    p { "Desktop apps built in Rust with GPUI. This site: Axum and maud." }
                     p {
                         "Ferrum IDE is based on the open-source "
                         a href=(site::ZED_UPSTREAM_URL) rel="noopener" { "Zed editor" }
@@ -52,10 +53,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn credits_zed_and_marks_placeholder() {
+    fn credits_zed_and_links_download() {
         let html = render().into_string();
         assert!(html.contains(site::ZED_UPSTREAM_URL));
-        assert!(html.contains("(placeholder)"));
+        assert!(html.contains(r#"href="/download""#));
         assert!(html.contains("© 2026 Ferrum"));
+        for p in products::ALL {
+            assert!(html.contains(&format!(r#"href="{}""#, p.path())));
+        }
     }
 }

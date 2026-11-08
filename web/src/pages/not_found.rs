@@ -10,7 +10,7 @@ pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Page not found"),
         "This page has rusted away. Head back to the Ferrum home page or explore \
-         FerrumData, FerrumAPI and Ferrum IDE.",
+         the Ferrum apps.",
         "/404",
         "page-404",
     )
@@ -48,7 +48,7 @@ pub fn render(site_url: &str) -> Markup {
                         @for p in products::ALL {
                             li {
                                 a class="notfound__link" href=(p.path()) {
-                                    span class="notfound__link-sym mono" aria-hidden="true" { (p.symbol) }
+                                    (crate::components::card::app_logo(&p, "app-logo--xs", true))
                                     span { (p.name) span class="muted" { " · " (p.kind) } }
                                 }
                             }

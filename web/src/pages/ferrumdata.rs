@@ -10,7 +10,7 @@ const FEATURES: &[(&str, &str)] = &[
     (
         "Desktop shell",
         "Connections sidebar, tabbed SQL editor, results panel and status bar, with resizable \
-         panels that remember their size. Light, dark or system theme.",
+         panels that remember their size. Rendered natively with GPUI in the FerrumIDE theme.",
     ),
     (
         "PostgreSQL profiles",
@@ -71,15 +71,17 @@ const NOT_BUILT_YET: &[&str] = &[
     "MySQL and SQLite support",
     "Column resize, sort and copy in the grid",
     "SSH tunnels",
-    "Packaging, signing and installers",
+    "Light theme (only the built-in One Dark theme renders today)",
+    "Signed and notarized builds",
 ];
 
 const PAGE: ProductPage = ProductPage {
     product: FERRUMDATA,
-    meta_description: "FerrumData is a local-first database IDE written in Rust with Dioxus and \
+    meta_description: "FerrumData is a local-first database IDE written in Rust with GPUI and \
                        SQLx. PostgreSQL today: streaming queries, typed grid, keychain secrets.",
-    intro: "A native desktop database IDE built with Dioxus 0.7 and SQLx. No backend server, \
-            no Electron: your connections, tabs and settings stay on your machine.",
+    intro: "A native desktop database IDE built with GPUI, the UI framework behind Zed, and \
+            SQLx. No backend server, no webview, no Electron: your connections, tabs and \
+            settings stay on your machine.",
     features_lead: "The first PostgreSQL slice is working. This is what the alpha does today, \
                     and nothing more.",
     features: FEATURES,
@@ -88,8 +90,8 @@ const PAGE: ProductPage = ProductPage {
         "Table explorer and table browser tab",
     ],
     status_summary: "FerrumData is in alpha: the foundation and a first PostgreSQL slice work and \
-                     are covered by tests in CI on macOS, Linux and Windows. Expect rough edges \
-                     and missing features.",
+                     are covered by automated tests. The interface was recently moved to GPUI and \
+                     has been launch-tested, so expect rough edges and missing features.",
     status_groups: &[
         BulletGroup {
             heading: "Works today",
@@ -101,19 +103,14 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Platforms", "macOS, Linux and Windows targets"),
-        ("Install", "Build from source today (no installers yet)"),
-        (
-            "Toolchain",
-            "Rust 1.99.1 via rustup (pinned by the repository)",
-        ),
-        ("Linux", "webkit2gtk development libraries"),
-        ("Windows", "WebView2 (preinstalled on Windows 10/11)"),
+        ("Install", "Ferrum Toolbox (team access, see Download)"),
+        ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
         ("Databases", "PostgreSQL"),
-        ("Built with", "Rust, Dioxus 0.7, SQLx"),
+        ("Built with", "Rust, GPUI, SQLx"),
+        ("Data", "Stored locally; passwords in the OS keychain"),
     ],
-    specs_note: "Packaging and signing have not been tested yet, so there are no installers. \
-                 Downloads will appear here once they exist.",
+    specs_note: "Builds are published as private GitHub Releases and installed through Ferrum \
+                 Toolbox. They are ad-hoc signed, not notarized.",
 };
 
 pub fn render(site_url: &str) -> Markup {
@@ -137,11 +134,11 @@ mod tests {
     }
 
     #[test]
-    fn is_honest_about_missing_features_and_downloads() {
+    fn is_honest_about_missing_features_and_links_download() {
         let html = rendered();
         assert!(html.contains("Not built yet"));
         assert!(html.contains("Syntax highlighting and autocomplete"));
-        assert!(html.contains("Coming soon"));
+        assert!(html.contains("href=\"/download\""));
         assert!(html.contains("Screenshot placeholder"));
     }
 

@@ -63,7 +63,7 @@ const STYLESHEETS: [&str; 4] = [
 pub fn page(site_url: &str, meta: &PageMeta, main: Markup) -> Markup {
     let title = meta.full_title();
     let canonical = format!("{site_url}{}", meta.path);
-    let og_image = format!("{site_url}{}", assets::url("img/og.svg"));
+    let og_image = format!("{site_url}{}", assets::url("img/og.png"));
     html! {
         (DOCTYPE)
         html lang="en" data-theme="dark" {
@@ -85,8 +85,12 @@ pub fn page(site_url: &str, meta: &PageMeta, main: Markup) -> Markup {
                 meta property="og:description" content=(meta.description);
                 meta property="og:url" content=(canonical);
                 meta property="og:image" content=(og_image);
+                meta property="og:image:width" content="1200";
+                meta property="og:image:height" content="630";
+                meta property="og:image:alt" content="Ferrum wordmark: one toolbox, every tool";
                 meta name="twitter:card" content="summary_large_image";
                 link rel="icon" href=(assets::url("img/favicon.svg")) type="image/svg+xml";
+                link rel="apple-touch-icon" href=(assets::url("img/apple-touch-icon.png"));
                 link rel="preconnect" href="https://fonts.googleapis.com";
                 link rel="preconnect" href="https://fonts.gstatic.com" crossorigin;
                 link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap";

@@ -54,24 +54,26 @@ const NOT_YET: &[&str] = &[
     "Pre-request and test scripts",
     "Drag-and-drop between folders",
     "Secrets in the OS keychain",
-    "Packaged, signed builds",
+    "WebSocket, GraphQL editor and gRPC",
+    "Light theme and soft-wrap in the response view",
 ];
 
 const PRINCIPLES: &[&str] = &[
     "Native Rust desktop app, no Electron",
     "Local-first: collections and environments stay on your machine",
-    "Part of the Ferrum family alongside FerrumData and Ferrum IDE",
+    "Rendered with GPUI and the shared Ferrum UI, like every Ferrum app",
 ];
 
 const PAGE: ProductPage = ProductPage {
     product: FERRUMAPI,
-    meta_description: "FerrumAPI is a native, local-first desktop API client written in Rust. \
-                       Early preview: request builder, collections, environments, Postman import.",
+    meta_description: "FerrumAPI is a native, local-first desktop API client written in Rust with \
+                       GPUI. Early preview: request builder, collections, environments, Postman import.",
     intro: "A desktop API client written in Rust, focused on the Postman basics: build a \
-            request, send it, organise it. Native and local-first, with no Electron shell.",
+            request, send it, organise it. Native GPUI app and local-first, with no Electron \
+            shell and no webview.",
     features_lead: "These are the features in the early preview. The request engine, storage \
-                    and import/export are covered by automated tests; the interface is still \
-                    being polished.",
+                    and import/export are covered by automated tests; the GPUI interface has been \
+                    launch-tested and is still being polished.",
     features: FEATURES,
     screenshots: &["Request builder with the response panel"],
     status_summary: "FerrumAPI is an early preview. The Postman basics are in place; below is \
@@ -91,17 +93,14 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        (
-            "Platforms",
-            "Native desktop app (supported platforms to be confirmed)",
-        ),
-        ("Install", "Not available yet"),
-        ("Built with", "Rust, Dioxus 0.7"),
-        ("Runtime", "Native app, no Electron, no backend server"),
+        ("Install", "Ferrum Toolbox (team access, see Download)"),
+        ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
+        ("Built with", "Rust, GPUI, reqwest + rustls, SQLite"),
+        ("Runtime", "Native app, no Electron, no webview, no backend server"),
         ("Data", "Stored locally on your machine"),
     ],
-    specs_note: "There are no builds to download yet. Requirements will be listed here when \
-                 the first preview build is published.",
+    specs_note: "Builds are published as private GitHub Releases and installed through Ferrum \
+                 Toolbox. Only macOS has been smoke-tested so far.",
 };
 
 pub fn render(site_url: &str) -> Markup {
@@ -138,6 +137,6 @@ mod tests {
     fn links_to_the_other_products() {
         let html = rendered();
         assert!(html.contains("href=\"/ferrumdata\""));
-        assert!(html.contains("href=\"/ferrum-ide\""));
+        assert!(html.contains("href=\"/ferrumgit\""));
     }
 }
