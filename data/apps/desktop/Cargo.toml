@@ -1,0 +1,29 @@
+[package]
+name = "ferrum-desktop"
+description = "Ferrum database IDE — Dioxus desktop shell."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "ferrum"
+path = "src/main.rs"
+
+[dependencies]
+ferrum-domain.workspace = true
+ferrum-application.workspace = true
+ferrum-result-grid-core.workspace = true
+dioxus = { workspace = true, features = ["desktop", "launch", "macro", "html", "signals", "hooks", "document"] }
+tw_merge.workspace = true
+strum = { version = "0.28", features = ["derive"] }
+ferrum-editor-core.workspace = true
+tokio.workspace = true
+futures.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+directories.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true
