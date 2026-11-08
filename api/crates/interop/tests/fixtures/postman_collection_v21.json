@@ -1,0 +1,178 @@
+{
+  "info": {
+    "_postman_id": "8f2c1d3e-4b5a-4c6d-9e7f-0a1b2c3d4e5f",
+    "name": "Acme Store API",
+    "description": "Public API for the Acme store.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "1234567"
+  },
+  "item": [
+    {
+      "name": "Products",
+      "description": "Catalogue endpoints",
+      "item": [
+        {
+          "name": "List products",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json", "type": "text" },
+              { "key": "X-Debug", "value": "1", "type": "text", "disabled": true, "description": "verbose logs" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/products?page=1&limit={{limit}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"],
+              "query": [
+                { "key": "page", "value": "1", "description": "1-based page" },
+                { "key": "limit", "value": "{{limit}}" },
+                { "key": "sort", "value": "price", "disabled": true }
+              ]
+            },
+            "description": "Paged product list"
+          },
+          "response": []
+        },
+        {
+          "name": "Admin",
+          "auth": {
+            "type": "basic",
+            "basic": [
+              { "key": "password", "value": "s3cret", "type": "string" },
+              { "key": "username", "value": "admin", "type": "string" }
+            ]
+          },
+          "item": [
+            {
+              "name": "Create product",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Anvil\",\n  \"price\": 9.99\n}",
+                  "options": { "raw": { "language": "json" } }
+                },
+                "url": "{{baseUrl}}/products"
+              },
+              "response": []
+            },
+            {
+              "name": "Upload image",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "caption", "value": "Front view", "type": "text" },
+                    { "key": "image", "type": "file", "src": ["/tmp/anvil.png", "/tmp/other.png"] },
+                    { "key": "legacy", "type": "file", "src": "/tmp/legacy.png", "disabled": true }
+                  ]
+                },
+                "url": "{{baseUrl}}/products/42/image"
+              },
+              "response": []
+            },
+            {
+              "name": "Replace manual",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "PATCH",
+                "header": [],
+                "body": { "mode": "file", "file": { "src": "/tmp/manual.pdf" } },
+                "url": "{{baseUrl}}/products/42/manual"
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Login",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "password", "type": "text" },
+            { "key": "scope", "value": "read write", "type": "text", "disabled": true }
+          ]
+        },
+        "url": {
+          "protocol": "https",
+          "host": ["auth", "acme", "com"],
+          "port": "8443",
+          "path": ["oauth", "token"],
+          "query": [{ "key": "client", "value": "web" }]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Search (GraphQL)",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "graphql",
+          "graphql": { "query": "query($q: String!) { search(q: $q) { id } }", "variables": "{\"q\": \"anvil\"}" }
+        },
+        "url": "{{baseUrl}}/graphql"
+      },
+      "response": []
+    },
+    {
+      "name": "Notes (xml)",
+      "request": {
+        "auth": {
+          "type": "apikey",
+          "apikey": [
+            { "key": "in", "value": "query", "type": "string" },
+            { "key": "value", "value": "abc123", "type": "string" },
+            { "key": "key", "value": "api_key", "type": "string" }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": { "mode": "raw", "raw": "<note>hi</note>", "options": { "raw": { "language": "xml" } } },
+        "url": "{{baseUrl}}/notes"
+      },
+      "response": []
+    },
+    {
+      "name": "Script body",
+      "request": {
+        "auth": { "type": "oauth2", "oauth2": [{ "key": "accessToken", "value": "x", "type": "string" }] },
+        "method": "POST",
+        "header": [],
+        "body": { "mode": "raw", "raw": "console.log(1)", "options": { "raw": { "language": "javascript" } } },
+        "url": "{{baseUrl}}/scripts"
+      },
+      "response": []
+    },
+    {
+      "name": "Health",
+      "request": "https://status.acme.com/health?verbose"
+    }
+  ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "X-Api-Key", "type": "string" },
+      { "key": "value", "value": "{{apiKey}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://api.acme.com/v1", "type": "string" },
+    { "key": "limit", "value": 20, "type": "number" },
+    { "key": "apiKey", "value": "k-123", "type": "secret" },
+    { "key": "legacy", "value": "old", "disabled": true }
+  ]
+}

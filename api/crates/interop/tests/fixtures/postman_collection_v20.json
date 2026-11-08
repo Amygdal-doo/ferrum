@@ -1,0 +1,17 @@
+{
+  "info": {
+    "name": "Legacy v2.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get user",
+      "request": {
+        "url": "https://api.example.com/users/1?fields=name",
+        "method": "GET",
+        "header": "Accept: application/json\nX-Trace: on",
+        "auth": { "type": "basic", "basic": { "username": "alice", "password": "pw" } }
+      }
+    }
+  ]
+}
