@@ -10,8 +10,30 @@ use crate::components::{
 use crate::layout::{PageMeta, page};
 use crate::{products, site};
 
-const DESCRIPTION: &str = "Download Ferrum Toolbox and install every Ferrum app. Builds are \
-     private GitHub Releases for now: request access, sign in with gh, install the toolbox.";
+const DESCRIPTION: &str = "Download Ferrum Toolbox and install every Ferrum app on macOS, \
+     Windows or Linux. Builds are private GitHub Releases for now: request access, sign in with \
+     gh, install the toolbox.";
+
+/// Per-OS installers attached to every release: (system, file, how to install).
+const INSTALLERS: [(&str, &str, &str); 3] = [
+    (
+        "macOS",
+        "<App>-<version>-aarch64.dmg / -x86_64.dmg",
+        "open it and drag the app onto Applications (Apple Silicon or Intel).",
+    ),
+    (
+        "Windows",
+        "<App>-<version>-x86_64-setup.exe",
+        "run it; installs for your user (no admin) with a Start Menu entry. \
+         Uninstall from Settings → Apps.",
+    ),
+    (
+        "Linux",
+        "<package>_<version>_amd64.deb",
+        "sudo apt install ./<file>.deb on Debian or Ubuntu; adds the app to the menu and its \
+         command to PATH.",
+    ),
+];
 
 fn get_toolbox_steps() -> [(&'static str, Markup); 4] {
     [
@@ -39,9 +61,11 @@ fn get_toolbox_steps() -> [(&'static str, Markup); 4] {
                     "Open the "
                     a href=(site::RELEASES_URL) rel="noopener" { "Ferrum releases" }
                     " (you must be signed in to GitHub), find the newest "
-                    code { "toolbox-v…" } " release and download "
-                    code { "FerrumToolbox-<version>-<arch>.dmg" }
-                    " for Apple Silicon or Intel. Or, from a clone of the repository:"
+                    code { "toolbox-v…" } " release and download the installer for your system: "
+                    code { "FerrumToolbox-<version>-<arch>.dmg" } " (macOS), "
+                    code { "FerrumToolbox-<version>-x86_64-setup.exe" } " (Windows) or "
+                    code { "ferrum-toolbox_<version>_amd64.deb" } " (Debian/Ubuntu). "
+                    "On a Mac you can also run, from a clone of the repository:"
                 }
                 pre class="code-block" { code { "scripts/install-toolbox.sh" } }
                 p class="muted" {
@@ -53,8 +77,9 @@ fn get_toolbox_steps() -> [(&'static str, Markup); 4] {
             "Open Ferrum Toolbox",
             html! {
                 p {
-                    "Drag " strong { "Ferrum Toolbox.app" } " to Applications and open it. It \
-                    picks up your gh login automatically, or you can paste a "
+                    "Drag " strong { "Ferrum Toolbox.app" } " to Applications (macOS), run the \
+                    setup (Windows) or " code { "sudo apt install ./ferrum-toolbox_…deb" } " (Linux), \
+                    then open it. It picks up your gh login automatically, or you can paste a "
                     a href=(site::TOKEN_SETTINGS_URL) rel="noopener" { "fine-grained token" }
                     " with " em { "Contents: Read" } " on " code { (site::REPO_SLUG) } "."
                 }
@@ -138,7 +163,7 @@ pub fn render(site_url: &str) -> Markup {
             section class="section section--tight" aria-labelledby="gatekeeper-title" {
                 div class="container" {
                     div class="callout callout--warn" {
-                        h2 id="gatekeeper-title" { "First launch on macOS" }
+                        h2 id="gatekeeper-title" { "First launch: builds aren't code-signed yet" }
                         p {
                             "Ferrum builds are ad-hoc signed but not notarized yet, so macOS "
                             "Gatekeeper blocks the first launch. Right-click the app in Finder "
@@ -151,6 +176,11 @@ pub fn render(site_url: &str) -> Markup {
                         p class="muted" {
                             "You only need to do this once per app. Apps installed by the "
                             "toolbox may ask the same the first time you open them."
+                        }
+                        p {
+                            "On Windows, SmartScreen shows " em { "Windows protected your PC" }
+                            " for the setup file: click " strong { "More info" } ", then "
+                            strong { "Run anyway" } "."
                         }
                     }
                 }
@@ -174,20 +204,24 @@ pub fn render(site_url: &str) -> Markup {
             }
             section class="section section--tight" aria-labelledby="platforms-title" {
                 div class="container" {
-                    h2 id="platforms-title" { "Platforms" }
+                    h2 id="platforms-title" { "Install an app directly" }
+                    p {
+                        "Every release also carries a normal installer for each system, if you "
+                        "prefer to install one app by hand. Apps installed this way don't update "
+                        "themselves; the toolbox does that."
+                    }
                     dl class="spec-sheet" {
-                        div class="spec-sheet__row" {
-                            dt class="mono" { "macOS" }
-                            dd { "Apple Silicon and Intel. The toolbox ships as a DMG; apps install as .app bundles." }
+                        @for (os, file, how) in INSTALLERS {
+                            div class="spec-sheet__row" {
+                                dt class="mono" { (os) }
+                                dd { code { (file) } " · " (how) }
+                            }
                         }
-                        div class="spec-sheet__row" {
-                            dt class="mono" { "Linux" }
-                            dd { "x86_64 builds as .tar.gz archives." }
-                        }
-                        div class="spec-sheet__row" {
-                            dt class="mono" { "Windows" }
-                            dd { "No builds yet." }
-                        }
+                    }
+                    p class="muted" {
+                        "FerrumTerm isn't available on Windows yet. Linux packages are named "
+                        code { "ferrum-ide" } ", " code { "ferrumapi" } ", " code { "ferrumgit" } ", "
+                        code { "ferrumdata" } ", " code { "ferrumterm" } " and " code { "ferrum-toolbox" } "."
                     }
                     div class="download-actions" {
                         (button::link("Open Ferrum releases on GitHub", site::RELEASES_URL, Variant::Primary))
@@ -216,6 +250,18 @@ mod tests {
         assert!(html.contains(site::RELEASES_URL));
         assert!(html.contains("scripts/install-toolbox.sh"));
         assert!(html.contains("com.apple.quarantine"));
+        assert!(html.contains("SmartScreen"));
+    }
+
+    #[test]
+    fn lists_an_installer_per_os() {
+        let html = rendered();
+        assert!(html.contains("Install an app directly"));
+        assert!(html.contains("-aarch64.dmg"));
+        assert!(html.contains("-x86_64-setup.exe"));
+        assert!(html.contains("_amd64.deb"));
+        assert!(html.contains("FerrumToolbox-&lt;version&gt;-x86_64-setup.exe"));
+        assert!(html.contains("ferrum-toolbox_&lt;version&gt;_amd64.deb"));
     }
 
     #[test]

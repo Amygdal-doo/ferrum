@@ -107,7 +107,8 @@ impl Render for Onboarding {
                     .child(
                         Label::new(
                             "Create a fine-grained token with Contents: Read on the repo. \
-                             It is stored in the macOS Keychain, never on disk.",
+                             It is stored in the system keychain (macOS Keychain, Windows Credential \
+                             Manager or Secret Service), never on disk.",
                         )
                         .size(LabelSize::XSmall)
                         .color(Color::Muted),

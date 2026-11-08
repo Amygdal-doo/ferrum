@@ -8,12 +8,14 @@ pub mod auth;
 pub mod catalog;
 pub mod github;
 pub mod install;
+pub mod platform;
 pub mod release;
 pub mod store;
 
 pub use auth::{GitHubToken, TokenSource};
 pub use catalog::{AppId, AppInfo, CATALOG};
 pub use github::{DownloadProgress, GitHubClient};
+pub use platform::Platform;
 pub use release::{Asset, ReleaseInfo, current_target};
 pub use store::{InstalledVersion, Paths, Settings, State};
 

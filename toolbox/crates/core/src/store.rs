@@ -3,6 +3,7 @@
 
 use crate::catalog::AppId;
 use crate::github::{DownloadProgress, GitHubClient};
+use crate::platform::{self, ArchiveKind, Platform};
 use crate::release::{self, ReleaseInfo};
 use crate::{Result, ToolboxError, install};
 use chrono::{DateTime, Utc};
@@ -15,27 +16,76 @@ use tokio_util::sync::CancellationToken;
 /// Where the toolbox keeps its files.
 #[derive(Debug, Clone)]
 pub struct Paths {
+    /// Which OS conventions to follow (always [`Platform::current`] outside tests).
+    pub platform: Platform,
     /// `state.json`, `apps/<id>/<version>/` and `downloads/`.
     pub data_dir: PathBuf,
-    /// Symlinks to the active binaries (`~/.ferrum/bin`).
+    /// CLI entry points for the active binaries (`~/.ferrum/bin`): symlinks,
+    /// or `.cmd` shims on Windows.
     pub bin_dir: PathBuf,
     /// Where the active version's `.app` is published (`~/Applications/Ferrum`
     /// on macOS); `None` on other platforms.
     pub applications_dir: Option<PathBuf>,
+    /// Linux: `~/.local/share` (desktop entries go in `applications/`, icons in
+    /// `icons/hicolor/256x256/apps/`).
+    pub xdg_data_dir: Option<PathBuf>,
+    /// Windows: the Start Menu folder that gets a shortcut per active app.
+    pub start_menu_dir: Option<PathBuf>,
 }
 
 impl Paths {
-    /// Platform defaults: the OS app-data dir and `~/.ferrum/bin`.
+    /// Platform defaults: the OS local app-data dir and `~/.ferrum/bin`.
     #[must_use]
     pub fn default_for_user() -> Option<Self> {
         let project = directories::ProjectDirs::from("dev", "Ferrum", "FerrumToolbox")?;
         let home = directories::BaseDirs::new()?;
+        let platform = Platform::current();
         Some(Self {
-            data_dir: project.data_dir().to_path_buf(),
+            platform,
+            data_dir: project.data_local_dir().to_path_buf(),
             bin_dir: home.home_dir().join(".ferrum").join("bin"),
-            applications_dir: cfg!(target_os = "macos")
+            applications_dir: (platform == Platform::MacOs)
                 .then(|| home.home_dir().join("Applications").join("Ferrum")),
+            xdg_data_dir: (platform == Platform::Linux)
+                .then(|| home.data_local_dir().to_path_buf()),
+            start_menu_dir: (platform == Platform::Windows).then(|| {
+                home.config_dir()
+                    .join("Microsoft")
+                    .join("Windows")
+                    .join("Start Menu")
+                    .join("Programs")
+                    .join("Ferrum")
+            }),
         })
+    }
+
+    /// `~/.local/share/applications/ferrum-<id>.desktop` (Linux).
+    #[must_use]
+    pub fn desktop_entry_path(&self, app: AppId) -> Option<PathBuf> {
+        self.xdg_data_dir.as_ref().map(|dir| {
+            dir.join("applications")
+                .join(platform::desktop_entry_name(app))
+        })
+    }
+
+    /// `~/.local/share/icons/hicolor/256x256/apps/ferrum-<id>.png` (Linux).
+    #[must_use]
+    pub fn icon_path(&self, app: AppId) -> Option<PathBuf> {
+        self.xdg_data_dir.as_ref().map(|dir| {
+            dir.join("icons")
+                .join("hicolor")
+                .join("256x256")
+                .join("apps")
+                .join(format!("{}.png", platform::icon_name(app)))
+        })
+    }
+
+    /// `<Start Menu>/Programs/Ferrum/<name>.lnk` (Windows).
+    #[must_use]
+    pub fn shortcut_path(&self, app: AppId) -> Option<PathBuf> {
+        self.start_menu_dir
+            .as_ref()
+            .map(|dir| dir.join(format!("{}.lnk", app.info().name)))
     }
 
     #[must_use]
@@ -80,7 +130,8 @@ impl Paths {
 
     #[must_use]
     pub fn link_path(&self, app: AppId) -> PathBuf {
-        self.bin_dir.join(app.info().binary)
+        self.bin_dir
+            .join(self.platform.cli_entry(app.info().binary))
     }
 
     fn binaries(app: AppId) -> impl Iterator<Item = &'static str> {
@@ -303,13 +354,19 @@ impl State {
     }
 }
 
-/// Points the CLI links at `version` and publishes its `.app` (if any).
+/// Points the CLI entries at `version` and integrates it with the desktop:
+/// the `.app` on macOS, a `.desktop` entry on Linux, a Start Menu shortcut
+/// on Windows.
 fn link_active(paths: &Paths, app: AppId, version: &Version) -> Result<()> {
     let dir = paths.version_dir(app, version);
     for binary in Paths::binaries(app) {
+        let entry = paths.bin_dir.join(paths.platform.cli_entry(binary));
         match install::locate_binary(&dir, binary) {
-            Some(target) => symlink_atomically(&target, &paths.bin_dir.join(binary))?,
-            None => remove_if_exists(&paths.bin_dir.join(binary))?,
+            Some(target) if paths.platform == Platform::Windows => {
+                write_atomically(&entry, platform::cmd_shim(&target).as_bytes())?
+            }
+            Some(target) => symlink_atomically(&target, &entry)?,
+            None => remove_if_exists(&entry)?,
         }
     }
     if let Some(application) = paths.application_path(app) {
@@ -318,6 +375,91 @@ fn link_active(paths: &Paths, app: AppId, version: &Version) -> Result<()> {
             None => remove_if_exists(&application)?,
         }
     }
+    let executable = install::locate_binary(&dir, app.info().binary);
+    if let (Some(entry), Some(icon)) = (paths.desktop_entry_path(app), paths.icon_path(app)) {
+        match &executable {
+            Some(executable) => {
+                write_atomically(&icon, platform::icon_png(app))?;
+                write_atomically(&entry, platform::desktop_entry(app, executable).as_bytes())?;
+            }
+            None => {
+                remove_if_exists(&entry)?;
+                remove_if_exists(&icon)?;
+            }
+        }
+    }
+    if let Some(shortcut) = paths.shortcut_path(app) {
+        match &executable {
+            Some(executable) => {
+                if let Err(e) = create_shortcut(&shortcut, executable, &dir, app) {
+                    tracing::warn!(app = %app, error = %e, "could not create Start Menu shortcut");
+                }
+            }
+            None => remove_if_exists(&shortcut)?,
+        }
+    }
+    Ok(())
+}
+
+fn write_atomically(path: &Path, contents: &[u8]) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let temp = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4()));
+    std::fs::write(&temp, contents)?;
+    if let Err(e) = std::fs::rename(&temp, path) {
+        std::fs::remove_file(&temp).ok();
+        return Err(e.into());
+    }
+    Ok(())
+}
+
+/// Creates a `.lnk` through the Windows Script Host. Paths travel in
+/// environment variables so no quoting can break the PowerShell command.
+#[cfg(windows)]
+fn create_shortcut(
+    shortcut: &Path,
+    executable: &Path,
+    working_dir: &Path,
+    app: AppId,
+) -> Result<()> {
+    if let Some(parent) = shortcut.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let icon = working_dir.join(format!("{app}.ico"));
+    let icon = if icon.is_file() {
+        icon
+    } else {
+        executable.to_path_buf()
+    };
+    let status = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:FERRUM_LNK); \
+             $s.TargetPath = $env:FERRUM_TARGET; $s.WorkingDirectory = $env:FERRUM_DIR; \
+             $s.IconLocation = $env:FERRUM_ICON; $s.Description = $env:FERRUM_DESC; $s.Save()",
+        ])
+        .env("FERRUM_LNK", shortcut)
+        .env("FERRUM_TARGET", executable)
+        .env("FERRUM_DIR", working_dir)
+        .env("FERRUM_ICON", icon)
+        .env("FERRUM_DESC", app.info().description)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(ToolboxError::Invalid(format!(
+            "powershell exited with {status}"
+        )))
+    }
+}
+
+#[cfg(not(windows))]
+fn create_shortcut(_: &Path, _: &Path, _: &Path, _: AppId) -> Result<()> {
     Ok(())
 }
 
@@ -400,10 +542,16 @@ fn remove_if_exists(path: &Path) -> Result<()> {
 
 fn unlink(paths: &Paths, app: AppId) -> Result<()> {
     for binary in Paths::binaries(app) {
-        remove_if_exists(&paths.bin_dir.join(binary))?;
+        remove_if_exists(&paths.bin_dir.join(paths.platform.cli_entry(binary)))?;
     }
-    if let Some(application) = paths.application_path(app) {
-        remove_if_exists(&application)?;
+    let integrations = [
+        paths.application_path(app),
+        paths.desktop_entry_path(app),
+        paths.icon_path(app),
+        paths.shortcut_path(app),
+    ];
+    for path in integrations.into_iter().flatten() {
+        remove_if_exists(&path)?;
     }
     Ok(())
 }
@@ -463,11 +611,13 @@ pub async fn install_release_for_target(
         return Err(e);
     }
 
+    let kind = ArchiveKind::from_asset_name(&archive.name)
+        .ok_or_else(|| ToolboxError::Invalid(format!("unsupported archive {}", archive.name)))?;
     let destination = paths.version_dir(release.app, &release.version);
     let binary = release.app.info().binary;
     let archive_path = download.clone();
     let extracted = tokio::task::spawn_blocking(move || {
-        install::install_archive(&archive_path, &destination, binary)
+        install::install_archive(&archive_path, kind, &destination, binary)
     })
     .await
     .map_err(|e| ToolboxError::Invalid(format!("install task failed: {e}")))?;
@@ -490,7 +640,7 @@ pub fn launch(state: &State, app: AppId, paths: &Paths) -> Result<()> {
     let version = state
         .active(app)
         .ok_or_else(|| ToolboxError::Invalid(format!("{} is not installed", app.info().name)))?;
-    if cfg!(target_os = "macos") {
+    if paths.platform == Platform::MacOs {
         let bundle = paths
             .application_path(app)
             .filter(|path| path.is_dir())
@@ -529,6 +679,13 @@ fn spawn_detached(binary: &Path, working_dir: &Path) -> Result<()> {
         use std::os::unix::process::CommandExt;
         command.process_group(0);
     }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+    }
     command.spawn()?;
     Ok(())
 }
@@ -544,9 +701,12 @@ mod tests {
 
     fn paths(dir: &Path) -> Paths {
         Paths {
+            platform: Platform::MacOs,
             data_dir: dir.join("data"),
             bin_dir: dir.join("bin"),
             applications_dir: Some(dir.join("Applications/Ferrum")),
+            xdg_data_dir: None,
+            start_menu_dir: None,
         }
     }
 
@@ -650,6 +810,75 @@ mod tests {
         assert_eq!(state.active(AppId::Api), None);
         assert!(!paths.link_path(AppId::Api).exists());
         assert!(state.activate(AppId::Api, &v2, &paths).is_err());
+    }
+
+    #[test]
+    fn windows_activation_writes_cmd_shims_and_uninstall_removes_them() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = Paths {
+            platform: Platform::Windows,
+            applications_dir: None,
+            start_menu_dir: None,
+            ..paths(dir.path())
+        };
+        let mut state = State::default();
+        let version = Version::new(0, 3, 0);
+        let version_dir = paths.version_dir(AppId::Term, &version);
+        std::fs::create_dir_all(&version_dir).expect("mkdir");
+        std::fs::write(version_dir.join("ferrumterm.exe"), b"MZ").expect("write");
+        std::fs::write(version_dir.join("fterm.exe"), b"MZ").expect("write");
+        state.record_install(AppId::Term, installed("0.3.0"));
+
+        state
+            .activate(AppId::Term, &version, &paths)
+            .expect("activate");
+        let shim = std::fs::read_to_string(paths.bin_dir.join("fterm.cmd")).expect("shim");
+        assert_eq!(shim, platform::cmd_shim(&version_dir.join("fterm.exe")));
+        assert_eq!(
+            paths.link_path(AppId::Term),
+            paths.bin_dir.join("ferrumterm.cmd")
+        );
+        assert!(paths.link_path(AppId::Term).is_file());
+
+        state
+            .uninstall(AppId::Term, &version, &paths)
+            .expect("uninstall");
+        assert!(!paths.bin_dir.join("fterm.cmd").exists());
+        assert!(!paths.link_path(AppId::Term).exists());
+    }
+
+    #[test]
+    fn linux_activation_writes_desktop_entry_and_icon() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = Paths {
+            platform: Platform::Linux,
+            applications_dir: None,
+            xdg_data_dir: Some(dir.path().join("share")),
+            ..paths(dir.path())
+        };
+        let mut state = State::default();
+        fake_install(&mut state, &paths, AppId::Data, "1.0.0");
+        let version = Version::new(1, 0, 0);
+        state
+            .activate(AppId::Data, &version, &paths)
+            .expect("activate");
+
+        let entry_path = dir.path().join("share/applications/ferrum-data.desktop");
+        let entry = std::fs::read_to_string(&entry_path).expect("desktop entry");
+        assert!(entry.contains(&format!(
+            "Exec=\"{}\"",
+            paths.binary_path(AppId::Data, &version).display()
+        )));
+        let icon = dir
+            .path()
+            .join("share/icons/hicolor/256x256/apps/ferrum-data.png");
+        assert!(std::fs::read(&icon).expect("icon").starts_with(b"\x89PNG"));
+
+        state
+            .uninstall(AppId::Data, &version, &paths)
+            .expect("uninstall");
+        assert!(!entry_path.exists());
+        assert!(!icon.exists());
     }
 
     #[test]

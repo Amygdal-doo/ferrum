@@ -1,0 +1,209 @@
+//! Per-OS conventions: executable names, CLI shims, desktop integration and
+//! archive formats. The helpers are pure so every platform's behaviour is
+//! testable on any host.
+
+use crate::catalog::AppId;
+use std::path::Path;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Platform {
+    MacOs,
+    Linux,
+    Windows,
+    Other,
+}
+
+impl Platform {
+    #[must_use]
+    pub fn current() -> Self {
+        if cfg!(target_os = "macos") {
+            Self::MacOs
+        } else if cfg!(target_os = "linux") {
+            Self::Linux
+        } else if cfg!(windows) {
+            Self::Windows
+        } else {
+            Self::Other
+        }
+    }
+
+    /// Platform of a Rust target triple.
+    #[must_use]
+    pub fn of_target(target: &str) -> Self {
+        if target.ends_with("-apple-darwin") {
+            Self::MacOs
+        } else if target.contains("-linux-") {
+            Self::Linux
+        } else if target.contains("-windows-") {
+            Self::Windows
+        } else {
+            Self::Other
+        }
+    }
+
+    /// `binary` with the platform's executable suffix.
+    #[must_use]
+    pub fn executable(self, binary: &str) -> String {
+        match self {
+            Self::Windows => format!("{binary}.exe"),
+            _ => binary.to_string(),
+        }
+    }
+
+    /// Name of the CLI entry point in `~/.ferrum/bin`.
+    #[must_use]
+    pub fn cli_entry(self, binary: &str) -> String {
+        match self {
+            Self::Windows => format!("{binary}.cmd"),
+            _ => binary.to_string(),
+        }
+    }
+}
+
+/// Archive formats the toolbox can unpack.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArchiveKind {
+    TarGz,
+    Zip,
+}
+
+impl ArchiveKind {
+    /// Kind from a release asset name.
+    #[must_use]
+    pub fn from_asset_name(name: &str) -> Option<Self> {
+        if name.ends_with(".tar.gz") {
+            Some(Self::TarGz)
+        } else if name.ends_with(".zip") {
+            Some(Self::Zip)
+        } else {
+            None
+        }
+    }
+}
+
+/// A Windows `.cmd` shim that forwards all arguments to `target`.
+#[must_use]
+pub fn cmd_shim(target: &Path) -> String {
+    format!("@echo off\r\n\"{}\" %*\r\n", target.display())
+}
+
+/// Desktop-entry file name for `app` (`~/.local/share/applications/`).
+#[must_use]
+pub fn desktop_entry_name(app: AppId) -> String {
+    format!("ferrum-{app}.desktop")
+}
+
+/// Icon theme name for `app` (`hicolor/256x256/apps/<name>.png`).
+#[must_use]
+pub fn icon_name(app: AppId) -> String {
+    format!("ferrum-{app}")
+}
+
+/// A freedesktop.org `.desktop` entry that launches `executable`.
+#[must_use]
+pub fn desktop_entry(app: AppId, executable: &Path) -> String {
+    let info = app.info();
+    let exec = executable.display().to_string().replace('"', "\\\"");
+    format!(
+        "[Desktop Entry]\n\
+         Type=Application\n\
+         Version=1.5\n\
+         Name={name}\n\
+         Comment={comment}\n\
+         Exec=\"{exec}\" %U\n\
+         Icon={icon}\n\
+         Terminal=false\n\
+         Categories=Development;\n\
+         StartupWMClass={binary}\n",
+        name = info.name,
+        comment = info.description,
+        icon = icon_name(app),
+        binary = info.binary,
+    )
+}
+
+/// The brand icon (256px PNG) bundled into the toolbox for desktop entries.
+#[must_use]
+pub fn icon_png(app: AppId) -> &'static [u8] {
+    match app {
+        AppId::Ide => include_bytes!("../../../../brand/png/ide-256.png"),
+        AppId::Api => include_bytes!("../../../../brand/png/api-256.png"),
+        AppId::Git => include_bytes!("../../../../brand/png/git-256.png"),
+        AppId::Data => include_bytes!("../../../../brand/png/data-256.png"),
+        AppId::Term => include_bytes!("../../../../brand/png/term-256.png"),
+        AppId::Toolbox => include_bytes!("../../../../brand/png/toolbox-256.png"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn platform_of_target() {
+        assert_eq!(Platform::of_target("aarch64-apple-darwin"), Platform::MacOs);
+        assert_eq!(
+            Platform::of_target("x86_64-unknown-linux-gnu"),
+            Platform::Linux
+        );
+        assert_eq!(
+            Platform::of_target("x86_64-pc-windows-msvc"),
+            Platform::Windows
+        );
+        assert_eq!(
+            Platform::of_target("wasm32-unknown-unknown"),
+            Platform::Other
+        );
+    }
+
+    #[test]
+    fn executable_and_cli_names() {
+        assert_eq!(Platform::Windows.executable("ferrumapi"), "ferrumapi.exe");
+        assert_eq!(Platform::Linux.executable("ferrumapi"), "ferrumapi");
+        assert_eq!(Platform::Windows.cli_entry("fterm"), "fterm.cmd");
+        assert_eq!(Platform::MacOs.cli_entry("fterm"), "fterm");
+    }
+
+    #[test]
+    fn archive_kind_from_name() {
+        assert_eq!(
+            ArchiveKind::from_asset_name("api-1.0.0-x86_64-pc-windows-msvc.zip"),
+            Some(ArchiveKind::Zip)
+        );
+        assert_eq!(
+            ArchiveKind::from_asset_name("api-1.0.0-aarch64-apple-darwin.app.tar.gz"),
+            Some(ArchiveKind::TarGz)
+        );
+        assert_eq!(
+            ArchiveKind::from_asset_name("FerrumAPI-1.0.0-x86_64-setup.exe"),
+            None
+        );
+    }
+
+    #[test]
+    fn cmd_shim_quotes_path_and_forwards_args() {
+        let shim = cmd_shim(&PathBuf::from(r"C:\Users\me\AppData\Local\x\ferrumapi.exe"));
+        assert_eq!(
+            shim,
+            "@echo off\r\n\"C:\\Users\\me\\AppData\\Local\\x\\ferrumapi.exe\" %*\r\n"
+        );
+    }
+
+    #[test]
+    fn desktop_entry_points_at_executable_and_icon() {
+        let entry = desktop_entry(AppId::Data, Path::new("/home/me/.local/share/x/ferrumdata"));
+        assert!(entry.starts_with("[Desktop Entry]\n"));
+        assert!(entry.contains("Name=FerrumData\n"));
+        assert!(entry.contains("Exec=\"/home/me/.local/share/x/ferrumdata\" %U\n"));
+        assert!(entry.contains("Icon=ferrum-data\n"));
+        assert_eq!(desktop_entry_name(AppId::Data), "ferrum-data.desktop");
+    }
+
+    #[test]
+    fn every_app_has_a_png_icon() {
+        for app in AppId::ALL {
+            assert!(icon_png(app).starts_with(b"\x89PNG"), "{app}");
+        }
+    }
+}

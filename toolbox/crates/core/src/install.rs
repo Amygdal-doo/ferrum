@@ -1,5 +1,6 @@
 //! Verifying and unpacking release archives into the version store.
 
+use crate::platform::ArchiveKind;
 use crate::{Result, ToolboxError};
 use flate2::read::GzDecoder;
 use std::fs::File;
@@ -40,12 +41,15 @@ pub fn locate_bundle(version_dir: &Path) -> Option<PathBuf> {
     bundles.next().is_none().then_some(bundle)
 }
 
-/// `binary` at the root of `version_dir`, or inside its `.app` bundle.
+/// `binary` (or `binary.exe`) at the root of `version_dir`, or inside its
+/// `.app` bundle.
 #[must_use]
 pub fn locate_binary(version_dir: &Path, binary: &str) -> Option<PathBuf> {
-    let plain = version_dir.join(binary);
-    if plain.is_file() {
-        return Some(plain);
+    for name in [binary.to_string(), format!("{binary}.exe")] {
+        let plain = version_dir.join(name);
+        if plain.is_file() {
+            return Some(plain);
+        }
     }
     let bundled = locate_bundle(version_dir)?
         .join("Contents")
@@ -54,11 +58,16 @@ pub fn locate_binary(version_dir: &Path, binary: &str) -> Option<PathBuf> {
     bundled.is_file().then_some(bundled)
 }
 
-/// Unpacks `archive` (`.tar.gz`) into a fresh temp dir next to `destination`,
+/// Unpacks `archive` (`.tar.gz` or `.zip`) into a fresh temp dir next to `destination`,
 /// checks `binary` exists (at its root or in its `.app` bundle), then moves it into place, replacing
 /// any previous install of the same version. Entries that would escape the
 /// directory (absolute paths, `..`, or links pointing outside) abort the install.
-pub fn install_archive(archive: &Path, destination: &Path, binary: &str) -> Result<()> {
+pub fn install_archive(
+    archive: &Path,
+    kind: ArchiveKind,
+    destination: &Path,
+    binary: &str,
+) -> Result<()> {
     let parent = destination
         .parent()
         .ok_or_else(|| ToolboxError::Invalid("install path has no parent".into()))?;
@@ -66,7 +75,11 @@ pub fn install_archive(archive: &Path, destination: &Path, binary: &str) -> Resu
     let staging = parent.join(format!(".staging-{}", uuid::Uuid::new_v4()));
     std::fs::create_dir_all(&staging)?;
 
-    let result = extract(archive, &staging).and_then(|()| {
+    let extracted = match kind {
+        ArchiveKind::TarGz => extract(archive, &staging),
+        ArchiveKind::Zip => extract_zip(archive, &staging),
+    };
+    let result = extracted.and_then(|()| {
         if locate_binary(&staging, binary).is_none() {
             return Err(ToolboxError::MissingBinary(binary.to_string()));
         }
@@ -109,6 +122,41 @@ fn extract(archive: &Path, into: &Path) -> Result<()> {
         }
         if !entry.unpack_in(into)? {
             return Err(ToolboxError::UnsafeArchiveEntry(path.display().to_string()));
+        }
+    }
+    Ok(())
+}
+
+/// Zip counterpart of [`extract`]. Links are rejected outright: Windows
+/// archives never need them.
+fn extract_zip(archive: &Path, into: &Path) -> Result<()> {
+    let mut zip = zip::ZipArchive::new(File::open(archive)?)
+        .map_err(|e| ToolboxError::Invalid(format!("invalid zip archive: {e}")))?;
+    for index in 0..zip.len() {
+        let mut entry = zip
+            .by_index(index)
+            .map_err(|e| ToolboxError::Invalid(format!("invalid zip entry: {e}")))?;
+        let name = entry.name().to_string();
+        let Some(relative) = entry.enclosed_name().filter(|path| is_safe_relative(path)) else {
+            return Err(ToolboxError::UnsafeArchiveEntry(name));
+        };
+        if entry.is_symlink() {
+            return Err(ToolboxError::UnsafeArchiveEntry(name));
+        }
+        let path = into.join(relative);
+        if entry.is_dir() {
+            std::fs::create_dir_all(&path)?;
+            continue;
+        }
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut file = File::create(&path)?;
+        std::io::copy(&mut entry, &mut file)?;
+        #[cfg(unix)]
+        if let Some(mode) = entry.unix_mode() {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode & 0o777))?;
         }
     }
     Ok(())
@@ -209,7 +257,7 @@ pub(crate) mod tests {
             ],
         );
         let destination = dir.path().join("apps/api/0.2.0");
-        install_archive(&archive, &destination, "ferrumapi").expect("install");
+        install_archive(&archive, ArchiveKind::TarGz, &destination, "ferrumapi").expect("install");
         let binary = destination.join("ferrumapi");
         assert!(binary.is_file());
         #[cfg(unix)]
@@ -223,7 +271,8 @@ pub(crate) mod tests {
         }
         // Reinstalling the same version replaces it cleanly.
         make_archive(&archive, &[("ferrumapi", b"v2", 0o755)]);
-        install_archive(&archive, &destination, "ferrumapi").expect("reinstall");
+        install_archive(&archive, ArchiveKind::TarGz, &destination, "ferrumapi")
+            .expect("reinstall");
         assert!(!destination.join("README.txt").exists());
         let leftovers: Vec<_> = std::fs::read_dir(dir.path().join("apps/api"))
             .expect("read")
@@ -238,7 +287,7 @@ pub(crate) mod tests {
         let archive = dir.path().join("evil.tar.gz");
         make_raw_archive(&archive, "../escaped");
         let destination = dir.path().join("apps/api/1.0.0");
-        let result = install_archive(&archive, &destination, "ferrumapi");
+        let result = install_archive(&archive, ArchiveKind::TarGz, &destination, "ferrumapi");
         assert!(matches!(result, Err(ToolboxError::UnsafeArchiveEntry(_))));
         assert!(!dir.path().join("apps/escaped").exists());
         assert!(!destination.exists());
@@ -262,7 +311,12 @@ pub(crate) mod tests {
             .append_link(&mut header, "ferrumapi", "../../../../etc/passwd")
             .expect("append");
         builder.into_inner().expect("tar").finish().expect("gzip");
-        let result = install_archive(&archive, &dir.path().join("apps/api/1.0.0"), "ferrumapi");
+        let result = install_archive(
+            &archive,
+            ArchiveKind::TarGz,
+            &dir.path().join("apps/api/1.0.0"),
+            "ferrumapi",
+        );
         assert!(matches!(result, Err(ToolboxError::UnsafeArchiveEntry(_))));
     }
 
@@ -282,7 +336,7 @@ pub(crate) mod tests {
             ],
         );
         let destination = dir.path().join("apps/data/0.3.0");
-        install_archive(&archive, &destination, "ferrumdata").expect("install");
+        install_archive(&archive, ArchiveKind::TarGz, &destination, "ferrumdata").expect("install");
         let bundle = locate_bundle(&destination).expect("bundle");
         assert_eq!(bundle, destination.join("FerrumData.app"));
         assert_eq!(
@@ -295,7 +349,12 @@ pub(crate) mod tests {
             &archive,
             &[("FerrumData.app/Contents/MacOS/other", b"x", 0o755)],
         );
-        let result = install_archive(&archive, &dir.path().join("apps/data/0.4.0"), "ferrumdata");
+        let result = install_archive(
+            &archive,
+            ArchiveKind::TarGz,
+            &dir.path().join("apps/data/0.4.0"),
+            "ferrumdata",
+        );
         assert!(matches!(result, Err(ToolboxError::MissingBinary(_))));
     }
 
@@ -304,8 +363,59 @@ pub(crate) mod tests {
         let dir = tempfile::tempdir().expect("tmp");
         let archive = dir.path().join("app.tar.gz");
         make_archive(&archive, &[("bin/ferrumapi", b"x", 0o755)]);
-        let result = install_archive(&archive, &dir.path().join("apps/api/1.0.0"), "ferrumapi");
+        let result = install_archive(
+            &archive,
+            ArchiveKind::TarGz,
+            &dir.path().join("apps/api/1.0.0"),
+            "ferrumapi",
+        );
         assert!(matches!(result, Err(ToolboxError::MissingBinary(_))));
+    }
+
+    fn make_zip(path: &Path, files: &[(&str, &[u8])]) {
+        use std::io::Write;
+        let mut zip = zip::ZipWriter::new(File::create(path).expect("create"));
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated)
+            .unix_permissions(0o755);
+        for (name, data) in files {
+            zip.start_file(*name, options).expect("start");
+            zip.write_all(data).expect("write");
+        }
+        zip.finish().expect("finish");
+    }
+
+    #[test]
+    fn installs_windows_zip_and_finds_exe() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let archive = dir.path().join("api.zip");
+        make_zip(&archive, &[("ferrumapi.exe", b"MZ"), ("api.ico", b"ico")]);
+        let destination = dir.path().join("apps/api/0.2.0");
+        install_archive(&archive, ArchiveKind::Zip, &destination, "ferrumapi").expect("install");
+        assert_eq!(
+            locate_binary(&destination, "ferrumapi"),
+            Some(destination.join("ferrumapi.exe"))
+        );
+        assert!(destination.join("api.ico").is_file());
+    }
+
+    #[test]
+    fn rejects_zip_path_traversal() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let archive = dir.path().join("evil.zip");
+        make_zip(
+            &archive,
+            &[("../escaped.exe", b"MZ"), ("ferrumapi.exe", b"MZ")],
+        );
+        let result = install_archive(
+            &archive,
+            ArchiveKind::Zip,
+            &dir.path().join("apps/api/1.0.0"),
+            "ferrumapi",
+        );
+        assert!(matches!(result, Err(ToolboxError::UnsafeArchiveEntry(_))));
+        assert!(!dir.path().join("apps/escaped.exe").exists());
+        assert!(!dir.path().join("escaped.exe").exists());
     }
 
     #[test]

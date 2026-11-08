@@ -2,7 +2,9 @@
 
 You install **Ferrum Toolbox** once. It then installs, updates and rolls back
 every other Ferrum app (Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData,
-FerrumTerm). macOS is the main target; Linux gets plain tarballs.
+FerrumTerm). Every app is also published as a normal installer for each OS
+(`.dmg`, `.exe`, `.deb`) if you'd rather install one by hand; see
+[Install an app directly](#install-an-app-directly).
 
 > **The releases are private.** They live in the private repo
 > `Amygdal-doo/ferrum`, so you need a GitHub account with access to it, both
@@ -36,6 +38,11 @@ The script picks the latest `toolbox-v*` release for your CPU, checks the
 `.sha256`, installs into `/Applications` (or `~/Applications` if that isn't
 writable) and opens it. Files downloaded by `gh` aren't quarantined, so
 there's no Gatekeeper prompt.
+
+**Windows and Linux:** download `FerrumToolbox-<version>-x86_64-setup.exe`
+(run it; SmartScreen: **More info → Run anyway**) or
+`ferrum-toolbox_<version>_amd64.deb` (`sudo apt install ./ferrum-toolbox_<version>_amd64.deb`)
+from the same release. See [Windows](#windows) and [Linux](#linux) below.
 
 ## 2. Sign in to GitHub (first launch)
 
@@ -102,6 +109,36 @@ Gatekeeper prompt.
   security delete-generic-password -s FerrumToolbox   # saved token, if any
   ```
 
+## Install an app directly
+
+Each release (`<app>-v<version>` on the
+[releases page](https://github.com/Amygdal-doo/ferrum/releases)) carries an
+installer per OS. Apps installed this way don't update themselves; use the
+toolbox for updates and rollback.
+
+| OS | Download | Install | Uninstall |
+| --- | --- | --- | --- |
+| macOS (Apple Silicon / Intel) | `<App>-<version>-aarch64.dmg` / `…-x86_64.dmg`, e.g. `FerrumData-0.2.0-aarch64.dmg` | Open it and drag the app onto **Applications** | Drag the app from Applications to the Trash |
+| Windows 10/11 (x64) | `<App>-<version>-x86_64-setup.exe`, e.g. `FerrumData-0.2.0-x86_64-setup.exe` | Run it. Installs for your user only (no admin) into `%LOCALAPPDATA%\Programs\Ferrum\<App>`, adds a Start Menu entry and optionally a desktop shortcut | **Settings → Apps → Installed apps → <App> → Uninstall** |
+| Debian / Ubuntu (x64) | `<package>_<version>_amd64.deb`, e.g. `ferrumdata_0.2.0_amd64.deb` | `sudo apt install ./ferrumdata_0.2.0_amd64.deb`. Installs into `/opt/ferrum/<app>/`, puts the command on `PATH` (`/usr/bin`) and adds it to the app menu | `sudo apt remove ferrumdata` |
+
+Package names on Linux: `ferrum-ide`, `ferrumapi`, `ferrumgit`, `ferrumdata`,
+`ferrumterm`, `ferrum-toolbox`. Pre-release versions such as `0.2.0-beta.1`
+become `0.2.0~beta.1` so apt orders them before the final release.
+
+**First launch: nothing is code-signed yet.**
+
+- **macOS:** the apps are ad-hoc signed, not notarized, so Gatekeeper blocks a
+  plain double-click on a downloaded copy. **Right-click → Open → Open** once,
+  or run `xattr -dr com.apple.quarantine "/Applications/<App>.app"`.
+- **Windows:** SmartScreen shows "Windows protected your PC" for the setup
+  file. Click **More info → Run anyway**.
+- **Linux:** no prompt. GPUI needs a Vulkan driver (`mesa-vulkan-drivers` is
+  recommended by the package).
+
+**FerrumTerm is not available on Windows yet**: its server and clients talk
+over Unix sockets.
+
 ## Where files live (macOS)
 
 | What | Where |
@@ -115,10 +152,21 @@ Gatekeeper prompt.
 
 ## Linux
 
-There's no DMG or `.app`. Releases ship `<app>-<version>-x86_64-unknown-linux-gnu.tar.gz`
-with the binaries at the root. Run FerrumToolbox from that tarball. It
-installs apps under `~/.local/share/ferrumtoolbox/apps/` and links them in
-`~/.ferrum/bin`.
+Install the toolbox with `sudo apt install ./ferrum-toolbox_<version>_amd64.deb`
+(or run it from the `.tar.gz`). It downloads each app's
+`<app>-<version>-x86_64-unknown-linux-gnu.tar.gz`, keeps versions under
+`~/.local/share/ferrumtoolbox/apps/`, links the active one into
+`~/.ferrum/bin` and adds a menu entry
+(`~/.local/share/applications/ferrum-<app>.desktop` plus its icon).
+
+## Windows
+
+Install the toolbox with `FerrumToolbox-<version>-x86_64-setup.exe`. It
+downloads each app's `<app>-<version>-x86_64-pc-windows-msvc.zip`, keeps
+versions under `%LOCALAPPDATA%\Ferrum\FerrumToolbox\data\apps\`, writes
+`.cmd` launchers into `%USERPROFILE%\.ferrum\bin` (add it to your `PATH` to
+use the commands) and a Start Menu shortcut in **Ferrum** for the active
+version. The token goes into Windows Credential Manager.
 
 ## For maintainers: how builds get there
 
@@ -130,20 +178,28 @@ git push origin data-v0.3.0
 `.github/workflows/release.yml` builds the app for each target and uploads
 these assets, each with a `.sha256`:
 
-| Asset | Platform |
-| --- | --- |
-| `<app>-<version>-<target>.tar.gz` | all (binaries at the root) |
-| `<app>-<version>-<target>.app.tar.gz` | macOS: the `.app`, preferred by the toolbox |
-| `FerrumToolbox-<version>-<arch>.dmg` | macOS, toolbox only |
+| Asset | Platform | Used by |
+| --- | --- | --- |
+| `<app>-<version>-<target>.tar.gz` | macOS, Linux (binaries at the root) | toolbox (Linux), CLI |
+| `<app>-<version>-<target>.app.tar.gz` | macOS: the `.app` | toolbox (macOS) |
+| `<app>-<version>-x86_64-pc-windows-msvc.zip` | Windows: `.exe` files + `<app>.ico` | toolbox (Windows) |
+| `<App>-<version>-<arch>.dmg` | macOS | people |
+| `<package>_<version>_amd64.deb` | Debian/Ubuntu | people |
+| `<App>-<version>-x86_64-setup.exe` | Windows (Inno Setup, per-user) | people |
 
-The bundles come from `scripts/bundle-macos.sh` (Info.plist, the
-`brand/icons/<app>.icns` icon, ad-hoc signature), and the DMG from
-`scripts/make-dmg.sh`. You can run both locally:
+The scripts behind them run locally too:
+
+| Script | Makes |
+| --- | --- |
+| `scripts/bundle-macos.sh <app> <version> <target> <binary-dir> <out-dir>` | `.app` (Info.plist, `brand/icons/<app>.icns`, ad-hoc signature) |
+| `scripts/make-dmg.sh <App.app> <out.dmg> [volume]` | drag-to-install `.dmg` |
+| `scripts/package-deb.sh <app> <version> <binary-dir> <out-dir>` | `.deb` (uses `dpkg-deb` when present; builds the archive itself elsewhere) |
+| `scripts/package-windows.ps1 -App <app> -Version <v> -BinaryDir <dir> -OutDir <dir>` | Windows `.zip` + Inno Setup `.exe` (`packaging/windows/ferrum.iss`) |
 
 ```bash
 cargo build --release -p ferrumdata-desktop
 scripts/bundle-macos.sh data 0.3.0 aarch64-apple-darwin target/release dist
-scripts/make-dmg.sh "dist/Ferrum Toolbox.app" dist/FerrumToolbox-0.3.0-aarch64.dmg   # toolbox only
+scripts/make-dmg.sh dist/FerrumData.app dist/FerrumData-0.3.0-aarch64.dmg FerrumData
 ```
 
 The workflow needs the `SUBMODULE_TOKEN` secret (read access to
@@ -158,4 +214,10 @@ The workflow needs the `SUBMODULE_TOKEN` secret (read access to
 - **Self-update:** the toolbox can install a newer version of itself (into
   `~/Applications/Ferrum/Ferrum Toolbox.app`), but it doesn't replace the
   copy in `/Applications` or restart. Quit it and open the new one.
-- **Platforms:** Windows has no builds.
+- **Windows:** the builds have only been compiled in CI, not tested by hand
+  yet. FerrumTerm has no Windows build. Ferrum IDE on Windows ships `zed.exe`
+  only, without the extras Zed's own installer adds (bundled ConPTY, Explorer
+  context menu, auto-update helper). Executables carry no embedded icon; the
+  shortcuts use `<app>.ico`. SmartScreen warns because nothing is signed.
+- **Linux:** only x86_64 `.deb` packages and tarballs (no arm64, RPM, Flatpak
+  or AppImage).

@@ -23,9 +23,10 @@ the record: tag, version, date, notes and downloadable builds.
 | App ids | `ide`, `api`, `git`, `data`, `term`, `toolbox` | |
 | Build | `<app-id>-<version>-<target>.tar.gz` with the binaries at the archive root | `api-0.2.0-aarch64-apple-darwin.tar.gz` |
 | macOS bundle | `<app-id>-<version>-<target>.app.tar.gz` with `<App>.app` at the root; preferred on macOS | `api-0.2.0-aarch64-apple-darwin.app.tar.gz` |
-| Toolbox installer | `FerrumToolbox-<version>-<arch>.dmg` (macOS) | `FerrumToolbox-0.1.0-aarch64.dmg` |
-| Checksum | `<build>.sha256` | `api-0.2.0-aarch64-apple-darwin.tar.gz.sha256` |
-| Targets | `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu` | |
+| Windows build | `<app-id>-<version>-<target>.zip` with the `.exe` files and `<app-id>.ico` at the root; preferred on Windows | `api-0.2.0-x86_64-pc-windows-msvc.zip` |
+| Installers (for people; the toolbox ignores them) | `<App>-<version>-<arch>.dmg`, `<App>-<version>-x86_64-setup.exe`, `<package>_<version>_amd64.deb` | `FerrumAPI-0.2.0-aarch64.dmg` |
+| Checksum | `<asset>.sha256` | `api-0.2.0-aarch64-apple-darwin.tar.gz.sha256` |
+| Targets | `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, `x86_64-pc-windows-msvc` (not for `term`) | |
 
 Tags that don't match the pattern, and draft releases, are ignored. A
 version with a semver prerelease part (`-beta.1`), or a release marked as a
@@ -104,8 +105,13 @@ or to logs. The status bar shows which source is in use.
 | Active app bundles (macOS) | `~/Applications/Ferrum/<App>.app` |
 | PATH links | `~/.ferrum/bin/` |
 
-On Linux the data lives under `~/.local/share/ferrumtoolbox/`. `state.json`
-is written atomically (temp file + rename).
+On Linux the data lives under `~/.local/share/ferrumtoolbox/`, and the
+active version of each app gets `~/.local/share/applications/ferrum-<app>.desktop`
+plus an icon in `~/.local/share/icons/hicolor/256x256/apps/`. On Windows it
+lives under `%LOCALAPPDATA%\Ferrum\FerrumToolbox\data\`; `~/.ferrum/bin`
+holds `.cmd` launchers instead of symlinks, and the active version gets a
+Start Menu shortcut under **Ferrum**. `state.json` is written atomically
+(temp file + rename).
 
 ## Install safety
 
@@ -114,7 +120,8 @@ is written atomically (temp file + rename).
 - Archives are unpacked into a staging directory and moved into place with a
   rename, so a failed or cancelled install leaves nothing behind.
 - Archive entries with absolute paths, `..`, or links that point outside the
-  install directory abort the install.
+  install directory abort the install. Zip archives may not contain links at
+  all.
 
 ## Layout
 
@@ -131,4 +138,7 @@ is written atomically (temp file + rename).
 - FerrumToolbox can install new versions of itself (into
   `~/Applications/Ferrum`), but it doesn't replace `/Applications/Ferrum
   Toolbox.app` or restart.
-- Windows has no published builds.
+- Windows builds are compiled in CI but haven't been tested by hand;
+  FerrumTerm has no Windows build (Unix sockets). Start Menu shortcuts are
+  created through PowerShell; if that fails the install still succeeds and
+  the toolbox logs a warning.

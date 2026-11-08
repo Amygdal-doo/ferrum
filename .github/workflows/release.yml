@@ -1,10 +1,16 @@
 # Publishes a Ferrum app release when a tag `<app-id>-v<semver>` is pushed,
 # e.g. `api-v0.2.0`. FerrumToolbox reads these releases.
 #
-# Assets per target, each with a `<same>.sha256`:
-#   <app-id>-<version>-<target>.tar.gz      binaries at the archive root
-#   <app-id>-<version>-<target>.app.tar.gz  macOS only: the .app bundle
-#   FerrumToolbox-<version>-<arch>.dmg      macOS toolbox only: installer image
+# Assets per target, each with a `<same>.sha256`.
+# Read by FerrumToolbox:
+#   <app-id>-<version>-<target>.tar.gz      macOS/Linux: binaries at the root
+#   <app-id>-<version>-<target>.app.tar.gz  macOS: the .app bundle
+#   <app-id>-<version>-<target>.zip         Windows: .exe files and <app-id>.ico
+# Installers for people downloading by hand:
+#   <AppName>-<version>-<arch>.dmg          macOS disk image
+#   <package>_<version>_amd64.deb           Debian/Ubuntu package
+#   <AppName>-<version>-x86_64-setup.exe    Windows per-user installer (Inno Setup)
+# FerrumTerm has no Windows build (its server uses Unix sockets).
 #
 # Secrets:
 #   SUBMODULE_TOKEN  A token with read access to Amygdal-doo/ferrum-ide. Every
@@ -84,21 +90,36 @@ jobs:
             os: macos-13
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     env:
       APP: ${{ needs.prepare.outputs.app }}
       VERSION: ${{ needs.prepare.outputs.version }}
       PACKAGE: ${{ needs.prepare.outputs.package }}
       BINARIES: ${{ needs.prepare.outputs.binaries }}
     steps:
+      - name: Check platform support
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ] && [ "$APP" = "term" ]; then
+            echo "FerrumTerm has no Windows build yet; skipping."
+            echo "FERRUM_SKIP=true" >> "$GITHUB_ENV"
+          fi
       - uses: actions/checkout@v4
+        if: env.FERRUM_SKIP != 'true'
         with:
           submodules: recursive
           token: ${{ secrets.SUBMODULE_TOKEN }}
       - name: Linux dependencies
-        if: runner.os == 'Linux'
-        run: ide/script/linux
+        if: env.FERRUM_SKIP != 'true' && runner.os == 'Linux'
+        run: |
+          ide/script/linux
+          sudo apt-get install -y dpkg-dev
       - name: Build
+        if: env.FERRUM_SKIP != 'true'
         run: |
           if [ "$APP" = "ide" ]; then
             cd ide
@@ -107,9 +128,16 @@ jobs:
           args=()
           for package in $PACKAGE; do args+=(-p "$package"); done
           cargo build --release --locked --target "${{ matrix.target }}" "${args[@]}"
-          echo "TARGET_DIR=$PWD/target/${{ matrix.target }}/release" >> "$GITHUB_ENV"
-      - name: Package
+          target_dir="$PWD/target/${{ matrix.target }}/release"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            target_dir="$(cygpath -w "$target_dir")"
+          fi
+          echo "TARGET_DIR=$target_dir" >> "$GITHUB_ENV"
+      - name: Package (macOS, Linux)
+        if: env.FERRUM_SKIP != 'true' && runner.os != 'Windows'
         run: |
+          . scripts/lib/apps.sh
+          ferrum_app "$APP"
           assets=()
           checksum() {
             if command -v sha256sum >/dev/null; then sha256sum "$1" > "$1.sha256"; else shasum -a 256 "$1" > "$1.sha256"; fi
@@ -133,19 +161,36 @@ jobs:
             tar -C "$bundles" -czf "$app_archive" "$(basename "$bundle")"
             checksum "$app_archive"
 
-            if [ "$APP" = "toolbox" ]; then
-              arch="${{ matrix.target }}"
-              arch="${arch%%-*}"
-              dmg="FerrumToolbox-${VERSION}-${arch}.dmg"
-              scripts/make-dmg.sh "$bundle" "$dmg" "Ferrum Toolbox"
-              checksum "$dmg"
-            fi
+            arch="${{ matrix.target }}"
+            arch="${arch%%-*}"
+            dmg="${APP_FILE_NAME}-${VERSION}-${arch}.dmg"
+            scripts/make-dmg.sh "$bundle" "$dmg" "$APP_NAME"
+            checksum "$dmg"
+          else
+            deb="$(scripts/package-deb.sh "$APP" "$VERSION" "$TARGET_DIR" .)"
+            checksum "$(basename "$deb")"
           fi
 
           printf '%s\n' "${assets[@]}" > assets.txt
+      - name: Package (Windows)
+        if: env.FERRUM_SKIP != 'true' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $files = & ./scripts/package-windows.ps1 -App $env:APP -Version $env:VERSION `
+            -BinaryDir $env:TARGET_DIR -OutDir . -Target "${{ matrix.target }}"
+          $assets = @()
+          foreach ($file in $files) {
+            $name = Split-Path -Leaf $file
+            $hash = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLower()
+            Set-Content -NoNewline -Path "$name.sha256" -Value "$hash  $name`n"
+            $assets += $name, "$name.sha256"
+          }
+          Set-Content -Path assets.txt -Value $assets
       - name: Upload
+        if: env.FERRUM_SKIP != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # macOS runners ship bash 3.2 (no mapfile).
-          tr '\n' '\0' < assets.txt | xargs -0 gh release upload "${GITHUB_REF_NAME}" --clobber
+          # macOS runners ship bash 3.2 (no mapfile); strip CRs from the Windows list.
+          tr -d '\r' < assets.txt | tr '\n' '\0' | xargs -0 gh release upload "${GITHUB_REF_NAME}" --clobber

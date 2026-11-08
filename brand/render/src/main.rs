@@ -75,17 +75,49 @@ fn load(path: &Path) -> Result<usvg::Tree> {
 }
 
 /// Renders at `height` pixels tall, keeping the aspect ratio.
-fn render(tree: &usvg::Tree, height: u32) -> Result<Vec<u8>> {
+fn render_pixmap(tree: &usvg::Tree, height: u32) -> Result<tiny_skia::Pixmap> {
     let scale = height as f32 / tree.size().height();
     let width = (tree.size().width() * scale).round() as u32;
-    let mut pixmap =
-        tiny_skia::Pixmap::new(width, height).context("invalid pixmap size")?;
+    let mut pixmap = tiny_skia::Pixmap::new(width, height).context("invalid pixmap size")?;
     resvg::render(
         tree,
         tiny_skia::Transform::from_scale(scale, scale),
         &mut pixmap.as_mut(),
     );
-    pixmap.encode_png().context("encoding PNG")
+    Ok(pixmap)
+}
+
+fn render(tree: &usvg::Tree, height: u32) -> Result<Vec<u8>> {
+    render_pixmap(tree, height)?
+        .encode_png()
+        .context("encoding PNG")
+}
+
+/// A 32-bit DIB icon entry: BITMAPINFOHEADER (double height for the mask),
+/// bottom-up BGRA rows with straight alpha, then an all-zero AND mask.
+fn render_dib(tree: &usvg::Tree, size: u32) -> Result<Vec<u8>> {
+    let pixmap = render_pixmap(tree, size)?;
+    let width = pixmap.width();
+    let height = pixmap.height();
+    let mut out = Vec::new();
+    out.extend_from_slice(&40u32.to_le_bytes());
+    out.extend_from_slice(&i32::try_from(width)?.to_le_bytes());
+    out.extend_from_slice(&i32::try_from(height * 2)?.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&32u16.to_le_bytes());
+    out.extend_from_slice(&[0u8; 24]);
+    for row in (0..height).rev() {
+        for column in 0..width {
+            let pixel = pixmap
+                .pixel(column, row)
+                .context("pixel out of bounds")?
+                .demultiply();
+            out.extend_from_slice(&[pixel.blue(), pixel.green(), pixel.red(), pixel.alpha()]);
+        }
+    }
+    let mask_row = width.div_ceil(32) * 4;
+    out.resize(out.len() + (mask_row * height) as usize, 0);
+    Ok(out)
 }
 
 fn write_icns(tree: &usvg::Tree, name: &str, icon_dir: &Path) -> Result<()> {
@@ -117,11 +149,19 @@ fn write_icns(tree: &usvg::Tree, name: &str, icon_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// ICO with PNG-compressed entries (supported since Windows Vista).
+/// ICO with classic DIB entries up to 64px (every Windows tool reads those)
+/// and PNG-compressed entries above, like Windows' own icons.
 fn write_ico(tree: &usvg::Tree, path: &Path) -> Result<()> {
     let images = ICO_SIZES
         .iter()
-        .map(|size| render(tree, *size).map(|png| (*size, png)))
+        .map(|size| {
+            let data = if *size <= 64 {
+                render_dib(tree, *size)?
+            } else {
+                render(tree, *size)?
+            };
+            Ok((*size, data))
+        })
         .collect::<Result<Vec<_>>>()?;
 
     let count = u16::try_from(images.len())?;
@@ -133,7 +173,11 @@ fn write_ico(tree: &usvg::Tree, path: &Path) -> Result<()> {
     let mut offset = 6 + 16 * u32::from(count);
     for (size, png) in &images {
         // 0 encodes 256 in the one-byte dimension fields.
-        let dimension = if *size >= 256 { 0 } else { u8::try_from(*size)? };
+        let dimension = if *size >= 256 {
+            0
+        } else {
+            u8::try_from(*size)?
+        };
         out.push(dimension);
         out.push(dimension);
         out.push(0);

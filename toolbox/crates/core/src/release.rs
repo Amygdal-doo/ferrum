@@ -2,6 +2,7 @@
 //! release to an app, a version and a platform.
 
 use crate::catalog::AppId;
+use crate::platform::Platform;
 use chrono::{DateTime, Utc};
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -15,6 +16,8 @@ pub fn current_target() -> Option<&'static str> {
         Some("x86_64-apple-darwin")
     } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
         Some("x86_64-unknown-linux-gnu")
+    } else if cfg!(all(windows, target_arch = "x86_64")) {
+        Some("x86_64-pc-windows-msvc")
     } else {
         None
     }
@@ -44,9 +47,15 @@ pub fn bundle_archive_name(app: AppId, version: &Version, target: &str) -> Strin
     format!("{app}-{version}-{target}.app.tar.gz")
 }
 
+/// Windows archive: the `.exe` files (and the app's `.ico`) at the root.
+#[must_use]
+pub fn zip_archive_name(app: AppId, version: &Version, target: &str) -> String {
+    format!("{app}-{version}-{target}.zip")
+}
+
 #[must_use]
 pub fn is_macos_target(target: &str) -> bool {
-    target.ends_with("-apple-darwin")
+    Platform::of_target(target) == Platform::MacOs
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,12 +87,15 @@ impl ReleaseInfo {
     }
 
     /// The archive for `target` and its optional `.sha256` companion. On
-    /// macOS the `.app` bundle archive wins over the plain one.
+    /// macOS the `.app` bundle archive wins over the plain one; on Windows
+    /// the `.zip` does.
     #[must_use]
     pub fn assets_for(&self, target: &str) -> Option<(&Asset, Option<&Asset>)> {
         let mut names = Vec::with_capacity(2);
-        if is_macos_target(target) {
-            names.push(bundle_archive_name(self.app, &self.version, target));
+        match Platform::of_target(target) {
+            Platform::MacOs => names.push(bundle_archive_name(self.app, &self.version, target)),
+            Platform::Windows => names.push(zip_archive_name(self.app, &self.version, target)),
+            Platform::Linux | Platform::Other => {}
         }
         names.push(archive_name(self.app, &self.version, target));
         names.into_iter().find_map(|name| {
@@ -288,6 +300,35 @@ mod tests {
             .assets_for("aarch64-apple-darwin")
             .expect("fallback");
         assert_eq!(archive.name, "api-0.2.0-aarch64-apple-darwin.tar.gz");
+    }
+
+    #[test]
+    fn prefers_zip_on_windows_and_ignores_installers() {
+        let asset = |name: &str| Asset {
+            name: name.into(),
+            size: 1,
+            url: format!("https://api.github.com/{name}"),
+        };
+        let mut release = parse_releases(RELEASES_JSON).expect("parse").remove(0);
+        release.assets = vec![
+            asset("FerrumAPI-0.2.0-x86_64-setup.exe"),
+            asset("api-0.2.0-x86_64-pc-windows-msvc.tar.gz"),
+            asset("api-0.2.0-x86_64-pc-windows-msvc.zip"),
+            asset("api-0.2.0-x86_64-pc-windows-msvc.zip.sha256"),
+            asset("ferrumapi_0.2.0_amd64.deb"),
+            asset("FerrumAPI-0.2.0-aarch64.dmg"),
+        ];
+        let (archive, checksum) = release
+            .assets_for("x86_64-pc-windows-msvc")
+            .expect("windows");
+        assert_eq!(archive.name, "api-0.2.0-x86_64-pc-windows-msvc.zip");
+        assert_eq!(
+            checksum.map(|c| c.name.as_str()),
+            Some("api-0.2.0-x86_64-pc-windows-msvc.zip.sha256")
+        );
+        // Installers are for people, never picked by the toolbox.
+        assert!(release.assets_for("x86_64-unknown-linux-gnu").is_none());
+        assert!(release.assets_for("aarch64-apple-darwin").is_none());
     }
 
     #[test]
