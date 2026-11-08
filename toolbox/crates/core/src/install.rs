@@ -28,8 +28,34 @@ fn is_safe_relative(path: &Path) -> bool {
             .all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
 }
 
+/// The single `*.app` bundle at the root of an installed version, if any.
+#[must_use]
+pub fn locate_bundle(version_dir: &Path) -> Option<PathBuf> {
+    let mut bundles = std::fs::read_dir(version_dir)
+        .ok()?
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "app") && path.is_dir());
+    let bundle = bundles.next()?;
+    bundles.next().is_none().then_some(bundle)
+}
+
+/// `binary` at the root of `version_dir`, or inside its `.app` bundle.
+#[must_use]
+pub fn locate_binary(version_dir: &Path, binary: &str) -> Option<PathBuf> {
+    let plain = version_dir.join(binary);
+    if plain.is_file() {
+        return Some(plain);
+    }
+    let bundled = locate_bundle(version_dir)?
+        .join("Contents")
+        .join("MacOS")
+        .join(binary);
+    bundled.is_file().then_some(bundled)
+}
+
 /// Unpacks `archive` (`.tar.gz`) into a fresh temp dir next to `destination`,
-/// checks `binary` exists at its root, then moves it into place, replacing
+/// checks `binary` exists (at its root or in its `.app` bundle), then moves it into place, replacing
 /// any previous install of the same version. Entries that would escape the
 /// directory (absolute paths, `..`, or links pointing outside) abort the install.
 pub fn install_archive(archive: &Path, destination: &Path, binary: &str) -> Result<()> {
@@ -41,8 +67,7 @@ pub fn install_archive(archive: &Path, destination: &Path, binary: &str) -> Resu
     std::fs::create_dir_all(&staging)?;
 
     let result = extract(archive, &staging).and_then(|()| {
-        let binary_path = staging.join(binary);
-        if !binary_path.is_file() {
+        if locate_binary(&staging, binary).is_none() {
             return Err(ToolboxError::MissingBinary(binary.to_string()));
         }
         replace_dir(&staging, destination)
@@ -239,6 +264,39 @@ pub(crate) mod tests {
         builder.into_inner().expect("tar").finish().expect("gzip");
         let result = install_archive(&archive, &dir.path().join("apps/api/1.0.0"), "ferrumapi");
         assert!(matches!(result, Err(ToolboxError::UnsafeArchiveEntry(_))));
+    }
+
+    #[test]
+    fn installs_app_bundle_archive() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let archive = dir.path().join("bundle.tar.gz");
+        make_archive(
+            &archive,
+            &[
+                ("FerrumData.app/Contents/Info.plist", b"<plist/>", 0o644),
+                (
+                    "FerrumData.app/Contents/MacOS/ferrumdata",
+                    b"#!/bin/sh\n",
+                    0o755,
+                ),
+            ],
+        );
+        let destination = dir.path().join("apps/data/0.3.0");
+        install_archive(&archive, &destination, "ferrumdata").expect("install");
+        let bundle = locate_bundle(&destination).expect("bundle");
+        assert_eq!(bundle, destination.join("FerrumData.app"));
+        assert_eq!(
+            locate_binary(&destination, "ferrumdata"),
+            Some(bundle.join("Contents/MacOS/ferrumdata"))
+        );
+        assert_eq!(locate_binary(&destination, "fterm"), None);
+
+        make_archive(
+            &archive,
+            &[("FerrumData.app/Contents/MacOS/other", b"x", 0o755)],
+        );
+        let result = install_archive(&archive, &dir.path().join("apps/data/0.4.0"), "ferrumdata");
+        assert!(matches!(result, Err(ToolboxError::MissingBinary(_))));
     }
 
     #[test]

@@ -147,6 +147,11 @@ impl FerrumToolbox {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let downloading = self.downloads.contains_key(&app);
+        let installed_app = self
+            .services
+            .paths
+            .application_path(app)
+            .is_some_and(|path| path.is_dir());
         let update = self.state.update_for(app).map(|r| r.version.clone());
         let install = latest
             .as_ref()
@@ -168,6 +173,13 @@ impl FerrumToolbox {
                         .size(LabelSize::Small)
                         .color(Color::Muted),
                 )
+                .when(installed_app, |this| {
+                    this.child(
+                        Label::new("· in ~/Applications/Ferrum (Launchpad, Spotlight)")
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
+                })
             })
             .when_some(update, |this, version| {
                 this.child(

@@ -2,6 +2,7 @@
 //! is only touched on the UI thread.
 
 use crate::app::{Download, FerrumToolbox};
+use crate::components::onboarding::{Onboarding, OnboardingEvent};
 use crate::components::settings::TokenChange;
 use crate::services::client_for;
 use ferrum_ui::prelude::*;
@@ -13,6 +14,100 @@ use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 impl FerrumToolbox {
+    /// Starts update checks when a token is available; otherwise asks the
+    /// user to sign in first (the release repo is private).
+    pub fn detect_token(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let services = self.services.clone();
+        cx.spawn_in(window, async move |this, cx| {
+            let source = services.blocking(auth::token_source).await;
+            this.update_in(cx, |this, window, cx| match source {
+                Ok(Some(source)) => {
+                    this.token_source = Some(source);
+                    this.restart_check_loop(cx);
+                }
+                Ok(None) => this.show_onboarding(window, cx),
+                Err(e) => {
+                    this.notify_user(format!("Could not look up a GitHub token: {e}"), true, cx);
+                    this.show_onboarding(window, cx);
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    pub fn show_onboarding(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let repo: SharedString = format!(
+            "{}/{}",
+            self.state.settings.repo_owner, self.state.settings.repo_name
+        )
+        .into();
+        let onboarding = cx.new(|cx| Onboarding::new(repo, window, cx));
+        self.onboarding_subscription =
+            Some(cx.subscribe(&onboarding, |this, onboarding, event, cx| {
+                this.handle_onboarding(onboarding, event, cx)
+            }));
+        onboarding.update(cx, |onboarding, cx| onboarding.focus(window, cx));
+        self.onboarding = Some(onboarding);
+        cx.notify();
+    }
+
+    fn handle_onboarding(
+        &mut self,
+        onboarding: Entity<Onboarding>,
+        event: &OnboardingEvent,
+        cx: &mut Context<Self>,
+    ) {
+        let services = self.services.clone();
+        match event {
+            OnboardingEvent::Skip => self.finish_onboarding(None, cx),
+            OnboardingEvent::UseGhCli => {
+                cx.spawn(async move |this, cx| {
+                    let signed_in = services.blocking(auth::gh_cli_signed_in).await;
+                    this.update(cx, |this, cx| match signed_in {
+                        Ok(true) => this.finish_onboarding(Some("Signed in with the gh CLI."), cx),
+                        Ok(false) => onboarding.update(cx, |onboarding, cx| {
+                            onboarding.fail(
+                                "gh isn't installed or signed in. Run `gh auth login` in Terminal, then try again.",
+                                cx,
+                            )
+                        }),
+                        Err(e) => onboarding.update(cx, |onboarding, cx| onboarding.fail(e, cx)),
+                    })
+                    .ok();
+                })
+                .detach();
+            }
+            OnboardingEvent::SaveToken(token) => {
+                let token = token.clone();
+                cx.spawn(async move |this, cx| {
+                    let saved = services
+                        .blocking(move || auth::save_token(&token).map_err(|e| e.to_string()))
+                        .await
+                        .and_then(|result| result);
+                    this.update(cx, |this, cx| match saved {
+                        Ok(()) => this.finish_onboarding(Some("Token saved to the keychain."), cx),
+                        Err(e) => onboarding.update(cx, |onboarding, cx| {
+                            onboarding.fail(format!("Could not save the token: {e}"), cx)
+                        }),
+                    })
+                    .ok();
+                })
+                .detach();
+            }
+        }
+    }
+
+    fn finish_onboarding(&mut self, message: Option<&'static str>, cx: &mut Context<Self>) {
+        self.onboarding = None;
+        self.onboarding_subscription = None;
+        if let Some(message) = message {
+            self.notify_user(message, false, cx);
+        }
+        self.restart_check_loop(cx);
+        cx.notify();
+    }
+
     /// Checks on startup, then every `check_interval_hours`.
     pub fn restart_check_loop(&mut self, cx: &mut Context<Self>) {
         let hours = self.state.settings.check_interval_hours.max(1);

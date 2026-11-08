@@ -78,6 +78,8 @@ scripts/release.sh api 0.2.0 -m "Release notes"
 git push origin api-v0.2.0     # runs .github/workflows/release.yml
 ```
 
-FerrumToolbox reads these releases to install and update the apps. See
+FerrumToolbox reads these releases to install and update the apps. For
+installing Ferrum on a machine (DMG, GitHub sign-in, Launchpad apps), see
+**[INSTALL.md](INSTALL.md)**. See
 `toolbox/README.md` for the conventions and the `SUBMODULE_TOKEN` secret
 that the workflow needs.

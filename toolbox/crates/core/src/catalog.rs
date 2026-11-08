@@ -66,8 +66,13 @@ pub struct AppInfo {
     pub id: AppId,
     pub name: &'static str,
     pub description: &'static str,
-    /// Executable at the root of the release archive.
+    /// Main executable: at the root of a plain archive, or in
+    /// `<bundle_name>.app/Contents/MacOS/` of a macOS bundle archive.
     pub binary: &'static str,
+    /// Other executables shipped next to `binary` that get CLI links too.
+    pub extra_binaries: &'static [&'static str],
+    /// macOS bundle name without `.app`.
+    pub bundle_name: &'static str,
     /// Name of a Zed `IconName` variant that fits the app.
     pub icon: &'static str,
 }
@@ -78,6 +83,8 @@ pub static CATALOG: [AppInfo; 6] = [
         name: "FerrumIDE",
         description: "Code editor and IDE built on the Zed codebase.",
         binary: "zed",
+        extra_binaries: &[],
+        bundle_name: "Ferrum IDE",
         icon: "Code",
     },
     AppInfo {
@@ -85,6 +92,8 @@ pub static CATALOG: [AppInfo; 6] = [
         name: "FerrumAPI",
         description: "HTTP/API client: collections, environments, history and code generation.",
         binary: "ferrumapi",
+        extra_binaries: &[],
+        bundle_name: "FerrumAPI",
         icon: "Public",
     },
     AppInfo {
@@ -92,6 +101,8 @@ pub static CATALOG: [AppInfo; 6] = [
         name: "FerrumGIT",
         description: "Git client with commit graph, staging, diffs and profiles.",
         binary: "ferrumgit",
+        extra_binaries: &[],
+        bundle_name: "FerrumGIT",
         icon: "GitBranch",
     },
     AppInfo {
@@ -99,6 +110,8 @@ pub static CATALOG: [AppInfo; 6] = [
         name: "FerrumData",
         description: "Database IDE: connections, SQL editor and result grid.",
         binary: "ferrumdata",
+        extra_binaries: &[],
+        bundle_name: "FerrumData",
         icon: "DatabaseZap",
     },
     AppInfo {
@@ -106,6 +119,8 @@ pub static CATALOG: [AppInfo; 6] = [
         name: "FerrumTerm",
         description: "GPU terminal with sessions, windows and panes.",
         binary: "ferrumterm",
+        extra_binaries: &["fterm"],
+        bundle_name: "FerrumTerm",
         icon: "Terminal",
     },
     AppInfo {
@@ -113,6 +128,8 @@ pub static CATALOG: [AppInfo; 6] = [
         name: "FerrumToolbox",
         description: "Installs, updates and launches the Ferrum apps.",
         binary: "ferrum-toolbox",
+        extra_binaries: &[],
+        bundle_name: "Ferrum Toolbox",
         icon: "Box",
     },
 ];
@@ -128,5 +145,7 @@ mod tests {
             assert_eq!(id.info().id, id);
         }
         assert!("zed".parse::<AppId>().is_err());
+        assert_eq!(AppId::Toolbox.info().bundle_name, "Ferrum Toolbox");
+        assert_eq!(AppId::Term.info().extra_binaries, ["fterm"]);
     }
 }

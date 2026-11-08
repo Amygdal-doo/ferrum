@@ -19,6 +19,9 @@ pub struct Paths {
     pub data_dir: PathBuf,
     /// Symlinks to the active binaries (`~/.ferrum/bin`).
     pub bin_dir: PathBuf,
+    /// Where the active version's `.app` is published (`~/Applications/Ferrum`
+    /// on macOS); `None` on other platforms.
+    pub applications_dir: Option<PathBuf>,
 }
 
 impl Paths {
@@ -30,6 +33,8 @@ impl Paths {
         Some(Self {
             data_dir: project.data_dir().to_path_buf(),
             bin_dir: home.home_dir().join(".ferrum").join("bin"),
+            applications_dir: cfg!(target_os = "macos")
+                .then(|| home.home_dir().join("Applications").join("Ferrum")),
         })
     }
 
@@ -51,14 +56,35 @@ impl Paths {
         self.data_dir.join("downloads")
     }
 
+    /// The main executable of an installed version (plain or inside its `.app`).
     #[must_use]
     pub fn binary_path(&self, app: AppId, version: &Version) -> PathBuf {
-        self.version_dir(app, version).join(app.info().binary)
+        let dir = self.version_dir(app, version);
+        install::locate_binary(&dir, app.info().binary)
+            .unwrap_or_else(|| dir.join(app.info().binary))
+    }
+
+    /// The `.app` bundle of an installed version, if it shipped as one.
+    #[must_use]
+    pub fn bundle_path(&self, app: AppId, version: &Version) -> Option<PathBuf> {
+        install::locate_bundle(&self.version_dir(app, version))
+    }
+
+    /// `~/Applications/Ferrum/<bundle_name>.app` for the active version.
+    #[must_use]
+    pub fn application_path(&self, app: AppId) -> Option<PathBuf> {
+        self.applications_dir
+            .as_ref()
+            .map(|dir| dir.join(format!("{}.app", app.info().bundle_name)))
     }
 
     #[must_use]
     pub fn link_path(&self, app: AppId) -> PathBuf {
         self.bin_dir.join(app.info().binary)
+    }
+
+    fn binaries(app: AppId) -> impl Iterator<Item = &'static str> {
+        std::iter::once(app.info().binary).chain(app.info().extra_binaries.iter().copied())
     }
 }
 
@@ -277,13 +303,32 @@ impl State {
     }
 }
 
-#[cfg(unix)]
+/// Points the CLI links at `version` and publishes its `.app` (if any).
 fn link_active(paths: &Paths, app: AppId, version: &Version) -> Result<()> {
-    std::fs::create_dir_all(&paths.bin_dir)?;
-    let link = paths.link_path(app);
+    let dir = paths.version_dir(app, version);
+    for binary in Paths::binaries(app) {
+        match install::locate_binary(&dir, binary) {
+            Some(target) => symlink_atomically(&target, &paths.bin_dir.join(binary))?,
+            None => remove_if_exists(&paths.bin_dir.join(binary))?,
+        }
+    }
+    if let Some(application) = paths.application_path(app) {
+        match paths.bundle_path(app, version) {
+            Some(bundle) => publish_bundle(&bundle, &application)?,
+            None => remove_if_exists(&application)?,
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn symlink_atomically(target: &Path, link: &Path) -> Result<()> {
+    if let Some(parent) = link.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
     let temp = link.with_extension(format!("link-{}", uuid::Uuid::new_v4()));
-    std::os::unix::fs::symlink(paths.binary_path(app, version), &temp)?;
-    if let Err(e) = std::fs::rename(&temp, &link) {
+    std::os::unix::fs::symlink(target, &temp)?;
+    if let Err(e) = std::fs::rename(&temp, link) {
         std::fs::remove_file(&temp).ok();
         return Err(e.into());
     }
@@ -291,16 +336,76 @@ fn link_active(paths: &Paths, app: AppId, version: &Version) -> Result<()> {
 }
 
 #[cfg(not(unix))]
-fn link_active(_: &Paths, _: AppId, _: &Version) -> Result<()> {
+fn symlink_atomically(_: &Path, _: &Path) -> Result<()> {
     Ok(())
 }
 
-fn unlink(paths: &Paths, app: AppId) -> Result<()> {
-    match std::fs::remove_file(paths.link_path(app)) {
+/// Copies the bundle into place. Launchpad and Spotlight skip symlinked apps,
+/// so this is a real copy; `cp -c` makes it an APFS clone (no extra disk).
+fn publish_bundle(bundle: &Path, application: &Path) -> Result<()> {
+    let parent = application
+        .parent()
+        .ok_or_else(|| ToolboxError::Invalid("applications path has no parent".into()))?;
+    std::fs::create_dir_all(parent)?;
+    let staging = parent.join(format!(".ferrum-{}.app", uuid::Uuid::new_v4()));
+    let copied = ["-cR", "-R"].into_iter().any(|flags| {
+        std::process::Command::new("cp")
+            .arg(flags)
+            .arg(bundle)
+            .arg(&staging)
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success())
+            || {
+                std::fs::remove_dir_all(&staging).ok();
+                false
+            }
+    });
+    if !copied {
+        return Err(ToolboxError::Invalid(format!(
+            "could not copy {} to {}",
+            bundle.display(),
+            parent.display()
+        )));
+    }
+    let result = if application.exists() || application.is_symlink() {
+        let old = parent.join(format!(".ferrum-old-{}.app", uuid::Uuid::new_v4()));
+        std::fs::rename(application, &old)
+            .and_then(|()| std::fs::rename(&staging, application))
+            .and_then(|()| remove_path(&old))
+    } else {
+        std::fs::rename(&staging, application)
+    };
+    if result.is_err() {
+        std::fs::remove_dir_all(&staging).ok();
+    }
+    Ok(result?)
+}
+
+fn remove_path(path: &Path) -> std::io::Result<()> {
+    if path.is_dir() && !path.is_symlink() {
+        std::fs::remove_dir_all(path)
+    } else {
+        std::fs::remove_file(path)
+    }
+}
+
+fn remove_if_exists(path: &Path) -> Result<()> {
+    match remove_path(path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e.into()),
     }
+}
+
+fn unlink(paths: &Paths, app: AppId) -> Result<()> {
+    for binary in Paths::binaries(app) {
+        remove_if_exists(&paths.bin_dir.join(binary))?;
+    }
+    if let Some(application) = paths.application_path(app) {
+        remove_if_exists(&application)?;
+    }
+    Ok(())
 }
 
 /// Downloads, verifies and unpacks `release` for this platform. Returns the
@@ -314,6 +419,18 @@ pub async fn install_release(
     cancel: CancellationToken,
 ) -> Result<InstalledVersion> {
     let target = release::current_target().ok_or(ToolboxError::UnsupportedPlatform)?;
+    install_release_for_target(client, paths, release, target, progress, cancel).await
+}
+
+/// [`install_release`] for an explicit target triple.
+pub async fn install_release_for_target(
+    client: &GitHubClient,
+    paths: &Paths,
+    release: &ReleaseInfo,
+    target: &str,
+    progress: DownloadProgress,
+    cancel: CancellationToken,
+) -> Result<InstalledVersion> {
     let (archive, checksum) =
         release
             .assets_for(target)
@@ -367,11 +484,32 @@ pub async fn install_release(
     })
 }
 
-/// Starts the active version detached from the toolbox.
+/// Starts the active version detached from the toolbox. On macOS a bundled
+/// version opens through Launch Services (`open`), like from Finder.
 pub fn launch(state: &State, app: AppId, paths: &Paths) -> Result<()> {
     let version = state
         .active(app)
         .ok_or_else(|| ToolboxError::Invalid(format!("{} is not installed", app.info().name)))?;
+    if cfg!(target_os = "macos") {
+        let bundle = paths
+            .application_path(app)
+            .filter(|path| path.is_dir())
+            .or_else(|| paths.bundle_path(app, version));
+        if let Some(bundle) = bundle {
+            let status = std::process::Command::new("open")
+                .arg(&bundle)
+                .stdin(std::process::Stdio::null())
+                .status()?;
+            return if status.success() {
+                Ok(())
+            } else {
+                Err(ToolboxError::Invalid(format!(
+                    "`open {}` failed ({status})",
+                    bundle.display()
+                )))
+            };
+        }
+    }
     let binary = paths.binary_path(app, version);
     if !binary.is_file() {
         return Err(ToolboxError::MissingBinary(binary.display().to_string()));
@@ -408,6 +546,7 @@ mod tests {
         Paths {
             data_dir: dir.join("data"),
             bin_dir: dir.join("bin"),
+            applications_dir: Some(dir.join("Applications/Ferrum")),
         }
     }
 
@@ -540,6 +679,232 @@ mod tests {
 
         state.settings.keep_versions = 0;
         assert!(state.prune_candidates(AppId::Api).is_empty());
+    }
+
+    fn fake_bundle_install(state: &mut State, paths: &Paths, app: AppId, version: &str) {
+        let v = Version::parse(version).expect("semver");
+        let macos = paths
+            .version_dir(app, &v)
+            .join(format!("{}.app", app.info().bundle_name))
+            .join("Contents/MacOS");
+        std::fs::create_dir_all(&macos).expect("mkdir");
+        for binary in Paths::binaries(app) {
+            std::fs::write(macos.join(binary), version.as_bytes()).expect("write");
+        }
+        state.record_install(app, installed(version));
+    }
+
+    #[test]
+    fn activating_a_bundle_publishes_the_app_and_links_every_binary() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        let mut state = State::default();
+        fake_bundle_install(&mut state, &paths, AppId::Term, "0.1.0");
+        fake_bundle_install(&mut state, &paths, AppId::Term, "0.2.0");
+        let v1 = Version::new(0, 1, 0);
+        let v2 = Version::new(0, 2, 0);
+        let application = paths.application_path(AppId::Term).expect("app path");
+        assert!(application.ends_with("Applications/Ferrum/FerrumTerm.app"));
+
+        state.activate(AppId::Term, &v2, &paths).expect("activate");
+        let published = application.join("Contents/MacOS/ferrumterm");
+        assert_eq!(std::fs::read(&published).expect("copy"), b"0.2.0");
+        assert!(!application.is_symlink(), "Launchpad needs a real bundle");
+        #[cfg(unix)]
+        {
+            let bundle = paths.bundle_path(AppId::Term, &v2).expect("bundle");
+            assert_eq!(
+                std::fs::read_link(paths.bin_dir.join("ferrumterm")).expect("link"),
+                bundle.join("Contents/MacOS/ferrumterm")
+            );
+            assert_eq!(
+                std::fs::read_link(paths.bin_dir.join("fterm")).expect("extra link"),
+                bundle.join("Contents/MacOS/fterm")
+            );
+        }
+
+        // Rollback swaps the published copy.
+        state.activate(AppId::Term, &v1, &paths).expect("rollback");
+        assert_eq!(std::fs::read(&published).expect("copy"), b"0.1.0");
+        let leftovers: Vec<_> = std::fs::read_dir(application.parent().expect("parent"))
+            .expect("read")
+            .filter_map(|e| e.ok())
+            .collect();
+        assert_eq!(leftovers.len(), 1, "no staging copies left behind");
+
+        state
+            .uninstall(AppId::Term, &v2, &paths)
+            .expect("remove inactive");
+        assert!(application.is_dir());
+        state
+            .uninstall(AppId::Term, &v1, &paths)
+            .expect("remove last");
+        assert!(!application.exists());
+        assert!(!paths.bin_dir.join("fterm").exists());
+        assert!(!paths.bin_dir.join("ferrumterm").exists());
+    }
+
+    #[test]
+    fn activating_a_plain_version_removes_a_stale_app_copy() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        let mut state = State::default();
+        fake_bundle_install(&mut state, &paths, AppId::Data, "0.1.0");
+        fake_install(&mut state, &paths, AppId::Data, "0.2.0");
+        state
+            .activate(AppId::Data, &Version::new(0, 1, 0), &paths)
+            .expect("bundle");
+        let application = paths.application_path(AppId::Data).expect("app path");
+        assert!(application.is_dir());
+        state
+            .activate(AppId::Data, &Version::new(0, 2, 0), &paths)
+            .expect("plain");
+        assert!(!application.exists());
+        assert_eq!(
+            paths.binary_path(AppId::Data, &Version::new(0, 2, 0)),
+            paths
+                .version_dir(AppId::Data, &Version::new(0, 2, 0))
+                .join("ferrumdata")
+        );
+    }
+
+    #[tokio::test]
+    async fn installs_app_bundle_release_end_to_end() {
+        let target = "aarch64-apple-darwin";
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        let archive = dir.path().join("bundle.tar.gz");
+        make_archive(
+            &archive,
+            &[
+                ("FerrumData.app/Contents/Info.plist", b"<plist/>", 0o644),
+                (
+                    "FerrumData.app/Contents/MacOS/ferrumdata",
+                    b"#!/bin/sh\n",
+                    0o755,
+                ),
+            ],
+        );
+        let bytes = std::fs::read(&archive).expect("read");
+        let sha = crate::github::to_hex(&Sha256::digest(&bytes));
+        let version = Version::new(0, 3, 0);
+        let name = release::bundle_archive_name(AppId::Data, &version, target);
+        let server = FakeServer::start(vec![
+            ("/a/bundle".into(), 200, vec![], bytes.clone()),
+            (
+                "/a/bundle.sha".into(),
+                200,
+                vec![],
+                format!("{sha}  {name}\n").into_bytes(),
+            ),
+        ])
+        .await;
+        let client = GitHubClient::new("o", "r", None)
+            .expect("client")
+            .with_api_base(&server.base);
+        let mut data = release(AppId::Data, "0.3.0", false);
+        data.assets = vec![
+            Asset {
+                name: name.clone(),
+                size: bytes.len() as u64,
+                url: format!("{}/a/bundle", server.base),
+            },
+            Asset {
+                name: format!("{name}.sha256"),
+                size: 80,
+                url: format!("{}/a/bundle.sha", server.base),
+            },
+        ];
+        let record = install_release_for_target(
+            &client,
+            &paths,
+            &data,
+            target,
+            Arc::new(|_, _| {}),
+            CancellationToken::new(),
+        )
+        .await
+        .expect("install");
+        assert_eq!(record.asset, name);
+        let mut state = State::default();
+        state.record_install(AppId::Data, record);
+        state
+            .activate(AppId::Data, &version, &paths)
+            .expect("activate");
+        let application = paths.application_path(AppId::Data).expect("app path");
+        assert!(application.join("Contents/MacOS/ferrumdata").is_file());
+        #[cfg(unix)]
+        assert!(
+            std::fs::canonicalize(paths.link_path(AppId::Data))
+                .expect("link resolves")
+                .ends_with("FerrumData.app/Contents/MacOS/ferrumdata")
+        );
+    }
+
+    /// Opt-in check against a real bundle archive and the real per-user paths:
+    /// `FERRUM_E2E_APP_ARCHIVE=<data .app.tar.gz> HOME=<temp> cargo test -p
+    /// ferrumtoolbox-core real_bundle -- --ignored`.
+    #[tokio::test]
+    #[ignore = "needs FERRUM_E2E_APP_ARCHIVE and a throwaway HOME"]
+    async fn real_bundle_installs_into_user_paths() {
+        let archive = std::env::var("FERRUM_E2E_APP_ARCHIVE").expect("FERRUM_E2E_APP_ARCHIVE");
+        let paths = Paths::default_for_user().expect("paths");
+        let bytes = std::fs::read(&archive).expect("archive");
+        let sha = crate::github::to_hex(&Sha256::digest(&bytes));
+        let target = release::current_target().expect("target");
+        let version = Version::new(0, 0, 1);
+        let name = release::bundle_archive_name(AppId::Data, &version, target);
+        let server = FakeServer::start(vec![
+            ("/e2e/archive".into(), 200, vec![], bytes.clone()),
+            (
+                "/e2e/sha".into(),
+                200,
+                vec![],
+                format!("{sha}  {name}\n").into_bytes(),
+            ),
+        ])
+        .await;
+        let client = GitHubClient::new("o", "r", None)
+            .expect("client")
+            .with_api_base(&server.base);
+        let mut data = release(AppId::Data, "0.0.1", false);
+        data.assets = vec![
+            Asset {
+                name: name.clone(),
+                size: bytes.len() as u64,
+                url: format!("{}/e2e/archive", server.base),
+            },
+            Asset {
+                name: format!("{name}.sha256"),
+                size: 80,
+                url: format!("{}/e2e/sha", server.base),
+            },
+        ];
+        let record = install_release(
+            &client,
+            &paths,
+            &data,
+            Arc::new(|_, _| {}),
+            CancellationToken::new(),
+        )
+        .await
+        .expect("install");
+        let mut state = State::load(&paths).expect("load");
+        state.record_install(AppId::Data, record);
+        state
+            .activate(AppId::Data, &version, &paths)
+            .expect("activate");
+        state.save(&paths).expect("save");
+        let application = paths.application_path(AppId::Data).expect("macOS");
+        println!("application: {}", application.display());
+        println!(
+            "link: {} -> {}",
+            paths.link_path(AppId::Data).display(),
+            std::fs::canonicalize(paths.link_path(AppId::Data))
+                .expect("resolves")
+                .display()
+        );
+        assert!(application.join("Contents/MacOS/ferrumdata").is_file());
     }
 
     #[tokio::test]

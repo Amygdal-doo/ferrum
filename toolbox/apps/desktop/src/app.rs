@@ -1,5 +1,6 @@
 //! Root view and window layout.
 
+use crate::components::onboarding::Onboarding;
 use crate::components::settings::{SettingsForm, SettingsFormEvent};
 use crate::services::Services;
 use ferrum_ui::gpui::Axis;
@@ -42,6 +43,8 @@ pub struct FerrumToolbox {
     pub checking: bool,
     pub token_source: Option<TokenSource>,
     pub settings_form: Option<Entity<SettingsForm>>,
+    pub onboarding: Option<Entity<Onboarding>>,
+    pub(crate) onboarding_subscription: Option<Subscription>,
     pub sidebar_width: Pixels,
     pub notice: Option<Notice>,
     notice_task: Option<Task<()>>,
@@ -51,7 +54,12 @@ pub struct FerrumToolbox {
 }
 
 impl FerrumToolbox {
-    pub fn new(services: Services, state: State, _: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        services: Services,
+        state: State,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let mut this = Self {
             services,
             state,
@@ -61,6 +69,8 @@ impl FerrumToolbox {
             checking: false,
             token_source: None,
             settings_form: None,
+            onboarding: None,
+            onboarding_subscription: None,
             sidebar_width: px(260.),
             notice: None,
             notice_task: None,
@@ -68,7 +78,7 @@ impl FerrumToolbox {
             progress_ticker: None,
             _subscriptions: Vec::new(),
         };
-        this.restart_check_loop(cx);
+        this.detect_token(window, cx);
         this
     }
 
@@ -265,6 +275,9 @@ impl Render for FerrumToolbox {
                             .child(Label::new(auth).size(LabelSize::Small).color(Color::Muted)),
                     ),
             )
+            .when_some(self.onboarding.clone(), |this, onboarding| {
+                this.child(onboarding)
+            })
             .when_some(self.settings_form.clone(), |this, form| this.child(form))
             .when_some(self.notice.as_ref(), |this, notice| {
                 this.child(render_notice(

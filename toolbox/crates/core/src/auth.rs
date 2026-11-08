@@ -120,6 +120,27 @@ pub fn clear_token() -> Result<()> {
     }
 }
 
+/// Whether `gh auth token` yields a token (without returning it).
+#[must_use]
+pub fn gh_cli_signed_in() -> bool {
+    gh_cli_token().is_some()
+}
+
+/// Where a token would come from, without returning it.
+#[must_use]
+pub fn token_source() -> Option<TokenSource> {
+    resolve_token().map(|token| token.source)
+}
+
+/// Fine-grained token page, pre-filled where GitHub supports it (unknown
+/// parameters are ignored).
+#[must_use]
+pub fn new_token_url(owner: &str) -> String {
+    format!(
+        "https://github.com/settings/personal-access-tokens/new?name=FerrumToolbox&description=Read%20Ferrum%20releases&target_name={owner}&contents=read"
+    )
+}
+
 /// Whether a token is stored in the keychain (without returning it).
 #[must_use]
 pub fn has_keychain_token() -> bool {

@@ -32,9 +32,21 @@ pub fn tag_for(app: AppId, version: &Version) -> String {
     format!("{app}-v{version}")
 }
 
+/// Plain archive: the executables at the archive root.
 #[must_use]
 pub fn archive_name(app: AppId, version: &Version, target: &str) -> String {
     format!("{app}-{version}-{target}.tar.gz")
+}
+
+/// macOS archive holding `<bundle_name>.app` at its root.
+#[must_use]
+pub fn bundle_archive_name(app: AppId, version: &Version, target: &str) -> String {
+    format!("{app}-{version}-{target}.app.tar.gz")
+}
+
+#[must_use]
+pub fn is_macos_target(target: &str) -> bool {
+    target.ends_with("-apple-darwin")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,14 +77,21 @@ impl ReleaseInfo {
         self.prerelease || !self.version.pre.is_empty()
     }
 
-    /// The archive for `target` and its optional `.sha256` companion.
+    /// The archive for `target` and its optional `.sha256` companion. On
+    /// macOS the `.app` bundle archive wins over the plain one.
     #[must_use]
     pub fn assets_for(&self, target: &str) -> Option<(&Asset, Option<&Asset>)> {
-        let name = archive_name(self.app, &self.version, target);
-        let checksum_name = format!("{name}.sha256");
-        let archive = self.assets.iter().find(|asset| asset.name == name)?;
-        let checksum = self.assets.iter().find(|asset| asset.name == checksum_name);
-        Some((archive, checksum))
+        let mut names = Vec::with_capacity(2);
+        if is_macos_target(target) {
+            names.push(bundle_archive_name(self.app, &self.version, target));
+        }
+        names.push(archive_name(self.app, &self.version, target));
+        names.into_iter().find_map(|name| {
+            let archive = self.assets.iter().find(|asset| asset.name == name)?;
+            let checksum_name = format!("{name}.sha256");
+            let checksum = self.assets.iter().find(|asset| asset.name == checksum_name);
+            Some((archive, checksum))
+        })
     }
 }
 
@@ -236,6 +255,39 @@ mod tests {
             .expect("linux build");
         assert!(checksum.is_none());
         assert!(releases[0].assets_for("x86_64-apple-darwin").is_none());
+    }
+
+    #[test]
+    fn prefers_app_bundle_on_macos_only() {
+        let asset = |name: &str| Asset {
+            name: name.into(),
+            size: 1,
+            url: format!("https://api.github.com/{name}"),
+        };
+        let mut release = parse_releases(RELEASES_JSON).expect("parse").remove(0);
+        release.assets = vec![
+            asset("api-0.2.0-aarch64-apple-darwin.tar.gz"),
+            asset("api-0.2.0-aarch64-apple-darwin.app.tar.gz"),
+            asset("api-0.2.0-aarch64-apple-darwin.app.tar.gz.sha256"),
+            asset("api-0.2.0-x86_64-unknown-linux-gnu.tar.gz"),
+            asset("api-0.2.0-x86_64-unknown-linux-gnu.app.tar.gz"),
+        ];
+        let (archive, checksum) = release.assets_for("aarch64-apple-darwin").expect("mac");
+        assert_eq!(archive.name, "api-0.2.0-aarch64-apple-darwin.app.tar.gz");
+        assert_eq!(
+            checksum.map(|c| c.name.as_str()),
+            Some("api-0.2.0-aarch64-apple-darwin.app.tar.gz.sha256")
+        );
+        let (archive, _) = release
+            .assets_for("x86_64-unknown-linux-gnu")
+            .expect("linux");
+        assert_eq!(archive.name, "api-0.2.0-x86_64-unknown-linux-gnu.tar.gz");
+
+        release.assets.retain(|a| !a.name.contains(".app."));
+        let (archive, _) = release
+            .assets_for("aarch64-apple-darwin")
+            .expect("fallback");
+        assert_eq!(archive.name, "api-0.2.0-aarch64-apple-darwin.tar.gz");
     }
 
     #[test]

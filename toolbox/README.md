@@ -8,6 +8,9 @@ JetBrains Toolbox. GPUI desktop app built on `ferrum-ui`.
 cargo toolbox            # = cargo run -p ferrumtoolbox-desktop (binary: ferrum-toolbox)
 ```
 
+End-user setup (DMG, GitHub sign-in, where apps land): see
+[INSTALL.md](../INSTALL.md).
+
 ## Where versions come from
 
 Every version of every app is a **GitHub Release** in one repository,
@@ -18,7 +21,9 @@ the record: tag, version, date, notes and downloadable builds.
 | --- | --- | --- |
 | Tag | `<app-id>-v<semver>` | `api-v0.2.0`, `term-v1.0.0-beta.1` |
 | App ids | `ide`, `api`, `git`, `data`, `term`, `toolbox` | |
-| Build | `<app-id>-<version>-<target>.tar.gz` with the binary at the archive root | `api-0.2.0-aarch64-apple-darwin.tar.gz` |
+| Build | `<app-id>-<version>-<target>.tar.gz` with the binaries at the archive root | `api-0.2.0-aarch64-apple-darwin.tar.gz` |
+| macOS bundle | `<app-id>-<version>-<target>.app.tar.gz` with `<App>.app` at the root; preferred on macOS | `api-0.2.0-aarch64-apple-darwin.app.tar.gz` |
+| Toolbox installer | `FerrumToolbox-<version>-<arch>.dmg` (macOS) | `FerrumToolbox-0.1.0-aarch64.dmg` |
 | Checksum | `<build>.sha256` | `api-0.2.0-aarch64-apple-darwin.tar.gz.sha256` |
 | Targets | `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu` | |
 
@@ -40,7 +45,9 @@ clean, then creates the annotated tag. It never pushes. Pushing the tag runs
 1. creates the release, with the tag message as notes (or GitHub's
    auto-generated notes when there is no message);
 2. builds the app for the three targets (`ide` builds inside `ide/`);
-3. uploads `<build>.tar.gz` and `<build>.sha256` to the release.
+3. uploads `<build>.tar.gz` and, on macOS, the `.app.tar.gz` bundle from
+   `scripts/bundle-macos.sh` (plus the toolbox DMG from `scripts/make-dmg.sh`),
+   each with a `.sha256`.
 
 The workflow needs a repository secret **`SUBMODULE_TOKEN`** with read access
 to `Amygdal-doo/ferrum-ide`. Every app needs the `ide/` submodule because the
@@ -59,9 +66,16 @@ apps use its GPUI crates.
   download at once.
 - **Check for updates** runs on startup and then every *N* hours (Settings).
   A notice appears when new versions are found.
-- **Activating** a version points `~/.ferrum/bin/<binary>` at it. Add
+- **Activating** a version points `~/.ferrum/bin/<binary>` at it (for
+  FerrumTerm, `fterm` too). On macOS it also publishes the version's bundle
+  as `~/Applications/Ferrum/<App>.app`, an APFS clone rather than a
+  symlink, because Launchpad and Spotlight skip symlinked apps. Add
   `~/.ferrum/bin` to your `PATH` to run `ferrumapi`, `ferrumgit`, … from a
   shell.
+- **Launch** uses `open` on the `.app` on macOS; otherwise it starts the
+  binary.
+- **First launch without a token** shows *Sign in to GitHub*: use the gh CLI,
+  paste a token (saved to the Keychain), or skip.
 - After an install, older versions beyond **Versions to keep** (default 3,
   including the active one; 0 keeps all) are removed. The active version is
   never pruned.
@@ -87,6 +101,7 @@ or to logs. The status bar shows which source is in use.
 | State (settings, installed versions, cached releases) | `~/Library/Application Support/dev.Ferrum.FerrumToolbox/state.json` |
 | Installed versions | `…/dev.Ferrum.FerrumToolbox/apps/<app-id>/<version>/` |
 | In-progress downloads | `…/dev.Ferrum.FerrumToolbox/downloads/` |
+| Active app bundles (macOS) | `~/Applications/Ferrum/<App>.app` |
 | PATH links | `~/.ferrum/bin/` |
 
 On Linux the data lives under `~/.local/share/ferrumtoolbox/`. `state.json`
@@ -110,9 +125,10 @@ is written atomically (temp file + rename).
 
 ## Limitations
 
-- The apps ship as plain binaries in a `.tar.gz`, not as signed `.app`
-  bundles or `.dmg`s. macOS Gatekeeper may need the quarantine flag cleared
-  for unsigned builds.
-- FerrumToolbox can install new versions of itself, but it doesn't restart
-  into them; launch the new version from `~/.ferrum/bin/ferrum-toolbox`.
+- Bundles and the DMG are ad-hoc signed, not notarized: a browser-downloaded
+  DMG needs right-click → Open once. Apps the toolbox downloads aren't
+  quarantined.
+- FerrumToolbox can install new versions of itself (into
+  `~/Applications/Ferrum`), but it doesn't replace `/Applications/Ferrum
+  Toolbox.app` or restart.
 - Windows has no published builds.

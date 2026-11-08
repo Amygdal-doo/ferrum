@@ -1,8 +1,10 @@
 # Publishes a Ferrum app release when a tag `<app-id>-v<semver>` is pushed,
 # e.g. `api-v0.2.0`. FerrumToolbox reads these releases.
 #
-# Assets per target: `<app-id>-<version>-<target>.tar.gz` (binary at the archive
-# root) plus `<same>.sha256`.
+# Assets per target, each with a `<same>.sha256`:
+#   <app-id>-<version>-<target>.tar.gz      binaries at the archive root
+#   <app-id>-<version>-<target>.app.tar.gz  macOS only: the .app bundle
+#   FerrumToolbox-<version>-<arch>.dmg      macOS toolbox only: installer image
 #
 # Secrets:
 #   SUBMODULE_TOKEN  A token with read access to Amygdal-doo/ferrum-ide. Every
@@ -108,19 +110,42 @@ jobs:
           echo "TARGET_DIR=$PWD/target/${{ matrix.target }}/release" >> "$GITHUB_ENV"
       - name: Package
         run: |
+          assets=()
+          checksum() {
+            if command -v sha256sum >/dev/null; then sha256sum "$1" > "$1.sha256"; else shasum -a 256 "$1" > "$1.sha256"; fi
+            assets+=("$1" "$1.sha256")
+          }
+
+          # Plain archive: binaries at the root (Linux, CLI use, older toolboxes).
           name="${APP}-${VERSION}-${{ matrix.target }}.tar.gz"
           staging="$(mktemp -d)"
           for binary in $BINARIES; do
             cp "$TARGET_DIR/$binary" "$staging/"
           done
           tar -C "$staging" -czf "$name" .
-          if command -v sha256sum >/dev/null; then
-            sha256sum "$name" > "$name.sha256"
-          else
-            shasum -a 256 "$name" > "$name.sha256"
+          checksum "$name"
+
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            # .app bundle archive: preferred by FerrumToolbox on macOS.
+            bundles="$(mktemp -d)"
+            bundle="$(scripts/bundle-macos.sh "$APP" "$VERSION" "${{ matrix.target }}" "$TARGET_DIR" "$bundles")"
+            app_archive="${APP}-${VERSION}-${{ matrix.target }}.app.tar.gz"
+            tar -C "$bundles" -czf "$app_archive" "$(basename "$bundle")"
+            checksum "$app_archive"
+
+            if [ "$APP" = "toolbox" ]; then
+              arch="${{ matrix.target }}"
+              arch="${arch%%-*}"
+              dmg="FerrumToolbox-${VERSION}-${arch}.dmg"
+              scripts/make-dmg.sh "$bundle" "$dmg" "Ferrum Toolbox"
+              checksum "$dmg"
+            fi
           fi
-          echo "ASSET=$name" >> "$GITHUB_ENV"
+
+          printf '%s\n' "${assets[@]}" > assets.txt
       - name: Upload
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" "$ASSET" "$ASSET.sha256" --clobber
+        run: |
+          # macOS runners ship bash 3.2 (no mapfile).
+          tr '\n' '\0' < assets.txt | xargs -0 gh release upload "${GITHUB_REF_NAME}" --clobber
