@@ -166,9 +166,11 @@ pub fn render(site_url: &str) -> Markup {
                         h2 id="gatekeeper-title" { "First launch: builds aren't code-signed yet" }
                         p {
                             "Ferrum builds are ad-hoc signed but not notarized yet, so macOS "
-                            "Gatekeeper blocks the first launch. Right-click the app in Finder "
-                            "and choose " strong { "Open" } ", then confirm. Or clear the "
-                            "quarantine flag:"
+                            "Gatekeeper blocks the first launch with a \"could not verify\" "
+                            "malware warning. Click Done, then open " strong { "System Settings → "
+                            "Privacy & Security" } " and click " strong { "Open Anyway" } ". (On "
+                            "macOS 14 and older, right-click the app and choose Open.) Or clear "
+                            "the quarantine flag:"
                         }
                         pre class="code-block" {
                             code { "xattr -dr com.apple.quarantine \"/Applications/Ferrum Toolbox.app\"" }

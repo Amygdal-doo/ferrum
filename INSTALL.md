@@ -19,9 +19,12 @@ FerrumTerm). Every app is also published as a normal installer for each OS
 2. Download `FerrumToolbox-<version>-aarch64.dmg` (Apple Silicon) or
    `FerrumToolbox-<version>-x86_64.dmg` (Intel).
 3. Open it and drag **Ferrum Toolbox** onto **Applications**.
-4. First launch: the app is ad-hoc signed, not notarized, so macOS blocks a
-   plain double-click on downloaded copies. **Right-click → Open → Open**
-   once, or run:
+4. First launch: the app is ad-hoc signed, not notarized, so macOS says it
+   "could not verify Ferrum Toolbox is free of malware". This is expected for
+   unsigned builds; it doesn't mean the app was flagged. Click **Done**, then
+   open **System Settings → Privacy & Security**, scroll to *Security* and
+   click **Open Anyway** next to "Ferrum Toolbox was blocked", then confirm.
+   (On macOS 14 and older, **right-click → Open → Open** also works.) Or run:
    ```bash
    xattr -dr com.apple.quarantine "/Applications/Ferrum Toolbox.app"
    ```
@@ -129,8 +132,11 @@ become `0.2.0~beta.1` so apt orders them before the final release.
 **First launch: nothing is code-signed yet.**
 
 - **macOS:** the apps are ad-hoc signed, not notarized, so Gatekeeper blocks a
-  plain double-click on a downloaded copy. **Right-click → Open → Open** once,
-  or run `xattr -dr com.apple.quarantine "/Applications/<App>.app"`.
+  downloaded copy with a "could not verify … is free of malware" message. Use
+  **System Settings → Privacy & Security → Open Anyway** once (macOS 15+), or
+  **right-click → Open** on older macOS, or run
+  `xattr -dr com.apple.quarantine "/Applications/<App>.app"`. Apps installed
+  through the toolbox skip this.
 - **Windows:** SmartScreen shows "Windows protected your PC" for the setup
   file. Click **More info → Run anyway**.
 - **Linux:** no prompt. GPUI needs a Vulkan driver (`mesa-vulkan-drivers` is
@@ -208,7 +214,7 @@ The workflow needs the `SUBMODULE_TOKEN` secret (read access to
 ## Known limitations
 
 - **Signing:** builds are ad-hoc signed only, with no Developer ID and no
-  notarization. That's why the DMG needs right-click → Open the first time.
+  notarization. That's why a downloaded DMG needs **Open Anyway** the first time.
   Proper signing needs an Apple Developer account plus `codesign`/`notarytool`
   steps in the workflow.
 - **Self-update:** the toolbox can install a newer version of itself (into
