@@ -132,8 +132,8 @@ fn install_section() -> Markup {
             html! { p { "Download the toolbox for your Mac and drag it to Applications." } },
         ),
         (
-            "Sign in to GitHub",
-            html! { p { "Builds are private for now, so the toolbox uses your GitHub access." } },
+            "Open it",
+            html! { p { "No account, no sign-in. The toolbox lists every Ferrum app." } },
         ),
         (
             "Install the apps",
@@ -182,8 +182,9 @@ fn status_strip() -> Markup {
                         }
                         li {
                             span class="status-dot" {}
-                            "Builds are private GitHub Releases for the team. "
-                            a href=(site::DOWNLOAD_PATH) { "How to get access" } "."
+                            "Free public builds for Apple Silicon Macs; Windows and Linux are "
+                            "coming soon. "
+                            a href=(site::DOWNLOAD_PATH) { "Download Ferrum Toolbox" } "."
                         }
                     }
                 }

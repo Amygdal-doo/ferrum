@@ -78,7 +78,7 @@ impl Render for Onboarding {
         Modal::new("Sign in to GitHub")
             .width(px(520.))
             .child(Label::new(format!(
-                "Ferrum releases are published in the private repo {}. \
+                "Releases are read from {}, which needs a GitHub sign-in. \
                  FerrumToolbox needs read access to list and download them.",
                 self.repo
             )))

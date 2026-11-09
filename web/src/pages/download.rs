@@ -1,5 +1,5 @@
-//! Download page: how to get Ferrum Toolbox while builds are private, then
-//! how the toolbox installs and updates the apps.
+//! Download page: the macOS toolbox installer (public, no sign-in), then how
+//! the toolbox installs and updates the apps.
 
 use maud::{Markup, html};
 
@@ -10,82 +10,98 @@ use crate::components::{
 use crate::layout::{PageMeta, page};
 use crate::{products, site};
 
-const DESCRIPTION: &str = "Download Ferrum Toolbox and install every Ferrum app on macOS, \
-     Windows or Linux. Builds are private GitHub Releases for now: request access, sign in with \
-     gh, install the toolbox.";
+const DESCRIPTION: &str = "Download Ferrum Toolbox for macOS (Apple Silicon) and install every \
+     Ferrum app from it. Free public builds: no GitHub account, no sign-in.";
 
-/// Per-OS installers attached to toolbox releases: (system, file, how to install).
+/// Per-OS toolbox installers: (system, file, how to install, published yet).
 /// Only the toolbox has installers; it installs the other apps.
-const INSTALLERS: [(&str, &str, &str); 3] = [
+const INSTALLERS: [(&str, &str, &str, bool); 3] = [
     (
         "macOS",
-        "FerrumToolbox-<version>-aarch64.dmg / -x86_64.dmg",
-        "open it and drag Ferrum Toolbox onto Applications (Apple Silicon or Intel).",
+        "FerrumToolbox-<version>-aarch64.dmg",
+        "open it and drag Ferrum Toolbox onto Applications. Apple Silicon only.",
+        true,
     ),
     (
         "Windows",
         "FerrumToolbox-<version>-x86_64-setup.exe",
-        "run it; installs for your user (no admin) with a Start Menu entry. \
-         Uninstall from Settings → Apps.",
+        "coming soon.",
+        false,
     ),
     (
         "Linux",
         "ferrum-toolbox_<version>_amd64.deb",
-        "sudo apt install ./<file>.deb on Debian or Ubuntu; adds the toolbox to the menu.",
+        "coming soon (Debian and Ubuntu).",
+        false,
     ),
 ];
 
-fn get_toolbox_steps() -> [(&'static str, Markup); 4] {
+fn get_toolbox_steps() -> [(&'static str, Markup); 3] {
     [
-        (
-            "Request access",
-            html! {
-                p {
-                    "Ferrum builds are published as GitHub Releases in the private "
-                    code { (site::REPO_SLUG) } " repository. Ask a maintainer to add your \
-                    GitHub account with read access."
-                }
-            },
-        ),
-        (
-            "Sign in with the GitHub CLI",
-            html! {
-                p { "Install " a href="https://cli.github.com" rel="noopener" { "gh" } ", then sign in once:" }
-                pre class="code-block" { code { "gh auth login" } }
-            },
-        ),
         (
             "Download the toolbox",
             html! {
                 p {
-                    "Open the "
-                    a href=(site::RELEASES_URL) rel="noopener" { "Ferrum releases" }
-                    " (you must be signed in to GitHub), find the newest "
-                    code { "toolbox-v…" } " release and download the installer for your system: "
-                    code { "FerrumToolbox-<version>-<arch>.dmg" } " (macOS), "
-                    code { "FerrumToolbox-<version>-x86_64-setup.exe" } " (Windows) or "
-                    code { "ferrum-toolbox_<version>_amd64.deb" } " (Debian/Ubuntu). "
-                    "On a Mac you can also run, from a clone of the repository:"
+                    "Click " strong { "Download for macOS" } " to get the newest "
+                    code { "FerrumToolbox-<version>-aarch64.dmg" } ". It needs a Mac with Apple \
+                    Silicon. Every build is also listed in the "
+                    a href=(site::RELEASES_URL) rel="noopener" { "public releases" }
+                    " on GitHub."
                 }
-                pre class="code-block" { code { "scripts/install-toolbox.sh" } }
-                p class="muted" {
-                    "The script fetches the right DMG for your Mac with gh and installs it."
-                }
+            },
+        ),
+        (
+            "Install it",
+            html! {
+                p { "Open the DMG and drag " strong { "Ferrum Toolbox.app" } " to Applications." }
             },
         ),
         (
             "Open Ferrum Toolbox",
             html! {
                 p {
-                    "Drag " strong { "Ferrum Toolbox.app" } " to Applications (macOS), run the \
-                    setup (Windows) or " code { "sudo apt install ./ferrum-toolbox_…deb" } " (Linux), \
-                    then open it. It picks up your gh login automatically, or you can paste a "
-                    a href=(site::TOKEN_SETTINGS_URL) rel="noopener" { "fine-grained token" }
-                    " with " em { "Contents: Read" } " on " code { (site::REPO_SLUG) } "."
+                    "Open it from Applications. There is nothing to sign in to: it downloads \
+                    every app straight from the public releases."
+                    @if !site::MACOS_NOTARIZED {
+                        " The current build needs one extra click the first time, see below."
+                    }
                 }
             },
         ),
     ]
+}
+
+/// Gatekeeper workaround for builds that are not notarized yet.
+/// Hidden once [`site::MACOS_NOTARIZED`] is `true`.
+fn gatekeeper_section() -> Markup {
+    if site::MACOS_NOTARIZED {
+        return html! {};
+    }
+    html! {
+        section class="section section--tight" aria-labelledby="gatekeeper-title" {
+            div class="container" {
+                div class="callout callout--warn" {
+                    h2 id="gatekeeper-title" { "First launch: this build isn't notarized yet" }
+                    p {
+                        "The current macOS build is ad-hoc signed but not yet notarized by \
+                        Apple, so Gatekeeper blocks the first launch with a \"could not verify\" \
+                        malware warning. Click Done, then open " strong { "System Settings → "
+                        "Privacy & Security" } " and click " strong { "Open Anyway" } ". (On "
+                        "macOS 14 and older, right-click the app and choose Open.) Or clear "
+                        "the quarantine flag:"
+                    }
+                    pre class="code-block" {
+                        code { "xattr -dr com.apple.quarantine \"/Applications/Ferrum Toolbox.app\"" }
+                    }
+                    p class="muted" {
+                        "You only need to do this once per app. Apps installed by the "
+                        "toolbox may ask the same the first time you open them. Signed and "
+                        "notarized builds are on the way."
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn use_toolbox_steps() -> [(&'static str, Markup); 3] {
@@ -104,8 +120,9 @@ fn use_toolbox_steps() -> [(&'static str, Markup); 3] {
             "Stay up to date",
             html! {
                 p {
-                    "The toolbox checks for new releases on startup and every few hours, and "
-                    "shows an update badge next to each app."
+                    "The toolbox checks for new releases on startup and every few hours and "
+                    "shows an update badge next to each app. It updates itself in place too: "
+                    "download, replace, restart."
                 }
             },
         ),
@@ -143,11 +160,19 @@ pub fn render(site_url: &str) -> Markup {
                             "Install the toolbox once, then install, update and roll back every "
                             "Ferrum app from one window."
                         }
+                        div class="download-actions" {
+                            (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
+                            (button::disabled("Windows", "Coming soon"))
+                            (button::disabled("Linux", "Coming soon"))
+                        }
+                        p class="muted" { "Apple Silicon · DMG · free, no sign-in" }
                         div class="callout" role="note" {
                             p {
-                                strong { "Builds are private for now." }
-                                " Ferrum releases are available to the team only, so you need "
-                                "access to " code { (site::REPO_SLUG) } " on GitHub."
+                                strong { "Public builds." }
+                                " Releases are published in the public "
+                                code { (site::REPO_SLUG) } " repository on GitHub. You don't "
+                                "need a GitHub account, and the toolbox installs every other app "
+                                "without signing in."
                             }
                         }
                     }
@@ -160,33 +185,7 @@ pub fn render(site_url: &str) -> Markup {
                     (card::steps(&get_toolbox_steps()))
                 }
             }
-            section class="section section--tight" aria-labelledby="gatekeeper-title" {
-                div class="container" {
-                    div class="callout callout--warn" {
-                        h2 id="gatekeeper-title" { "First launch: builds aren't code-signed yet" }
-                        p {
-                            "Ferrum builds are ad-hoc signed but not notarized yet, so macOS "
-                            "Gatekeeper blocks the first launch with a \"could not verify\" "
-                            "malware warning. Click Done, then open " strong { "System Settings → "
-                            "Privacy & Security" } " and click " strong { "Open Anyway" } ". (On "
-                            "macOS 14 and older, right-click the app and choose Open.) Or clear "
-                            "the quarantine flag:"
-                        }
-                        pre class="code-block" {
-                            code { "xattr -dr com.apple.quarantine \"/Applications/Ferrum Toolbox.app\"" }
-                        }
-                        p class="muted" {
-                            "You only need to do this once per app. Apps installed by the "
-                            "toolbox may ask the same the first time you open them."
-                        }
-                        p {
-                            "On Windows, SmartScreen shows " em { "Windows protected your PC" }
-                            " for the setup file: click " strong { "More info" } ", then "
-                            strong { "Run anyway" } "."
-                        }
-                    }
-                }
-            }
+            (gatekeeper_section())
             section class="section" aria-labelledby="use-title" {
                 div class="container" {
                     p class="eyebrow" { "Then" }
@@ -213,16 +212,20 @@ pub fn render(site_url: &str) -> Markup {
                         "installers: install, update and remove them from the toolbox."
                     }
                     dl class="spec-sheet" {
-                        @for (os, file, how) in INSTALLERS {
+                        @for (os, file, how, published) in INSTALLERS {
                             div class="spec-sheet__row" {
                                 dt class="mono" { (os) }
-                                dd { code { (file) } " · " (how) }
+                                dd {
+                                    @if published { code { (file) } " · " }
+                                    (how)
+                                }
                             }
                         }
                     }
                     p class="muted" { "FerrumTerm isn't available on Windows yet." }
                     div class="download-actions" {
-                        (button::link("Open Ferrum releases on GitHub", site::RELEASES_URL, Variant::Primary))
+                        (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
+                        (button::link("All releases on GitHub", site::RELEASES_URL, Variant::Secondary))
                         (button::link("About Ferrum Toolbox", &toolbox.path(), Variant::Secondary))
                     }
                 }
@@ -240,15 +243,32 @@ mod tests {
     }
 
     #[test]
-    fn explains_private_access_and_the_steps() {
+    fn offers_a_public_macos_download() {
         let html = rendered();
         assert_eq!(html.matches("<h1").count(), 1);
-        assert!(html.contains("Builds are private for now."));
-        assert!(html.contains("gh auth login"));
+        assert!(html.contains(r#"href="/download/macos""#));
+        assert!(html.contains("Apple Silicon"));
         assert!(html.contains(site::RELEASES_URL));
-        assert!(html.contains("scripts/install-toolbox.sh"));
-        assert!(html.contains("com.apple.quarantine"));
-        assert!(html.contains("SmartScreen"));
+        assert!(html.contains("Amygdal-doo/ferrum-releases"));
+        assert_eq!(html.matches(r#"class="btn__note">Coming soon"#).count(), 2);
+        for gone in [
+            "private",
+            "gh auth login",
+            "request access",
+            "fine-grained token",
+        ] {
+            assert!(!html.to_lowercase().contains(gone), "{gone}");
+        }
+    }
+
+    #[test]
+    fn explains_gatekeeper_until_notarized() {
+        let html = rendered();
+        assert_eq!(
+            html.contains("com.apple.quarantine"),
+            !site::MACOS_NOTARIZED
+        );
+        assert_eq!(html.contains("Open Anyway"), !site::MACOS_NOTARIZED);
     }
 
     #[test]
@@ -256,16 +276,24 @@ mod tests {
         let html = rendered();
         assert!(html.contains("Toolbox installers"));
         assert!(html.contains("FerrumToolbox-&lt;version&gt;-aarch64.dmg"));
-        assert!(!html.contains("&lt;App&gt;-&lt;version&gt;"));
-        assert!(html.contains("FerrumToolbox-&lt;version&gt;-x86_64-setup.exe"));
-        assert!(html.contains("ferrum-toolbox_&lt;version&gt;_amd64.deb"));
+        assert!(!html.contains("x86_64.dmg"));
+        for os in ["macOS", "Windows", "Linux"] {
+            assert!(
+                html.contains(&format!(r#"<dt class="mono">{os}</dt>"#)),
+                "{os}"
+            );
+        }
     }
 
     #[test]
     fn links_every_managed_app() {
         let html = rendered();
         for p in products::apps() {
-            assert!(html.contains(&format!(r#"href="{}""#, p.path())), "{}", p.name);
+            assert!(
+                html.contains(&format!(r#"href="{}""#, p.path())),
+                "{}",
+                p.name
+            );
         }
     }
 }

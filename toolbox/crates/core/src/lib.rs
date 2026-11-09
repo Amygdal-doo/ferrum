@@ -10,6 +10,7 @@ pub mod github;
 pub mod install;
 pub mod platform;
 pub mod release;
+pub mod self_update;
 pub mod store;
 
 pub use auth::{GitHubToken, TokenSource};

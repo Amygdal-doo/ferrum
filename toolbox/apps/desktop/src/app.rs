@@ -56,6 +56,10 @@ pub struct FerrumToolbox {
     pub selected_release: Option<Version>,
     pub downloads: HashMap<AppId, Download>,
     pub checking: bool,
+    /// Toolbox version being downloaded to replace the running bundle.
+    pub self_update: Option<Version>,
+    /// The `.app` this process runs from; `None` for unbundled builds.
+    pub running_bundle: Option<std::path::PathBuf>,
     pub token_source: Option<TokenSource>,
     pub settings_form: Option<Entity<SettingsForm>>,
     pub onboarding: Option<Entity<Onboarding>>,
@@ -86,6 +90,8 @@ impl FerrumToolbox {
             selected_release: None,
             downloads: HashMap::new(),
             checking: false,
+            self_update: None,
+            running_bundle: ferrumtoolbox_core::self_update::running_bundle(),
             token_source: None,
             settings_form: None,
             onboarding: None,
@@ -195,6 +201,7 @@ impl FerrumToolbox {
             .state
             .update_for(AppId::Toolbox)
             .map(|release| (release.version.clone(), release.html_url.clone()));
+        let self_updatable = self.running_bundle.is_some();
         toolbar(cx)
             .justify_between()
             .child(
@@ -209,19 +216,37 @@ impl FerrumToolbox {
                                 .color(Color::Muted),
                         )
                     })
-                    // The toolbox is installed from its DMG/installer, so its
-                    // update opens the release page instead of installing a
-                    // second copy next to the running one.
+                    // A bundled toolbox swaps itself for the new version and
+                    // restarts; otherwise (cargo run, Windows, Linux) the
+                    // release page has the installer.
                     .when_some(toolbox_update, |this, (version, url)| {
-                        this.child(
-                            Button::new("toolbox-update", format!("Get Toolbox v{version}"))
-                                .style(ButtonStyle::Tinted(ferrum_ui::ui::TintColor::Accent))
-                                .start_icon(Icon::new(IconName::Download))
+                        let updating = self.self_update.is_some();
+                        let button = Button::new(
+                            "toolbox-update",
+                            if updating {
+                                format!("Updating to v{version}…")
+                            } else {
+                                format!("Update Toolbox to v{version}")
+                            },
+                        )
+                        .style(ButtonStyle::Tinted(ferrum_ui::ui::TintColor::Accent))
+                        .start_icon(Icon::new(IconName::Download))
+                        .disabled(updating);
+                        this.child(if self_updatable {
+                            button
+                                .tooltip(Tooltip::text(
+                                    "Downloads the new version, replaces this app and restarts it",
+                                ))
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.update_toolbox(version.clone(), cx)
+                                }))
+                        } else {
+                            button
                                 .tooltip(Tooltip::text(
                                     "Opens the release page to download the new installer",
                                 ))
-                                .on_click(move |_, _, cx| cx.open_url(&url)),
-                        )
+                                .on_click(move |_, _, cx| cx.open_url(&url))
+                        })
                     })
                     .when(updates > 0, |this| {
                         this.child(badge(

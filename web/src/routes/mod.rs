@@ -15,11 +15,12 @@ use axum::{
 };
 use maud::Markup;
 
-use crate::{Config, pages};
+use crate::{Config, pages, releases::MacosDownload, site};
 
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
+    pub macos_download: Arc<MacosDownload>,
 }
 
 impl AppState {
@@ -30,8 +31,14 @@ impl AppState {
 
 /// Build the full application router (used by `main` and integration tests).
 pub fn app(config: Config) -> Router {
+    app_with(config, MacosDownload::github())
+}
+
+/// Like [`app`], with a custom toolbox download resolver (tests inject a fake fetcher).
+pub fn app_with(config: Config, macos_download: MacosDownload) -> Router {
     let state = AppState {
         config: Arc::new(config),
+        macos_download: Arc::new(macos_download),
     };
     let router = Router::new()
         .route("/", get(home))
@@ -42,6 +49,7 @@ pub fn app(config: Config) -> Router {
         .route("/ferrumterm", get(ferrumterm))
         .route("/ferrum-toolbox", get(ferrum_toolbox))
         .route("/download", get(download))
+        .route(site::MACOS_DOWNLOAD_PATH, get(download_macos))
         .route("/about", get(about))
         .route("/healthz", get(health::healthz))
         .route("/robots.txt", get(seo::robots))
@@ -75,6 +83,19 @@ async fn ferrum_toolbox(State(s): State<AppState>) -> Markup {
 }
 async fn download(State(s): State<AppState>) -> Markup {
     pages::download::render(s.site_url())
+}
+/// 302 to the newest toolbox DMG (or the releases page). Not cached by clients,
+/// so a new release is picked up as soon as the server-side cache expires.
+async fn download_macos(
+    State(s): State<AppState>,
+) -> (StatusCode, [(header::HeaderName, String); 2]) {
+    (
+        StatusCode::FOUND,
+        [
+            (header::LOCATION, s.macos_download.url().await),
+            (header::CACHE_CONTROL, "no-store".to_owned()),
+        ],
+    )
 }
 async fn about(State(s): State<AppState>) -> Markup {
     pages::about::render(s.site_url())

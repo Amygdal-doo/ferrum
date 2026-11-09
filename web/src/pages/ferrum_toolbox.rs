@@ -23,8 +23,9 @@ const FEATURES: &[(&str, &str)] = &[
          any version.",
     ),
     (
-        "Automatic update checks",
-        "Checks on startup and every few hours, and tells you when new versions are out.",
+        "Automatic updates",
+        "Checks on startup and every few hours. The toolbox updates itself in place: it \
+         downloads the new version, replaces the app and restarts.",
     ),
     (
         "Command-line links",
@@ -40,14 +41,14 @@ const FEATURES: &[(&str, &str)] = &[
 
 const MANAGES: &[&str] = &[
     "Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData and FerrumTerm",
-    "Itself: new toolbox versions show up like any other app",
+    "Itself: new toolbox versions install in place and restart the app",
     "Keeps the last 3 versions of each app by default",
 ];
 
 const AUTH: &[&str] = &[
-    "Builds live in private GitHub Releases, so the toolbox needs read access",
-    "Uses your gh CLI login, a GITHUB_TOKEN, or a token saved in the OS keychain",
-    "The token is never written to the toolbox state file or to logs",
+    "No sign-in: apps download from public GitHub Releases",
+    "An optional GitHub token only for private forks or higher API rate limits",
+    "A token, if set, is never written to the toolbox state file or to logs",
 ];
 
 const PAGE: ProductPage = ProductPage {
@@ -69,18 +70,21 @@ const PAGE: ProductPage = ProductPage {
             items: MANAGES,
         },
         BulletGroup {
-            heading: "Access",
+            heading: "No sign-in",
             items: AUTH,
         },
     ],
     specs: &[
-        ("Get it", "The toolbox DMG from GitHub Releases (team access, see Download)"),
-        ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
-        ("Releases", "Tagged <app>-v<semver> in Amygdal-doo/ferrum"),
+        ("Get it", "Free DMG for Apple Silicon Macs (see Download)"),
+        ("Installers", "macOS today; Windows and Linux coming soon"),
+        (
+            "Releases",
+            "Tagged <app>-v<semver> in Amygdal-doo/ferrum-releases",
+        ),
         ("Built with", "Rust, GPUI, reqwest + rustls"),
     ],
-    specs_note: "Builds are ad-hoc signed, not notarized. See the Download page for the \
-                 first-launch step on macOS.",
+    specs_note: "The current macOS build is not notarized yet. See the Download page for the \
+                 first-launch step.",
 };
 
 /// The five managed apps, shown right after the hero.
@@ -122,14 +126,22 @@ mod tests {
         assert_eq!(html.matches("<h1").count(), 1);
         assert!(html.contains(">Ferrum Toolbox</h1>"));
         for p in products::apps() {
-            assert!(html.contains(&format!("href=\"{}\"", p.path())), "{}", p.name);
+            assert!(
+                html.contains(&format!("href=\"{}\"", p.path())),
+                "{}",
+                p.name
+            );
         }
     }
 
     #[test]
-    fn explains_private_access() {
+    fn explains_public_downloads_and_self_update() {
         let html = rendered();
-        assert!(html.contains("private GitHub Releases"));
+        assert!(html.contains("No sign-in"));
+        assert!(html.contains("updates itself in place"));
+        assert!(html.contains("Amygdal-doo/ferrum-releases"));
+        assert!(!html.contains("private GitHub Releases"));
+        assert!(!html.contains("gh CLI"));
         assert!(html.contains("href=\"/download\""));
     }
 }

@@ -77,9 +77,9 @@ const PAGE: ProductPage = ProductPage {
         ("Upstream", "Zed, by Zed Industries"),
         ("Built with", "Rust, GPUI (via Zed)"),
         ("Licensing", "Follows Zed's open-source licenses"),
-        ("Install", "Ferrum Toolbox (team access, see Download)"),
+        ("Install", "Ferrum Toolbox (free, see Download)"),
     ],
-    specs_note: "Builds are published as private GitHub Releases and installed through Ferrum \
+    specs_note: "Builds are free public GitHub Releases, installed through Ferrum \
                  Toolbox.",
 };
 

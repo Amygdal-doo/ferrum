@@ -113,8 +113,8 @@ pub fn render(site_url: &str) -> Markup {
                         }
                     }
                     p class="muted" {
-                        "Builds are private GitHub Releases for the team for now. "
-                        a href=(site::DOWNLOAD_PATH) { "How to get access" } "."
+                        "Builds are free public downloads, installed through Ferrum Toolbox. "
+                        a href=(site::DOWNLOAD_PATH) { "Download it" } "."
                     }
                 }
             }

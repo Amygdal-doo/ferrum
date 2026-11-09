@@ -5,9 +5,15 @@ use axum::{
     body::Body,
     http::{HeaderMap, Method, Request, StatusCode, header},
 };
+use std::sync::Arc;
+
 use http_body_util::BodyExt;
 use tower::ServiceExt;
-use web_ferrum::{Config, app, routes::assets};
+use web_ferrum::{
+    Config, app,
+    releases::MacosDownload,
+    routes::{app_with, assets},
+};
 
 struct Res {
     status: StatusCode,
@@ -74,13 +80,56 @@ async fn pages_render_html_with_title() {
 }
 
 #[tokio::test]
-async fn download_page_explains_private_access() {
+async fn download_page_offers_public_macos_download() {
     let res = get("/download").await;
     assert_eq!(res.status, StatusCode::OK);
     let html = res.text();
     assert!(html.contains("Get Ferrum Toolbox"));
-    assert!(html.contains("https://github.com/Amygdal-doo/ferrum/releases"));
-    assert!(html.contains("gh auth login"));
+    assert!(html.contains(r#"href="/download/macos""#));
+    assert!(html.contains("https://github.com/Amygdal-doo/ferrum-releases/releases"));
+    assert!(!html.contains("gh auth login"));
+}
+
+fn fake_releases(result: Result<&'static str, &'static str>) -> MacosDownload {
+    MacosDownload::new(Arc::new(move || {
+        Box::pin(async move { result.map(str::to_owned).map_err(str::to_owned) })
+    }))
+}
+
+async fn get_with(resolver: MacosDownload, uri: &str) -> Res {
+    let req = Request::get(uri).body(Body::empty()).unwrap();
+    let res = app_with(Config::default(), resolver)
+        .oneshot(req)
+        .await
+        .unwrap();
+    Res {
+        status: res.status(),
+        headers: res.headers().clone(),
+        body: Vec::new(),
+    }
+}
+
+#[tokio::test]
+async fn macos_download_redirects_to_newest_dmg() {
+    let json = r#"[
+      {"tag_name": "toolbox-v0.2.0", "draft": false, "prerelease": false,
+       "assets": [{"name": "FerrumToolbox-0.2.0-aarch64.dmg",
+                   "browser_download_url": "https://dl.test/0.2.0.dmg"}]}
+    ]"#;
+    let res = get_with(fake_releases(Ok(json)), "/download/macos").await;
+    assert_eq!(res.status, StatusCode::FOUND);
+    assert_eq!(res.header(header::LOCATION), "https://dl.test/0.2.0.dmg");
+    assert_eq!(res.header(header::CACHE_CONTROL), "no-store");
+}
+
+#[tokio::test]
+async fn macos_download_falls_back_to_releases_page() {
+    let res = get_with(fake_releases(Err("offline")), "/download/macos").await;
+    assert_eq!(res.status, StatusCode::FOUND);
+    assert_eq!(
+        res.header(header::LOCATION),
+        "https://github.com/Amygdal-doo/ferrum-releases/releases"
+    );
 }
 
 #[tokio::test]
@@ -93,7 +142,11 @@ async fn brand_assets_are_served() {
     ] {
         let res = get(path).await;
         assert_eq!(res.status, StatusCode::OK, "{path}");
-        assert!(res.header(header::CONTENT_TYPE).starts_with("image/svg+xml"), "{path}");
+        assert!(
+            res.header(header::CONTENT_TYPE)
+                .starts_with("image/svg+xml"),
+            "{path}"
+        );
     }
     for path in ["/assets/img/og.png", "/assets/img/apple-touch-icon.png"] {
         let res = get(path).await;

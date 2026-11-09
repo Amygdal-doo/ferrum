@@ -82,10 +82,13 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Toolbox (team access, see Download)"),
+        ("Install", "Ferrum Toolbox (free, see Download)"),
         ("Includes", "The FerrumTerm window and the fterm CLI"),
         ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
-        ("Built with", "Rust, GPUI, alacritty_terminal, portable-pty, Tokio"),
+        (
+            "Built with",
+            "Rust, GPUI, alacritty_terminal, portable-pty, Tokio",
+        ),
         ("Tested on", "macOS"),
     ],
     specs_note: "Anyone holding a remote-access token can run programs as you: treat it like \

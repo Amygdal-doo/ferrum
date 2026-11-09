@@ -13,7 +13,12 @@
 #   <AppName>-<version>-x86_64-setup.exe    Windows per-user installer (Inno Setup)
 # FerrumTerm has no Windows build (its server uses Unix sockets).
 #
+# Releases are published to the public, releases-only repo $RELEASE_REPO
+# (customers and FerrumToolbox download from it without signing in), not to
+# this private source repo.
+#
 # Secrets:
+#   RELEASES_TOKEN   A token with Contents: write on $RELEASE_REPO.
 #   SUBMODULE_TOKEN  A token with read access to Amygdal-doo/ferrum-ide. Every
 #                    app needs the ide/ submodule checked out, because the apps
 #                    depend on its GPUI crates by path.
@@ -24,7 +29,10 @@ on:
     tags: ["*-v*"]
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  RELEASE_REPO: Amygdal-doo/ferrum-releases
 
 jobs:
   prepare:
@@ -64,19 +72,19 @@ jobs:
           } >> "$GITHUB_OUTPUT"
       - name: Create release
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           tag="${GITHUB_REF_NAME}"
           git fetch --force origin "refs/tags/${tag}:refs/tags/${tag}"
           notes="$(git tag -l --format='%(contents)' "$tag")"
           prerelease=""
           [[ "${{ steps.parse.outputs.version }}" == *-* ]] && prerelease="--prerelease"
-          if gh release view "$tag" >/dev/null 2>&1; then
+          [ -n "$notes" ] || notes="$tag"
+          if gh release view "$tag" --repo "$RELEASE_REPO" >/dev/null 2>&1; then
             echo "Release $tag exists; assets will be replaced."
-          elif [ -n "$notes" ] && [ "$notes" != "$tag" ]; then
-            gh release create "$tag" --title "$tag" --notes "$notes" $prerelease
           else
-            gh release create "$tag" --title "$tag" --generate-notes $prerelease
+            gh release create "$tag" --repo "$RELEASE_REPO" --target main \
+              --title "$tag" --notes "$notes" $prerelease
           fi
 
   build:
@@ -238,7 +246,7 @@ jobs:
       - name: Upload
         if: env.FERRUM_SKIP != 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           # macOS runners ship bash 3.2 (no mapfile); strip CRs from the Windows list.
-          tr -d '\r' < assets.txt | tr '\n' '\0' | xargs -0 gh release upload "${GITHUB_REF_NAME}" --clobber
+          tr -d '\r' < assets.txt | tr '\n' '\0' | xargs -0 gh release upload "${GITHUB_REF_NAME}" --repo "$RELEASE_REPO" --clobber

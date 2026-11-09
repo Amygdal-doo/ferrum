@@ -41,6 +41,7 @@ If neither `SITE_URL` nor `RAILWAY_PUBLIC_DOMAIN` is set, the site URL is
 | Path | Notes |
 |------|-------|
 | `/`, `/ferrum-ide`, `/ferrumapi`, `/ferrumgit`, `/ferrumdata`, `/ferrumterm`, `/ferrum-toolbox`, `/download`, `/about` | HTML pages, `Cache-Control: public, max-age=300` |
+| `/download/macos` | `302` to the newest stable `toolbox-v*` `*-aarch64.dmg` in the public `Amygdal-doo/ferrum-releases` repo, resolved via the GitHub API (anonymous) and cached in memory for 10 min. Falls back to the releases page (cached 1 min) when the lookup fails. `no-store` |
 | `/healthz` | `200 ok`, `text/plain`, `no-store`, used by the Railway health check |
 | `/robots.txt`, `/sitemap.xml` | The sitemap is built from `products::ALL` plus `/`, `/download` and `/about` |
 | `/assets/*` | Embedded files. URLs from `assets::url()` carry `?v=<sha256 prefix>` and are served `immutable` for one year. Every asset has a strong ETag (`304` on `If-None-Match`) |
@@ -60,6 +61,7 @@ src/
   config.rs        env parsing (pure `Config::from_vars`, unit-tested)
   site.rs          site-wide constants and links (download, releases, upstream credits)
   products.rs      product catalogue (drives nav, cards, sitemap)
+  releases.rs      newest toolbox DMG lookup (pure JSON selection + cache) for /download/macos
   layout.rs        HTML shell (head, meta, nav, footer)
   components/      reusable maud components (nav, footer, card, badge, ...)
   pages/           one module per page, each with `render(site_url)`
@@ -73,8 +75,10 @@ railway.toml       Railway build + deploy config
 ### Links and brand assets
 
 Site-wide links live in **`src/site.rs`**: every download CTA points to
-`/download`, which explains the private GitHub Releases in `Amygdal-doo/ferrum`
-and links to them. The contact email is still `None`. Pages must not hard-code
+`/download`, whose primary button is `/download/macos`. Builds are public
+GitHub Releases in `Amygdal-doo/ferrum-releases` (no sign-in needed). Set
+`site::MACOS_NOTARIZED = true` once notarized builds ship to hide the
+Gatekeeper "Open Anyway" section. The contact email is still `None`. Pages must not hard-code
 links.
 
 Logos in `assets/img/brand/` are copies of `../brand/svg/` (the Docker build

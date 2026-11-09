@@ -11,14 +11,22 @@ pub const SITE_DESCRIPTION: &str = "Ferrum is a family of native developer tools
 pub const DOWNLOAD_PATH: &str = "/download";
 pub const DOWNLOAD_LABEL: &str = "Download";
 
-/// The private monorepo. Shown as text on the download page only (team access),
-/// never as a public "source" link.
-pub const REPO_SLUG: &str = "Amygdal-doo/ferrum";
-/// GitHub Releases of the monorepo: one release per app version (`<app>-v<semver>`).
-/// Visible only to people with access to the repository.
-pub const RELEASES_URL: &str = "https://github.com/Amygdal-doo/ferrum/releases";
-/// Where to create the fine-grained token Ferrum Toolbox can use instead of `gh`.
-pub const TOKEN_SETTINGS_URL: &str = "https://github.com/settings/personal-access-tokens/new";
+/// Public, releases-only repository. Every Ferrum app release lives here as
+/// `<app>-v<semver>` (`toolbox-v…`, `api-v…`, …); no GitHub account is needed.
+pub const REPO_SLUG: &str = "Amygdal-doo/ferrum-releases";
+/// Human-facing release list. Also the fallback for [`MACOS_DOWNLOAD_PATH`].
+pub const RELEASES_URL: &str = "https://github.com/Amygdal-doo/ferrum-releases/releases";
+/// Public GitHub API listing used to resolve the newest toolbox installer.
+pub const RELEASES_API_URL: &str =
+    "https://api.github.com/repos/Amygdal-doo/ferrum-releases/releases?per_page=100";
+
+/// Redirects (302) to the newest stable Ferrum Toolbox DMG (Apple Silicon).
+pub const MACOS_DOWNLOAD_PATH: &str = "/download/macos";
+
+/// Whether current macOS builds are Developer ID signed and notarized.
+/// While `false`, the download page explains Gatekeeper's "Open Anyway" step.
+/// Flip to `true` once notarized builds ship; that hides the section.
+pub const MACOS_NOTARIZED: bool = false;
 
 /// PLACEHOLDER: contact address (none configured).
 pub const CONTACT_EMAIL: Option<&str> = None;

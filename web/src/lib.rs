@@ -5,6 +5,7 @@ pub mod config;
 pub mod layout;
 pub mod pages;
 pub mod products;
+pub mod releases;
 pub mod routes;
 pub mod site;
 

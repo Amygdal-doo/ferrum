@@ -153,11 +153,26 @@ pub struct Settings {
     pub legacy_include_prereleases: bool,
 }
 
+/// The public repo customers download from: releases only, no source, so
+/// the toolbox works without a GitHub sign-in.
+pub const PUBLIC_REPO: (&str, &str) = ("Amygdal-doo", "ferrum-releases");
+
+/// Where releases were published before [`PUBLIC_REPO`] (private).
+const LEGACY_REPO: (&str, &str) = ("Amygdal-doo", "ferrum");
+
+impl Settings {
+    /// Whether the configured repo is [`PUBLIC_REPO`], which needs no token.
+    #[must_use]
+    pub fn uses_public_repo(&self) -> bool {
+        (self.repo_owner.as_str(), self.repo_name.as_str()) == PUBLIC_REPO
+    }
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            repo_owner: "Amygdal-doo".into(),
-            repo_name: "ferrum".into(),
+            repo_owner: PUBLIC_REPO.0.into(),
+            repo_name: PUBLIC_REPO.1.into(),
             check_interval_hours: 6,
             keep_versions: 3,
             legacy_include_prereleases: false,
@@ -219,8 +234,16 @@ impl State {
         Ok(state)
     }
 
-    /// "Include prereleases" became the Beta channel for every app.
+    /// "Include prereleases" became the Beta channel for every app, and
+    /// releases moved from the private source repo to [`PUBLIC_REPO`].
     fn migrate(&mut self) {
+        if (
+            self.settings.repo_owner.as_str(),
+            self.settings.repo_name.as_str(),
+        ) == LEGACY_REPO
+        {
+            self.settings.repo_name = PUBLIC_REPO.1.into();
+        }
         if std::mem::take(&mut self.settings.legacy_include_prereleases) {
             for app in AppId::ALL {
                 self.apps.entry(app).or_default().channel = UpdateChannel::Beta;
@@ -939,6 +962,30 @@ mod tests {
         std::fs::write(paths.state_file(), r#"{"settings":{"repo_owner":"o"}}"#).expect("write");
         let fresh = State::load(&paths).expect("load");
         assert_eq!(fresh.channel(AppId::Data), UpdateChannel::Stable);
+    }
+
+    #[test]
+    fn moves_the_private_repo_setting_to_the_public_repo() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        std::fs::create_dir_all(&paths.data_dir).expect("mkdir");
+        std::fs::write(
+            paths.state_file(),
+            r#"{"settings":{"repo_owner":"Amygdal-doo","repo_name":"ferrum"}}"#,
+        )
+        .expect("write");
+        let state = State::load(&paths).expect("load");
+        assert!(state.settings.uses_public_repo());
+
+        std::fs::write(
+            paths.state_file(),
+            r#"{"settings":{"repo_owner":"me","repo_name":"ferrum"}}"#,
+        )
+        .expect("write");
+        let custom = State::load(&paths).expect("load");
+        assert_eq!(custom.settings.repo_name, "ferrum");
+        assert!(!custom.settings.uses_public_repo());
+        assert!(Settings::default().uses_public_repo());
     }
 
     #[test]

@@ -14,8 +14,8 @@ use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 
 impl FerrumToolbox {
-    /// Starts update checks when a token is available; otherwise asks the
-    /// user to sign in first (the release repo is private).
+    /// Starts update checks when a token is available or the public release
+    /// repo is used; otherwise asks the user to sign in first.
     pub fn detect_token(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let services = self.services.clone();
         cx.spawn_in(window, async move |this, cx| {
@@ -25,6 +25,7 @@ impl FerrumToolbox {
                     this.token_source = Some(source);
                     this.restart_check_loop(cx);
                 }
+                Ok(None) if this.state.settings.uses_public_repo() => this.restart_check_loop(cx),
                 Ok(None) => this.show_onboarding(window, cx),
                 Err(e) => {
                     this.notify_user(format!("Could not look up a GitHub token: {e}"), true, cx);
@@ -238,6 +239,7 @@ impl FerrumToolbox {
             })
         };
         let task_cancel = cancel.clone();
+        let task_version = version.clone();
         let task = cx.spawn(async move |this, cx| {
             let paths = services.paths.clone();
             let result = services
@@ -254,7 +256,18 @@ impl FerrumToolbox {
                 .and_then(|result| result);
             this.update(cx, |this, cx| {
                 this.downloads.remove(&app);
+                let self_update = app == AppId::Toolbox
+                    && this
+                        .self_update
+                        .take()
+                        .is_some_and(|wanted| wanted == task_version);
                 match result {
+                    Ok(record) if self_update => {
+                        let version = record.version.clone();
+                        this.state.record_install(app, record);
+                        this.persist(cx);
+                        this.finish_self_update(&version, cx);
+                    }
                     Ok(record) => {
                         let name = app.info().name;
                         let version = record.version.clone();
@@ -294,6 +307,54 @@ impl FerrumToolbox {
         );
         self.ensure_progress_ticker(cx);
         cx.notify();
+    }
+
+    /// Downloads `version` of the toolbox, then swaps it for the running
+    /// bundle and restarts (see [`Self::finish_self_update`]).
+    pub fn update_toolbox(&mut self, version: Version, cx: &mut Context<Self>) {
+        self.self_update = Some(version.clone());
+        // Not activated: that would publish a second copy into
+        // ~/Applications/Ferrum next to the one being replaced.
+        self.install(AppId::Toolbox, version, false, cx);
+        if !self.downloads.contains_key(&AppId::Toolbox) {
+            self.self_update = None;
+        }
+        cx.notify();
+    }
+
+    fn finish_self_update(&mut self, version: &Version, cx: &mut Context<Self>) {
+        let new_bundle = self.services.paths.bundle_path(AppId::Toolbox, version);
+        let swap = match (new_bundle, self.running_bundle.clone()) {
+            (Some(new_bundle), Some(running)) => {
+                ferrumtoolbox_core::self_update::replace_and_relaunch(&new_bundle, &running)
+                    .map_err(|e| e.to_string())
+            }
+            (None, _) => Err("the release has no macOS app bundle".into()),
+            (_, None) => Err("this copy of the toolbox isn't running from an app bundle".into()),
+        };
+        match swap {
+            Ok(()) => {
+                self.notify_user(
+                    format!("Restarting into Ferrum Toolbox {version}…"),
+                    false,
+                    cx,
+                );
+                // A moment for the notice to show; the swap script waits for
+                // this process to exit.
+                cx.spawn(async move |_, cx| {
+                    cx.background_executor()
+                        .timer(Duration::from_millis(800))
+                        .await;
+                    cx.update(|cx| cx.quit());
+                })
+                .detach();
+            }
+            Err(e) => self.notify_user(
+                format!("Downloaded Toolbox {version}, but couldn't replace this app: {e}"),
+                true,
+                cx,
+            ),
+        }
     }
 
     pub fn cancel_download(&mut self, app: AppId, cx: &mut Context<Self>) {

@@ -93,13 +93,16 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Toolbox (team access, see Download)"),
+        ("Install", "Ferrum Toolbox (free, see Download)"),
         ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
         ("Built with", "Rust, GPUI, reqwest + rustls, SQLite"),
-        ("Runtime", "Native app, no Electron, no webview, no backend server"),
+        (
+            "Runtime",
+            "Native app, no Electron, no webview, no backend server",
+        ),
         ("Data", "Stored locally on your machine"),
     ],
-    specs_note: "Builds are published as private GitHub Releases and installed through Ferrum \
+    specs_note: "Builds are free public GitHub Releases, installed through Ferrum \
                  Toolbox. Only macOS has been smoke-tested so far.",
 };
 

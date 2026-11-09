@@ -180,9 +180,11 @@ Start Menu shortcut under **Ferrum**. `state.json` is written atomically
 - Bundles and the DMG are ad-hoc signed, not notarized: a browser-downloaded
   DMG needs right-click → Open once. Apps the toolbox downloads aren't
   quarantined.
-- FerrumToolbox can install new versions of itself (into
-  `~/Applications/Ferrum`), but it doesn't replace `/Applications/Ferrum
-  Toolbox.app` or restart.
+- Self-update (**Update Toolbox to vX** in the toolbar) only works for a
+  macOS `.app` in a folder the user can write to (an admin's
+  `/Applications`, or `~/Applications`). A detached script waits for the
+  toolbox to quit, swaps the bundle (rolling back if the move fails) and
+  reopens it. Elsewhere the button opens the release page instead.
 - Windows builds are compiled in CI but haven't been tested by hand;
   FerrumTerm has no Windows build (Unix sockets). Start Menu shortcuts are
   created through PowerShell; if that fails the install still succeeds and

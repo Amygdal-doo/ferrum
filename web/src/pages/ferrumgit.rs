@@ -94,13 +94,16 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Toolbox (team access, see Download)"),
+        ("Install", "Ferrum Toolbox (free, see Download)"),
         ("Requires", "git 2.32 or newer and OpenSSH on PATH"),
         ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
         ("Built with", "Rust, GPUI, the system git binary, SQLite"),
-        ("Data", "Repository paths and profiles stay local; keys are never copied"),
+        (
+            "Data",
+            "Repository paths and profiles stay local; keys are never copied",
+        ),
     ],
-    specs_note: "Builds are published as private GitHub Releases and installed through Ferrum \
+    specs_note: "Builds are free public GitHub Releases, installed through Ferrum \
                  Toolbox.",
 };
 
