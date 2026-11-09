@@ -5,7 +5,9 @@
 # <binary-dir> holds the release binaries (e.g. target/<target>/release).
 # Produces <out-dir>/<App Name>.app with Contents/MacOS/<binaries>, an
 # Info.plist and Contents/Resources/<app-id>.icns when brand/icons has one.
-# Ad-hoc signs the bundle when `codesign` is available (not notarized).
+# Signs with the Developer ID identity in FERRUM_SIGN_IDENTITY (hardened
+# runtime, secure timestamp, packaging/macos/ferrum.entitlements) when it is
+# set, otherwise ad-hoc. Notarize afterwards with scripts/notarize-macos.sh.
 # Prints the bundle path on success.
 set -euo pipefail
 
@@ -113,7 +115,18 @@ if command -v plutil >/dev/null; then
   plutil -lint -s "$bundle/Contents/Info.plist"
 fi
 
-if command -v codesign >/dev/null; then
+if [ -n "${FERRUM_SIGN_IDENTITY:-}" ]; then
+  # Sign the inner executables first; --deep is deprecated for signing.
+  entitlements="$root/packaging/macos/ferrum.entitlements"
+  for binary in $binaries; do
+    codesign --force --options runtime --timestamp --entitlements "$entitlements" \
+      --sign "$FERRUM_SIGN_IDENTITY" --identifier "dev.ferrum.$app.$binary" \
+      "$bundle/Contents/MacOS/$binary"
+  done
+  codesign --force --options runtime --timestamp --entitlements "$entitlements" \
+    --sign "$FERRUM_SIGN_IDENTITY" --identifier "dev.ferrum.$app" "$bundle"
+  codesign --verify --strict "$bundle"
+elif command -v codesign >/dev/null; then
   codesign --force --deep --sign - --identifier "dev.ferrum.$app" "$bundle" 2>/dev/null
 fi
 

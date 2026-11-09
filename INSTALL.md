@@ -197,10 +197,21 @@ The workflow needs the `SUBMODULE_TOKEN` secret (read access to
 
 ## Known limitations
 
-- **Signing:** builds are ad-hoc signed only, with no Developer ID and no
-  notarization. That's why a downloaded DMG needs **Open Anyway** the first time.
-  Proper signing needs an Apple Developer account plus `codesign`/`notarytool`
-  steps in the workflow.
+- **Signing:** until the Developer ID setup below is in place, builds are
+  ad-hoc signed, so a downloaded DMG needs **Open Anyway** the first time.
+  With it, every app is signed with the AMYGDAL d.o.o. Sarajevo Developer ID
+  (hardened runtime, `packaging/macos/ferrum.entitlements`) and notarized by
+  Apple, and opens without a warning.
+  - Local releases: set `FERRUM_SIGN_IDENTITY="Developer ID Application: AMYGDAL
+    d.o.o. Sarajevo (24XNX2CBH8)"` and `FERRUM_NOTARY_PROFILE=ferrum-notary`
+    (created once with `xcrun notarytool store-credentials ferrum-notary`).
+    `scripts/bundle-macos.sh` and `scripts/make-dmg.sh` sign;
+    `scripts/notarize-macos.sh` notarizes and staples.
+  - CI: add the repository secrets `MACOS_CERTIFICATE_P12` (base64 of the
+    exported `.p12`), `MACOS_CERTIFICATE_PASSWORD`, `NOTARY_API_KEY` (contents
+    of the App Store Connect `.p8`), `NOTARY_API_KEY_ID` and
+    `NOTARY_API_ISSUER`. The release workflow signs and notarizes when they
+    exist.
 - **Self-update:** the toolbox can install a newer version of itself (into
   `~/Applications/Ferrum/Ferrum Toolbox.app`), but it doesn't replace the
   copy in `/Applications` or restart. Quit it and open the new one.

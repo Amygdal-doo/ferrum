@@ -3,6 +3,8 @@
 #   scripts/make-dmg.sh <path/to/App.app> <out.dmg> [volume name]
 #
 # The image holds the app and an /Applications shortcut (UDZO, compressed).
+# The image is signed with FERRUM_SIGN_IDENTITY when it is set; notarize it
+# afterwards with scripts/notarize-macos.sh.
 set -euo pipefail
 
 usage() {
@@ -24,4 +26,7 @@ ln -s /Applications "$staging/Applications"
 mkdir -p "$(dirname "$out")"
 rm -f "$out"
 hdiutil create -quiet -volname "$volume" -srcfolder "$staging" -fs HFS+ -format UDZO -ov "$out"
+if [ -n "${FERRUM_SIGN_IDENTITY:-}" ]; then
+  codesign --force --timestamp --sign "$FERRUM_SIGN_IDENTITY" "$out"
+fi
 echo "$out"

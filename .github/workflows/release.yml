@@ -102,6 +102,9 @@ jobs:
       VERSION: ${{ needs.prepare.outputs.version }}
       PACKAGE: ${{ needs.prepare.outputs.package }}
       BINARIES: ${{ needs.prepare.outputs.binaries }}
+      # Developer ID signing + notarization run only when these secrets exist;
+      # without them macOS builds are ad-hoc signed (Gatekeeper warns).
+      HAS_MACOS_SIGNING: ${{ secrets.MACOS_CERTIFICATE_P12 != '' && secrets.NOTARY_API_KEY != '' }}
     steps:
       - name: Check platform support
         run: |
@@ -135,6 +138,36 @@ jobs:
             target_dir="$(cygpath -w "$target_dir")"
           fi
           echo "TARGET_DIR=$target_dir" >> "$GITHUB_ENV"
+      - name: Import Developer ID certificate (macOS)
+        if: env.FERRUM_SKIP != 'true' && runner.os == 'macOS' && env.HAS_MACOS_SIGNING == 'true'
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          NOTARY_API_KEY: ${{ secrets.NOTARY_API_KEY }}
+          NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
+        run: |
+          keychain="$RUNNER_TEMP/ferrum-signing.keychain-db"
+          keychain_password="$(uuidgen)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          echo "$MACOS_CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity="$(security find-identity -v -p codesigning "$keychain" \
+            | grep -o '"Developer ID Application: [^"]*"' | head -1 | tr -d '"')"
+          [ -n "$identity" ] || { echo "::error::no Developer ID Application identity in MACOS_CERTIFICATE_P12"; exit 1; }
+          printf '%s' "$NOTARY_API_KEY" > "$RUNNER_TEMP/notary-key.p8"
+          {
+            echo "FERRUM_SIGN_IDENTITY=$identity"
+            echo "FERRUM_NOTARY_KEY=$RUNNER_TEMP/notary-key.p8"
+            echo "FERRUM_NOTARY_KEY_ID=$NOTARY_API_KEY_ID"
+            echo "FERRUM_NOTARY_ISSUER=$NOTARY_API_ISSUER"
+          } >> "$GITHUB_ENV"
       - name: Package (macOS, Linux)
         if: env.FERRUM_SKIP != 'true' && runner.os != 'Windows'
         run: |
@@ -159,6 +192,9 @@ jobs:
             # .app bundle archive: preferred by FerrumToolbox on macOS.
             bundles="$(mktemp -d)"
             bundle="$(scripts/bundle-macos.sh "$APP" "$VERSION" "${{ matrix.target }}" "$TARGET_DIR" "$bundles")"
+            if [ -n "${FERRUM_NOTARY_KEY:-}" ]; then
+              scripts/notarize-macos.sh "$bundle"
+            fi
             app_archive="${APP}-${VERSION}-${{ matrix.target }}.app.tar.gz"
             tar -C "$bundles" -czf "$app_archive" "$(basename "$bundle")"
             checksum "$app_archive"
@@ -170,6 +206,9 @@ jobs:
               arch="${arch%%-*}"
               dmg="${APP_FILE_NAME}-${VERSION}-${arch}.dmg"
               scripts/make-dmg.sh "$bundle" "$dmg" "$APP_NAME"
+              if [ -n "${FERRUM_NOTARY_KEY:-}" ]; then
+                scripts/notarize-macos.sh "$dmg"
+              fi
               checksum "$dmg"
             fi
           elif [ "$APP" = "toolbox" ]; then
