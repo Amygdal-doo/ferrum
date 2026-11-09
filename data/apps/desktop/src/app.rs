@@ -5,7 +5,7 @@ use crate::state::{AppState, Dialog};
 use ferrum_ui::gpui::{Axis, UniformListScrollHandle};
 use ferrum_ui::prelude::*;
 use ferrumdata_application::AppServices;
-use ferrumdata_domain::EditorTabId;
+use ferrumdata_domain::{DatabaseEngine, EditorTabId};
 use std::collections::HashMap;
 
 const SIDEBAR_SPLITTER: &str = "sidebar";
@@ -14,7 +14,17 @@ const RESULTS_SPLITTER: &str = "results";
 /// A tab's text input plus the subscription that mirrors it into state.
 pub struct TabInput {
     pub input: Entity<TextInput>,
+    /// Engine whose query syntax the placeholder currently describes.
+    engine: Option<DatabaseEngine>,
     _subscription: Subscription,
+}
+
+/// Empty-editor placeholder: documents the input syntax of the tab's engine.
+fn editor_placeholder(engine: Option<DatabaseEngine>) -> &'static str {
+    engine.map_or(
+        DatabaseEngine::Postgres.editor_placeholder(),
+        DatabaseEngine::editor_placeholder,
+    )
 }
 
 pub struct FerrumData {
@@ -132,15 +142,29 @@ impl FerrumData {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<TextInput> {
+        let engine = self
+            .state
+            .tabs
+            .iter()
+            .find(|t| t.id == tab_id)
+            .and_then(|t| t.profile_id)
+            .and_then(|id| self.state.profile(id))
+            .map(|p| p.engine);
         let existing = if table {
-            self.table_inputs.get(&tab_id)
+            self.table_inputs.get_mut(&tab_id)
         } else {
-            self.editors.get(&tab_id)
+            self.editors.get_mut(&tab_id)
         };
         if let Some(existing) = existing {
+            // The tab's connection may have changed to another engine.
+            if !table && existing.engine != engine {
+                existing.engine = engine;
+                existing.input.update(cx, |i, cx| {
+                    i.set_placeholder(editor_placeholder(engine), cx)
+                });
+            }
             return existing.input.clone();
         }
-
         let sql = self
             .state
             .tabs
@@ -156,7 +180,7 @@ impl FerrumData {
                 input
                     .multiline(1)
                     .borderless()
-                    .placeholder("SELECT * FROM … ;  Run with ⌘/Ctrl+Enter")
+                    .placeholder(editor_placeholder(engine))
             }
         });
         let subscription = cx.subscribe_in(
@@ -177,6 +201,7 @@ impl FerrumData {
         );
         let entry = TabInput {
             input: input.clone(),
+            engine,
             _subscription: subscription,
         };
         if table {

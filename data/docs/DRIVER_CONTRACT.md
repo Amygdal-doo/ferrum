@@ -34,4 +34,21 @@ Every adapter implements `ferrumdata_db_driver_api::{DatabaseDriver, DbConnectio
 | Read-only session refuses writes | `read_only_profile_rejects_writes` |
 | Table listing: case-preserved names, composite PK order, views, no system schemas | `lists_tables_with_case_preserved_names_and_primary_keys` |
 
-MySQL and SQLite adapters must pass equivalent tests before they ship (IDE-015/016).
+Equivalent suites: `crates/db-mysql/tests/mysql.rs` (`FERRUMDATA_TEST_MYSQL=1`),
+`crates/db-sqlite/tests/sqlite.rs` (always runs, temp files), `crates/db-surrealdb/tests/surrealdb.rs`
+(`FERRUMDATA_TEST_SURREAL=1`) and `crates/db-mongodb/tests/mongodb.rs` (`FERRUMDATA_TEST_MONGO=1`).
+MySQL error `code`s are MySQL error numbers (e.g. `1062`) with the SQLSTATE in `detail`;
+SQLite codes are extended result codes; MongoDB codes are server error codes (e.g. `11000`);
+SurrealDB codes are the SDK error kind (`Validation`, `NotFound`, …).
+
+## Document engines (SurrealDB, MongoDB)
+- Rule 2/3 hold, but results are buffered (≤ `max_rows` documents) before `Metadata`, so the
+  columns are the union of all fetched documents' top-level fields (`documents::DocumentTable`).
+  A missing field is `CellValue::Unsupported("absent")`, never `Null`.
+- Rule 4: writes complete with `rows_affected` (MongoDB) or return the written records as rows
+  (SurrealDB, as the server does).
+- Rule 6/7: MongoDB passes the timeout as `maxTimeMS` and kills cursors on drop. SurrealDB has
+  no query kill: cancel/timeout drop the result stream and acknowledge promptly, but the server
+  may finish the statement (`query_cancel: false` in its `CapabilitySet`).
+- Read-only profiles: neither engine has a read-only session, so the driver refuses writing
+  statements before sending them (keyword/method based; a UX guard, not a security boundary).

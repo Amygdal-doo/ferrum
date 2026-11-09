@@ -1,6 +1,13 @@
 # Local databases for development and integration tests.
 #   docker compose up -d postgres
 #   FERRUMDATA_TEST_PG=1 cargo test -p ferrumdata-db-postgres --test postgres
+#   docker compose up -d mysql
+#   FERRUMDATA_TEST_MYSQL=1 cargo test -p ferrumdata-db-mysql --test mysql
+#   docker compose up -d surrealdb
+#   FERRUMDATA_TEST_SURREAL=1 cargo test -p ferrumdata-db-surrealdb --test surrealdb
+#   docker compose up -d mongodb
+#   FERRUMDATA_TEST_MONGO=1 cargo test -p ferrumdata-db-mongodb --test mongodb
+# SQLite needs no server: its integration tests always run.
 services:
   postgres:
     image: postgres:17-alpine
@@ -14,3 +21,28 @@ services:
       test: ["CMD-SHELL", "pg_isready -U ferrumdata -d ferrumdata_test"]
       interval: 2s
       retries: 30
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ferrumdata-dev-password
+      MYSQL_USER: ferrumdata
+      MYSQL_PASSWORD: ferrumdata-dev-password
+      MYSQL_DATABASE: ferrumdata_test
+    ports:
+      - "33069:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -pferrumdata-dev-password"]
+      interval: 2s
+      retries: 60
+
+  surrealdb:
+    image: surrealdb/surrealdb:v3
+    command: start --user root --pass ferrumdata-dev-password memory
+    ports:
+      - "18000:8000"
+
+  mongodb:
+    image: mongo:8
+    ports:
+      - "27019:27017"

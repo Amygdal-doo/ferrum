@@ -1,0 +1,26 @@
+[package]
+name = "ferrumdata-db-mysql"
+description = "MySQL / MariaDB adapter built on SQLx."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrumdata-domain.workspace = true
+ferrumdata-db-driver-api.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+# `mysql-rsa`: caching_sha2_password (MySQL 8 default) over non-TLS connections.
+sqlx = { workspace = true, features = ["runtime-tokio", "tls-rustls-ring-webpki", "mysql", "mysql-rsa", "chrono", "json"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

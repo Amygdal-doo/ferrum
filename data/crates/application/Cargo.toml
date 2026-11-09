@@ -13,6 +13,10 @@ workspace = true
 ferrumdata-domain.workspace = true
 ferrumdata-db-driver-api.workspace = true
 ferrumdata-db-postgres.workspace = true
+ferrumdata-db-mysql.workspace = true
+ferrumdata-db-sqlite.workspace = true
+ferrumdata-db-surrealdb.workspace = true
+ferrumdata-db-mongodb.workspace = true
 ferrumdata-persistence.workspace = true
 ferrumdata-credentials.workspace = true
 tokio.workspace = true
@@ -23,6 +27,7 @@ thiserror.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
+tempfile.workspace = true
 async-trait.workspace = true
 ferrumdata-persistence.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }

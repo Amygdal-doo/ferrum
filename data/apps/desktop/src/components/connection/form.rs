@@ -1,13 +1,17 @@
-//! Create/edit PostgreSQL connection profile. Passwords go to the OS vault
-//! (or session memory) and are never written into the profile.
+//! Create/edit a connection profile for any supported engine. Passwords go to
+//! the OS vault (or session memory) and are never written into the profile.
+//! Rendering lives in `form_view.rs`.
 
 use crate::commands::background;
+use ferrum_ui::gpui::PathPromptOptions;
 use ferrum_ui::prelude::*;
 use ferrumdata_application::{AppServices, PasswordChange};
-use ferrumdata_domain::{ConnectionProfile, Endpoint, EnvironmentTag, Secret, TlsMode};
+use ferrumdata_domain::{
+    ConnectionProfile, DatabaseEngine, Endpoint, EndpointKind, EnvironmentTag, Secret, TlsMode,
+};
 
 #[derive(Clone, PartialEq)]
-enum TestState {
+pub(super) enum TestState {
     Idle,
     Running,
     Ok(String),
@@ -21,22 +25,28 @@ pub enum ConnectionFormEvent {
 
 pub struct ConnectionForm {
     services: AppServices,
-    base: ConnectionProfile,
-    is_new: bool,
+    pub(super) base: ConnectionProfile,
+    pub(super) is_new: bool,
     has_stored: bool,
-    name: Entity<TextInput>,
-    host: Entity<TextInput>,
-    port: Entity<TextInput>,
-    database: Entity<TextInput>,
-    username: Entity<TextInput>,
-    password: Entity<TextInput>,
-    remember: bool,
-    tls: TlsMode,
-    env: EnvironmentTag,
-    read_only: bool,
-    test: TestState,
-    errors: Vec<String>,
-    saving: bool,
+    pub(super) engine: DatabaseEngine,
+    pub(super) name: Entity<TextInput>,
+    pub(super) host: Entity<TextInput>,
+    pub(super) port: Entity<TextInput>,
+    /// SQLite database file.
+    pub(super) path: Entity<TextInput>,
+    /// MongoDB connection string.
+    pub(super) uri: Entity<TextInput>,
+    pub(super) namespace: Entity<TextInput>,
+    pub(super) database: Entity<TextInput>,
+    pub(super) username: Entity<TextInput>,
+    pub(super) password: Entity<TextInput>,
+    pub(super) remember: bool,
+    pub(super) tls: TlsMode,
+    pub(super) env: EnvironmentTag,
+    pub(super) read_only: bool,
+    pub(super) test: TestState,
+    pub(super) errors: Vec<String>,
+    pub(super) saving: bool,
     _tasks: Vec<Task<()>>,
 }
 
@@ -51,9 +61,19 @@ impl ConnectionForm {
     ) -> Self {
         let is_new = existing.is_none();
         let base = existing.unwrap_or_else(|| ConnectionProfile::new_postgres(""));
+        let engine = base.engine;
+        // Seed every endpoint field so switching engines keeps typed values.
         let (host, port) = match &base.endpoint {
             Endpoint::Tcp { host, port } => (host.clone(), port.to_string()),
-            Endpoint::File { .. } => ("localhost".into(), "5432".into()),
+            _ => ("localhost".to_owned(), port_text(engine)),
+        };
+        let path = match &base.endpoint {
+            Endpoint::File { path } => path.clone(),
+            _ => String::new(),
+        };
+        let uri = match &base.endpoint {
+            Endpoint::Uri { uri } => uri.clone(),
+            _ => default_uri(),
         };
         let has_stored = base.secret_ref.is_some();
         let mut field = |text: String, placeholder: &str| {
@@ -64,9 +84,15 @@ impl ConnectionForm {
                     .placeholder(placeholder)
             })
         };
-        let name = field(base.display_name.clone(), "e.g. Local Postgres");
+        let name = field(base.display_name.clone(), "e.g. Local database");
         let host = field(host, "");
         let port = field(port, "");
+        let path = field(path, "/path/to/database.sqlite");
+        let uri = field(
+            uri,
+            "mongodb://host:27017 or mongodb+srv://cluster.example.net",
+        );
+        let namespace = field(base.namespace.clone().unwrap_or_default(), "");
         let database = field(base.database.clone().unwrap_or_default(), "");
         let username = field(base.username.clone().unwrap_or_default(), "");
         let password = field(
@@ -89,9 +115,13 @@ impl ConnectionForm {
             base,
             is_new,
             has_stored,
+            engine,
             name,
             host,
             port,
+            path,
+            uri,
+            namespace,
             database,
             username,
             password,
@@ -102,16 +132,61 @@ impl ConnectionForm {
         }
     }
 
+    /// Switches engine. Fields still holding the previous engine's defaults
+    /// (or empty) take the new engine's defaults; typed values are kept.
+    pub(super) fn set_engine(&mut self, engine: DatabaseEngine, cx: &mut Context<Self>) {
+        if engine == self.engine {
+            return;
+        }
+        let old = ConnectionProfile::new(self.engine, "");
+        let new = ConnectionProfile::new(engine, "");
+        let swap = |input: &Entity<TextInput>, old: String, new: String, cx: &mut Context<Self>| {
+            let current = input.read(cx).text().trim().to_owned();
+            if current.is_empty() || current == old {
+                input.update(cx, |i, cx| i.set_text(new, cx));
+            }
+        };
+        swap(&self.port, port_text(self.engine), port_text(engine), cx);
+        let text = |v: &Option<String>| v.clone().unwrap_or_default();
+        swap(&self.database, text(&old.database), text(&new.database), cx);
+        swap(&self.username, text(&old.username), text(&new.username), cx);
+        swap(
+            &self.namespace,
+            text(&old.namespace),
+            text(&new.namespace),
+            cx,
+        );
+        if self.tls == old.tls {
+            self.tls = new.tls;
+        }
+        self.engine = engine;
+        self.test = TestState::Idle;
+        self.errors.clear();
+    }
+
     fn build(&self, cx: &App) -> Result<ConnectionProfile, Vec<String>> {
         let text = |input: &Entity<TextInput>| input.read(cx).text().trim().to_owned();
+        let optional = |input: &Entity<TextInput>| Some(text(input)).filter(|s| !s.is_empty());
         let mut p = self.base.clone();
+        p.engine = self.engine;
         p.display_name = text(&self.name);
-        p.endpoint = Endpoint::Tcp {
-            host: text(&self.host),
-            port: text(&self.port).parse::<u16>().unwrap_or(0),
+        p.endpoint = match self.engine.endpoint_kind() {
+            EndpointKind::Tcp => Endpoint::Tcp {
+                host: text(&self.host),
+                port: text(&self.port).parse::<u16>().unwrap_or(0),
+            },
+            EndpointKind::File => Endpoint::File {
+                path: text(&self.path),
+            },
+            EndpointKind::Uri => Endpoint::Uri {
+                uri: text(&self.uri),
+            },
         };
-        p.database = Some(text(&self.database)).filter(|s| !s.is_empty());
-        p.username = Some(text(&self.username)).filter(|s| !s.is_empty());
+        let is_sqlite = self.engine == DatabaseEngine::Sqlite;
+        p.database = optional(&self.database).filter(|_| !is_sqlite);
+        p.username = optional(&self.username).filter(|_| !is_sqlite);
+        p.namespace =
+            optional(&self.namespace).filter(|_| self.engine == DatabaseEngine::SurrealDb);
         p.tls = self.tls;
         p.env = self.env;
         p.read_only = self.read_only;
@@ -120,12 +195,42 @@ impl ConnectionForm {
     }
 
     fn typed_password(&self, cx: &App) -> Option<Secret> {
+        if !self.engine.uses_password() {
+            return None;
+        }
         Some(self.password.read(cx).text().to_owned())
             .filter(|s| !s.is_empty())
             .map(Secret::new)
     }
 
-    fn test_connection(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn browse_for_file(&mut self, cx: &mut Context<Self>) {
+        let receiver = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: Some("Open".into()),
+        });
+        self._tasks.push(cx.spawn(async move |this, cx| {
+            let path = match receiver.await {
+                Ok(Ok(Some(paths))) => paths.into_iter().next(),
+                Ok(Ok(None)) | Err(_) => None,
+                Ok(Err(e)) => {
+                    tracing::warn!(error = %e, "file dialog failed");
+                    None
+                }
+            };
+            let Some(path) = path else { return };
+            if let Err(e) = this.update(cx, |this, cx| {
+                let path = path.to_string_lossy().into_owned();
+                this.path.update(cx, |input, cx| input.set_text(path, cx));
+                cx.notify();
+            }) {
+                tracing::debug!(error = %e, "connection form closed during file dialog");
+            }
+        }));
+    }
+
+    pub(super) fn test_connection(&mut self, cx: &mut Context<Self>) {
         let profile = match self.build(cx) {
             Ok(p) => p,
             Err(e) => {
@@ -162,7 +267,7 @@ impl ConnectionForm {
         }));
     }
 
-    fn save(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn save(&mut self, cx: &mut Context<Self>) {
         let profile = match self.build(cx) {
             Ok(p) => p,
             Err(e) => {
@@ -173,6 +278,8 @@ impl ConnectionForm {
         };
         let change = match (self.typed_password(cx), self.remember) {
             (Some(secret), remember) => PasswordChange::Set { secret, remember },
+            // SQLite has no password: drop any stored one.
+            (None, _) if !self.engine.uses_password() && self.has_stored => PasswordChange::Clear,
             (None, false) if self.has_stored => PasswordChange::Clear,
             (None, _) => PasswordChange::Keep,
         };
@@ -202,195 +309,18 @@ impl ConnectionForm {
             }
         }));
     }
-
-    fn field(label: &'static str, input: &Entity<TextInput>) -> impl IntoElement {
-        v_flex()
-            .gap_1p5()
-            .child(Label::new(label).size(LabelSize::Small))
-            .child(input.clone())
-    }
-
-    fn picker<T: Copy + PartialEq + 'static>(
-        id: &'static str,
-        options: &[T],
-        current: T,
-        label: fn(T) -> &'static str,
-        apply: fn(&mut Self, T),
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let this = cx.entity().downgrade();
-        let options = options.to_vec();
-        let menu = ContextMenu::build(window, cx, move |mut menu, _, _| {
-            for option in options {
-                let this = this.clone();
-                menu = menu.toggleable_entry(
-                    label(option),
-                    option == current,
-                    ferrum_ui::ui::IconPosition::Start,
-                    None,
-                    move |_, cx| {
-                        if let Err(e) = this.update(cx, |this, cx| {
-                            apply(this, option);
-                            cx.notify();
-                        }) {
-                            tracing::debug!(error = %e, "connection form closed");
-                        }
-                    },
-                );
-            }
-            menu
-        });
-        DropdownMenu::new(id, label(current), menu)
-            .full_width(true)
-            .into_any_element()
-    }
 }
 
-impl Render for ConnectionForm {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let status = cx.theme().status().clone();
-        let title = if self.is_new {
-            "New PostgreSQL connection"
-        } else {
-            "Edit connection"
-        };
-        let tls = Self::picker(
-            "cf-tls",
-            &TlsMode::ALL,
-            self.tls,
-            TlsMode::label,
-            |this, mode| this.tls = mode,
-            window,
-            cx,
-        );
-        let env = Self::picker(
-            "cf-env",
-            &EnvironmentTag::ALL,
-            self.env,
-            EnvironmentTag::label,
-            |this, tag| this.env = tag,
-            window,
-            cx,
-        );
-        let test_line = match &self.test {
-            TestState::Idle => None,
-            TestState::Running => Some(
-                Label::new("Testing connection…")
-                    .size(LabelSize::Small)
-                    .color(Color::Muted)
-                    .into_any_element(),
-            ),
-            TestState::Ok(v) => Some(
-                Label::new(format!("Connected: {v}"))
-                    .size(LabelSize::Small)
-                    .color(Color::Success)
-                    .into_any_element(),
-            ),
-            TestState::Err(e) => Some(
-                Label::new(e.clone())
-                    .size(LabelSize::Small)
-                    .color(Color::Error)
-                    .into_any_element(),
-            ),
-        };
-        let toggle = |checked: bool| {
-            if checked {
-                ToggleState::Selected
-            } else {
-                ToggleState::Unselected
-            }
-        };
+fn port_text(engine: DatabaseEngine) -> String {
+    engine
+        .default_port()
+        .map(|p| p.to_string())
+        .unwrap_or_default()
+}
 
-        Modal::new(title)
-            .width(px(560.))
-            .on_dismiss(cx.listener(|_, _, _, cx| cx.emit(ConnectionFormEvent::Cancelled)))
-            .child(Self::field("Name", &self.name))
-            .child(
-                h_flex()
-                    .gap_3()
-                    .items_start()
-                    .child(div().flex_1().child(Self::field("Host", &self.host)))
-                    .child(div().w(px(110.)).child(Self::field("Port", &self.port))),
-            )
-            .child(
-                h_flex()
-                    .gap_3()
-                    .items_start()
-                    .child(div().flex_1().child(Self::field("Database", &self.database)))
-                    .child(div().flex_1().child(Self::field("User", &self.username))),
-            )
-            .child(
-                v_flex()
-                    .gap_1p5()
-                    .child(Self::field("Password", &self.password))
-                    .child(
-                        ferrum_ui::ui::Checkbox::new("cf-remember", toggle(self.remember))
-                            .label("Save password in the OS keychain (otherwise kept for this session only)")
-                            .label_size(LabelSize::XSmall)
-                            .on_click(cx.listener(|this, state: &ToggleState, _, cx| {
-                                this.remember = state.selected();
-                                cx.notify();
-                            })),
-                    ),
-            )
-            .child(
-                h_flex()
-                    .gap_3()
-                    .items_start()
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .gap_1p5()
-                            .child(Label::new("TLS").size(LabelSize::Small))
-                            .child(tls)
-                            .when(!self.tls.verifies_server(), |this| {
-                                this.child(
-                                    Label::new("Server certificate is not verified.")
-                                        .size(LabelSize::XSmall)
-                                        .color(Color::Warning),
-                                )
-                            }),
-                    )
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .gap_1p5()
-                            .child(Label::new("Environment").size(LabelSize::Small))
-                            .child(env),
-                    ),
-            )
-            .child(
-                ferrum_ui::ui::Checkbox::new("cf-read-only", toggle(self.read_only))
-                    .label("Read-only session (server-enforced default; use a read-only role for real protection)")
-                    .label_size(LabelSize::Small)
-                    .on_click(cx.listener(|this, state: &ToggleState, _, cx| {
-                        this.read_only = state.selected();
-                        cx.notify();
-                    })),
-            )
-            .children(self.errors.iter().map(|e| {
-                div()
-                    .text_sm()
-                    .text_color(status.error)
-                    .child(e.clone())
-            }))
-            .children(test_line)
-            .footer(
-                Button::new("cf-test", "Test connection")
-                    .style(ButtonStyle::Outlined)
-                    .disabled(self.test == TestState::Running)
-                    .on_click(cx.listener(|this, _, _, cx| this.test_connection(cx))),
-            )
-            .footer(
-                Button::new("cf-cancel", "Cancel")
-                    .on_click(cx.listener(|_, _, _, cx| cx.emit(ConnectionFormEvent::Cancelled))),
-            )
-            .footer(
-                Button::new("cf-save", "Save")
-                    .style(ButtonStyle::Filled)
-                    .disabled(self.saving)
-                    .on_click(cx.listener(|this, _, _, cx| this.save(cx))),
-            )
+fn default_uri() -> String {
+    match ConnectionProfile::new(DatabaseEngine::MongoDb, "").endpoint {
+        Endpoint::Uri { uri } => uri,
+        _ => String::new(),
     }
 }

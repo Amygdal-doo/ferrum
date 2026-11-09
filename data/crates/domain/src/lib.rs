@@ -13,8 +13,8 @@ pub mod settings;
 pub mod value;
 
 pub use connection::{
-    CapabilitySet, ConnectionProfile, ConnectionState, DatabaseEngine, Endpoint, EnvironmentTag,
-    ResolvedConnectionConfig, SecretRef, TlsMode,
+    CapabilitySet, ConnectionProfile, ConnectionState, DatabaseEngine, Endpoint, EndpointKind,
+    EnvironmentTag, ResolvedConnectionConfig, SecretRef, TlsMode,
 };
 pub use error::{DbError, DbErrorKind};
 pub use ids::{EditorTabId, ExecutionId, ProfileId};

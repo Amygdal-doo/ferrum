@@ -243,3 +243,35 @@ async fn cancel_produces_cancelled_terminal_event() {
     assert_eq!(queries.running_count(), 0);
     assert!(!queries.cancel(id));
 }
+
+#[tokio::test]
+async fn default_service_registers_a_driver_for_every_engine() {
+    let store = AppStore::in_memory().await.expect("store");
+    let vault: Arc<dyn CredentialStore> = Arc::new(SessionStore::new());
+    let svc = ConnectionService::new(store, vault);
+    for engine in DatabaseEngine::ALL {
+        assert!(svc.supports(engine), "{engine:?} has no driver");
+    }
+}
+
+#[tokio::test]
+async fn sqlite_profile_round_trips_through_the_real_driver() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let path = dir.path().join("app.db");
+    std::fs::write(&path, b"").expect("db file");
+    let store = AppStore::in_memory().await.expect("store");
+    let vault: Arc<dyn CredentialStore> = Arc::new(SessionStore::new());
+    let svc = ConnectionService::new(store, vault);
+    let mut p = ConnectionProfile::new(DatabaseEngine::Sqlite, "file");
+    p.endpoint = ferrumdata_domain::Endpoint::File {
+        path: path.to_string_lossy().into_owned(),
+    };
+    let saved = svc
+        .save_profile(p, PasswordChange::Keep)
+        .await
+        .expect("save");
+    let info = svc.connect(saved.id).await.expect("connect");
+    assert!(info.version.starts_with("SQLite "));
+    assert!(svc.list_tables(saved.id).await.expect("tables").is_empty());
+    svc.disconnect(saved.id).await;
+}

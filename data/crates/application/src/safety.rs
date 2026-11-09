@@ -4,7 +4,7 @@
 //! keyword checks to be reliable. Real protection comes from read-only
 //! sessions and database roles.
 
-use ferrumdata_domain::ConnectionProfile;
+use ferrumdata_domain::{ConnectionProfile, DatabaseEngine};
 
 const MUTATING: &[&str] = &[
     "INSERT", "UPDATE", "DELETE", "MERGE", "UPSERT", "DROP", "TRUNCATE", "ALTER", "CREATE",
@@ -45,10 +45,23 @@ pub fn may_mutate(sql: &str) -> bool {
     }
 }
 
+/// Engine-aware [`may_mutate`]: SurrealQL and MongoDB input use their own
+/// write detection (the drivers' read-only guards), never the SQL keywords.
+#[must_use]
+pub fn may_mutate_in(engine: DatabaseEngine, text: &str) -> bool {
+    match engine {
+        DatabaseEngine::Postgres | DatabaseEngine::MySql | DatabaseEngine::Sqlite => {
+            may_mutate(text)
+        }
+        DatabaseEngine::SurrealDb => ferrumdata_db_surrealdb::writes(text),
+        DatabaseEngine::MongoDb => ferrumdata_db_mongodb::is_write_query(text),
+    }
+}
+
 /// Whether the UI must ask for explicit confirmation before running.
 #[must_use]
 pub fn requires_confirmation(profile: &ConnectionProfile, sql: &str) -> bool {
-    profile.env.is_production() && may_mutate(sql)
+    profile.env.is_production() && may_mutate_in(profile.engine, sql)
 }
 
 #[cfg(test)]
@@ -74,6 +87,41 @@ mod tests {
             "with x as (delete from t returning *) select * from x"
         ));
         assert!(!may_mutate("with x as (select 1) select * from x"));
+    }
+
+    #[test]
+    fn surrealql_uses_its_own_keywords() {
+        let s = DatabaseEngine::SurrealDb;
+        assert!(may_mutate_in(s, "RELATE a:1->likes->b:2"));
+        assert!(may_mutate_in(s, "// c\nDEFINE TABLE x"));
+        assert!(may_mutate_in(s, "SELECT * FROM t; DELETE t"));
+        assert!(!may_mutate_in(s, "SELECT * FROM t"));
+        assert!(!may_mutate_in(s, "INFO FOR DB"));
+    }
+
+    #[test]
+    fn mongo_input_never_hits_sql_keywords() {
+        let m = DatabaseEngine::MongoDb;
+        // `delete` in a string or field name is not a write.
+        assert!(!may_mutate_in(m, "db.logs.find({ action: 'DELETE' })"));
+        assert!(!may_mutate_in(m, r#"{ "count": "updates" }"#));
+        assert!(may_mutate_in(m, "db.logs.deleteMany({})"));
+        assert!(may_mutate_in(m, r#"{ "drop": "logs" }"#));
+        // Garbage neither crashes nor counts as a write.
+        assert!(!may_mutate_in(m, "DROP TABLE t"));
+        assert!(!may_mutate_in(m, "db.("));
+        assert!(!may_mutate_in(m, ""));
+    }
+
+    #[test]
+    fn confirmation_uses_the_profile_engine() {
+        let mut p = ConnectionProfile::new(DatabaseEngine::MongoDb, "m");
+        p.env = EnvironmentTag::Production;
+        assert!(requires_confirmation(
+            &p,
+            "db.u.updateOne({}, { $set: { a: 1 } })"
+        ));
+        assert!(!requires_confirmation(&p, "db.u.find({ op: 'update' })"));
     }
 
     #[test]

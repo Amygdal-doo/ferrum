@@ -2,7 +2,11 @@
 
 use ferrumdata_credentials::{CredentialStore, SessionStore};
 use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection, ServerInfo};
+use ferrumdata_db_mongodb::MongoDriver;
+use ferrumdata_db_mysql::MySqlDriver;
 use ferrumdata_db_postgres::PostgresDriver;
+use ferrumdata_db_sqlite::SqliteDriver;
+use ferrumdata_db_surrealdb::SurrealDriver;
 use ferrumdata_domain::{
     ConnectionProfile, DatabaseEngine, DbError, DbErrorKind, ProfileId, ResolvedConnectionConfig,
     Secret, SecretRef,
@@ -42,6 +46,10 @@ impl ConnectionService {
     pub fn new(store: AppStore, vault: Arc<dyn CredentialStore>) -> Self {
         let mut drivers: HashMap<DatabaseEngine, Arc<dyn DatabaseDriver>> = HashMap::new();
         drivers.insert(DatabaseEngine::Postgres, Arc::new(PostgresDriver));
+        drivers.insert(DatabaseEngine::MySql, Arc::new(MySqlDriver));
+        drivers.insert(DatabaseEngine::Sqlite, Arc::new(SqliteDriver));
+        drivers.insert(DatabaseEngine::SurrealDb, Arc::new(SurrealDriver));
+        drivers.insert(DatabaseEngine::MongoDb, Arc::new(MongoDriver));
         Self::with_drivers(store, vault, drivers)
     }
 
@@ -186,6 +194,11 @@ impl ConnectionService {
         self.live.read().await.contains_key(&id)
     }
 
+    #[must_use]
+    pub fn supports(&self, engine: DatabaseEngine) -> bool {
+        self.drivers.contains_key(&engine)
+    }
+
     fn driver(&self, engine: DatabaseEngine) -> Result<Arc<dyn DatabaseDriver>, DbError> {
         self.drivers
             .get(&engine)
@@ -212,7 +225,9 @@ impl ConnectionService {
     async fn vault_call<T, F>(&self, f: F) -> Result<T, DbError>
     where
         T: Send + 'static,
-        F: FnOnce(&dyn CredentialStore) -> ferrumdata_credentials::CredentialResult<T> + Send + 'static,
+        F: FnOnce(&dyn CredentialStore) -> ferrumdata_credentials::CredentialResult<T>
+            + Send
+            + 'static,
     {
         let vault = self.vault.clone();
         tokio::task::spawn_blocking(move || f(vault.as_ref()))

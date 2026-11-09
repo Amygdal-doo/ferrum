@@ -86,3 +86,32 @@ async fn reopening_a_file_keeps_data() {
     assert_eq!(store.list_profiles().await.expect("list").len(), 1);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A row written by FerrumData before MySQL/SQLite/SurrealDB/MongoDB support
+/// (no `namespace`, `favorite`, `folder`) must still load, next to new engines.
+#[tokio::test]
+async fn legacy_postgres_rows_load_alongside_new_engines() {
+    let store = AppStore::in_memory().await.expect("open");
+    let legacy = r#"{"id":"6f0e8a52-58b7-4d2c-9a43-3f1f3c0f7b11","display_name":"Old PG","engine":"Postgres","endpoint":{"Tcp":{"host":"db","port":5432}},"database":"app","username":"postgres","tls":"VerifyFull","read_only":true,"env":"Production","connect_timeout_secs":10,"secret_ref":null}"#;
+    sqlx::query(
+        "INSERT INTO connection_profiles (id, data, created_at, updated_at) VALUES (?, ?, ?, ?)",
+    )
+    .bind("6f0e8a52-58b7-4d2c-9a43-3f1f3c0f7b11")
+    .bind(legacy)
+    .bind("2024-01-01T00:00:00Z")
+    .bind("2024-01-01T00:00:00Z")
+    .execute(&store.pool)
+    .await
+    .expect("insert legacy row");
+    let mongo = ConnectionProfile::new(ferrumdata_domain::DatabaseEngine::MongoDb, "docs");
+    store.upsert_profile(&mongo).await.expect("insert new");
+
+    let all = store.list_profiles().await.expect("list");
+    assert_eq!(all.len(), 2, "{all:?}");
+    let old = &all[0];
+    assert_eq!(old.display_name, "Old PG");
+    assert_eq!(old.engine, ferrumdata_domain::DatabaseEngine::Postgres);
+    assert!(old.read_only);
+    assert_eq!(old.namespace, None);
+    assert_eq!(all[1], mongo);
+}

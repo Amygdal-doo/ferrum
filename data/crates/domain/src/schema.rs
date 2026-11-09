@@ -64,13 +64,42 @@ impl DatabaseEngine {
         match self {
             Self::Postgres | Self::Sqlite => format!("\"{}\"", ident.replace('"', "\"\"")),
             Self::MySql => format!("`{}`", ident.replace('`', "``")),
+            // SurrealQL backtick identifiers escape with a backslash.
+            Self::SurrealDb => format!("`{}`", ident.replace('\\', "\\\\").replace('`', "\\`")),
+            // Collection names are JSON strings in the MongoDB query syntax.
+            Self::MongoDb => json_string(ident),
         }
     }
+}
+
+/// Minimal JSON string literal (quotes, backslashes and control characters escaped).
+fn json_string(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if u32::from(c) < 0x20 => out.push_str(&format!("\\u{:04x}", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn quotes_document_engine_identifiers() {
+        assert_eq!(
+            DatabaseEngine::SurrealDb.quote_ident("my`tab"),
+            "`my\\`tab`"
+        );
+        assert_eq!(DatabaseEngine::MongoDb.quote_ident("a\"b"), "\"a\\\"b\"");
+    }
 
     #[test]
     fn quotes_case_keywords_and_embedded_quotes() {

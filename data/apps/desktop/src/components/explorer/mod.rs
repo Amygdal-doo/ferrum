@@ -61,6 +61,10 @@ impl FerrumData {
             .windows(2)
             .all(|w| w[0].table.schema == w[1].table.schema);
         let total = tables.len();
+        let engine = self
+            .state
+            .profile(profile_id)
+            .map_or(DatabaseEngine::Postgres, |p| p.engine);
         let active_table = self
             .state
             .active_tab()
@@ -94,7 +98,7 @@ impl FerrumData {
                 .unwrap_or_default();
             let title = format!(
                 "{} ({}) {rows}",
-                info.table.qualified(DatabaseEngine::Postgres),
+                info.table.qualified(engine),
                 info.kind.label()
             );
             let open = (*info).clone();

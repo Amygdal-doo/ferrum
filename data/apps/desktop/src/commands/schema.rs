@@ -37,9 +37,13 @@ impl FerrumData {
                 let load = match result {
                     Ok(Ok(tables)) => {
                         if !matches!(this.state.conn_status.get(&id), Some(ConnStatus::Ready(_))) {
+                            let label = this
+                                .state
+                                .profile(id)
+                                .map_or("Connected", |p| p.engine.label());
                             this.state
                                 .conn_status
-                                .insert(id, ConnStatus::Ready("PostgreSQL".into()));
+                                .insert(id, ConnStatus::Ready(label.into()));
                         }
                         SchemaLoad::Loaded(tables)
                     }

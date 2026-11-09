@@ -1,0 +1,26 @@
+[package]
+name = "ferrumdata-db-sqlite"
+description = "SQLite adapter built on SQLx (database files on local disk)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrumdata-domain.workspace = true
+ferrumdata-db-driver-api.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+sqlx = { workspace = true, features = ["runtime-tokio", "sqlite", "chrono", "json"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tempfile.workspace = true
