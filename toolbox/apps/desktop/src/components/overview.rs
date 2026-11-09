@@ -11,6 +11,16 @@ const VERSION_WIDTH: f32 = 96.;
 const DATE_WIDTH: f32 = 92.;
 const DOWNLOADS_WIDTH: f32 = 82.;
 const ACTION_WIDTH: f32 = 150.;
+const APP_MIN_WIDTH: f32 = 220.;
+/// Below this the table scrolls sideways instead of squeezing the App column.
+const TABLE_MIN_WIDTH: f32 = APP_MIN_WIDTH
+    + STATUS_WIDTH
+    + 3. * VERSION_WIDTH
+    + DATE_WIDTH
+    + DOWNLOADS_WIDTH
+    + ACTION_WIDTH
+    + 7. * 12. // gap_3 between the 8 columns
+    + 32.; // px_4 on both sides
 
 fn cell(width: f32) -> Div {
     div().flex_none().w(px(width)).overflow_hidden()
@@ -43,7 +53,7 @@ impl FerrumToolbox {
             let label = Label::new(text).size(LabelSize::XSmall).color(Color::Muted);
             match width {
                 Some(width) => cell(width).child(label),
-                None => div().flex_1().min_w_0().child(label),
+                None => div().flex_1().min_w(px(APP_MIN_WIDTH)).child(label),
             }
         };
 
@@ -69,6 +79,11 @@ impl FerrumToolbox {
                     ),
             )
             .child(
+                div().id("overview-table").w_full().overflow_x_scroll().child(
+                    v_flex()
+                        .w_full()
+                        .min_w(px(TABLE_MIN_WIDTH))
+                        .child(
                 h_flex()
                     .px_4()
                     .py_2()
@@ -79,12 +94,14 @@ impl FerrumToolbox {
                     .child(header("Status", Some(STATUS_WIDTH)))
                     .child(header("Installed", Some(VERSION_WIDTH)))
                     .child(header("Latest stable", Some(VERSION_WIDTH)))
+                                .child(header("", Some(ACTION_WIDTH)))
                     .child(header("Latest beta", Some(VERSION_WIDTH)))
                     .child(header("Released", Some(DATE_WIDTH)))
-                    .child(header("Downloads", Some(DOWNLOADS_WIDTH)))
-                    .child(header("", Some(ACTION_WIDTH))),
+                    .child(header("Downloads", Some(DOWNLOADS_WIDTH))),
+                        )
+                        .children(rows),
+                ),
             )
-            .children(rows)
     }
 
     fn render_overview_row(&self, app: AppId, cx: &mut Context<Self>) -> AnyElement {
@@ -120,16 +137,19 @@ impl FerrumToolbox {
             .child(
                 h_flex()
                     .flex_1()
-                    .min_w_0()
+                    .min_w(px(APP_MIN_WIDTH))
                     .gap_3()
                     .child(logo(app, px(36.)))
                     .child(
-                        v_flex().min_w_0().child(Label::new(info.name)).child(
-                            Label::new(summary)
-                                .size(LabelSize::XSmall)
-                                .color(Color::Muted)
-                                .truncate(),
-                        ),
+                        v_flex()
+                            .min_w_0()
+                            .child(Label::new(info.name).truncate())
+                            .child(
+                                Label::new(summary)
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Muted)
+                                    .truncate(),
+                            ),
                     ),
             )
             .child(
@@ -138,6 +158,7 @@ impl FerrumToolbox {
             )
             .child(cell(VERSION_WIDTH).child(version_label(active)))
             .child(cell(VERSION_WIDTH).child(version_label(stable)))
+            .child(cell(ACTION_WIDTH).child(self.render_overview_action(app, cx)))
             .child(cell(VERSION_WIDTH).child(version_label(beta)))
             .child(
                 cell(DATE_WIDTH).child(
@@ -157,7 +178,6 @@ impl FerrumToolbox {
                     .color(Color::Muted),
                 ),
             )
-            .child(cell(ACTION_WIDTH).child(self.render_overview_action(app, cx)))
             .on_click(cx.listener(move |this, _, _, cx| this.select_app(app, cx)))
             .into_any_element()
     }

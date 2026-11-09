@@ -268,7 +268,11 @@ impl FerrumToolbox {
                         format!("Active: v{version}")
                     })
                     .size(LabelSize::Small)
-                    .color(if running { Color::Success } else { Color::Muted }),
+                    .color(if running {
+                        Color::Success
+                    } else {
+                        Color::Muted
+                    }),
                 )
                 .when(installed_app, |this| {
                     this.child(
