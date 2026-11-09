@@ -24,7 +24,7 @@ the record: tag, version, date, notes and downloadable builds.
 | Build | `<app-id>-<version>-<target>.tar.gz` with the binaries at the archive root | `api-0.2.0-aarch64-apple-darwin.tar.gz` |
 | macOS bundle | `<app-id>-<version>-<target>.app.tar.gz` with `<App>.app` at the root; preferred on macOS | `api-0.2.0-aarch64-apple-darwin.app.tar.gz` |
 | Windows build | `<app-id>-<version>-<target>.zip` with the `.exe` files and `<app-id>.ico` at the root; preferred on Windows | `api-0.2.0-x86_64-pc-windows-msvc.zip` |
-| Installers (for people; the toolbox ignores them) | `<App>-<version>-<arch>.dmg`, `<App>-<version>-x86_64-setup.exe`, `<package>_<version>_amd64.deb` | `FerrumAPI-0.2.0-aarch64.dmg` |
+| Installers (toolbox releases only; the other apps are installed through the toolbox) | `FerrumToolbox-<version>-<arch>.dmg`, `FerrumToolbox-<version>-x86_64-setup.exe`, `ferrum-toolbox_<version>_amd64.deb` | `FerrumToolbox-0.3.0-aarch64.dmg` |
 | Checksum | `<asset>.sha256` | `api-0.2.0-aarch64-apple-darwin.tar.gz.sha256` |
 | Targets | `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, `x86_64-pc-windows-msvc` (not for `term`) | |
 

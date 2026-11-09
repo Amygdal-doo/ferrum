@@ -190,7 +190,11 @@ impl FerrumToolbox {
             ),
             None => "Never checked".to_string(),
         };
-        let updates = self.state.updates().len();
+        let updates = self.state.app_updates().len();
+        let toolbox_update = self
+            .state
+            .update_for(AppId::Toolbox)
+            .map(|release| (release.version.clone(), release.html_url.clone()));
         toolbar(cx)
             .justify_between()
             .child(
@@ -198,6 +202,27 @@ impl FerrumToolbox {
                     .gap_2()
                     .child(logo(AppId::Toolbox, px(22.)))
                     .child(Label::new("Ferrum Toolbox"))
+                    .when_some(self.state.running_toolbox.clone(), |this, version| {
+                        this.child(
+                            Label::new(format!("v{version}"))
+                                .size(LabelSize::Small)
+                                .color(Color::Muted),
+                        )
+                    })
+                    // The toolbox is installed from its DMG/installer, so its
+                    // update opens the release page instead of installing a
+                    // second copy next to the running one.
+                    .when_some(toolbox_update, |this, (version, url)| {
+                        this.child(
+                            Button::new("toolbox-update", format!("Get Toolbox v{version}"))
+                                .style(ButtonStyle::Tinted(ferrum_ui::ui::TintColor::Accent))
+                                .start_icon(Icon::new(IconName::Download))
+                                .tooltip(Tooltip::text(
+                                    "Opens the release page to download the new installer",
+                                ))
+                                .on_click(move |_, _, cx| cx.open_url(&url)),
+                        )
+                    })
                     .when(updates > 0, |this| {
                         this.child(badge(
                             format!("{updates} update{}", if updates == 1 { "" } else { "s" }),

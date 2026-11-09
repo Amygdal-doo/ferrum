@@ -19,9 +19,7 @@
     <polygon points="712.0,560.0 612.0,733.2 412.0,733.2 312.0,560.0 412.0,386.8 612.0,386.8"/>
   </g>
   <g fill="#5B8DEF" fill-opacity="0.45"><circle cx="830.0" cy="560.0" r="20"/><circle cx="671.0" cy="835.4" r="20"/><circle cx="353.0" cy="835.4" r="20"/><circle cx="194.0" cy="560.0" r="20"/><circle cx="353.0" cy="284.6" r="20"/><circle cx="671.0" cy="284.6" r="20"/></g>
-  <g fill="none" stroke="#f1e9df" stroke-width="62" stroke-linecap="butt" stroke-linejoin="miter"><path d="M330 730 V390 H530"/><path d="M330 555 H485"/></g>
-  <g fill="none" stroke="#5B8DEF" stroke-width="62" stroke-linecap="butt" stroke-linejoin="round"><path d="M675 535 V730"/></g>
-  <g fill="#5B8DEF"><circle cx="675" cy="428" r="44"/></g>
+  <g transform="translate(512 560) scale(0.72) translate(-320.0 -560)"><g fill="none" stroke="#f1e9df" stroke-width="76" stroke-linecap="butt" stroke-linejoin="miter"><path transform="translate(-330 0)" d="M330 730 V390 H530"/><path transform="translate(-330 0)" d="M330 555 H485"/></g><g fill="none" stroke="#f1e9df" stroke-width="76" stroke-linecap="butt" stroke-linejoin="round"><path transform="translate(-334 0)" d="M584 605 H768 A92 126 0 1 0 748 692"/></g><g fill="none" stroke="#5B8DEF" stroke-width="76" stroke-linecap="butt" stroke-linejoin="round"><path transform="translate(585 0)" d="M-55 390 H55"/><path transform="translate(585 0)" d="M-55 730 H55"/><path transform="translate(585 0)" d="M0 390 V730"/></g></g>
   </g>
   <circle cx="800" cy="224" r="128" fill="#16130f"/><circle cx="800" cy="224" r="106" fill="#5B8DEF"/><g transform="translate(800 224)"><path fill="none" stroke="#16130f" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" d="M-30 -55 L-75 0 L-30 55 M30 -55 L75 0 L30 55"/></g>
 </svg>

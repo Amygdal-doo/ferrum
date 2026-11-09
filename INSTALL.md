@@ -2,9 +2,8 @@
 
 You install **Ferrum Toolbox** once. It then installs, updates and rolls back
 every other Ferrum app (Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData,
-FerrumTerm). Every app is also published as a normal installer for each OS
-(`.dmg`, `.exe`, `.deb`) if you'd rather install one by hand; see
-[Install an app directly](#install-an-app-directly).
+FerrumTerm). Only the toolbox has an installer (`.dmg`, `.exe`, `.deb`); the
+other apps are installed through it and have no separate download.
 
 > **The releases are private.** They live in the private repo
 > `Amygdal-doo/ferrum`, so you need a GitHub account with access to it, both
@@ -112,22 +111,7 @@ Gatekeeper prompt.
   security delete-generic-password -s FerrumToolbox   # saved token, if any
   ```
 
-## Install an app directly
-
-Each release (`<app>-v<version>` on the
-[releases page](https://github.com/Amygdal-doo/ferrum/releases)) carries an
-installer per OS. Apps installed this way don't update themselves; use the
-toolbox for updates and rollback.
-
-| OS | Download | Install | Uninstall |
-| --- | --- | --- | --- |
-| macOS (Apple Silicon / Intel) | `<App>-<version>-aarch64.dmg` / `…-x86_64.dmg`, e.g. `FerrumData-0.2.0-aarch64.dmg` | Open it and drag the app onto **Applications** | Drag the app from Applications to the Trash |
-| Windows 10/11 (x64) | `<App>-<version>-x86_64-setup.exe`, e.g. `FerrumData-0.2.0-x86_64-setup.exe` | Run it. Installs for your user only (no admin) into `%LOCALAPPDATA%\Programs\Ferrum\<App>`, adds a Start Menu entry and optionally a desktop shortcut | **Settings → Apps → Installed apps → <App> → Uninstall** |
-| Debian / Ubuntu (x64) | `<package>_<version>_amd64.deb`, e.g. `ferrumdata_0.2.0_amd64.deb` | `sudo apt install ./ferrumdata_0.2.0_amd64.deb`. Installs into `/opt/ferrum/<app>/`, puts the command on `PATH` (`/usr/bin`) and adds it to the app menu | `sudo apt remove ferrumdata` |
-
-Package names on Linux: `ferrum-ide`, `ferrumapi`, `ferrumgit`, `ferrumdata`,
-`ferrumterm`, `ferrum-toolbox`. Pre-release versions such as `0.2.0-beta.1`
-become `0.2.0~beta.1` so apt orders them before the final release.
+## First launch and platforms
 
 **First launch: nothing is code-signed yet.**
 
@@ -135,8 +119,8 @@ become `0.2.0~beta.1` so apt orders them before the final release.
   downloaded copy with a "could not verify … is free of malware" message. Use
   **System Settings → Privacy & Security → Open Anyway** once (macOS 15+), or
   **right-click → Open** on older macOS, or run
-  `xattr -dr com.apple.quarantine "/Applications/<App>.app"`. Apps installed
-  through the toolbox skip this.
+  `xattr -dr com.apple.quarantine "/Applications/Ferrum Toolbox.app"`. Apps
+  installed through the toolbox skip this.
 - **Windows:** SmartScreen shows "Windows protected your PC" for the setup
   file. Click **More info → Run anyway**.
 - **Linux:** no prompt. GPUI needs a Vulkan driver (`mesa-vulkan-drivers` is

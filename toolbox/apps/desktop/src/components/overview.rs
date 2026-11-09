@@ -37,13 +37,18 @@ fn version_label(version: Option<String>) -> Label {
 
 impl FerrumToolbox {
     pub fn render_overview(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-        let installed = AppId::ALL
+        let installed = AppId::MANAGED
             .iter()
             .filter(|app| self.state.active(**app).is_some())
             .count();
-        let updates = self.state.updates().len();
-        let releases = self.state.releases.len();
-        let rows: Vec<AnyElement> = AppId::ALL
+        let updates = self.state.app_updates().len();
+        let releases = self
+            .state
+            .releases
+            .iter()
+            .filter(|release| release.app != AppId::Toolbox)
+            .count();
+        let rows: Vec<AnyElement> = AppId::MANAGED
             .into_iter()
             .map(|app| self.render_overview_row(app, cx))
             .collect();
@@ -71,7 +76,7 @@ impl FerrumToolbox {
                     .child(
                         Label::new(format!(
                             "{installed} of {} apps installed · {updates} update{} · {releases} release{} published",
-                            AppId::ALL.len(),
+                            AppId::MANAGED.len(),
                             if updates == 1 { "" } else { "s" },
                             if releases == 1 { "" } else { "s" },
                         ))

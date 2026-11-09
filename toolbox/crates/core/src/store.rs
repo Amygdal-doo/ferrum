@@ -355,6 +355,15 @@ impl State {
             .collect()
     }
 
+    /// [`State::updates`] for the managed apps, without the toolbox itself.
+    #[must_use]
+    pub fn app_updates(&self) -> Vec<(AppId, Version)> {
+        self.updates()
+            .into_iter()
+            .filter(|(app, _)| *app != AppId::Toolbox)
+            .collect()
+    }
+
     pub fn record_releases(&mut self, releases: Vec<ReleaseInfo>) {
         self.releases = releases;
         self.last_check = Some(Utc::now());
@@ -865,7 +874,11 @@ mod tests {
         assert!(state.updates().is_empty());
 
         state.running_toolbox = Some(Version::new(0, 1, 0));
-        assert_eq!(state.updates(), vec![(AppId::Toolbox, Version::new(0, 2, 0))]);
+        assert_eq!(
+            state.updates(),
+            vec![(AppId::Toolbox, Version::new(0, 2, 0))]
+        );
+        assert!(state.app_updates().is_empty());
 
         // A newer copy installed through the store wins over an older running one.
         state.running_toolbox = Some(Version::new(0, 1, 0));

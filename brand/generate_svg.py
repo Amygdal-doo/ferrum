@@ -5,14 +5,15 @@ OUT = sys.argv[1]
 INK = "#f1e9df"
 DARK = "#16130f"
 APPS = {
-    # name: (symbol second letter, accent, glyph)
+    # name: (symbol letter after "Fe", accent, glyph). The core mark is plain "Fe";
+    # every app is "Fe" + a capital in its accent: FeI, FeA, FeG, FeD, FeT, FeX.
     "ferrum":  ("e", "#E8743B", None),
-    "ide":     ("i", "#5B8DEF", "brackets"),
-    "api":     ("a", "#3FB8A0", "arrows"),
-    "git":     ("g", "#F0B43C", "branch"),
-    "data":    ("d", "#A07CF0", "cylinder"),
-    "term":    ("t", "#7CC85A", "prompt"),
-    "toolbox": ("x", "#E85A7E", "grid"),
+    "ide":     ("I", "#5B8DEF", "brackets"),
+    "api":     ("A", "#3FB8A0", "arrows"),
+    "git":     ("G", "#F0B43C", "branch"),
+    "data":    ("D", "#A07CF0", "cylinder"),
+    "term":    ("T", "#7CC85A", "prompt"),
+    "toolbox": ("X", "#E85A7E", "grid"),
 }
 SW = 62  # letter stroke width
 
@@ -43,6 +44,40 @@ def letter(ch, ox=0.0, oy=0.0, s=1.0):
     elif ch == "m":
         paths = ["M560 730 V480", "M560 570 Q560 480 640 480 Q700 480 700 560 V730", "M700 560 Q700 480 770 480 Q840 480 840 560 V730"]
     return paths
+
+# Capitals for the app symbols, on the cap height 390..730, in their own x
+# centre lines: (paths, left edge, right edge of the centre lines).
+CAPITALS = {
+    "I": (["M-55 390 H55", "M-55 730 H55", "M0 390 V730"], -55, 55),
+    "A": (["M0 730 L100 390 L200 730", "M40 610 H160"], 0, 200),
+    "G": (["M190 451 A105 170 0 1 0 215 560", "M120 560 H215"], 5, 215),
+    "D": (["M0 390 V730", "M0 390 H70 A130 170 0 0 1 70 730 H0"], 0, 200),
+    "T": (["M-10 390 H210", "M100 390 V730"], -10, 210),
+    "X": (["M0 390 L200 730", "M200 390 L0 730"], 0, 200),
+}
+CAP_SCALE = 0.72
+CAP_SW = 76  # heavier so the scaled-down strokes match the two-letter marks
+
+def three_letters(cap, accent):
+    """"Fe" in ingot ink plus the app capital in the accent, centred on the lattice."""
+    cap_paths, cap_left, cap_right = CAPITALS[cap]
+    # Lay out left to right from F's stem at x=0. letter("F") starts at x=330
+    # (arm to 530) and letter("e") at x=584 (184 wide).
+    f_dx = -330
+    e_left = 250
+    e_dx = e_left - 584
+    cap_dx = e_left + 184 + CAP_SW + 20 - cap_left
+    left, right = -CAP_SW / 2, cap_dx + cap_right + CAP_SW / 2
+    centre = (left + right) / 2
+    def g(paths, dx, colour, join):
+        body = "".join(f'<path transform="translate({dx} 0)" d="{d}"/>' for d in paths)
+        return (f'<g fill="none" stroke="{colour}" stroke-width="{CAP_SW}" '
+                f'stroke-linecap="butt" stroke-linejoin="{join}">{body}</g>')
+    return (f'<g transform="translate(512 560) scale({CAP_SCALE}) translate({-centre:.1f} -560)">'
+            + g(letter("F"), f_dx, INK, "miter")
+            + g(letter("e"), e_dx, INK, "round")
+            + g(cap_paths, cap_dx, accent, "round")
+            + "</g>")
 
 def dot_i():
     return '<circle cx="675" cy="428" r="44"/>'
@@ -78,9 +113,13 @@ def tile(name, ch, accent, kind, defs_id):
     inner = hexagon(512, 560, 200)
     inner_poly = " ".join(f"{x:.1f},{y:.1f}" for x, y in inner)
     spokes = "".join(f'M{x0:.1f} {y0:.1f} L{x1:.1f} {y1:.1f} ' for (x0, y0), (x1, y1) in zip(inner, hx))
-    letters = "".join(f'<path d="{d}"/>' for d in letter("F"))
-    second = "".join(f'<path d="{d}"/>' for d in letter(ch))
-    idot = f'<g fill="{accent}">{dot_i()}</g>' if ch == "i" else ""
+    if ch in CAPITALS:
+        symbol = three_letters(ch, accent)
+    else:
+        letters = "".join(f'<path d="{d}"/>' for d in letter("F"))
+        second = "".join(f'<path d="{d}"/>' for d in letter(ch))
+        symbol = (f'<g fill="none" stroke="{INK}" stroke-width="{SW}" stroke-linecap="butt" stroke-linejoin="miter">{letters}</g>\n'
+                  f'  <g fill="none" stroke="{accent}" stroke-width="{SW}" stroke-linecap="butt" stroke-linejoin="round">{second}</g>')
     badge = ""
     if kind:
         badge = (f'<circle cx="800" cy="224" r="128" fill="{DARK}"/>'
@@ -107,9 +146,7 @@ def tile(name, ch, accent, kind, defs_id):
     <polygon points="{inner_poly}"/>
   </g>
   <g fill="{accent}" fill-opacity="0.45">{nodes}</g>
-  <g fill="none" stroke="{INK}" stroke-width="{SW}" stroke-linecap="butt" stroke-linejoin="miter">{letters}</g>
-  <g fill="none" stroke="{accent}" stroke-width="{SW}" stroke-linecap="butt" stroke-linejoin="round">{second}</g>
-  {idot}
+  {symbol}
   </g>
   {badge}
 </svg>

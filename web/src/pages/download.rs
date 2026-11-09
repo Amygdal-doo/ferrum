@@ -14,24 +14,24 @@ const DESCRIPTION: &str = "Download Ferrum Toolbox and install every Ferrum app 
      Windows or Linux. Builds are private GitHub Releases for now: request access, sign in with \
      gh, install the toolbox.";
 
-/// Per-OS installers attached to every release: (system, file, how to install).
+/// Per-OS installers attached to toolbox releases: (system, file, how to install).
+/// Only the toolbox has installers; it installs the other apps.
 const INSTALLERS: [(&str, &str, &str); 3] = [
     (
         "macOS",
-        "<App>-<version>-aarch64.dmg / -x86_64.dmg",
-        "open it and drag the app onto Applications (Apple Silicon or Intel).",
+        "FerrumToolbox-<version>-aarch64.dmg / -x86_64.dmg",
+        "open it and drag Ferrum Toolbox onto Applications (Apple Silicon or Intel).",
     ),
     (
         "Windows",
-        "<App>-<version>-x86_64-setup.exe",
+        "FerrumToolbox-<version>-x86_64-setup.exe",
         "run it; installs for your user (no admin) with a Start Menu entry. \
          Uninstall from Settings → Apps.",
     ),
     (
         "Linux",
-        "<package>_<version>_amd64.deb",
-        "sudo apt install ./<file>.deb on Debian or Ubuntu; adds the app to the menu and its \
-         command to PATH.",
+        "ferrum-toolbox_<version>_amd64.deb",
+        "sudo apt install ./<file>.deb on Debian or Ubuntu; adds the toolbox to the menu.",
     ),
 ];
 
@@ -206,11 +206,11 @@ pub fn render(site_url: &str) -> Markup {
             }
             section class="section section--tight" aria-labelledby="platforms-title" {
                 div class="container" {
-                    h2 id="platforms-title" { "Install an app directly" }
+                    h2 id="platforms-title" { "Toolbox installers" }
                     p {
-                        "Every release also carries a normal installer for each system, if you "
-                        "prefer to install one app by hand. Apps installed this way don't update "
-                        "themselves; the toolbox does that."
+                        "The toolbox is the only thing you download by hand. FerrumIDE, "
+                        "FerrumAPI, FerrumGIT, FerrumData and FerrumTerm have no separate "
+                        "installers: install, update and remove them from the toolbox."
                     }
                     dl class="spec-sheet" {
                         @for (os, file, how) in INSTALLERS {
@@ -220,11 +220,7 @@ pub fn render(site_url: &str) -> Markup {
                             }
                         }
                     }
-                    p class="muted" {
-                        "FerrumTerm isn't available on Windows yet. Linux packages are named "
-                        code { "ferrum-ide" } ", " code { "ferrumapi" } ", " code { "ferrumgit" } ", "
-                        code { "ferrumdata" } ", " code { "ferrumterm" } " and " code { "ferrum-toolbox" } "."
-                    }
+                    p class="muted" { "FerrumTerm isn't available on Windows yet." }
                     div class="download-actions" {
                         (button::link("Open Ferrum releases on GitHub", site::RELEASES_URL, Variant::Primary))
                         (button::link("About Ferrum Toolbox", &toolbox.path(), Variant::Secondary))
@@ -258,10 +254,9 @@ mod tests {
     #[test]
     fn lists_an_installer_per_os() {
         let html = rendered();
-        assert!(html.contains("Install an app directly"));
-        assert!(html.contains("-aarch64.dmg"));
-        assert!(html.contains("-x86_64-setup.exe"));
-        assert!(html.contains("_amd64.deb"));
+        assert!(html.contains("Toolbox installers"));
+        assert!(html.contains("FerrumToolbox-&lt;version&gt;-aarch64.dmg"));
+        assert!(!html.contains("&lt;App&gt;-&lt;version&gt;"));
         assert!(html.contains("FerrumToolbox-&lt;version&gt;-x86_64-setup.exe"));
         assert!(html.contains("ferrum-toolbox_&lt;version&gt;_amd64.deb"));
     }

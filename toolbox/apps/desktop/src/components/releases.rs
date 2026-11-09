@@ -14,6 +14,7 @@ impl FerrumToolbox {
             .state
             .timeline()
             .into_iter()
+            .filter(|release| release.app != AppId::Toolbox)
             .filter(|release| self.timeline_app.is_none_or(|app| release.app == app))
             .filter(|release| {
                 self.timeline_channel
@@ -21,7 +22,12 @@ impl FerrumToolbox {
             })
             .cloned()
             .collect();
-        let total = self.state.releases.len();
+        let total = self
+            .state
+            .releases
+            .iter()
+            .filter(|release| release.app != AppId::Toolbox)
+            .count();
         let empty = releases.is_empty();
         let rows: Vec<AnyElement> = releases
             .into_iter()
@@ -29,7 +35,7 @@ impl FerrumToolbox {
             .collect();
 
         let app_filters: Vec<AnyElement> = std::iter::once(None)
-            .chain(AppId::ALL.into_iter().map(Some))
+            .chain(AppId::MANAGED.into_iter().map(Some))
             .map(|app| {
                 let label = app.map_or("All apps", |app| app.info().name);
                 let id = format!("filter-app-{}", app.map_or("all", AppId::as_str));

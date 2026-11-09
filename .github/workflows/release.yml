@@ -6,7 +6,8 @@
 #   <app-id>-<version>-<target>.tar.gz      macOS/Linux: binaries at the root
 #   <app-id>-<version>-<target>.app.tar.gz  macOS: the .app bundle
 #   <app-id>-<version>-<target>.zip         Windows: .exe files and <app-id>.ico
-# Installers for people downloading by hand:
+# Installers for people downloading by hand (toolbox only; the other apps
+# are installed through the toolbox):
 #   <AppName>-<version>-<arch>.dmg          macOS disk image
 #   <package>_<version>_amd64.deb           Debian/Ubuntu package
 #   <AppName>-<version>-x86_64-setup.exe    Windows per-user installer (Inno Setup)
@@ -162,12 +163,16 @@ jobs:
             tar -C "$bundles" -czf "$app_archive" "$(basename "$bundle")"
             checksum "$app_archive"
 
-            arch="${{ matrix.target }}"
-            arch="${arch%%-*}"
-            dmg="${APP_FILE_NAME}-${VERSION}-${arch}.dmg"
-            scripts/make-dmg.sh "$bundle" "$dmg" "$APP_NAME"
-            checksum "$dmg"
-          else
+            # Only the toolbox gets an installer; the other apps are
+            # installed through it from the archives above.
+            if [ "$APP" = "toolbox" ]; then
+              arch="${{ matrix.target }}"
+              arch="${arch%%-*}"
+              dmg="${APP_FILE_NAME}-${VERSION}-${arch}.dmg"
+              scripts/make-dmg.sh "$bundle" "$dmg" "$APP_NAME"
+              checksum "$dmg"
+            fi
+          elif [ "$APP" = "toolbox" ]; then
             deb="$(scripts/package-deb.sh "$APP" "$VERSION" "$TARGET_DIR" .)"
             checksum "$(basename "$deb")"
           fi
@@ -178,8 +183,11 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          # Only the toolbox gets a setup.exe; the other apps install from the zip.
+          $installer = @{}
+          if ($env:APP -ne "toolbox") { $installer.SkipInstaller = $true }
           $files = & ./scripts/package-windows.ps1 -App $env:APP -Version $env:VERSION `
-            -BinaryDir $env:TARGET_DIR -OutDir . -Target "${{ matrix.target }}"
+            -BinaryDir $env:TARGET_DIR -OutDir . -Target "${{ matrix.target }}" @installer
           $assets = @()
           foreach ($file in $files) {
             $name = Split-Path -Leaf $file

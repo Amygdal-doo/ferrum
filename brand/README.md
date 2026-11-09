@@ -12,8 +12,10 @@ iron. The tile has these parts:
 - **Accent ring:** an inset border in the product's accent colour.
 - **Iron lattice:** two concentric hexagons with nodes at the outer vertices.
   This is iron's crystal structure, drawn faintly behind the letters.
-- **Symbol:** a monoline, geometric two-letter symbol. The `F` is always light
-  "ingot" ink (`#f1e9df`) and the second letter takes the accent colour.
+- **Symbol:** monoline, geometric letters. The core mark is `Fe` (iron) with
+  a light "ingot" `F` (`#f1e9df`) and an accent `e`. Each app is `Fe` in ingot
+  ink plus a capital in its accent colour: `FeI`, `FeA`, `FeG`, `FeD`, `FeT`,
+  `FeX`.
 - **Job badge** (app variants only): a circle in the accent colour that
   overlaps the top-right of the ring and shows the app's job in dark ink. The
   core mark has no badge.
@@ -44,12 +46,12 @@ The rust and patina colours match the website tokens (`web/assets/css/tokens.css
 | File | Symbol | Badge glyph |
 | --- | --- | --- |
 | `ferrum.svg` | Fe | none (core mark) |
-| `ide.svg` | Fi | code brackets `‹ ›` |
-| `api.svg` | Fa | request/response arrows |
-| `git.svg` | Fg | branch |
-| `data.svg` | Fd | database cylinder |
-| `term.svg` | Ft | prompt `>_` |
-| `toolbox.svg` | Fx | 2×2 app grid |
+| `ide.svg` | FeI | code brackets `‹ ›` |
+| `api.svg` | FeA | request/response arrows |
+| `git.svg` | FeG | branch |
+| `data.svg` | FeD | database cylinder |
+| `term.svg` | FeT | prompt `>_` |
+| `toolbox.svg` | FeX | 2×2 app grid |
 | `ferrum-wordmark.svg` | Fe + "Ferrum" | light lettering, for dark backgrounds |
 | `ferrum-wordmark-light.svg` | Fe + "Ferrum" | dark lettering, for light backgrounds |
 

@@ -104,7 +104,11 @@ pub fn running_version() -> Option<semver::Version> {
 
 fn plist_ferrum_version(plist: &str) -> Option<semver::Version> {
     let after_key = plist.split_once("<key>FerrumVersion</key>")?.1;
-    let value = after_key.split_once("<string>")?.1.split_once("</string>")?.0;
+    let value = after_key
+        .split_once("<string>")?
+        .1
+        .split_once("</string>")?
+        .0;
     semver::Version::parse(value.trim()).ok()
 }
 

@@ -27,6 +27,10 @@ impl AppId {
         AppId::Toolbox,
     ];
 
+    /// The apps the toolbox installs. The toolbox itself ships as its own
+    /// download and offers its updates from the toolbar, so it isn't listed.
+    pub const MANAGED: [AppId; 5] = [AppId::Ide, AppId::Api, AppId::Git, AppId::Data, AppId::Term];
+
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {

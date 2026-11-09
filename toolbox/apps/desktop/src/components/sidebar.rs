@@ -9,11 +9,11 @@ use ferrumtoolbox_core::AppId;
 impl FerrumToolbox {
     pub fn render_sidebar(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let background = cx.theme().colors().panel_background;
-        let rows: Vec<AnyElement> = AppId::ALL
+        let rows: Vec<AnyElement> = AppId::MANAGED
             .into_iter()
             .map(|app| self.render_app_row(app, cx))
             .collect();
-        let updates = self.state.updates().len();
+        let updates = self.state.app_updates().len();
         v_flex()
             .id("app-list")
             .size_full()
