@@ -18,7 +18,7 @@ fn main() {
         eprintln!("FerrumToolbox: could not determine a home directory for local state");
         std::process::exit(1);
     };
-    let state = match State::load(&paths) {
+    let mut state = match State::load(&paths) {
         Ok(state) => state,
         Err(e) => {
             eprintln!(
@@ -28,6 +28,9 @@ fn main() {
             std::process::exit(1);
         }
     };
+    // Dev builds run outside a bundle and have no release version; they show
+    // the toolbox as not installed, which is what the store records anyway.
+    state.running_toolbox = ferrumtoolbox_core::platform::running_version();
     let services = match Services::start(paths) {
         Ok(services) => services,
         Err(e) => {

@@ -200,6 +200,11 @@ pub struct State {
     pub releases: Vec<ReleaseInfo>,
     /// Last `catalog.json` fetched from the repo (completed from the embedded copy).
     pub catalog: Option<Catalog>,
+    /// Version of the toolbox binary that is running. Not persisted: a toolbox
+    /// opened from a DMG install counts as installed even though this store
+    /// never installed it.
+    #[serde(skip)]
+    pub running_toolbox: Option<Version>,
 }
 
 impl State {
@@ -249,7 +254,11 @@ impl State {
 
     #[must_use]
     pub fn active(&self, app: AppId) -> Option<&Version> {
-        self.apps.get(&app).and_then(|state| state.active.as_ref())
+        let recorded = self.apps.get(&app).and_then(|state| state.active.as_ref());
+        if app == AppId::Toolbox {
+            return recorded.max(self.running_toolbox.as_ref());
+        }
+        recorded
     }
 
     /// Every release of `app` on every channel, newest version first.
@@ -840,6 +849,31 @@ mod tests {
         assert_eq!(loaded, state);
         let json = std::fs::read_to_string(paths.state_file()).expect("read");
         assert!(!json.to_lowercase().contains("token"));
+    }
+
+    #[test]
+    fn running_toolbox_counts_as_installed() {
+        let mut state = State::default();
+        state.record_releases(vec![
+            release(AppId::Toolbox, "0.1.0", false),
+            release(AppId::Toolbox, "0.2.0", false),
+        ]);
+        assert_eq!(state.active(AppId::Toolbox), None);
+
+        state.running_toolbox = Some(Version::new(0, 2, 0));
+        assert_eq!(state.active(AppId::Toolbox), Some(&Version::new(0, 2, 0)));
+        assert!(state.updates().is_empty());
+
+        state.running_toolbox = Some(Version::new(0, 1, 0));
+        assert_eq!(state.updates(), vec![(AppId::Toolbox, Version::new(0, 2, 0))]);
+
+        // A newer copy installed through the store wins over an older running one.
+        state.running_toolbox = Some(Version::new(0, 1, 0));
+        state.record_install(AppId::Toolbox, installed("0.2.0"));
+        assert_eq!(state.active(AppId::Toolbox), Some(&Version::new(0, 2, 0)));
+
+        // Only the toolbox itself is affected.
+        assert_eq!(state.active(AppId::Data), None);
     }
 
     #[test]

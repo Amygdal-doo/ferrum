@@ -12,13 +12,17 @@ use semver::Version;
 struct VersionRow {
     version: Version,
     release: Option<ReleaseInfo>,
+    /// Installed by this toolbox (so it can be activated or removed).
     installed: bool,
     active: bool,
+    /// The toolbox binary showing this window.
+    running: bool,
 }
 
 impl FerrumToolbox {
     fn version_rows(&self, app: AppId) -> Vec<VersionRow> {
         let app_state = self.state.app(app);
+        let active = self.state.active(app);
         let mut rows: Vec<VersionRow> = self
             .state
             .releases_for(app)
@@ -26,7 +30,8 @@ impl FerrumToolbox {
             .map(|release| VersionRow {
                 version: release.version.clone(),
                 installed: app_state.is_installed(&release.version),
-                active: app_state.active.as_ref() == Some(&release.version),
+                active: active == Some(&release.version),
+                running: self.is_running(app, &release.version),
                 release: Some(release.clone()),
             })
             .collect();
@@ -36,12 +41,17 @@ impl FerrumToolbox {
                     version: installed.version.clone(),
                     release: None,
                     installed: true,
-                    active: app_state.active.as_ref() == Some(&installed.version),
+                    active: active == Some(&installed.version),
+                    running: self.is_running(app, &installed.version),
                 });
             }
         }
         rows.sort_by(|a, b| b.version.cmp(&a.version));
         rows
+    }
+
+    fn is_running(&self, app: AppId, version: &Version) -> bool {
+        app == AppId::Toolbox && self.state.running_toolbox.as_ref() == Some(version)
     }
 
     pub fn render_detail(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -242,17 +252,23 @@ impl FerrumToolbox {
         h_flex()
             .gap_2()
             .when_some(active.clone(), |this, version| {
-                this.child(
-                    Button::new("launch", "Launch")
-                        .style(ButtonStyle::Filled)
-                        .start_icon(Icon::new(IconName::PlayFilled))
-                        .disabled(app == AppId::Toolbox)
-                        .on_click(cx.listener(move |this, _, _, cx| this.launch(app, cx))),
-                )
+                let running = self.is_running(app, &version);
+                this.when(app != AppId::Toolbox, |this| {
+                    this.child(
+                        Button::new("launch", "Launch")
+                            .style(ButtonStyle::Filled)
+                            .start_icon(Icon::new(IconName::PlayFilled))
+                            .on_click(cx.listener(move |this, _, _, cx| this.launch(app, cx))),
+                    )
+                })
                 .child(
-                    Label::new(format!("Active: v{version}"))
-                        .size(LabelSize::Small)
-                        .color(Color::Muted),
+                    Label::new(if running {
+                        format!("✓ Installed and running: v{version}")
+                    } else {
+                        format!("Active: v{version}")
+                    })
+                    .size(LabelSize::Small)
+                    .color(if running { Color::Success } else { Color::Muted }),
                 )
                 .when(installed_app, |this| {
                     this.child(
@@ -364,7 +380,7 @@ impl FerrumToolbox {
         };
         let channel = row.release.as_ref().map(ReleaseInfo::channel);
         let downloads = row.release.as_ref().map(ReleaseInfo::downloads);
-        let can_install = !row.installed && target_asset.is_some() && !downloading;
+        let can_install = !row.installed && !row.running && target_asset.is_some() && !downloading;
 
         ListItem::new(SharedString::from(format!("version-{version}")))
             .toggle_state(selected)
@@ -378,6 +394,9 @@ impl FerrumToolbox {
                     })
                     .when(row.active, |this| {
                         this.child(badge("active", cx.theme().status().success, cx))
+                    })
+                    .when(row.running, |this| {
+                        this.child(badge("running", cx.theme().status().info, cx))
                     })
                     .when(row.installed && !row.active, |this| {
                         this.child(badge("installed", cx.theme().colors().text_muted, cx))

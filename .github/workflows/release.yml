@@ -127,7 +127,8 @@ jobs:
           rustup target add "${{ matrix.target }}"
           args=()
           for package in $PACKAGE; do args+=(-p "$package"); done
-          cargo build --release --locked --target "${{ matrix.target }}" "${args[@]}"
+          # Read by ferrumtoolbox_core::platform::running_version.
+          FERRUM_VERSION="$VERSION" cargo build --release --locked --target "${{ matrix.target }}" "${args[@]}"
           target_dir="$PWD/target/${{ matrix.target }}/release"
           if [ "${{ runner.os }}" = "Windows" ]; then
             target_dir="$(cygpath -w "$target_dir")"

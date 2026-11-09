@@ -87,6 +87,27 @@ pub fn cmd_shim(target: &Path) -> String {
     format!("@echo off\r\n\"{}\" %*\r\n", target.display())
 }
 
+/// Release version of the running binary. Workspace crates all build as
+/// `CARGO_PKG_VERSION`, so the real version comes from `FERRUM_VERSION` set at
+/// build time, or from the `FerrumVersion` key `scripts/bundle-macos.sh`
+/// writes into the enclosing `.app`'s Info.plist.
+#[must_use]
+pub fn running_version() -> Option<semver::Version> {
+    if let Some(version) = option_env!("FERRUM_VERSION") {
+        return semver::Version::parse(version).ok();
+    }
+    let executable = std::env::current_exe().ok()?;
+    let plist = executable.parent()?.parent()?.join("Info.plist");
+    let contents = std::fs::read_to_string(plist).ok()?;
+    plist_ferrum_version(&contents)
+}
+
+fn plist_ferrum_version(plist: &str) -> Option<semver::Version> {
+    let after_key = plist.split_once("<key>FerrumVersion</key>")?.1;
+    let value = after_key.split_once("<string>")?.1.split_once("</string>")?.0;
+    semver::Version::parse(value.trim()).ok()
+}
+
 /// Desktop-entry file name for `app` (`~/.local/share/applications/`).
 #[must_use]
 pub fn desktop_entry_name(app: AppId) -> String {
@@ -198,6 +219,21 @@ mod tests {
         assert!(entry.contains("Exec=\"/home/me/.local/share/x/ferrumdata\" %U\n"));
         assert!(entry.contains("Icon=ferrum-data\n"));
         assert_eq!(desktop_entry_name(AppId::Data), "ferrum-data.desktop");
+    }
+
+    #[test]
+    fn reads_ferrum_version_from_info_plist() {
+        let plist = "<dict>\n  <key>CFBundleVersion</key>\n  <string>0.2.0</string>\n  \
+                     <key>FerrumVersion</key>\n  <string>0.2.0-beta.1</string>\n</dict>";
+        assert_eq!(
+            plist_ferrum_version(plist),
+            Some(semver::Version::parse("0.2.0-beta.1").expect("semver"))
+        );
+        assert_eq!(plist_ferrum_version("<dict></dict>"), None);
+        assert_eq!(
+            plist_ferrum_version("<key>FerrumVersion</key><string>nope</string>"),
+            None
+        );
     }
 
     #[test]
