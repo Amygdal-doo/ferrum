@@ -10,7 +10,7 @@ no GitHub account is needed. Every app is in **alpha**.
 
 ## 1. Install Ferrum Toolbox
 
-**Option A: Terminal (recommended, no Gatekeeper warning)**
+**Option A: Terminal**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Amygdal-doo/ferrum-releases/main/install.sh | bash
@@ -28,13 +28,10 @@ show the "could not verify" dialog. The same script is
    newest `toolbox-v…` release at
    <https://github.com/Amygdal-doo/ferrum-releases/releases>.
 2. Open it and drag **Ferrum Toolbox** onto **Applications**.
-3. First launch: the app is ad-hoc signed, not notarized, so macOS says it
-   "could not verify Ferrum Toolbox is free of malware". Browsers mark
-   downloads as quarantined, and Gatekeeper checks quarantined apps. Click
-   **Done**, then **System Settings → Privacy & Security → Open Anyway**, or
-   run `xattr -dr com.apple.quarantine "/Applications/Ferrum Toolbox.app"`.
-   This goes away for good once builds are signed with a Developer ID and
-   notarized (see Known limitations).
+3. Open it. Releases from `toolbox-v0.5.0` on are signed with the AMYGDAL
+   d.o.o. Sarajevo Developer ID and notarized by Apple, so macOS opens them
+   without a warning. (Older, ad-hoc signed releases need **System Settings
+   → Privacy & Security → Open Anyway** once.)
 
 You do this once. The toolbox updates itself in place afterwards, and
 neither its updates nor the apps it installs are quarantined.

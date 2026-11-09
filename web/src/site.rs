@@ -30,7 +30,7 @@ pub const MACOS_INSTALL_COMMAND: &str = "curl -fsSL https://raw.githubuserconten
 /// Whether current macOS builds are Developer ID signed and notarized.
 /// While `false`, the download page explains Gatekeeper's "Open Anyway" step.
 /// Flip to `true` once notarized builds ship; that hides the section.
-pub const MACOS_NOTARIZED: bool = false;
+pub const MACOS_NOTARIZED: bool = true;
 
 /// PLACEHOLDER: contact address (none configured).
 pub const CONTACT_EMAIL: Option<&str> = None;
