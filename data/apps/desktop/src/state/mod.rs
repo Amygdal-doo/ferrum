@@ -7,7 +7,8 @@ mod run;
 pub use run::TabRun;
 
 use ferrumdata_domain::{
-    AppSettings, ConnectionProfile, EditorTabId, EditorTabState, ProfileId, TableInfo, TableRef,
+    AppSettings, ConnectionProfile, EditorTabId, EditorTabState, HistoryEntry, ProfileId,
+    TableDetails, TableInfo, TableRef,
 };
 use std::collections::{HashMap, HashSet};
 
@@ -23,6 +24,14 @@ pub enum ConnStatus {
 pub enum SchemaLoad {
     Loading,
     Loaded(Vec<TableInfo>),
+    Failed(String),
+}
+
+/// Columns and indexes of one table, loaded when its tree node is expanded.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DetailsLoad {
+    Loading,
+    Loaded(TableDetails),
     Failed(String),
 }
 
@@ -87,6 +96,37 @@ pub enum Dialog {
         profile: ConnectionProfile,
         sql: String,
     },
+    /// `None` clears the history of every connection.
+    ClearHistory(Option<ConnectionProfile>),
+}
+
+/// What the bottom panel shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ResultsPane {
+    #[default]
+    Results,
+    History,
+}
+
+/// Which history entries to list: one connection's, or every connection's.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HistoryScope {
+    /// `None` lists every connection.
+    pub profile_id: Option<ProfileId>,
+    pub search: String,
+}
+
+#[derive(Debug, Default)]
+pub struct HistoryPanel {
+    /// List every connection instead of the active tab's.
+    pub all_connections: bool,
+    pub entries: Vec<HistoryEntry>,
+    pub loading: bool,
+    pub error: Option<String>,
+    /// Scope the entries were loaded for; a different scope triggers a reload.
+    pub loaded_for: Option<HistoryScope>,
+    /// Bumped per request so a slow, older response cannot overwrite a newer one.
+    pub generation: u64,
 }
 
 #[derive(Default)]
@@ -97,10 +137,15 @@ pub struct AppState {
     pub conn_status: HashMap<ProfileId, ConnStatus>,
     pub schemas: HashMap<ProfileId, SchemaLoad>,
     pub expanded: HashSet<ProfileId>,
+    /// Tables whose column/index details are shown in the tree.
+    pub expanded_tables: HashSet<(ProfileId, TableRef)>,
+    pub table_details: HashMap<(ProfileId, TableRef), DetailsLoad>,
     pub tabs: Vec<EditorTab>,
     pub active_tab: Option<EditorTabId>,
     pub runs: HashMap<EditorTabId, TabRun>,
     pub dialog: Option<Dialog>,
+    pub results_pane: ResultsPane,
+    pub history: HistoryPanel,
 }
 
 impl AppState {

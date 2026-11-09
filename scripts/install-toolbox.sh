@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Installs the latest Ferrum Toolbox on macOS from GitHub Releases:
+#   curl -fsSL https://raw.githubusercontent.com/Amygdal-doo/ferrum-releases/main/install.sh | bash
 #   scripts/install-toolbox.sh [--repo owner/name]
 #
+# Files downloaded with curl carry no quarantine flag, so the toolbox opens
+# without the "could not verify" Gatekeeper dialog a browser download gets.
 # The default repo is public, so only curl is needed. For a private repo,
 # sign in with the GitHub CLI (`gh auth login`) and it is used instead.
 # Installs "Ferrum Toolbox.app" into /Applications, or ~/Applications when
@@ -26,15 +29,16 @@ case "$(uname -m)" in
   *) echo "error: unsupported CPU $(uname -m)" >&2; exit 1 ;;
 esac
 
-# Newest non-draft, non-prerelease toolbox-v* release.
+# Newest non-draft toolbox-v* release. Every Ferrum app is in alpha, so
+# alpha releases count.
 if $use_gh; then
-  tag="$(gh release list --repo "$repo" --limit 100 --exclude-drafts --exclude-pre-releases \
+  tag="$(gh release list --repo "$repo" --limit 100 --exclude-drafts \
     --json tagName --jq '[.[].tagName | select(startswith("toolbox-v"))] | first // empty')"
 else
   tag="$(curl -fsSL "https://api.github.com/repos/$repo/releases?per_page=100" \
     | /usr/bin/python3 -c 'import json,sys
 for r in json.load(sys.stdin):
-    if r["tag_name"].startswith("toolbox-v") and not r["draft"] and not r["prerelease"]:
+    if r["tag_name"].startswith("toolbox-v") and not r["draft"]:
         print(r["tag_name"]); break')" \
     || { echo "error: could not list releases of $repo (private? run: gh auth login)" >&2; exit 1; }
 fi

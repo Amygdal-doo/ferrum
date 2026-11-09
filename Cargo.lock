@@ -2485,6 +2485,7 @@ name = "ferrumdata-application"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "ferrumdata-credentials",
  "ferrumdata-db-driver-api",
  "ferrumdata-db-mongodb",
@@ -2610,12 +2611,14 @@ dependencies = [
 name = "ferrumdata-desktop"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "directories",
  "ferrum-ui",
  "ferrumdata-application",
  "ferrumdata-domain",
  "ferrumdata-editor-core",
  "ferrumdata-result-grid-core",
+ "gpui",
  "menu",
  "tokio",
  "tracing",
@@ -2657,7 +2660,9 @@ dependencies = [
 name = "ferrumdata-result-grid-core"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "ferrumdata-domain",
+ "serde_json",
 ]
 
 [[package]]

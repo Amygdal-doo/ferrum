@@ -6,6 +6,7 @@
 //! whole load.
 
 mod collections;
+mod cookies;
 mod environments;
 mod history;
 mod workspace;

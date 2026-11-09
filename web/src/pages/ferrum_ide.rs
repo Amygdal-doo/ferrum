@@ -54,14 +54,14 @@ const FERRUM: &[&str] = &[
 const PAGE: ProductPage = ProductPage {
     product: FERRUM_IDE,
     meta_description: "Ferrum IDE is a GPU-accelerated code editor written in Rust: an \
-                       independent fork of the open-source Zed editor. Early preview.",
+                       independent fork of the open-source Zed editor. Alpha.",
     intro: "A high-performance code editor written in Rust with a GPU-accelerated UI. Ferrum \
             IDE is an independent fork of the open-source Zed editor.",
     features_lead: "Today, Ferrum IDE's capabilities come from upstream Zed. Ferrum-specific \
                     work is early and is listed under Status.",
     features: FEATURES,
     screenshots: &["Editor with a project open and the built-in terminal"],
-    status_summary: "Ferrum IDE is an early preview. The fork tracks upstream Zed, and its UI \
+    status_summary: "Ferrum IDE is in alpha. The fork tracks upstream Zed, and its UI \
                      framework is shared with the rest of the Ferrum family.",
     status_groups: &[
         BulletGroup {
@@ -120,11 +120,11 @@ mod tests {
     }
 
     #[test]
-    fn renders_single_h1_and_preview_status() {
+    fn renders_single_h1_and_alpha_status() {
         let html = rendered();
         assert_eq!(html.matches("<h1").count(), 1);
         assert!(html.contains(">Ferrum IDE</h1>"));
-        assert!(html.contains("Early preview"));
+        assert!(html.contains("Alpha"));
     }
 
     #[test]

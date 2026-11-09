@@ -76,6 +76,28 @@ impl FerrumData {
                         .into_any_element(),
                 )
             }
+            Dialog::ClearHistory(profile) => {
+                let id = profile.as_ref().map(|p| p.id);
+                let text = profile.map_or_else(
+                    || "The query history of every connection will be deleted.".to_owned(),
+                    |p| format!("The query history of “{}” will be deleted.", p.display_name),
+                );
+                Some(
+                    Modal::new("Clear query history?")
+                        .on_dismiss(close(cx))
+                        .child(Label::new(text))
+                        .footer(Button::new("clear-history-cancel", "Cancel").on_click(close(cx)))
+                        .footer(
+                            Button::new("clear-history-confirm", "Clear history")
+                                .style(ButtonStyle::Tinted(TintColor::Error))
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.close_dialog(window, cx);
+                                    this.clear_history(id, cx);
+                                })),
+                        )
+                        .into_any_element(),
+                )
+            }
         }
     }
 }

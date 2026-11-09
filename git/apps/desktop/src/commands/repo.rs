@@ -4,7 +4,7 @@ use super::run;
 use crate::app::FerrumGit;
 use crate::state::{Busy, DiffView, Page, Selection};
 use ferrumgit_application::{CancellationToken, patch};
-use ferrumgit_domain::{DiffSource, FileStatus, Oid, RepoId, RepoOp};
+use ferrumgit_domain::{DiffSource, FileStatus, Oid, RepoId, RepoOp, Undo};
 use gpui::{Context, Task};
 use std::sync::Arc;
 use std::time::Duration;
@@ -68,6 +68,12 @@ impl FerrumGit {
                     app.select(id, Selection::Commit(first.oid.clone()), cx);
                 }
                 app.refresh_diff(id, cx);
+                app.refresh_file_view(id, cx);
+                // New commits may match the active search.
+                let search = app.state.view(id).search;
+                if !search.trim().is_empty() {
+                    app.search_changed(id, search, cx);
+                }
             },
         );
     }
@@ -143,6 +149,20 @@ impl FerrumGit {
                 app.state.busy.remove(&id);
                 match result {
                     Ok(summary) => {
+                        // Undoing a commit offers its message again.
+                        if let RepoOp::Undo(Undo::Commit {
+                            summary,
+                            amend: false,
+                            ..
+                        }) = &op
+                        {
+                            app.state.update_view(id, |v| {
+                                if v.summary.trim().is_empty() {
+                                    v.summary.clone_from(summary);
+                                    v.draft_rev += 1;
+                                }
+                            });
+                        }
                         if let RepoOp::Commit { .. } = op {
                             app.state.update_view(id, |v| {
                                 v.summary.clear();
@@ -157,6 +177,7 @@ impl FerrumGit {
                                 RepoOp::Commit { .. }
                                     | RepoOp::Merge { .. }
                                     | RepoOp::Rebase { .. }
+                                    | RepoOp::Undo(_)
                             )
                         {
                             let msg = summary

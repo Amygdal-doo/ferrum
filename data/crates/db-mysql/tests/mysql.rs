@@ -8,7 +8,8 @@ use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection};
 use ferrumdata_db_mysql::MySqlDriver;
 use ferrumdata_domain::{
     CellValue, ConnectionProfile, DatabaseEngine, DbErrorKind, Endpoint, ExecutionId, ProfileId,
-    QueryEvent, QueryLimits, QueryRequest, ResolvedConnectionConfig, Secret, TableKind, TlsMode,
+    QueryEvent, QueryLimits, QueryRequest, ResolvedConnectionConfig, Secret, TableKind, TableRef,
+    TlsMode,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -365,5 +366,69 @@ async fn lists_tables_with_case_preserved_names_and_primary_keys() {
     ok(&conn, &format!("drop view {view}")).await;
     ok(&conn, &format!("drop table {no_pk}")).await;
     ok(&conn, &format!("drop table `{user}`")).await;
+    conn.close().await;
+}
+
+#[tokio::test]
+async fn describes_columns_and_indexes() {
+    if !enabled() {
+        return;
+    }
+    let conn = connect_with(false).await;
+    let name = unique("Order");
+    ok(
+        &conn,
+        &format!(
+            "create table `{name}` (
+                id int unsigned not null auto_increment,
+                `customerEmail` varchar(80) not null default 'n/a',
+                total decimal(10, 2),
+                created timestamp null default current_timestamp,
+                primary key (id),
+                unique key order_email (`customerEmail`, total),
+                key order_lower ((lower(`customerEmail`)))
+            )"
+        ),
+    )
+    .await;
+    let table = TableRef {
+        schema: None,
+        name: name.clone(),
+    };
+    let d = conn.describe_table(&table).await.expect("describe");
+    let cols: Vec<String> = d
+        .columns
+        .iter()
+        .map(|c| format!("{} {}", c.name, c.summary()))
+        .collect();
+    assert_eq!(
+        cols,
+        vec![
+            "id int unsigned auto_increment · PK · NOT NULL",
+            "customerEmail varchar(80) · NOT NULL · = n/a",
+            "total decimal(10,2) · NULL",
+            "created timestamp · NULL · = CURRENT_TIMESTAMP",
+        ]
+    );
+    let idx: Vec<String> = d
+        .indexes
+        .iter()
+        .map(|i| format!("{} {}", i.name, i.summary()))
+        .collect();
+    assert_eq!(
+        idx,
+        vec![
+            "PRIMARY PRIMARY KEY (id)",
+            "order_email UNIQUE (customerEmail, total)",
+            "order_lower (<expression>)",
+        ]
+    );
+    // Explicit schema works too.
+    let qualified = TableRef {
+        schema: Some("ferrumdata_test".into()),
+        name: name.clone(),
+    };
+    assert_eq!(conn.describe_table(&qualified).await.expect("describe"), d);
+    ok(&conn, &format!("drop table `{name}`")).await;
     conn.close().await;
 }

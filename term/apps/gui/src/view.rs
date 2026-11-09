@@ -1,17 +1,20 @@
-//! The FerrumTerm window as a GPUI view: tab bar, the active window's panes
-//! (painted cell-by-cell from server frames), and the transient message strip.
+//! The FerrumTerm window as a GPUI view: sidebar (see `sidebar`), tab bar,
+//! the active window's panes (painted cell-by-cell from server frames), and
+//! the transient message strip.
 
 use crate::app::{App, UiEvent};
 use crate::input::{self, Action, Shortcut};
+use crate::selection::{Cell, Selection, cell_at};
 use ferrum_ui::gpui::{
-    self, Bounds, ClipboardItem, Context, ElementId, ElementInputHandler, Entity, FocusHandle,
-    Focusable, Font, FontStyle, FontWeight, Hsla, KeyDownEvent, MouseButton, MouseDownEvent,
-    Pixels, Point, ScrollDelta, ScrollEvent, SharedString, Size, StrikethroughStyle, Task,
-    TextRun, UTF16Selection, UnderlineStyle, Window, canvas, div, fill, point, prelude::*, px,
-    size,
+    self, Axis, Bounds, ClipboardItem, Context, ElementId, ElementInputHandler, Entity,
+    FocusHandle, Focusable, Font, FontStyle, FontWeight, Hsla, KeyDownEvent, MouseButton,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, ScrollDelta, ScrollEvent,
+    SharedString, Size, StrikethroughStyle, Subscription, Task, TextRun, UTF16Selection,
+    UnderlineStyle, Window, canvas, div, fill, point, prelude::*, px, size,
 };
 use ferrum_ui::theme::{self, ActiveTheme};
 use ferrum_ui::ui::{StyledTypography, h_flex, v_flex};
+use ferrum_ui::{TextInput, splitter};
 use ferrumterm_protocol::{
     BlockId, CursorShape, Frame, ProgramState, Rect, Span, WindowInfo, flags,
 };
@@ -71,8 +74,8 @@ impl CellMetrics {
 }
 
 pub struct TermView {
-    app: App,
-    focus_handle: FocusHandle,
+    pub(crate) app: App,
+    pub(crate) focus_handle: FocusHandle,
     metrics: Option<CellMetrics>,
     grid: Option<(u16, u16)>,
     wheel: f32,
@@ -81,6 +84,14 @@ pub struct TermView {
     /// Caret of the focused pane in window coordinates, for IME popups.
     cursor_bounds: Option<Bounds<Pixels>>,
     message_scheduled: Option<Instant>,
+    /// Sidebar "Custom command…" field while it is open.
+    pub(crate) custom_agent: Option<Entity<TextInput>>,
+    pub(crate) _custom_agent_events: Option<Subscription>,
+    pub(crate) resizing_sidebar: bool,
+    selection: Option<Selection>,
+    /// Text under the selection when the drag ended (what ⌘C copies).
+    selection_text: Option<String>,
+    selecting: bool,
     _message_timer: Option<Task<()>>,
     _events: Task<()>,
 }
@@ -95,10 +106,7 @@ impl TermView {
         app.connect(Duration::ZERO);
         let events = cx.spawn(async move |this, cx| {
             while let Some(event) = events.next().await {
-                if this
-                    .update(cx, |view, cx| view.handle_event(event, cx))
-                    .is_err()
-                {
+                if this.update(cx, |view, cx| view.handle_event(event, cx)).is_err() {
                     break;
                 }
             }
@@ -114,6 +122,12 @@ impl TermView {
             ime_marked: None,
             cursor_bounds: None,
             message_scheduled: None,
+            custom_agent: None,
+            _custom_agent_events: None,
+            resizing_sidebar: false,
+            selection: None,
+            selection_text: None,
+            selecting: false,
             _message_timer: None,
             _events: events,
         }
@@ -150,7 +164,7 @@ impl TermView {
     }
 
     /// Resizes/subscribes the visible window and re-renders.
-    fn after_change(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn after_change(&mut self, cx: &mut Context<Self>) {
         self.app.sync(self.grid);
         if let Some((_, shown_at)) = &self.app.message
             && self.message_scheduled != Some(*shown_at)
@@ -170,15 +184,33 @@ impl TermView {
         match action {
             Action::Shortcut(Shortcut::Paste) => {
                 if let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) {
+                    self.clear_selection();
                     self.app.paste(text);
                 }
             }
-            action => self.app.act(action),
+            Action::Shortcut(Shortcut::Copy) => {
+                if let Some(text) = &self.selection_text {
+                    cx.write_to_clipboard(ClipboardItem::new_string(text.clone()));
+                }
+            }
+            action => {
+                if matches!(action, Action::Send(_)) {
+                    self.clear_selection();
+                }
+                self.app.act(action);
+            }
         }
         self.after_change(cx);
     }
 
-    fn key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+    fn key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        // Keys typed into the sidebar's text field are not for the terminal.
+        if !self.focus_handle.is_focused(window) {
+            if event.keystroke.key == "escape" {
+                self.end_custom_agent(window, cx);
+            }
+            return;
+        }
         if let Some(action) = input::translate(&event.keystroke) {
             cx.stop_propagation();
             self.ime_marked = None;
@@ -188,12 +220,71 @@ impl TermView {
 
     fn mouse_down(&mut self, event: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         window.focus(&self.focus_handle, cx);
-        self.app
-            .click(f32::from(event.position.x), f32::from(event.position.y));
+        let (x, y) = (f32::from(event.position.x), f32::from(event.position.y));
+        self.app.click(x, y);
+        self.selection =
+            self.cell_under(x, y, None).map(|(block, cell)| Selection::new(block, cell));
+        self.selection_text = None;
+        self.selecting = self.selection.is_some();
         self.after_change(cx);
     }
 
+    /// Extends the selection while the left button is held.
+    fn mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if !self.selecting || event.pressed_button != Some(MouseButton::Left) {
+            return;
+        }
+        let Some(block) = self.selection.as_ref().map(|s| s.block) else {
+            return;
+        };
+        let (x, y) = (f32::from(event.position.x), f32::from(event.position.y));
+        if let Some((_, head)) = self.cell_under(x, y, Some(block))
+            && let Some(selection) = self.selection.as_mut()
+            && selection.head != head
+        {
+            selection.head = head;
+            cx.notify();
+        }
+    }
+
+    fn mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if !std::mem::take(&mut self.selecting) {
+            return;
+        }
+        match &self.selection {
+            Some(s) if !s.is_empty() => {
+                self.selection_text = self.app.frames.get(&s.block).map(|f| s.text(f));
+            }
+            _ => self.clear_selection(),
+        }
+        cx.notify();
+    }
+
+    /// The pane and cell under a window point; with `block`, that pane
+    /// only (clamped to its edges, so drags can leave it).
+    fn cell_under(&self, x: f32, y: f32, block: Option<BlockId>) -> Option<(BlockId, Cell)> {
+        let metrics = self.metrics?;
+        let pane = self.app.panes.iter().find(|pane| match block {
+            Some(b) => pane.0 == b,
+            None => {
+                let (_, px, py, w, h) = **pane;
+                x >= px && x < px + w && y >= py && y < py + h
+            }
+        })?;
+        let cell =
+            cell_at(pane, x, y, f32::from(metrics.cell_width), f32::from(metrics.cell_height));
+        Some((pane.0, cell))
+    }
+
+    fn clear_selection(&mut self) {
+        self.selection = None;
+        self.selection_text = None;
+        self.selecting = false;
+    }
+
     fn scroll_wheel(&mut self, event: &ScrollEvent, _: &mut Window, _: &mut Context<Self>) {
+        // The selection is in screen cells; scrolling would move the text under it.
+        self.clear_selection();
         let cell_height = self.metrics.map_or(px(16.), |metrics| metrics.cell_height);
         self.wheel += match event.delta {
             ScrollDelta::Lines(lines) => lines.y * 3.0,
@@ -233,7 +324,8 @@ impl TermView {
             .border_b_1()
             .border_color(colors.border)
             .font_ui(cx)
-            .text_size(px(13.));
+            .text_size(px(13.))
+            .child(self.sidebar_toggle(cx));
         let Some(session) = self.app.session() else {
             return bar;
         };
@@ -296,9 +388,7 @@ impl TermView {
             .cursor_pointer()
             .hover(|style| style.bg(colors.ghost_element_hover))
             .when(active, |tab| {
-                tab.bg(colors.tab_active_background)
-                    .border_b_2()
-                    .border_color(colors.text_accent)
+                tab.bg(colors.tab_active_background).border_b_2().border_color(colors.text_accent)
             })
             .on_click(cx.listener(move |view, _, _, cx| {
                 view.app.click_tab(kind.clone());
@@ -311,10 +401,7 @@ impl TermView {
 impl Render for TermView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let font = theme::theme_settings(cx).buffer_font(cx).clone();
-        if self
-            .metrics
-            .is_none_or(|metrics| metrics.font_pt != self.app.font_pt)
-        {
+        if self.metrics.is_none_or(|metrics| metrics.font_pt != self.app.font_pt) {
             self.metrics = Some(CellMetrics::measure(self.app.font_pt, &font, window));
         }
         window.set_window_title(&self.title());
@@ -329,36 +416,52 @@ impl Render for TermView {
             .map(|(text, _)| SharedString::from(text.clone()));
         let entity = cx.entity();
 
-        v_flex()
+        let terminal = v_flex().flex_1().min_w_0().h_full().child(self.render_tab_bar(cx)).child(
+            div()
+                .id("terminal")
+                .flex_1()
+                .min_h_0()
+                .w_full()
+                .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
+                .on_scroll(cx.listener(Self::scroll_wheel))
+                .child(
+                    canvas(
+                        {
+                            let entity = entity.clone();
+                            move |bounds, _, cx| update_grid(&entity, bounds, cx)
+                        },
+                        move |bounds, _, window, cx| {
+                            paint_terminal(&entity, &font, bounds, window, cx)
+                        },
+                    )
+                    .size_full(),
+                ),
+        );
+
+        h_flex()
             .relative()
             .size_full()
             .key_context("FerrumTerm")
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(Self::key_down))
+            .on_drag_move(cx.listener(Self::resize_sidebar))
+            // On the root so a selection drag can end (or keep going) outside the panes.
+            .on_mouse_move(cx.listener(Self::mouse_move))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::mouse_up))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|view, _, _, _| {
+                    if std::mem::take(&mut view.resizing_sidebar) {
+                        view.app.ui.save();
+                    }
+                }),
+            )
             .bg(colors.terminal_background)
             .text_color(colors.terminal_foreground)
-            .child(self.render_tab_bar(cx))
-            .child(
-                div()
-                    .id("terminal")
-                    .flex_1()
-                    .min_h_0()
-                    .w_full()
-                    .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
-                    .on_scroll(cx.listener(Self::scroll_wheel))
-                    .child(
-                        canvas(
-                            {
-                                let entity = entity.clone();
-                                move |bounds, _, cx| update_grid(&entity, bounds, cx)
-                            },
-                            move |bounds, _, window, cx| {
-                                paint_terminal(&entity, &font, bounds, window, cx)
-                            },
-                        )
-                        .size_full(),
-                    ),
-            )
+            .when(self.app.ui.sidebar_open, |root| {
+                root.child(self.render_sidebar(cx)).child(splitter("sidebar", Axis::Horizontal, cx))
+            })
+            .child(terminal)
             .when_some(message, |root, message| {
                 root.child(
                     div()
@@ -418,35 +521,23 @@ fn paint_terminal(
 ) {
     let view = entity.read(cx);
     let focus_handle = view.focus_handle.clone();
-    window.handle_input(
-        &focus_handle,
-        ElementInputHandler::new(bounds, entity.clone()),
-        cx,
-    );
+    window.handle_input(&focus_handle, ElementInputHandler::new(bounds, entity.clone()), cx);
 
     let view = entity.read(cx);
     let (Some(metrics), Some(info)) = (view.metrics, view.app.window()) else {
         return;
     };
-    let area = Rect {
-        x: 0,
-        y: 0,
-        cols: info.cols,
-        rows: info.rows,
-    };
+    let area = Rect { x: 0, y: 0, cols: info.cols, rows: info.rows };
     let focused_block = info.focused;
     let split = info.blocks.len() > 1;
     let panes: Vec<Pane> = info
         .layout
         .rects(area)
         .into_iter()
-        .map(|(block, rect)| Pane {
-            block,
-            rect,
-            frame: view.app.frames.get(&block).cloned(),
-        })
+        .map(|(block, rect)| Pane { block, rect, frame: view.app.frames.get(&block).cloned() })
         .collect();
     let ime_marked = view.ime_marked.clone();
+    let selection = view.selection.clone().filter(|s| !s.is_empty());
     let theme = cx.theme();
     let colors = Colors {
         foreground: theme.colors().terminal_foreground,
@@ -466,10 +557,7 @@ fn paint_terminal(
     window.with_content_mask(Some(gpui::ContentMask { bounds }), |window| {
         for pane in &panes {
             let pane_origin = origin
-                + point(
-                    cell_width * f32::from(pane.rect.x),
-                    cell_height * f32::from(pane.rect.y),
-                );
+                + point(cell_width * f32::from(pane.rect.x), cell_height * f32::from(pane.rect.y));
             let pane_size = size(
                 cell_width * f32::from(pane.rect.cols),
                 cell_height * f32::from(pane.rect.rows),
@@ -484,37 +572,51 @@ fn paint_terminal(
             let focused = pane.block == focused_block;
             if let Some(frame) = &pane.frame {
                 let pane_bounds = Bounds::new(pane_origin, pane_size);
-                window.with_content_mask(Some(gpui::ContentMask { bounds: pane_bounds }), |window| {
-                    for (row, line) in frame.lines.iter().enumerate() {
-                        let row_origin = pane_origin + point(px(0.), cell_height * row as f32);
-                        paint_backgrounds(line, row_origin, cell_width, cell_height, window);
-                        paint_row(line, row_origin, &metrics, font, &colors, window, cx);
-                    }
-                    if let Some(cursor) = frame.cursor {
-                        let caret = Bounds::new(
-                            pane_origin
-                                + point(
-                                    cell_width * f32::from(cursor.col),
-                                    cell_height * f32::from(cursor.row),
-                                ),
-                            size(cell_width, cell_height),
-                        );
-                        if focused {
-                            cursor_bounds = Some(caret);
+                window.with_content_mask(
+                    Some(gpui::ContentMask { bounds: pane_bounds }),
+                    |window| {
+                        for (row, line) in frame.lines.iter().enumerate() {
+                            let row_origin = pane_origin + point(px(0.), cell_height * row as f32);
+                            paint_backgrounds(line, row_origin, cell_width, cell_height, window);
+                            if let Some((from, to)) = selection
+                                .as_ref()
+                                .filter(|s| s.block == pane.block)
+                                .and_then(|s| s.columns(row as u16, pane.rect.cols))
+                            {
+                                window.paint_quad(fill(
+                                    Bounds::new(
+                                        row_origin + point(cell_width * f32::from(from), px(0.)),
+                                        size(cell_width * f32::from(to - from), cell_height),
+                                    ),
+                                    colors.accent.opacity(0.3),
+                                ));
+                            }
+                            paint_row(line, row_origin, &metrics, font, &colors, window, cx);
                         }
-                        paint_cursor(cursor.shape, caret, focused, thin, &colors, window);
-                        if focused && let Some(marked) = &ime_marked {
-                            paint_marked_text(marked, caret, &metrics, font, &colors, window, cx);
+                        if let Some(cursor) = frame.cursor {
+                            let caret = Bounds::new(
+                                pane_origin
+                                    + point(
+                                        cell_width * f32::from(cursor.col),
+                                        cell_height * f32::from(cursor.row),
+                                    ),
+                                size(cell_width, cell_height),
+                            );
+                            if focused {
+                                cursor_bounds = Some(caret);
+                            }
+                            paint_cursor(cursor.shape, caret, focused, thin, &colors, window);
+                            if focused && let Some(marked) = &ime_marked {
+                                paint_marked_text(
+                                    marked, caret, &metrics, font, &colors, window, cx,
+                                );
+                            }
                         }
-                    }
-                });
+                    },
+                );
             }
 
-            let divider = if focused && split {
-                colors.accent
-            } else {
-                colors.divider
-            };
+            let divider = if focused && split { colors.accent } else { colors.divider };
             if pane.rect.x + pane.rect.cols < area.cols {
                 window.paint_quad(fill(
                     Bounds::new(
@@ -596,10 +698,8 @@ fn span_run(span: &Span, len: usize, font: &Font, colors: &Colors, thin: Pixels)
             thickness: thin,
             wavy: false,
         }),
-        strikethrough: (span.f & flags::STRIKE != 0).then_some(StrikethroughStyle {
-            color: Some(foreground),
-            thickness: thin,
-        }),
+        strikethrough: (span.f & flags::STRIKE != 0)
+            .then_some(StrikethroughStyle { color: Some(foreground), thickness: thin }),
     }
 }
 
@@ -623,10 +723,7 @@ fn paint_row(
             let width = UnicodeWidthChar::width(character).unwrap_or(0);
             if width >= 2 {
                 segment.paint(origin, metrics, window, cx);
-                let mut wide = Segment {
-                    col,
-                    ..Segment::default()
-                };
+                let mut wide = Segment { col, ..Segment::default() };
                 wide.push(character, span_index, span, font, colors, thin);
                 wide.paint_unforced(origin, metrics, window, cx);
                 col += width;
@@ -710,21 +807,12 @@ impl Segment {
         if text.is_empty() || (!decorated && text.chars().all(|character| character == ' ')) {
             return;
         }
-        let shaped = window.text_system().shape_line(
-            text.into(),
-            metrics.font_size,
-            &runs,
-            force_width,
-        );
+        let shaped =
+            window.text_system().shape_line(text.into(), metrics.font_size, &runs, force_width);
         let position = origin + point(metrics.cell_width * self.col as f32, px(0.));
-        if let Err(error) = shaped.paint(
-            position,
-            metrics.cell_height,
-            gpui::TextAlign::Left,
-            None,
-            window,
-            cx,
-        ) {
+        if let Err(error) =
+            shaped.paint(position, metrics.cell_height, gpui::TextAlign::Left, None, window, cx)
+        {
             tracing::warn!(%error, "failed to paint terminal text");
         }
     }
@@ -755,15 +843,11 @@ fn paint_cursor(
     let beam = (cell.width / 6.0).max(px(2.));
     let quad = match shape {
         CursorShape::Block => fill(caret, colors.foreground.opacity(0.55)),
-        CursorShape::Beam => fill(
-            Bounds::new(caret.origin, size(beam, cell.height)),
-            colors.foreground,
-        ),
+        CursorShape::Beam => {
+            fill(Bounds::new(caret.origin, size(beam, cell.height)), colors.foreground)
+        }
         CursorShape::Underline => fill(
-            Bounds::new(
-                caret.origin + point(px(0.), cell.height - beam),
-                size(cell.width, beam),
-            ),
+            Bounds::new(caret.origin + point(px(0.), cell.height - beam), size(cell.width, beam)),
             colors.foreground,
         ),
     };
@@ -791,62 +875,44 @@ fn paint_marked_text(
         }),
         strikethrough: None,
     };
-    let shaped = window.text_system().shape_line(
-        marked.to_owned().into(),
-        metrics.font_size,
-        &[run],
-        None,
-    );
-    if let Err(error) = shaped.paint(
-        caret.origin,
-        metrics.cell_height,
-        gpui::TextAlign::Left,
-        None,
-        window,
-        cx,
-    ) {
+    let shaped =
+        window.text_system().shape_line(marked.to_owned().into(), metrics.font_size, &[run], None);
+    if let Err(error) =
+        shaped.paint(caret.origin, metrics.cell_height, gpui::TextAlign::Left, None, window, cx)
+    {
         tracing::warn!(%error, "failed to paint IME composition");
     }
 }
 
 /// Label for a tab: window name, else the focused block's title / command.
 fn tab_label(w: &WindowInfo) -> String {
-    let b = w
-        .blocks
-        .iter()
-        .find(|b| b.id == w.focused)
-        .or(w.blocks.first());
+    let b = w.blocks.iter().find(|b| b.id == w.focused).or(w.blocks.first());
     let title = b.map(|b| {
-        b.label
-            .clone()
-            .filter(|l| !l.is_empty())
-            .unwrap_or_else(|| {
-                if b.title.is_empty() {
-                    b.command.first().map_or_else(
-                        || "shell".into(),
-                        |c| c.rsplit('/').next().unwrap_or(c).to_owned(),
-                    )
-                } else {
-                    b.title.clone()
-                }
-            })
+        b.label.clone().filter(|l| !l.is_empty()).unwrap_or_else(|| {
+            if b.title.is_empty() {
+                b.command.first().map_or_else(
+                    || "shell".into(),
+                    |c| c.rsplit('/').next().unwrap_or(c).to_owned(),
+                )
+            } else {
+                b.title.clone()
+            }
+        })
     });
     let name = if w.name.chars().all(|c| c.is_ascii_digit()) {
         title.unwrap_or_default()
     } else {
         w.name.clone()
     };
-    let status = w
-        .blocks
-        .iter()
-        .filter_map(|b| b.status.as_ref().map(|s| s.state))
-        .max_by_key(|s| match s {
+    let status = w.blocks.iter().filter_map(|b| b.status.as_ref().map(|s| s.state)).max_by_key(
+        |s| match s {
             ProgramState::Blocked => 4,
             ProgramState::Error => 3,
             ProgramState::Working => 2,
             ProgramState::Done => 1,
             ProgramState::Idle => 0,
-        });
+        },
+    );
     let mut label: String = name.chars().take(28).collect();
     if let Some(s) = status {
         label = format!("{} {label}", s.glyph());
@@ -871,20 +937,12 @@ impl gpui::EntityInputHandler for TermView {
         _: &mut Window,
         _: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
-        let end = self
-            .ime_marked
-            .as_ref()
-            .map_or(0, |marked| marked.encode_utf16().count());
-        Some(UTF16Selection {
-            range: end..end,
-            reversed: false,
-        })
+        let end = self.ime_marked.as_ref().map_or(0, |marked| marked.encode_utf16().count());
+        Some(UTF16Selection { range: end..end, reversed: false })
     }
 
     fn marked_text_range(&self, _: &mut Window, _: &mut Context<Self>) -> Option<Range<usize>> {
-        self.ime_marked
-            .as_ref()
-            .map(|marked| 0..marked.encode_utf16().count())
+        self.ime_marked.as_ref().map(|marked| 0..marked.encode_utf16().count())
     }
 
     fn unmark_text(&mut self, _: &mut Window, cx: &mut Context<Self>) {
@@ -904,10 +962,7 @@ impl gpui::EntityInputHandler for TermView {
             cx.notify();
             return;
         }
-        self.act(
-            Action::Send(ferrumterm_protocol::Input::Text(text.to_owned())),
-            cx,
-        );
+        self.act(Action::Send(ferrumterm_protocol::Input::Text(text.to_owned())), cx);
     }
 
     fn replace_and_mark_text_in_range(

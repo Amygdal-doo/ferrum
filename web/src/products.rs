@@ -2,24 +2,20 @@
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
-    /// Working foundation, actively developed (FerrumData).
+    /// Installable through Ferrum Toolbox, actively developed. Every app today.
     Alpha,
-    /// First vertical slice, being built now.
-    Preview,
 }
 
 impl Status {
     pub fn label(self) -> &'static str {
         match self {
             Status::Alpha => "Alpha",
-            Status::Preview => "Early preview",
         }
     }
     /// CSS modifier used by `.badge--{class}`.
     pub fn css_class(self) -> &'static str {
         match self {
             Status::Alpha => "alpha",
-            Status::Preview => "preview",
         }
     }
 }
@@ -63,7 +59,7 @@ pub const FERRUM_IDE: Product = Product {
     accent_var: "--app-ide",
     kind: "Code editor",
     tagline: "A GPU-accelerated code editor, an independent fork of the open-source Zed editor.",
-    status: Status::Preview,
+    status: Status::Alpha,
 };
 
 pub const FERRUMAPI: Product = Product {
@@ -74,7 +70,7 @@ pub const FERRUMAPI: Product = Product {
     accent_var: "--app-api",
     kind: "API client",
     tagline: "A native, local-first API client with the Postman basics, minus the bloat.",
-    status: Status::Preview,
+    status: Status::Alpha,
 };
 
 pub const FERRUMGIT: Product = Product {
@@ -85,7 +81,7 @@ pub const FERRUMGIT: Product = Product {
     accent_var: "--app-git",
     kind: "Git client",
     tagline: "A native Git client with a commit graph, line staging and per-project SSH profiles.",
-    status: Status::Preview,
+    status: Status::Alpha,
 };
 
 pub const FERRUMDATA: Product = Product {
@@ -107,7 +103,7 @@ pub const FERRUMTERM: Product = Product {
     accent_var: "--app-term",
     kind: "Terminal",
     tagline: "A GPU terminal whose sessions live in a server, with the fterm CLI for humans and agents.",
-    status: Status::Preview,
+    status: Status::Alpha,
 };
 
 pub const FERRUM_TOOLBOX: Product = Product {
@@ -118,7 +114,7 @@ pub const FERRUM_TOOLBOX: Product = Product {
     accent_var: "--app-toolbox",
     kind: "App manager",
     tagline: "Installs, updates, rolls back and launches every Ferrum app from one window.",
-    status: Status::Preview,
+    status: Status::Alpha,
 };
 
 pub const ALL: [Product; 6] = [

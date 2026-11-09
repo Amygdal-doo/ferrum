@@ -54,6 +54,12 @@ impl FerrumApi {
             })
             .child(div().flex_1())
             .child(
+                Button::new("cookies", "Cookies")
+                    .style(ButtonStyle::Subtle)
+                    .tooltip(Tooltip::text("View and clear stored cookies"))
+                    .on_click(cx.listener(|this, _, _, cx| this.open_cookies(cx))),
+            )
+            .child(
                 Button::new("import", "Import")
                     .style(ButtonStyle::Outlined)
                     .tooltip(Tooltip::text(

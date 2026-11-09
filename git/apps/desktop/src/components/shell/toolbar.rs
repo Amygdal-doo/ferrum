@@ -243,6 +243,15 @@ pub fn render(app: &FerrumGit, _: &mut Window, cx: &mut Context<FerrumGit>) -> A
             None,
             move |app, _, _, cx| app.go(id, false, cx),
             cx,
+        ))
+        .child(tool(
+            "tool-undo",
+            Icon::Undo,
+            "Undo",
+            is_busy || snap.undo.is_none(),
+            None,
+            move |app, _, window, cx| app.undo(id, window, cx),
+            cx,
         ));
 
     let actions = h_flex()

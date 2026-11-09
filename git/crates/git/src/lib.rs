@@ -10,6 +10,7 @@
 //! each project can push/pull with its own SSH key.
 
 mod error;
+mod history;
 pub mod parse;
 pub mod patch;
 mod read;

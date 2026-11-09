@@ -4,7 +4,7 @@ use crate::error::{GitError, GitResult};
 use crate::parse::{self, COMMIT_FORMAT, DETAILS_FORMAT, REFS_FORMAT, STASH_FORMAT};
 use crate::runner::{Cmd, Git};
 use ferrumgit_domain::{
-    Commit, CommitDetails, FileDiff, GitRef, Oid, Remote, RepoOperation, Stash, WorkingStatus,
+    Commit, CommitDetails, FileDiff, GitRef, Oid, Remote, RepoOperation, Stash, Undo, WorkingStatus,
 };
 use std::path::{Path, PathBuf};
 
@@ -31,6 +31,8 @@ pub struct Snapshot {
     pub remotes: Vec<Remote>,
     /// More commits exist beyond the loaded limit.
     pub has_more: bool,
+    /// The last local operation, if it can be undone safely.
+    pub undo: Option<Undo>,
 }
 
 impl Repo {
@@ -171,8 +173,13 @@ impl Repo {
 
     /// Status, log, refs, stashes and remotes, read concurrently.
     pub async fn snapshot(&self, limit: usize) -> GitResult<Snapshot> {
-        let (status, refs, stashes, remotes) =
-            tokio::join!(self.status(), self.refs(), self.stashes(), self.remotes());
+        let (status, refs, stashes, remotes, undo) = tokio::join!(
+            self.status(),
+            self.refs(),
+            self.stashes(),
+            self.remotes(),
+            self.undo_plan()
+        );
         let status = status?;
         let refs = refs?;
         let has_commits = status.branch.oid.is_some() || !refs.is_empty();
@@ -184,6 +191,7 @@ impl Repo {
             stashes: stashes?,
             remotes: remotes?,
             has_more,
+            undo: undo.unwrap_or_default(),
         })
     }
 

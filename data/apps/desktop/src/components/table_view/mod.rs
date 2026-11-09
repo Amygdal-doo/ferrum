@@ -53,7 +53,7 @@ impl FerrumData {
                     .min_h_0()
                     .border_t_1()
                     .border_color(colors.border)
-                    .child(self.render_results(cx)),
+                    .child(self.render_results(window, cx)),
             )
             .into_any_element()
     }

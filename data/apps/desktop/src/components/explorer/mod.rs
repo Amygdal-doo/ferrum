@@ -1,4 +1,7 @@
-//! Lazy table tree under each connection.
+//! Lazy table tree under each connection; SQL tables expand to their
+//! columns and indexes.
+
+mod details;
 
 use crate::app::FerrumData;
 use crate::state::SchemaLoad;
@@ -65,6 +68,8 @@ impl FerrumData {
             .state
             .profile(profile_id)
             .map_or(DatabaseEngine::Postgres, |p| p.engine);
+        // Column/index details come from the SQL catalogs.
+        let describable = engine.is_sql();
         let active_table = self
             .state
             .active_tab()
@@ -102,13 +107,15 @@ impl FerrumData {
                 info.kind.label()
             );
             let open = (*info).clone();
+            let key = (profile_id, info.table.clone());
+            let expanded = describable && self.state.expanded_tables.contains(&key);
             items.push(
                 h_flex()
                     .id(SharedString::from(format!("table-{profile_id}-{index}")))
                     .gap_1p5()
                     .rounded_sm()
                     .py_0p5()
-                    .pl(px(28.))
+                    .pl(px(if describable { 10. } else { 28. }))
                     .pr_2()
                     .text_xs()
                     .when(active, |this| this.bg(colors.element_selected))
@@ -120,10 +127,34 @@ impl FerrumData {
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.open_table(profile_id, open.clone(), cx)
                     }))
+                    .when(describable, |this| {
+                        let table = info.table.clone();
+                        this.child(
+                            IconButton::new(
+                                SharedString::from(format!("details-{profile_id}-{index}")),
+                                if expanded {
+                                    IconName::ChevronDown
+                                } else {
+                                    IconName::ChevronRight
+                                },
+                            )
+                            .icon_size(IconSize::XSmall)
+                            .tooltip(Tooltip::text("Columns and indexes"))
+                            .on_click(cx.listener(
+                                move |this, _, _, cx| {
+                                    cx.stop_propagation();
+                                    this.toggle_table_details(profile_id, table.clone(), cx);
+                                },
+                            )),
+                        )
+                    })
                     .child(div().text_color(colors.text_muted).child(icon))
                     .child(div().truncate().child(info.table.name.clone()))
                     .into_any_element(),
             );
+            if expanded {
+                items.push(self.render_table_details(&key, cx));
+            }
         }
 
         v_flex()

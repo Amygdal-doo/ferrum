@@ -1,7 +1,9 @@
 //! Small UI-state value types.
 
 use ferrumapi_application::interop::codegen::CodeTarget;
-use ferrumapi_domain::{Collection, CollectionId, Environment, HttpResponse, ItemId, TabId};
+use ferrumapi_domain::{
+    Collection, CollectionId, CookieJar, Environment, HttpResponse, ItemId, TabId,
+};
 use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +55,19 @@ pub enum BodyMode {
     Pretty,
     Raw,
     Preview,
+}
+
+/// Find-in-response (⌘F) state. Matches are recomputed from the displayed
+/// body; `current` indexes them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ResponseSearch {
+    pub query: String,
+    pub case_sensitive: bool,
+    pub current: usize,
+    /// Scroll the current match into view on the next render.
+    pub reveal: bool,
+    /// Move keyboard focus to the search field on the next render.
+    pub focus: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,4 +124,8 @@ pub enum Dialog {
         tab_id: TabId,
         target: CodeTarget,
     },
+    /// The cookie jar as last loaded from the services.
+    Cookies(Box<CookieJar>),
+    /// Progress of `AppState::runner`.
+    Runner,
 }

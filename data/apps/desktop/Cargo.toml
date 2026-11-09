@@ -16,12 +16,15 @@ ferrumdata-application.workspace = true
 ferrumdata-result-grid-core.workspace = true
 ferrumdata-editor-core.workspace = true
 ferrum-ui.workspace = true
+# Named directly so `gpui::actions!` resolves (same as FerrumGIT/FerrumAPI).
+gpui.workspace = true
 menu.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 directories.workspace = true
 uuid.workspace = true
+chrono.workspace = true
 
 [lints]
 workspace = true

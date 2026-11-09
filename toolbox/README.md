@@ -41,12 +41,13 @@ prerelease flag:
 | **Beta** | `-beta.N`, `-rc.N` (or any other prerelease part), or marked prerelease on GitHub | `data-v1.3.0-beta.1`, `data-v1.3.0-rc.1` |
 | **Alpha** | prerelease part starting with `alpha` | `data-v1.4.0-alpha.2` |
 
-Each app has an **update channel**, set on its page: **Stable** (default)
-offers only stable releases; **Beta** offers betas and stable releases, so a
-stable release newer than the newest beta wins. Alpha builds are never
-offered as updates, but they're listed and can be installed by hand. (Older
-state files with "Include prereleases" turned on are migrated to Beta for
-every app.)
+Each app has an **update channel**, set on its page: **Stable** offers only
+stable releases; **Beta** offers betas and stable releases; **Alpha**
+(default) offers everything. A channel always takes a more stable release
+when it's newer. Every Ferrum app is in alpha today, so the toolbox moves
+every app to Alpha once (`settings.channels_revision`); a channel picked
+afterwards is kept. (Older state files with "Include prereleases" turned on
+were first migrated to Beta.)
 
 ### App status (`catalog.json`)
 
@@ -93,12 +94,12 @@ apps use its GPUI crates.
 ## Using the toolbox
 
 - **Overview** (the start page): one row per app with its logo, status,
-  installed version, latest stable, latest beta, last release date, total
+  installed version, latest stable, latest alpha (or beta), last release date, total
   downloads (GitHub download counts, checksum files excluded) and the next
   action: **Install**, **Update**, **Open** or ✓ up to date. Click a row to
   open the app. There is no sidebar: the overview is the whole window.
 - **App page** (**All apps** goes back): logo, status, summary, highlights and roadmap from the
-  catalog, the **Stable | Beta** update channel, the **Launch**,
+  catalog, the **Stable | Beta | Alpha** update channel, the **Launch**,
   **Install / Update to vX** and **Uninstall** buttons, then a list of every
   version with its channel, date, size, downloads and an active/installed
   marker, and **Install**, **Activate** or **Remove** buttons. Click a row to

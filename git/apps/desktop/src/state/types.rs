@@ -1,8 +1,10 @@
 //! Small UI-state value types.
 
 use ferrumgit_application::{CancellationToken, RepoData};
-use ferrumgit_domain::{CommitDetails, DiffSource, FileDiff, Oid, ProfileId, RepoId, RepoOp};
-use std::collections::BTreeSet;
+use ferrumgit_domain::{
+    Blame, CommitDetails, DiffSource, FileCommit, FileDiff, Oid, ProfileId, RepoId, RepoOp,
+};
+use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -40,6 +42,33 @@ pub struct DiffView {
     pub lines: BTreeSet<(usize, usize)>,
 }
 
+/// Tab of the file panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum FileTab {
+    #[default]
+    History,
+    Blame,
+}
+
+/// History and blame of one file; replaces the right panel while open.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct FileView {
+    pub path: String,
+    /// Where history starts and blame is taken; `None` = HEAD / working tree.
+    pub rev: Option<Oid>,
+    pub tab: FileTab,
+    pub history: Option<Arc<Vec<FileCommit>>>,
+    pub blame: Option<Arc<Blame>>,
+    pub error: Option<String>,
+}
+
+/// Commits whose full message matched a search (from `git log --grep`).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SearchHits {
+    pub query: String,
+    pub oids: Arc<HashSet<String>>,
+}
+
 /// Per-repository UI state.
 #[derive(Debug, Clone, Default)]
 pub struct RepoView {
@@ -62,6 +91,12 @@ pub struct RepoView {
     pub forward: Vec<Selection>,
     /// History search (message, author, SHA).
     pub search: String,
+    /// Message-body matches for `search`, once `git log --grep` answered.
+    pub search_hits: SearchHits,
+    /// Show only matching commits instead of highlighting them in the graph.
+    pub search_filter: bool,
+    /// File history / blame panel.
+    pub file: Option<FileView>,
     /// Files expanded in the commit details.
     pub expanded: std::collections::HashSet<String>,
     /// Details show a folder tree instead of the changeset.

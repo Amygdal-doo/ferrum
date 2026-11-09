@@ -107,21 +107,28 @@ impl Channel {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum UpdateChannel {
-    #[default]
     Stable,
     Beta,
+    /// Every Ferrum app is in alpha, so this is where updates come from.
+    #[default]
+    Alpha,
 }
 
 impl UpdateChannel {
-    pub const ALL: [UpdateChannel; 2] = [UpdateChannel::Stable, UpdateChannel::Beta];
+    pub const ALL: [UpdateChannel; 3] = [
+        UpdateChannel::Stable,
+        UpdateChannel::Beta,
+        UpdateChannel::Alpha,
+    ];
 
-    /// Beta also takes stable releases, so a stable release newer than the
-    /// newest beta wins. Alpha builds are never offered as updates.
+    /// Each channel also takes the more stable ones, so a stable release
+    /// newer than the newest beta or alpha wins.
     #[must_use]
     pub fn accepts(self, channel: Channel) -> bool {
         match self {
             UpdateChannel::Stable => channel == Channel::Stable,
             UpdateChannel::Beta => matches!(channel, Channel::Stable | Channel::Beta),
+            UpdateChannel::Alpha => true,
         }
     }
 
@@ -130,6 +137,7 @@ impl UpdateChannel {
         match self {
             UpdateChannel::Stable => "Stable",
             UpdateChannel::Beta => "Beta",
+            UpdateChannel::Alpha => "Alpha",
         }
     }
 }
@@ -392,6 +400,21 @@ mod tests {
         assert!(UpdateChannel::Beta.accepts(Channel::Stable));
         assert!(!UpdateChannel::Beta.accepts(Channel::Alpha));
         assert!(!UpdateChannel::Stable.accepts(Channel::Beta));
+    }
+
+    #[test]
+    fn alpha_channel_takes_every_release_newest_first() {
+        let mut releases = vec![
+            release_with("0.3.0", false),
+            release_with("0.4.0-alpha.1", false),
+            release_with("0.4.0-alpha.2", false),
+        ];
+        let alpha = latest(&releases, AppId::Api, UpdateChannel::Alpha).expect("alpha");
+        assert_eq!(alpha.version.to_string(), "0.4.0-alpha.2");
+        releases.push(release_with("0.4.0", false));
+        let alpha = latest(&releases, AppId::Api, UpdateChannel::Alpha).expect("alpha");
+        assert_eq!(alpha.version, Version::new(0, 4, 0));
+        assert_eq!(UpdateChannel::default(), UpdateChannel::Alpha);
     }
 
     #[test]

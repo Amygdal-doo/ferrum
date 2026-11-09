@@ -10,10 +10,11 @@ use crate::components::icons::Icon;
 use crate::components::widgets::small_button;
 use crate::state::Selection;
 use ferrumgit_application::RepoData;
-use ferrumgit_domain::{Commit, GitRef, RepoId};
+use ferrumgit_domain::search::CommitQuery;
+use ferrumgit_domain::{GitRef, RepoId};
 use gpui::{AnyElement, Context, Window, div, list, prelude::*, px};
 use row::{CommitRowProps, commit_row, month_row};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::Arc;
 use theme::ActiveTheme;
@@ -30,6 +31,8 @@ pub struct HistoryKey {
     repo: RepoId,
     data: usize,
     search: String,
+    filter: bool,
+    matches: usize,
 }
 
 enum Item {
@@ -47,7 +50,10 @@ struct History {
     head: Option<ferrumgit_domain::Oid>,
     lanes: usize,
     graph_px: f32,
-    searching: bool,
+    /// Only matching commits are listed (no graph).
+    filtering: bool,
+    /// Rows matching the search; `None` when not searching.
+    matched: Option<HashSet<usize>>,
 }
 
 fn month(unix: i64) -> String {
@@ -58,12 +64,6 @@ fn month(unix: i64) -> String {
         .map_or_else(String::new, |t| {
             t.format("%B %Y").to_string().to_uppercase()
         })
-}
-
-fn matches(c: &Commit, needle: &str) -> bool {
-    c.summary.to_lowercase().contains(needle)
-        || c.author_name.to_lowercase().contains(needle)
-        || c.oid.as_str().starts_with(needle)
 }
 
 pub fn commit_list(app: &mut FerrumGit, _: &mut Window, cx: &mut Context<FerrumGit>) -> AnyElement {
@@ -90,8 +90,11 @@ pub fn commit_list(app: &mut FerrumGit, _: &mut Window, cx: &mut Context<FerrumG
             .into_any_element();
     };
     let snap = &data.snapshot;
-    let needle = view.search.trim().to_lowercase();
+    let needle = CommitQuery::new(&view.search);
     let searching = !needle.is_empty();
+    let filtering = searching && view.search_filter;
+    let found = app.search_matches(id);
+    let matched: HashSet<usize> = found.iter().copied().collect();
     let mut by_oid: HashMap<String, Vec<GitRef>> = HashMap::new();
     for r in &snap.refs {
         by_oid
@@ -101,12 +104,10 @@ pub fn commit_list(app: &mut FerrumGit, _: &mut Window, cx: &mut Context<FerrumG
     }
     let mut items = Vec::new();
     let mut last_month = String::new();
-    let mut matched = 0;
     for (i, c) in snap.commits.iter().enumerate() {
-        if searching && !matches(c, &needle) {
+        if filtering && !matched.contains(&i) {
             continue;
         }
-        matched += 1;
         let m = month(c.author_time);
         if m != last_month {
             items.push(Item::Month(m.clone()));
@@ -114,10 +115,10 @@ pub fn commit_list(app: &mut FerrumGit, _: &mut Window, cx: &mut Context<FerrumG
         }
         items.push(Item::Commit(i));
     }
-    if snap.has_more && !searching {
+    if snap.has_more && !filtering {
         items.push(Item::More);
     }
-    let lanes = if searching {
+    let lanes = if filtering {
         0
     } else {
         data.graph
@@ -127,21 +128,31 @@ pub fn commit_list(app: &mut FerrumGit, _: &mut Window, cx: &mut Context<FerrumG
             .unwrap_or(1)
             .min(MAX_LANES)
     };
-    let graph_px = if searching {
+    let graph_px = if filtering {
         0.0
     } else {
         lanes as f32 * LANE_W + 12.0
     };
-    let count = if searching {
-        format!("{matched} of {}", snap.commits.len())
-    } else {
-        snap.commits.len().to_string()
+    let selected_row = match &view.selection {
+        Selection::Commit(oid) => snap.commits.iter().position(|c| &c.oid == oid),
+        _ => None,
+    };
+    let count = match found.iter().position(|r| Some(*r) == selected_row) {
+        _ if !searching => snap.commits.len().to_string(),
+        Some(n) => format!("{} of {}", n + 1, found.len()),
+        None => format!(
+            "{} match{}",
+            found.len(),
+            if found.len() == 1 { "" } else { "es" }
+        ),
     };
 
     let key = HistoryKey {
         repo: id,
         data: Arc::as_ptr(&data) as usize,
-        search: needle.clone(),
+        search: needle.as_str().to_owned(),
+        filter: filtering,
+        matches: found.len(),
     };
     if app.history_key.as_ref() != Some(&key) || app.history.item_count() != items.len() {
         app.history.reset(items.len());
@@ -166,7 +177,8 @@ pub fn commit_list(app: &mut FerrumGit, _: &mut Window, cx: &mut Context<FerrumG
         selection: view.selection.clone(),
         lanes,
         graph_px,
-        searching,
+        filtering,
+        matched: searching.then_some(matched),
     });
     let weak = cx.entity().downgrade();
     let item_theme = theme.clone();
@@ -199,6 +211,7 @@ pub fn commit_list(app: &mut FerrumGit, _: &mut Window, cx: &mut Context<FerrumG
                         .size(LabelSize::XSmall)
                         .color(Color::Muted),
                 )
+                .when(searching, |d| d.child(search_controls(id, filtering, cx)))
                 .child(
                     div()
                         .id("toggle-invisibles")
@@ -249,7 +262,7 @@ fn render_item(
     match item {
         Item::Month(label) => {
             let rails = match history.items.get(ix + 1) {
-                Some(Item::Commit(n)) if !history.searching => history
+                Some(Item::Commit(n)) if !history.filtering => history
                     .data
                     .graph
                     .get(*n)
@@ -277,7 +290,8 @@ fn render_item(
                 repo: history.repo,
                 is_head: history.head.as_ref() == Some(&commit.oid),
                 selected: history.selection == Selection::Commit(commit.oid.clone()),
-                graph: (!history.searching)
+                matched: history.matched.as_ref().map(|m| m.contains(n)),
+                graph: (!history.filtering)
                     .then(|| history.data.graph.get(*n).cloned())
                     .flatten(),
                 commit,
@@ -312,4 +326,57 @@ fn render_item(
                 .into_any_element()
         }
     }
+}
+
+/// Previous / next match and the "only matches" filter, shown while searching.
+fn search_controls(id: RepoId, filtering: bool, cx: &mut Context<FerrumGit>) -> AnyElement {
+    let colors = cx.theme().colors().clone();
+    let button = |name: &'static str, icon: Icon, tip: &'static str, active: bool| {
+        div()
+            .id(name)
+            .p_1()
+            .rounded_sm()
+            .cursor_pointer()
+            .when(active, |d| d.bg(colors.element_selected))
+            .hover(|s| s.bg(colors.element_hover))
+            .tooltip(Tooltip::text(tip))
+            .child(icon.icon().size(IconSize::Small).color(if active {
+                Color::Accent
+            } else {
+                Color::Muted
+            }))
+    };
+    h_flex()
+        .gap_0p5()
+        .child(
+            button("search-prev", Icon::ChevronUp, "Previous match", false)
+                .on_click(cx.listener(move |app, _, _, cx| app.search_step(id, false, cx))),
+        )
+        .child(
+            button(
+                "search-next",
+                Icon::ChevronDown,
+                "Next match (Enter)",
+                false,
+            )
+            .on_click(cx.listener(move |app, _, _, cx| app.search_step(id, true, cx))),
+        )
+        .child(
+            button(
+                "search-filter",
+                Icon::Filter,
+                if filtering {
+                    "Show the whole graph"
+                } else {
+                    "Show only matching commits"
+                },
+                filtering,
+            )
+            .on_click(cx.listener(move |app, _, _, cx| {
+                app.state
+                    .update_view(id, |v| v.search_filter = !v.search_filter);
+                cx.notify();
+            })),
+        )
+        .into_any_element()
 }

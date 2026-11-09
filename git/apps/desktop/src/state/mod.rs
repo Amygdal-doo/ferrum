@@ -3,7 +3,10 @@
 
 mod types;
 
-pub use types::{Busy, Dialog, DiffView, Notice, Page, PromptKind, RepoView, Selection};
+pub use types::{
+    Busy, Dialog, DiffView, FileTab, FileView, Notice, Page, PromptKind, RepoView, SearchHits,
+    Selection,
+};
 
 use ferrumgit_application::DEFAULT_LOG_LIMIT;
 use ferrumgit_domain::{AppSettings, Profile, RepoEntry, RepoId};

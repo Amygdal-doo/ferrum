@@ -48,6 +48,8 @@ impl FerrumData {
                         tab.profile_id = None;
                         tab.unsaved = true;
                     }
+                    // Its query history was deleted with it.
+                    this.invalidate_history();
                     this.reload_profiles(cx);
                 }
                 Ok(Err(e)) => this.notify_user(e.message, true, cx),

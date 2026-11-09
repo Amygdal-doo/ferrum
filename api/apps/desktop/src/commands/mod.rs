@@ -2,9 +2,11 @@
 //! `AppServices::spawn` and only touches state from the UI thread.
 
 pub mod collections;
+pub mod cookies;
 pub mod environments;
 pub mod files;
 pub mod history;
+pub mod runner;
 pub mod send;
 pub mod workspace;
 

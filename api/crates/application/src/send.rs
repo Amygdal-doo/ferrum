@@ -84,10 +84,7 @@ impl AppServices {
         origin: Option<RequestOrigin>,
         cancel: CancellationToken,
     ) -> Result<HttpResponse, ExecError> {
-        let result = self
-            .http
-            .execute(&prepared.request, &prepared.variables, cancel)
-            .await;
+        let result = self.execute(prepared, cancel).await;
         if matches!(result, Err(ExecError::Cancelled)) {
             return result;
         }
@@ -103,6 +100,25 @@ impl AppServices {
         let limit = self.history_limit().await;
         if let Err(e) = self.store.add_history(&entry, limit).await {
             tracing::warn!(error = %e, "failed to record history");
+        }
+        result
+    }
+
+    /// Executes `prepared` with cookies from the jar, then stores the
+    /// response's cookies. Nothing is recorded in history.
+    pub async fn execute(
+        &self,
+        prepared: Prepared,
+        cancel: CancellationToken,
+    ) -> Result<HttpResponse, ExecError> {
+        let Prepared {
+            mut request,
+            variables,
+        } = prepared;
+        self.apply_cookies(&mut request, &variables).await;
+        let result = self.http.execute(&request, &variables, cancel).await;
+        if let Ok(response) = &result {
+            self.remember_cookies(response).await;
         }
         result
     }

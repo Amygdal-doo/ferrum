@@ -12,7 +12,8 @@ use ferrumdata_db_driver_api::{
     event_channel,
 };
 use ferrumdata_domain::{
-    CapabilitySet, DatabaseEngine, QueryRequest, ResolvedConnectionConfig, Secret, TableInfo,
+    CapabilitySet, DatabaseEngine, QueryRequest, ResolvedConnectionConfig, Secret, TableDetails,
+    TableInfo, TableRef,
 };
 use sqlx::mysql::MySqlPoolOptions;
 use sqlx::{Executor, MySqlPool};
@@ -107,6 +108,10 @@ impl DbConnection for MySqlConnection {
 
     async fn list_tables(&self) -> DbResult<Vec<TableInfo>> {
         introspect::list_tables(&self.pool, &self.secret).await
+    }
+
+    async fn describe_table(&self, table: &TableRef) -> DbResult<TableDetails> {
+        introspect::describe_table(&self.pool, &self.secret, table).await
     }
 
     async fn execute(&self, request: QueryRequest) -> DbResult<QueryExecution> {

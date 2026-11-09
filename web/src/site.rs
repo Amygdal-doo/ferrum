@@ -23,6 +23,10 @@ pub const RELEASES_API_URL: &str =
 /// Redirects (302) to the newest stable Ferrum Toolbox DMG (Apple Silicon).
 pub const MACOS_DOWNLOAD_PATH: &str = "/download/macos";
 
+/// One-line Terminal install. curl downloads aren't quarantined, so this
+/// skips the Gatekeeper warning a browser-downloaded DMG gets.
+pub const MACOS_INSTALL_COMMAND: &str = "curl -fsSL https://raw.githubusercontent.com/Amygdal-doo/ferrum-releases/main/install.sh | bash";
+
 /// Whether current macOS builds are Developer ID signed and notarized.
 /// While `false`, the download page explains Gatekeeper's "Open Anyway" step.
 /// Flip to `true` once notarized builds ship; that hides the section.

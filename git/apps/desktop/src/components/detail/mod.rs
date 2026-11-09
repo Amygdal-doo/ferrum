@@ -8,6 +8,7 @@ mod wip;
 
 use crate::app::FerrumGit;
 use crate::components::diff::diff_pane;
+use crate::components::file_panel::file_panel;
 use crate::components::graph::commit_list;
 use crate::components::widgets::empty;
 use crate::state::{Page, Selection};
@@ -48,6 +49,8 @@ pub fn right_column(
     };
     let view = app.state.view(id);
     let body = match view.page {
+        // File history / blame covers the panel on every page until closed.
+        _ if let Some(f) = view.file.clone() => file_panel(app, id, f, cx),
         Page::WorkingCopy => match view.diff {
             Some(_) => diff_pane(app, cx),
             None => empty("Select a file to see its changes"),

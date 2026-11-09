@@ -5,7 +5,7 @@ use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection};
 use ferrumdata_db_sqlite::SqliteDriver;
 use ferrumdata_domain::{
     CellValue, ConnectionProfile, DatabaseEngine, DbErrorKind, Endpoint, ExecutionId, ProfileId,
-    QueryEvent, QueryLimits, QueryRequest, ResolvedConnectionConfig, TableKind,
+    QueryEvent, QueryLimits, QueryRequest, ResolvedConnectionConfig, TableKind, TableRef,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -284,5 +284,88 @@ async fn lists_tables_with_case_preserved_names_and_primary_keys() {
     );
     assert!(tables[2].primary_key.is_empty());
     assert_eq!(tables[3].kind, TableKind::View);
+    conn.close().await;
+}
+
+#[tokio::test]
+async fn describes_columns_and_indexes() {
+    let (_dir, path) = new_db();
+    let conn = connect(&path, false).await;
+    ok(
+        &conn,
+        r#"create table "Order" (
+            id integer primary key,
+            "customerEmail" text not null default 'n/a',
+            total numeric(10, 2),
+            loose
+        )"#,
+    )
+    .await;
+    ok(
+        &conn,
+        r#"create unique index order_email on "Order" ("customerEmail", total)"#,
+    )
+    .await;
+    ok(
+        &conn,
+        r#"create index order_lower on "Order" (lower("customerEmail"))"#,
+    )
+    .await;
+    ok(
+        &conn,
+        "create table pair (a int, b int, note text, primary key (b, a))",
+    )
+    .await;
+
+    let table = |name: &str| TableRef {
+        schema: None,
+        name: name.into(),
+    };
+    let d = conn
+        .describe_table(&table("Order"))
+        .await
+        .expect("describe");
+    let summary: Vec<String> = d
+        .columns
+        .iter()
+        .map(|c| format!("{} {}", c.name, c.summary()))
+        .collect();
+    assert_eq!(
+        summary,
+        vec![
+            "id INTEGER · PK · NULL",
+            "customerEmail TEXT · NOT NULL · = 'n/a'",
+            "total numeric(10, 2) · NULL",
+            "loose (no type) · NULL",
+        ]
+    );
+    let idx: Vec<String> = d
+        .indexes
+        .iter()
+        .map(|i| format!("{} {}", i.name, i.summary()))
+        .collect();
+    assert_eq!(
+        idx,
+        vec![
+            "PRIMARY KEY PRIMARY KEY (id)",
+            "order_email UNIQUE (customerEmail, total)",
+            "order_lower (<expression>)",
+        ]
+    );
+
+    // A composite key gets a real autoindex, listed in key order.
+    let d = conn.describe_table(&table("pair")).await.expect("describe");
+    assert_eq!(d.indexes.len(), 1);
+    assert!(d.indexes[0].primary && d.indexes[0].unique);
+    assert_eq!(d.indexes[0].columns, vec!["b".to_owned(), "a".to_owned()]);
+    assert_eq!(
+        d.columns.iter().filter(|c| c.primary_key).count(),
+        2,
+        "{d:?}"
+    );
+
+    // Unknown tables describe as empty rather than failing.
+    let d = conn.describe_table(&table("nope")).await.expect("describe");
+    assert!(d.columns.is_empty() && d.indexes.is_empty());
     conn.close().await;
 }

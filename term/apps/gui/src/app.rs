@@ -3,6 +3,9 @@
 //! disconnects; every program keeps running in the server.
 
 use crate::input::{Action, Shortcut};
+use crate::sidebar::agents;
+use crate::sidebar::model::Seen;
+use crate::ui_state::UiState;
 use crate::view::TabKind;
 use ferrumterm_client::{Client, connect_or_start, paths};
 use ferrumterm_protocol::{
@@ -37,6 +40,9 @@ pub struct App {
     /// Pane rectangles in window px from the last paint, for clicks.
     pub panes: Vec<(BlockId, f32, f32, f32, f32)>,
     pub message: Option<(String, Instant)>,
+    /// Agent statuses already shown on screen (for the sidebar's badge).
+    pub seen: Seen,
+    pub ui: UiState,
     creating: bool,
     want_newest: bool,
 }
@@ -48,10 +54,7 @@ fn spawn_env() -> Spawn {
         .iter()
         .filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v)))
         .collect();
-    Spawn {
-        env,
-        ..Spawn::default()
-    }
+    Spawn { env, ..Spawn::default() }
 }
 
 impl App {
@@ -68,6 +71,8 @@ impl App {
             font_pt: DEFAULT_FONT_PT,
             panes: Vec::new(),
             message: None,
+            seen: Seen::default(),
+            ui: UiState::load(),
             creating: false,
             want_newest: false,
         }
@@ -130,10 +135,7 @@ impl App {
 
     pub fn window(&self) -> Option<&WindowInfo> {
         let s = self.session()?;
-        s.windows
-            .iter()
-            .find(|w| w.id == s.active_window)
-            .or(s.windows.first())
+        s.windows.iter().find(|w| w.id == s.active_window).or(s.windows.first())
     }
 
     pub fn focused(&self) -> Option<BlockId> {
@@ -146,22 +148,20 @@ impl App {
             self.want_newest = false;
         }
         self.sessions = sessions;
-        if self
-            .current
-            .is_none_or(|id| !self.sessions.iter().any(|s| s.id == id))
-        {
+        if self.current.is_none_or(|id| !self.sessions.iter().any(|s| s.id == id)) {
             self.current = self.sessions.first().map(|s| s.id);
         }
         if self.sessions.is_empty() {
             if !self.creating {
                 self.creating = true;
-                self.send(Request::NewSession {
-                    name: None,
-                    spawn: spawn_env(),
-                });
+                self.send(Request::NewSession { name: None, spawn: spawn_env() });
             }
         } else {
             self.creating = false;
+        }
+        self.seen.retain(&self.sessions);
+        if let Some(w) = self.window().cloned() {
+            self.seen.look_at(&w);
         }
     }
 
@@ -173,11 +173,7 @@ impl App {
         if let Some((cols, rows)) = cells
             && (w.cols, w.rows) != (cols, rows)
         {
-            self.send(Request::Resize {
-                target: w.id.to_string(),
-                cols,
-                rows,
-            });
+            self.send(Request::Resize { target: w.id.to_string(), cols, rows });
         }
         let blocks = w.layout.blocks();
         if blocks != self.subscribed {
@@ -208,10 +204,7 @@ impl App {
         match action {
             Action::Send(input) => {
                 if target.is_some() {
-                    self.send(Request::Input {
-                        target,
-                        input: vec![input],
-                    });
+                    self.send(Request::Input { target, input: vec![input] });
                 }
             }
             Action::Shortcut(s) => self.shortcut(s, target),
@@ -242,17 +235,12 @@ impl App {
         let session = self.session().map(|x| x.id.to_string());
         let half = self.window().map_or(10, |w| i32::from(w.rows / 2));
         match s {
-            Shortcut::NewTab => self.send(Request::NewWindow {
-                session,
-                name: None,
-                spawn: spawn_env(),
-            }),
+            Shortcut::NewTab => {
+                self.send(Request::NewWindow { session, name: None, spawn: spawn_env() })
+            }
             Shortcut::NewSession => {
                 self.want_newest = true;
-                self.send(Request::NewSession {
-                    name: None,
-                    spawn: spawn_env(),
-                });
+                self.send(Request::NewSession { name: None, spawn: spawn_env() });
             }
             Shortcut::SplitRight => self.send(Request::Split {
                 target,
@@ -293,25 +281,18 @@ impl App {
                 if let Some(cur) = self.current
                     && let Some(i) = self.sessions.iter().position(|x| x.id == cur)
                 {
-                    self.current = self
-                        .sessions
-                        .get((i + 1) % self.sessions.len())
-                        .map(|x| x.id);
+                    self.current = self.sessions.get((i + 1) % self.sessions.len()).map(|x| x.id);
                     self.subscribed.clear();
                 }
             }
-            // The view reads the clipboard (it owns the GPUI context) and calls `paste`.
-            Shortcut::Paste => {}
+            // The view owns the GPUI clipboard: it pastes (calling `paste`) and copies selections.
+            Shortcut::Paste | Shortcut::Copy => {}
             Shortcut::CopyScreen => {
                 let Some(c) = self.client.clone() else { return };
                 let proxy = self.proxy.clone();
                 self.rt.spawn(async move {
-                    if let Ok(Response::Text { text }) = c
-                        .request(Request::Capture {
-                            target,
-                            scrollback: false,
-                        })
-                        .await
+                    if let Ok(Response::Text { text }) =
+                        c.request(Request::Capture { target, scrollback: false }).await
                     {
                         let _ = proxy.unbounded_send(UiEvent::Clipboard(text));
                     }
@@ -324,14 +305,9 @@ impl App {
                     _ => DEFAULT_FONT_PT,
                 };
             }
-            Shortcut::ScrollPageUp => self.send(Request::Scroll {
-                target,
-                lines: Some(half),
-            }),
-            Shortcut::ScrollPageDown => self.send(Request::Scroll {
-                target,
-                lines: Some(-half),
-            }),
+            Shortcut::ScrollPageUp => self.send(Request::Scroll { target, lines: Some(half) }),
+            Shortcut::ScrollPageDown => self.send(Request::Scroll { target, lines: Some(-half) }),
+            Shortcut::ToggleSidebar => self.toggle_sidebar(),
         }
     }
 
@@ -344,28 +320,17 @@ impl App {
         }
         if alt {
             let key = if lines > 0 { "Up" } else { "Down" };
-            let input = (0..lines.unsigned_abs().min(20))
-                .map(|_| Input::Key(key.into()))
-                .collect();
-            self.send(Request::Input {
-                target: Some(b.to_string()),
-                input,
-            });
+            let input = (0..lines.unsigned_abs().min(20)).map(|_| Input::Key(key.into())).collect();
+            self.send(Request::Input { target: Some(b.to_string()), input });
         } else {
-            self.send(Request::Scroll {
-                target: Some(b.to_string()),
-                lines: Some(lines),
-            });
+            self.send(Request::Scroll { target: Some(b.to_string()), lines: Some(lines) });
         }
     }
 
     pub fn paste(&mut self, text: String) {
         let target = self.focused().map(|b| b.to_string());
         if target.is_some() {
-            self.send(Request::Input {
-                target,
-                input: vec![Input::Paste(text)],
-            });
+            self.send(Request::Input { target, input: vec![Input::Paste(text)] });
         }
     }
 
@@ -377,6 +342,45 @@ impl App {
         }
     }
 
+    pub fn toggle_sidebar(&mut self) {
+        self.ui.sidebar_open = !self.ui.sidebar_open;
+        self.ui.save();
+    }
+
+    /// Sidebar click: shows `block`'s session and focuses its tab and pane.
+    pub fn focus_block(&mut self, session: SessionId, block: BlockId) {
+        if self.current != Some(session) {
+            self.current = Some(session);
+            self.subscribed.clear();
+        }
+        self.send(Request::Focus { target: block.to_string() });
+    }
+
+    /// Starts `command_line` in a new tab of the current session, labelled
+    /// after its program (like `fterm run --window -l claude -- claude`), in
+    /// the focused pane's directory.
+    pub fn start_agent(&mut self, command_line: &str) {
+        let command_line = command_line.trim();
+        if command_line.is_empty() || self.client.is_none() {
+            return;
+        }
+        let label = agents::unique_label(&agents::label_for(command_line), &self.sessions);
+        let cwd = self
+            .window()
+            .and_then(|w| w.blocks.iter().find(|b| b.id == w.focused))
+            .and_then(|b| b.cwd.clone());
+        self.send(Request::NewWindow {
+            session: self.session().map(|s| s.id.to_string()),
+            name: Some(label.clone()),
+            spawn: Spawn {
+                command: agents::shell_command(command_line),
+                cwd,
+                label: Some(label),
+                ..spawn_env()
+            },
+        });
+    }
+
     /// Focuses the pane under window point `(x, y)`.
     pub fn click(&mut self, x: f32, y: f32) {
         if let Some((b, ..)) = self
@@ -385,9 +389,7 @@ impl App {
             .find(|(_, px, py, w, h)| x >= *px && x < px + w && y >= *py && y < py + h)
             && Some(*b) != self.focused()
         {
-            self.send(Request::Focus {
-                target: b.to_string(),
-            });
+            self.send(Request::Focus { target: b.to_string() });
         }
     }
 }

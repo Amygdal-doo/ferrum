@@ -66,6 +66,15 @@ fn auth_path<'a>(items: &'a [Item], id: ItemId, acc: &mut Vec<&'a Auth>) -> bool
     false
 }
 
+fn walk_requests<'a>(items: &'a [Item], out: &mut Vec<&'a SavedRequest>) {
+    for it in items {
+        match it {
+            Item::Request(r) => out.push(r),
+            Item::Folder(f) => walk_requests(&f.items, out),
+        }
+    }
+}
+
 impl Collection {
     #[must_use]
     pub fn find(&self, id: ItemId) -> Option<&Item> {
@@ -160,17 +169,26 @@ impl Collection {
     /// Every saved request, depth-first.
     #[must_use]
     pub fn requests(&self) -> Vec<&SavedRequest> {
-        fn walk<'a>(items: &'a [Item], out: &mut Vec<&'a SavedRequest>) {
-            for it in items {
-                match it {
-                    Item::Request(r) => out.push(r),
-                    Item::Folder(f) => walk(&f.items, out),
-                }
-            }
-        }
         let mut out = Vec::new();
-        walk(&self.items, &mut out);
+        walk_requests(&self.items, &mut out);
         out
+    }
+
+    /// Saved requests inside `folder` (the whole collection when `None`),
+    /// depth-first in tree order. Empty if `folder` is not a folder here.
+    #[must_use]
+    pub fn requests_under(&self, folder: Option<ItemId>) -> Vec<&SavedRequest> {
+        match folder {
+            None => self.requests(),
+            Some(id) => match self.find(id) {
+                Some(Item::Folder(f)) => {
+                    let mut out = Vec::new();
+                    walk_requests(&f.items, &mut out);
+                    out
+                }
+                _ => Vec::new(),
+            },
+        }
     }
 }
 

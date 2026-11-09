@@ -1,6 +1,7 @@
 pub mod connection;
 pub mod dialogs;
 pub mod explorer;
+pub mod history;
 pub mod result_grid;
 pub mod shell;
 pub mod sql_editor;

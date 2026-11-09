@@ -4,6 +4,7 @@
 use crate::app::FerrumGit;
 use crate::commands::repo::HunkAction;
 use crate::components::highlight::{Token, highlight};
+use crate::components::split::split_side;
 use crate::components::widgets::small_button;
 use ferrumgit_domain::{DiffLine, DiffSource, FileDiff, Hunk, LineKind, RepoId};
 use gpui::{
@@ -21,7 +22,7 @@ pub const MAX_LINES: usize = 4000;
 
 /// Line text with `·` for spaces and `→` for tabs (muted) when `invisibles`,
 /// plus the syntax colour runs over it.
-fn line_text(
+pub(crate) fn line_text(
     toks: &[Token],
     invisibles: bool,
     muted: Hsla,
@@ -216,27 +217,60 @@ fn hunk_view(
             );
         }
     }
-    let lines: Vec<AnyElement> = hunk
-        .lines
-        .iter()
-        .take(shown)
-        .enumerate()
-        .map(|(li, line)| {
-            line_view(
-                repo,
-                index,
-                li,
-                line,
-                toks.get(li).map(Vec::as_slice).unwrap_or_default(),
-                selected.contains(&li),
-                editable,
-                invisibles,
-                &id_base,
-                &theme,
-                cx,
-            )
-        })
-        .collect();
+    let tokens_of = |li: usize| toks.get(li).map(Vec::as_slice).unwrap_or_default();
+    let lines: Vec<AnyElement> = if app.state.settings.side_by_side {
+        hunk.split_rows()
+            .into_iter()
+            .filter(|r| r.left.into_iter().chain(r.right).all(|li| li < shown))
+            .enumerate()
+            .map(|(ri, row)| {
+                let mut side = |li: Option<usize>, left: bool| {
+                    let line = li.and_then(|li| hunk.lines.get(li).map(|l| (li, l)));
+                    split_side(
+                        repo,
+                        index,
+                        line,
+                        line.map(|(li, _)| tokens_of(li)).unwrap_or_default(),
+                        li.is_some_and(|li| selected.contains(&li)),
+                        editable,
+                        invisibles,
+                        left,
+                        &format!("{id_base}-row-{ri}"),
+                        &theme,
+                        cx,
+                    )
+                };
+                let (l, r) = (side(row.left, true), side(row.right, false));
+                h_flex()
+                    .w_full()
+                    .items_stretch()
+                    .child(l)
+                    .child(r)
+                    .into_any_element()
+            })
+            .collect()
+    } else {
+        hunk.lines
+            .iter()
+            .take(shown)
+            .enumerate()
+            .map(|(li, line)| {
+                line_view(
+                    repo,
+                    index,
+                    li,
+                    line,
+                    tokens_of(li),
+                    selected.contains(&li),
+                    editable,
+                    invisibles,
+                    &id_base,
+                    &theme,
+                    cx,
+                )
+            })
+            .collect()
+    };
     v_flex()
         .border_t_1()
         .border_color(colors.border_variant)
@@ -328,18 +362,7 @@ fn line_view(
         })
         .when(clickable, |d| {
             d.cursor_pointer()
-                .on_click(cx.listener(move |app, _, _, cx| {
-                    if let Some(id) = repo {
-                        app.state.update_view(id, |v| {
-                            if let Some(d) = v.diff.as_mut()
-                                && !d.lines.remove(&(hunk, index))
-                            {
-                                d.lines.insert((hunk, index));
-                            }
-                        });
-                        cx.notify();
-                    }
-                }))
+                .on_click(cx.listener(move |app, _, _, cx| toggle_line(app, repo, hunk, index, cx)))
         })
         .child(
             div()
@@ -367,4 +390,24 @@ fn line_view(
         )
         .child(div().pl_3().pr_6().child(content))
         .into_any_element()
+}
+
+/// Adds / removes a changed line from the line-staging selection.
+pub(crate) fn toggle_line(
+    app: &mut FerrumGit,
+    repo: Option<RepoId>,
+    hunk: usize,
+    index: usize,
+    cx: &mut Context<FerrumGit>,
+) {
+    if let Some(id) = repo {
+        app.state.update_view(id, |v| {
+            if let Some(d) = v.diff.as_mut()
+                && !d.lines.remove(&(hunk, index))
+            {
+                d.lines.insert((hunk, index));
+            }
+        });
+        cx.notify();
+    }
 }

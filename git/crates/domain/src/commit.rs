@@ -25,6 +25,12 @@ impl Oid {
     pub fn short(&self) -> &str {
         self.0.get(..7).unwrap_or(&self.0)
     }
+
+    /// The all-zero id git uses for uncommitted lines (blame) and the reflog.
+    #[must_use]
+    pub fn is_zero(&self) -> bool {
+        !self.0.is_empty() && self.0.bytes().all(|b| b == b'0')
+    }
 }
 
 impl fmt::Display for Oid {

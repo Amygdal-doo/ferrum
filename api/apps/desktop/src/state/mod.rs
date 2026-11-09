@@ -3,11 +3,13 @@
 
 pub mod history;
 pub mod kv;
+pub mod runner;
 pub mod tabs;
 mod types;
 
 pub use types::{
-    BodyMode, Dialog, RequestSection, ResponseView, SettingsPane, SidebarView, TabResponse,
+    BodyMode, Dialog, RequestSection, ResponseSearch, ResponseView, SettingsPane, SidebarView,
+    TabResponse,
 };
 
 use ferrumapi_application::CancellationToken;
@@ -49,6 +51,10 @@ pub struct AppState {
     pub section: RequestSection,
     pub response_view: ResponseView,
     pub body_mode: BodyMode,
+    /// Open find bar of the response body view.
+    pub response_search: Option<ResponseSearch>,
+    /// The current or last collection run (kept after its dialog closes).
+    pub runner: Option<runner::RunnerState>,
     pub results_height: f64,
     pub dialog: Option<Dialog>,
 }
@@ -78,6 +84,8 @@ impl AppState {
             section: RequestSection::Params,
             response_view: ResponseView::Body,
             body_mode: BodyMode::Pretty,
+            response_search: None,
+            runner: None,
             results_height: 320.0,
             dialog: None,
         }

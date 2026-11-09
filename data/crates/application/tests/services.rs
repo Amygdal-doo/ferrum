@@ -8,10 +8,11 @@ use ferrumdata_db_driver_api::{
     event_channel,
 };
 use ferrumdata_domain::{
-    CapabilitySet, CellValue, ConnectionProfile, DatabaseEngine, ExecutionId, QueryEvent,
-    QueryLimits, QueryOutcome, QueryRequest, ResolvedConnectionConfig, Secret, SecretRef,
+    CapabilitySet, CellValue, ConnectionProfile, DatabaseEngine, ExecutionId, HistoryStatus,
+    QueryEvent, QueryLimits, QueryOutcome, QueryRequest, ResolvedConnectionConfig, Secret,
+    SecretRef,
 };
-use ferrumdata_persistence::AppStore;
+use ferrumdata_persistence::{AppStore, HistoryQuery};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -95,14 +96,20 @@ impl DbConnection for FakeConn {
 }
 
 async fn setup(driver: FakeDriver) -> (ConnectionService, Arc<SessionStore>) {
+    let (svc, vault, _) = setup_with_store(driver).await;
+    (svc, vault)
+}
+
+async fn setup_with_store(driver: FakeDriver) -> (ConnectionService, Arc<SessionStore>, AppStore) {
     let store = AppStore::in_memory().await.expect("store");
     let vault = Arc::new(SessionStore::new());
     let mut drivers: HashMap<DatabaseEngine, Arc<dyn DatabaseDriver>> = HashMap::new();
     drivers.insert(DatabaseEngine::Postgres, Arc::new(driver));
     let vault_dyn: Arc<dyn CredentialStore> = vault.clone();
     (
-        ConnectionService::with_drivers(store, vault_dyn, drivers),
+        ConnectionService::with_drivers(store.clone(), vault_dyn, drivers),
         vault,
+        store,
     )
 }
 
@@ -274,4 +281,92 @@ async fn sqlite_profile_round_trips_through_the_real_driver() {
     assert!(info.version.starts_with("SQLite "));
     assert!(svc.list_tables(saved.id).await.expect("tables").is_empty());
     svc.disconnect(saved.id).await;
+}
+
+fn history_of(profile: Option<ferrumdata_domain::ProfileId>) -> HistoryQuery {
+    HistoryQuery {
+        profile_id: profile,
+        search: String::new(),
+        limit: 50,
+    }
+}
+
+/// Drains `rx` and returns the terminal event.
+async fn finish(
+    mut rx: tokio::sync::mpsc::Receiver<ferrumdata_domain::ExecutionEnvelope>,
+) -> Option<QueryEvent> {
+    let mut last = None;
+    while let Some(env) = rx.recv().await {
+        last = Some(env.event);
+    }
+    last
+}
+
+#[tokio::test]
+async fn completed_run_is_in_history_before_its_terminal_event_arrives() {
+    let (svc, _, store) = setup_with_store(FakeDriver {
+        batches: 3,
+        ..FakeDriver::default()
+    })
+    .await;
+    let p = svc
+        .save_profile(ConnectionProfile::new_postgres("d"), PasswordChange::Keep)
+        .await
+        .expect("save");
+    let queries = QueryService::new(svc);
+    let mut rx = queries.execute(request(&p)).await.expect("execute");
+    while let Some(env) = rx.recv().await {
+        if env.event.is_terminal() {
+            // The UI refreshes history on the terminal event: it must already be stored.
+            let got = store
+                .list_history(&history_of(Some(p.id)))
+                .await
+                .expect("list");
+            assert_eq!(got.len(), 1);
+            assert_eq!(got[0].sql, "select 1");
+            assert_eq!(got[0].status, HistoryStatus::Completed);
+            assert_eq!(got[0].rows_returned, Some(3));
+        }
+    }
+}
+
+#[tokio::test]
+async fn failed_and_cancelled_runs_are_recorded() {
+    let (svc, _, store) = setup_with_store(FakeDriver {
+        hang: true,
+        ..FakeDriver::default()
+    })
+    .await;
+    let p = svc
+        .save_profile(ConnectionProfile::new_postgres("d"), PasswordChange::Keep)
+        .await
+        .expect("save");
+    let queries = QueryService::new(svc);
+
+    // Unknown profile: fails before any driver event.
+    let ghost = ConnectionProfile::new_postgres("ghost");
+    assert!(queries.execute(request(&ghost)).await.is_err());
+    let got = store
+        .list_history(&history_of(Some(ghost.id)))
+        .await
+        .expect("list");
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0].status, HistoryStatus::Failed);
+    assert!(got[0].error.is_some());
+
+    let req = request(&p);
+    let id = req.execution_id;
+    let rx = queries.execute(req).await.expect("execute");
+    tokio::task::yield_now().await;
+    assert!(queries.cancel(id));
+    let terminal = tokio::time::timeout(Duration::from_secs(2), finish(rx))
+        .await
+        .expect("no hang");
+    assert!(matches!(terminal, Some(QueryEvent::Cancelled { .. })));
+    let got = store
+        .list_history(&history_of(Some(p.id)))
+        .await
+        .expect("list");
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0].status, HistoryStatus::Cancelled);
 }

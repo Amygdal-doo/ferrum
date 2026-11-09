@@ -5,66 +5,55 @@ every other Ferrum app (Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData,
 FerrumTerm). Only the toolbox has an installer (`.dmg`, `.exe`, `.deb`); the
 other apps are installed through it and have no separate download.
 
-> **The releases are private.** They live in the private repo
-> `Amygdal-doo/ferrum`, so you need a GitHub account with access to it, both
-> to download the toolbox and for the toolbox to download apps.
+Releases are public, in <https://github.com/Amygdal-doo/ferrum-releases>, so
+no GitHub account is needed. Every app is in **alpha**.
 
 ## 1. Install Ferrum Toolbox
 
-**Option A: disk image**
-
-1. Sign in to GitHub in your browser and open the latest `toolbox-v…` release
-   at <https://github.com/Amygdal-doo/ferrum/releases>.
-2. Download `FerrumToolbox-<version>-aarch64.dmg` (Apple Silicon) or
-   `FerrumToolbox-<version>-x86_64.dmg` (Intel).
-3. Open it and drag **Ferrum Toolbox** onto **Applications**.
-4. First launch: the app is ad-hoc signed, not notarized, so macOS says it
-   "could not verify Ferrum Toolbox is free of malware". This is expected for
-   unsigned builds; it doesn't mean the app was flagged. Click **Done**, then
-   open **System Settings → Privacy & Security**, scroll to *Security* and
-   click **Open Anyway** next to "Ferrum Toolbox was blocked", then confirm.
-   (On macOS 14 and older, **right-click → Open → Open** also works.) Or run:
-   ```bash
-   xattr -dr com.apple.quarantine "/Applications/Ferrum Toolbox.app"
-   ```
-
-**Option B: script (uses the GitHub CLI)**
+**Option A: Terminal (recommended, no Gatekeeper warning)**
 
 ```bash
-brew install gh        # if needed
-gh auth login          # once; the repo is private
-scripts/install-toolbox.sh
+curl -fsSL https://raw.githubusercontent.com/Amygdal-doo/ferrum-releases/main/install.sh | bash
 ```
 
-The script picks the latest `toolbox-v*` release for your CPU, checks the
-`.sha256`, installs into `/Applications` (or `~/Applications` if that isn't
-writable) and opens it. Files downloaded by `gh` aren't quarantined, so
-there's no Gatekeeper prompt.
+It picks the newest `toolbox-v*` release for your CPU, checks the `.sha256`,
+installs into `/Applications` (or `~/Applications` if that isn't writable)
+and opens it. Files downloaded with curl aren't quarantined, so macOS doesn't
+show the "could not verify" dialog. The same script is
+`scripts/install-toolbox.sh` in this repo.
+
+**Option B: disk image**
+
+1. Download `FerrumToolbox-<version>-aarch64.dmg` (Apple Silicon) from the
+   newest `toolbox-v…` release at
+   <https://github.com/Amygdal-doo/ferrum-releases/releases>.
+2. Open it and drag **Ferrum Toolbox** onto **Applications**.
+3. First launch: the app is ad-hoc signed, not notarized, so macOS says it
+   "could not verify Ferrum Toolbox is free of malware". Browsers mark
+   downloads as quarantined, and Gatekeeper checks quarantined apps. Click
+   **Done**, then **System Settings → Privacy & Security → Open Anyway**, or
+   run `xattr -dr com.apple.quarantine "/Applications/Ferrum Toolbox.app"`.
+   This goes away for good once builds are signed with a Developer ID and
+   notarized (see Known limitations).
+
+You do this once. The toolbox updates itself in place afterwards, and
+neither its updates nor the apps it installs are quarantined.
 
 **Windows and Linux:** download `FerrumToolbox-<version>-x86_64-setup.exe`
 (run it; SmartScreen: **More info → Run anyway**) or
 `ferrum-toolbox_<version>_amd64.deb` (`sudo apt install ./ferrum-toolbox_<version>_amd64.deb`)
 from the same release. See [Windows](#windows) and [Linux](#linux) below.
 
-## 2. Sign in to GitHub (first launch)
+## 2. GitHub sign-in (only for a private repo)
 
-If the toolbox finds no token, it shows **Sign in to GitHub**:
-
-- **Use gh CLI:** works when `gh auth login` has been done. Nothing is
-  stored; the toolbox asks `gh auth token` when it needs one.
-- **Access token:** click **Create a token on GitHub**, make a fine-grained
-  token for `Amygdal-doo` with **Contents: Read-only** on `ferrum`, paste
-  it, then click **Save token**. It goes into the macOS Keychain (service
-  `FerrumToolbox`), never into a file or a log.
-- **Skip:** only useful if you point the toolbox at a public repo in
-  Settings.
-
-Lookup order on every check: Keychain, then `GITHUB_TOKEN`, then `gh auth
-token`. Change or remove the token later in **Settings**.
+The default public repo needs no sign-in. If you point the toolbox at a
+private repo in **Settings**, it asks for a token: **Use gh CLI** (after
+`gh auth login`) or paste a fine-grained token with **Contents: Read-only**;
+it goes into the macOS Keychain (service `FerrumToolbox`), never a file.
 
 ## 3. Install apps
 
-Select an app on the left and click **Install**. The toolbox:
+Click an app in the overview, then **Install**. The toolbox:
 
 1. downloads the macOS build (`<app>-<version>-<target>.app.tar.gz`) with a
    progress bar you can cancel;
@@ -90,13 +79,20 @@ Gatekeeper prompt.
 
 - The toolbox checks on startup and every 6 hours (configurable). Apps with a
   newer release get an **Update to vX** button.
+- **The toolbox itself:** when a newer toolbox is released, the toolbar shows
+  **Update Toolbox to vX**. It downloads the new version, replaces
+  `/Applications/Ferrum Toolbox.app` and restarts. No DMG, no Gatekeeper
+  prompt.
 - **Update** installs the new version and makes it active.
   `~/Applications/Ferrum/<App>.app` and `~/.ferrum/bin` switch over.
 - **Rollback:** pick an older version in the versions list and click
   **Activate** (or **Install**, then **Activate**, if it isn't installed).
 - The last 3 versions of each app are kept (Settings → *Versions to keep*; 0
   keeps all). The active version is never pruned.
-- To get `-beta`/`-rc` builds of an app, switch its **Update channel** to **Beta** on the app page. Every release (stable, beta, alpha) is listed under **Releases**.
+- **Update channels:** every app follows **Alpha** by default, since all
+  Ferrum releases are alpha (`<app>-v<version>-alpha.N`). Switch an app to
+  **Beta** or **Stable** on its page to only get those once they exist. Each
+  channel also takes the more stable ones.
 
 ## 5. Uninstall
 
@@ -212,9 +208,9 @@ The workflow needs the `SUBMODULE_TOKEN` secret (read access to
     of the App Store Connect `.p8`), `NOTARY_API_KEY_ID` and
     `NOTARY_API_ISSUER`. The release workflow signs and notarizes when they
     exist.
-- **Self-update:** the toolbox can install a newer version of itself (into
-  `~/Applications/Ferrum/Ferrum Toolbox.app`), but it doesn't replace the
-  copy in `/Applications` or restart. Quit it and open the new one.
+- **Self-update** needs write access to the folder the toolbox is in (an
+  admin user's `/Applications` is fine). Otherwise the button opens the
+  release page instead.
 - **Windows:** the builds have only been compiled in CI, not tested by hand
   yet. FerrumTerm has no Windows build. Ferrum IDE on Windows ships `zed.exe`
   only, without the extras Zed's own installer adds (bundled ConPTY, Explorer

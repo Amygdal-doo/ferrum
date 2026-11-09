@@ -57,6 +57,67 @@ pub struct TableInfo {
     pub estimated_rows: Option<i64>,
 }
 
+/// One column of a table, as described by the engine's catalog.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ColumnInfo {
+    pub name: String,
+    /// Declared type as the engine prints it, e.g. `character varying(80)`.
+    pub data_type: String,
+    pub nullable: bool,
+    /// Default expression as SQL text; `None` if there is none.
+    pub default: Option<String>,
+    pub primary_key: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IndexInfo {
+    pub name: String,
+    /// Key columns (or expressions) in index order.
+    pub columns: Vec<String>,
+    pub unique: bool,
+    pub primary: bool,
+}
+
+/// Structure of one table for the explorer tree (SQL engines).
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct TableDetails {
+    /// In declaration order.
+    pub columns: Vec<ColumnInfo>,
+    /// Primary key first, then by name.
+    pub indexes: Vec<IndexInfo>,
+}
+
+impl ColumnInfo {
+    /// Compact tree label suffix, e.g. `int4 · PK`, `text · NULL · = 'x'::text`.
+    #[must_use]
+    pub fn summary(&self) -> String {
+        let mut parts = vec![self.data_type.clone()];
+        if self.primary_key {
+            parts.push("PK".into());
+        }
+        parts.push(if self.nullable { "NULL" } else { "NOT NULL" }.into());
+        if let Some(d) = &self.default {
+            parts.push(format!("= {d}"));
+        }
+        parts.join(" · ")
+    }
+}
+
+impl IndexInfo {
+    /// e.g. `UNIQUE (email)`, `PRIMARY KEY (id)`, `(lower(name), id)`.
+    #[must_use]
+    pub fn summary(&self) -> String {
+        let kind = if self.primary {
+            "PRIMARY KEY "
+        } else if self.unique {
+            "UNIQUE "
+        } else {
+            ""
+        };
+        format!("{kind}({})", self.columns.join(", "))
+    }
+}
+
 impl DatabaseEngine {
     /// Quotes an identifier so it is used verbatim (case, spaces, keywords).
     #[must_use]
@@ -107,6 +168,28 @@ mod tests {
         assert_eq!(pg.quote_ident("User"), "\"User\"");
         assert_eq!(pg.quote_ident("we\"ird"), "\"we\"\"ird\"");
         assert_eq!(DatabaseEngine::MySql.quote_ident("a`b"), "`a``b`");
+    }
+
+    #[test]
+    fn detail_summaries() {
+        let c = ColumnInfo {
+            name: "id".into(),
+            data_type: "int4".into(),
+            nullable: false,
+            default: Some("nextval('t_id_seq'::regclass)".into()),
+            primary_key: true,
+        };
+        assert_eq!(
+            c.summary(),
+            "int4 · PK · NOT NULL · = nextval('t_id_seq'::regclass)"
+        );
+        let i = IndexInfo {
+            name: "t_email".into(),
+            columns: vec!["lower(email)".into(), "org".into()],
+            unique: true,
+            primary: false,
+        };
+        assert_eq!(i.summary(), "UNIQUE (lower(email), org)");
     }
 
     #[test]

@@ -98,16 +98,20 @@ impl FerrumGit {
             cx.subscribe(&home_filter, |_, _, _, cx| cx.notify()),
             cx.subscribe(&ref_filter, |_, _, _, cx| cx.notify()),
             cx.subscribe(&search, |app: &mut Self, input, event, cx| {
-                if *event != TextInputEvent::Changed {
-                    return;
-                }
                 let Some(id) = app.state.active else { return };
-                let text = input.read(cx).text().to_owned();
-                if app.state.view(id).page != Page::History {
-                    app.set_page(id, Page::History, cx);
+                match event {
+                    TextInputEvent::Changed => {
+                        let text = input.read(cx).text().to_owned();
+                        if app.state.view(id).page != Page::History {
+                            app.set_page(id, Page::History, cx);
+                        }
+                        app.search_changed(id, text, cx);
+                        cx.notify();
+                    }
+                    // Enter jumps to the next match.
+                    TextInputEvent::Submit => app.search_step(id, true, cx),
+                    TextInputEvent::Blurred => {}
                 }
-                app.state.update_view(id, |v| v.search = text);
-                cx.notify();
             }),
             cx.subscribe(&summary, |app: &mut Self, input, event, cx| {
                 let Some(id) = app.state.active else { return };
@@ -217,7 +221,12 @@ impl FerrumGit {
         } else if self.dialog.is_some() {
             self.close_dialog(window, cx);
         } else if let Some(id) = self.state.active {
-            self.state.update_view(id, |v| v.diff = None);
+            // Esc closes the file panel first, then the diff.
+            self.state.update_view(id, |v| {
+                if v.file.take().is_none() {
+                    v.diff = None;
+                }
+            });
         }
         cx.notify();
     }

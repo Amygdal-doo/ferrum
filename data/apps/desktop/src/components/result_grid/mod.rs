@@ -1,43 +1,66 @@
 //! Results panel: status line, error/empty states and the virtual grid.
 
 mod grid;
+mod header;
+mod synthetic;
+
+pub use grid::bind_grid_keys;
 
 use crate::app::FerrumData;
-use crate::state::TabRun;
+use crate::state::ResultsPane;
 use ferrum_ui::prelude::*;
-use ferrumdata_domain::{
-    CellValue, ColumnMeta, EditorTabId, ExecutionId, LogicalType, ProfileId, QueryState,
-};
+use ferrumdata_domain::{EditorTabId, QueryState};
+use ferrumdata_result_grid_core::ExportFormat;
 
 impl FerrumData {
-    pub fn render_results(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    pub fn render_results(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let colors = cx.theme().colors().clone();
         let Some(tab_id) = self.state.active_tab else {
             return div().into_any_element();
         };
+        let pane = self.state.results_pane;
         let warning = cx.theme().status().warning;
-        let status_line = self.state.runs.get(&tab_id).map(|run| {
+        let run = self
+            .state
+            .runs
+            .get(&tab_id)
+            .filter(|_| pane == ResultsPane::Results);
+        let status_line = run.map(|run| {
             h_flex()
                 .gap_3()
+                .min_w_0()
+                .overflow_hidden()
                 .child(
                     div()
+                        .flex_none()
                         .text_color(colors.text_muted)
                         .child(run.status_label()),
                 )
                 .when_some(run.note.clone(), |this, note| {
-                    this.child(div().text_color(warning).child(note))
+                    this.child(div().truncate().text_color(warning).child(note))
                 })
                 .when(run.buffer.is_truncated(), |this| {
-                    this.child(div().text_color(warning).child(format!(
+                    this.child(div().truncate().text_color(warning).child(format!(
                         "Showing the first {} rows (client fetch limit). The SQL was not modified.",
                         run.buffer.len()
                     )))
                 })
         });
-        let body = if self.state.runs.contains_key(&tab_id) {
-            self.render_run(tab_id, cx)
-        } else {
-            self.render_empty(tab_id, cx)
+        let has_rows = run.is_some_and(|r| !r.buffer.columns().is_empty() && !r.buffer.is_empty());
+        let has_selection = run.is_some_and(|r| r.selection.is_some());
+        let body = match pane {
+            ResultsPane::History => self.render_history(cx),
+            ResultsPane::Results if self.state.runs.contains_key(&tab_id) => {
+                self.render_run(tab_id, cx)
+            }
+            ResultsPane::Results => self.render_empty(tab_id, cx),
+        };
+        let pane_button = |id: &'static str, label: &'static str, target: ResultsPane| {
+            Button::new(id, label)
+                .label_size(LabelSize::Small)
+                .toggle_state(pane == target)
+                .selected_style(ButtonStyle::Filled)
+                .on_click(cx.listener(move |this, _, _, cx| this.show_pane(target, cx)))
         };
 
         v_flex()
@@ -49,19 +72,83 @@ impl FerrumData {
                     .flex_none()
                     .h(px(32.))
                     .gap_3()
-                    .px_3()
+                    .px_2()
                     .text_xs()
                     .border_b_1()
                     .border_color(colors.border)
                     .child(
-                        div()
-                            .font_weight(ferrum_ui::gpui::FontWeight::MEDIUM)
-                            .child("Results"),
+                        h_flex()
+                            .flex_none()
+                            .gap_0p5()
+                            .child(pane_button("pane-results", "Results", ResultsPane::Results))
+                            .child(pane_button("pane-history", "History", ResultsPane::History)),
                     )
-                    .children(status_line),
+                    .children(status_line)
+                    .child(div().flex_1())
+                    .when(has_rows, |this| {
+                        this.child(self.render_copy_menu(has_selection, window, cx))
+                            .child(self.render_export_menu(window, cx))
+                    }),
             )
             .child(div().relative().flex_1().min_h_0().child(body))
             .into_any_element()
+    }
+
+    /// "Copy as" CSV / JSON / Markdown: the selection, or the whole result.
+    fn render_copy_menu(
+        &mut self,
+        selection: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let this = cx.entity().downgrade();
+        let scope = if selection { "selection" } else { "all rows" };
+        let menu = ContextMenu::build(window, cx, move |mut menu, _, _| {
+            for format in [
+                ExportFormat::Csv,
+                ExportFormat::Json,
+                ExportFormat::Markdown,
+            ] {
+                let this = this.clone();
+                menu = menu.entry(
+                    format!("Copy {scope} as {}", format.label()),
+                    None,
+                    move |_, cx| {
+                        if let Err(e) = this.update(cx, |this, cx| this.copy_results(format, cx)) {
+                            tracing::debug!(error = %e, "results panel dropped");
+                        }
+                    },
+                );
+            }
+            menu
+        });
+        DropdownMenu::new("copy-as", "Copy as", menu).aria_label("Copy results as")
+    }
+
+    /// Save the full result set (every loaded row, in display order) to a file.
+    fn render_export_menu(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let this = cx.entity().downgrade();
+        let menu = ContextMenu::build(window, cx, move |mut menu, _, _| {
+            for format in [ExportFormat::Csv, ExportFormat::Json] {
+                let this = this.clone();
+                menu = menu.entry(
+                    format!("Export {}…", format.label()),
+                    None,
+                    move |_, cx| {
+                        if let Err(e) = this.update(cx, |this, cx| this.export_results(format, cx))
+                        {
+                            tracing::debug!(error = %e, "results panel dropped");
+                        }
+                    },
+                );
+            }
+            menu
+        });
+        DropdownMenu::new("export", "Export", menu).aria_label("Export results to a file")
     }
 
     fn render_run(&mut self, tab_id: EditorTabId, cx: &mut Context<Self>) -> AnyElement {
@@ -146,75 +233,12 @@ impl FerrumData {
                         "Grid spike (ADR-004): renders 100,000 generated rows without a database",
                     ))
                     .on_click(cx.listener(move |this, _, _, cx| {
-                        this.state.runs.insert(tab_id, synthetic_run(100_000));
+                        this.state
+                            .runs
+                            .insert(tab_id, synthetic::synthetic_run(100_000));
                         cx.notify();
                     })),
             )
             .into_any_element()
-    }
-}
-
-/// Generated data for the grid spike; no database involved.
-fn synthetic_run(rows: usize) -> TabRun {
-    let col = |name: &str, ty: LogicalType| ColumnMeta {
-        name: name.into(),
-        db_type: format!("{ty:?}").to_lowercase(),
-        logical_type: ty,
-        nullable: Some(true),
-        primary_key: false,
-        editable: false,
-    };
-    let mut run = TabRun::new(
-        ExecutionId::new(),
-        ProfileId::new(),
-        "-- synthetic".into(),
-        rows,
-    );
-    run.apply(ferrumdata_domain::QueryEvent::Started);
-    run.apply(ferrumdata_domain::QueryEvent::Metadata(vec![
-        col("id", LogicalType::Integer),
-        col("email", LogicalType::Text),
-        col("score", LogicalType::Float),
-        col("active", LogicalType::Boolean),
-        col("note", LogicalType::Text),
-    ]));
-    let batch = (0..rows)
-        .map(|i| {
-            vec![
-                CellValue::Signed(i as i64 + 1),
-                CellValue::Text(format!("user{i}@example.com")),
-                CellValue::Float((i % 1000) as f64 / 7.0),
-                CellValue::Bool(i % 3 == 0),
-                if i % 10 == 0 {
-                    CellValue::Null
-                } else {
-                    CellValue::Text(String::new())
-                },
-            ]
-        })
-        .collect();
-    run.apply(ferrumdata_domain::QueryEvent::Rows(batch));
-    run.apply(ferrumdata_domain::QueryEvent::Completed(
-        ferrumdata_domain::QueryOutcome {
-            rows_returned: rows,
-            rows_affected: None,
-            truncated: false,
-            elapsed: std::time::Duration::ZERO,
-        },
-    ));
-    run
-}
-
-#[cfg(test)]
-mod tests {
-    use super::synthetic_run;
-
-    #[test]
-    fn synthetic_run_completes_with_all_rows() {
-        let run = synthetic_run(1_000);
-        assert!(run.state.is_terminal());
-        assert_eq!(run.buffer.len(), 1_000);
-        assert_eq!(run.buffer.columns().len(), 5);
-        assert_eq!(run.col_widths.len(), 5);
     }
 }

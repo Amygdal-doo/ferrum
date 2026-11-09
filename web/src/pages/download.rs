@@ -84,19 +84,27 @@ fn gatekeeper_section() -> Markup {
                     h2 id="gatekeeper-title" { "First launch: this build isn't notarized yet" }
                     p {
                         "The current macOS build is ad-hoc signed but not yet notarized by \
-                        Apple, so Gatekeeper blocks the first launch with a \"could not verify\" \
-                        malware warning. Click Done, then open " strong { "System Settings → "
-                        "Privacy & Security" } " and click " strong { "Open Anyway" } ". (On "
-                        "macOS 14 and older, right-click the app and choose Open.) Or clear "
-                        "the quarantine flag:"
+                        Apple, so a DMG downloaded in the browser is blocked on first launch \
+                        with a \"could not verify\" malware warning. The easiest way around \
+                        it is to install from Terminal instead; nothing downloaded this way is \
+                        quarantined, so the toolbox opens straight away:"
+                    }
+                    pre class="code-block" {
+                        code { (site::MACOS_INSTALL_COMMAND) }
+                    }
+                    p {
+                        "Already downloaded the DMG? Click Done on the warning, then open "
+                        strong { "System Settings → Privacy & Security" } " and click "
+                        strong { "Open Anyway" } ". (On macOS 14 and older, right-click the \
+                        app and choose Open.) Or clear the quarantine flag:"
                     }
                     pre class="code-block" {
                         code { "xattr -dr com.apple.quarantine \"/Applications/Ferrum Toolbox.app\"" }
                     }
                     p class="muted" {
-                        "You only need to do this once per app. Apps installed by the "
-                        "toolbox may ask the same the first time you open them. Signed and "
-                        "notarized builds are on the way."
+                        "You only need to do this once. Apps the toolbox installs, and the \
+                        toolbox's own updates, are downloaded without the quarantine flag, \
+                        so they open without asking. Signed and notarized builds are on the way."
                     }
                 }
             }
@@ -269,6 +277,10 @@ mod tests {
             !site::MACOS_NOTARIZED
         );
         assert_eq!(html.contains("Open Anyway"), !site::MACOS_NOTARIZED);
+        assert_eq!(
+            html.contains("ferrum-releases/main/install.sh | bash"),
+            !site::MACOS_NOTARIZED
+        );
     }
 
     #[test]

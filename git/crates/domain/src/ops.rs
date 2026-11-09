@@ -3,6 +3,7 @@
 //! identity and SSH.
 
 use crate::commit::Oid;
+use crate::undo::Undo;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -151,6 +152,8 @@ pub enum RepoOp {
         remote: Option<String>,
         force_with_lease: bool,
     },
+    /// Reverse the last local commit / amend / checkout (see [`Undo`]).
+    Undo(Undo),
 }
 
 impl RepoOp {
@@ -208,6 +211,7 @@ impl RepoOp {
             Self::Fetch { .. } => "Fetching".into(),
             Self::Pull(_) => "Pulling".into(),
             Self::Push { .. } => "Pushing".into(),
+            Self::Undo(_) => "Undoing".into(),
         }
     }
 }

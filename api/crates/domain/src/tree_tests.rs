@@ -29,6 +29,26 @@ fn find_insert_remove() {
 }
 
 #[test]
+fn requests_under_folder_in_tree_order() {
+    let (mut c, fid, r1, r2) = sample();
+    let nested = Folder::new("Nested");
+    let nid = nested.id;
+    assert!(c.insert(Some(fid), Item::Folder(nested)));
+    let deep = SavedRequest::new("Deep", HttpRequest::default());
+    let deep_id = deep.id;
+    assert!(c.insert(Some(nid), Item::Request(deep)));
+    let ids = |list: Vec<&SavedRequest>| list.iter().map(|r| r.id).collect::<Vec<_>>();
+    assert_eq!(ids(c.requests_under(None)), [r1, deep_id, r2]);
+    assert_eq!(ids(c.requests_under(Some(fid))), [r1, deep_id]);
+    assert_eq!(ids(c.requests_under(Some(nid))), [deep_id]);
+    assert!(
+        c.requests_under(Some(r2)).is_empty(),
+        "a request is not a folder"
+    );
+    assert!(c.requests_under(Some(ItemId::new())).is_empty());
+}
+
+#[test]
 fn rename_and_duplicate() {
     let (mut c, fid, _, _) = sample();
     assert!(c.rename(fid, "People"));

@@ -1,17 +1,27 @@
 //! Root view and window layout.
 
 use crate::components::fields::FieldCache;
+use crate::components::response::BodyDisplay;
 use crate::state::AppState;
 use ferrum_ui::{DraggedSplitter, Notice, render_notice, splitter};
 use ferrumapi_application::AppServices;
 use gpui::{
-    App, Axis, Context, DragMoveEvent, FocusHandle, Image, KeyBinding, SharedString, Task, Window,
-    actions, div, prelude::*, px,
+    App, Axis, Context, DragMoveEvent, FocusHandle, Image, KeyBinding, ScrollHandle, SharedString,
+    Task, Window, actions, div, prelude::*, px,
 };
 use std::sync::Arc;
 use ui::{ActiveTheme as _, Color, Label, LabelCommon as _, h_flex, v_flex};
 
-actions!(ferrum_api, [SendRequest, SaveRequest]);
+actions!(
+    ferrum_api,
+    [
+        SendRequest,
+        SaveRequest,
+        FindInResponse,
+        FindNext,
+        FindPrevious
+    ]
+);
 
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
@@ -19,6 +29,12 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("ctrl-enter", SendRequest, None),
         KeyBinding::new("cmd-s", SaveRequest, None),
         KeyBinding::new("ctrl-s", SaveRequest, None),
+        KeyBinding::new("cmd-f", FindInResponse, None),
+        KeyBinding::new("ctrl-f", FindInResponse, None),
+        KeyBinding::new("cmd-g", FindNext, None),
+        KeyBinding::new("ctrl-g", FindNext, None),
+        KeyBinding::new("cmd-shift-g", FindPrevious, None),
+        KeyBinding::new("ctrl-shift-g", FindPrevious, None),
     ]);
 }
 
@@ -33,6 +49,10 @@ pub struct FerrumApi {
     pub fields: FieldCache,
     /// Decoded image preview, keyed by tab and response identity.
     pub image_cache: Option<(ImageKey, Arc<Image>)>,
+    /// Displayed response body text, tokens and search matches.
+    pub body_display: Option<BodyDisplay>,
+    /// Scroll position of the response body (for revealing search matches).
+    pub response_scroll: ScrollHandle,
     focus_handle: FocusHandle,
     /// Whether focus was already moved into the open dialog.
     pub dialog_focused: bool,
@@ -50,6 +70,8 @@ impl FerrumApi {
             state: AppState::new(),
             fields: FieldCache::default(),
             image_cache: None,
+            body_display: None,
+            response_scroll: ScrollHandle::new(),
             focus_handle,
             dialog_focused: false,
             notice: None,
@@ -98,11 +120,34 @@ impl FerrumApi {
         }
     }
 
-    fn on_cancel(&mut self, _: &menu::Cancel, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_cancel(&mut self, _: &menu::Cancel, window: &mut Window, cx: &mut Context<Self>) {
         if self.state.dialog.take().is_none() {
+            if self.state.renaming.is_none()
+                && self.state.renaming_tab.is_none()
+                && self.state.response_search.take().is_some()
+            {
+                window.focus(&self.focus_handle, cx);
+            }
             self.state.renaming = None;
             self.state.renaming_tab = None;
         }
+        cx.notify();
+    }
+
+    fn on_find(&mut self, _: &FindInResponse, _: &mut Window, cx: &mut Context<Self>) {
+        if self.state.dialog.is_none() {
+            self.open_response_search();
+            cx.notify();
+        }
+    }
+
+    fn on_find_next(&mut self, _: &FindNext, _: &mut Window, cx: &mut Context<Self>) {
+        self.step_response_search(1);
+        cx.notify();
+    }
+
+    fn on_find_previous(&mut self, _: &FindPrevious, _: &mut Window, cx: &mut Context<Self>) {
+        self.step_response_search(-1);
         cx.notify();
     }
 
@@ -200,6 +245,9 @@ impl Render for FerrumApi {
             .on_action(cx.listener(Self::on_send))
             .on_action(cx.listener(Self::on_save))
             .on_action(cx.listener(Self::on_cancel))
+            .on_action(cx.listener(Self::on_find))
+            .on_action(cx.listener(Self::on_find_next))
+            .on_action(cx.listener(Self::on_find_previous))
             .relative()
             .size_full()
             .bg(colors.background)

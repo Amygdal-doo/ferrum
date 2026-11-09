@@ -4,7 +4,6 @@ use crate::app::FerrumApi;
 use crate::components::fields::FieldSpec;
 use crate::components::hint;
 use crate::state::BodyMode;
-use ferrumapi_domain::text::pretty_json;
 use ferrumapi_domain::{HttpResponse, TabId};
 use gpui::{
     AnyElement, Context, Image, ImageFormat, ObjectFit, SharedString, Window, div, img, prelude::*,
@@ -14,30 +13,6 @@ use ui::{
     ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _,
     LabelSize, Toggleable as _, h_flex, v_flex,
 };
-
-/// Large bodies are cut for display (Copy / Save still use the full body).
-const MAX_RENDER_CHARS: usize = 400_000;
-
-fn clip(text: String) -> (String, bool) {
-    if text.len() <= MAX_RENDER_CHARS {
-        return (text, false);
-    }
-    let mut end = MAX_RENDER_CHARS;
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    (text[..end].to_owned(), true)
-}
-
-fn pretty(resp: &HttpResponse) -> String {
-    let text = resp.body_text();
-    let looks_json = resp.is_json() || text.trim_start().starts_with(['{', '[']);
-    if looks_json {
-        pretty_json(&text).unwrap_or(text)
-    } else {
-        text
-    }
-}
 
 impl FerrumApi {
     pub(super) fn render_body_view(
@@ -64,12 +39,13 @@ impl FerrumApi {
                 )))
                 .into_any_element(),
             BodyMode::Pretty | BodyMode::Raw => {
-                let text = if current == BodyMode::Pretty {
-                    pretty(response)
-                } else {
-                    response.body_text()
-                };
-                let (text, clipped) = clip(text);
+                self.update_body_display(tab_id, response, current);
+                let (text, clipped) = self
+                    .body_display
+                    .as_ref()
+                    .map(|d| (d.text.clone(), d.clipped))
+                    .unwrap_or_default();
+                let search_bar = self.render_search_bar(window, cx);
                 let status = cx.theme().status().clone();
                 let mode = if current == BodyMode::Pretty {
                     "pretty"
@@ -87,8 +63,10 @@ impl FerrumApi {
                     window,
                     cx,
                 );
+                self.apply_body_highlights(&view, window, cx);
                 v_flex()
                     .size_full()
+                    .children(search_bar)
                     .when(clipped, |this| {
                         this.child(
                             div()
@@ -103,6 +81,7 @@ impl FerrumApi {
                     .child(
                         div()
                             .id(SharedString::from(format!("response-scroll-{mode}")))
+                            .track_scroll(&self.response_scroll)
                             .flex_1()
                             .min_h_0()
                             .overflow_y_scroll()

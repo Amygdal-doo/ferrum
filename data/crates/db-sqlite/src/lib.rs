@@ -12,7 +12,8 @@ use ferrumdata_db_driver_api::{
     event_channel,
 };
 use ferrumdata_domain::{
-    CapabilitySet, DatabaseEngine, QueryRequest, ResolvedConnectionConfig, TableInfo,
+    CapabilitySet, DatabaseEngine, QueryRequest, ResolvedConnectionConfig, TableDetails, TableInfo,
+    TableRef,
 };
 use sqlx::SqlitePool;
 use sqlx::sqlite::SqlitePoolOptions;
@@ -91,6 +92,10 @@ impl DbConnection for SqliteConnection {
 
     async fn list_tables(&self) -> DbResult<Vec<TableInfo>> {
         introspect::list_tables(&self.pool).await
+    }
+
+    async fn describe_table(&self, table: &TableRef) -> DbResult<TableDetails> {
+        introspect::describe_table(&self.pool, table).await
     }
 
     async fn execute(&self, request: QueryRequest) -> DbResult<QueryExecution> {

@@ -1,5 +1,5 @@
 use crate::app::FerrumApi;
-use crate::state::TabResponse;
+use crate::state::{Dialog, TabResponse};
 use ferrum_ui::status_bar;
 use ferrumapi_domain::text::{human_duration_ms, human_size};
 use gpui::{AnyElement, Context, div, prelude::*};
@@ -34,11 +34,33 @@ impl FerrumApi {
             Some(TabResponse::Cancelled) => "Cancelled".into(),
         };
 
+        let runner_label = state.runner.as_ref().map(|r| {
+            let counts = r.counts();
+            if r.running {
+                format!("Running “{}” {}/{}", r.title, counts.done, r.rows.len())
+            } else {
+                format!("Run: {} passed, {} failed", counts.passed, counts.failed)
+            }
+        });
+
         status_bar(cx)
             .child(h_flex().gap_4().child(env_label).child(origin_label))
             .child(
                 h_flex()
                     .gap_4()
+                    .when_some(runner_label, |this, label| {
+                        this.child(
+                            div()
+                                .id("runner-status")
+                                .cursor_pointer()
+                                .tooltip(Tooltip::text("Show the collection runner"))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.state.dialog = Some(Dialog::Runner);
+                                    cx.notify();
+                                }))
+                                .child(label),
+                        )
+                    })
                     .when(!run_label.is_empty(), |this| this.child(run_label))
                     .child(format!("{collections} collections"))
                     .child(

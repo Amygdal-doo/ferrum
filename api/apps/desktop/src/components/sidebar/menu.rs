@@ -11,6 +11,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuAction {
     Open,
+    Run,
     AddRequest,
     AddFolder,
     Settings,
@@ -25,6 +26,7 @@ impl MenuAction {
     pub const fn label(self) -> &'static str {
         match self {
             Self::Open => "Open in tab",
+            Self::Run => "Run…",
             Self::AddRequest => "Add request",
             Self::AddFolder => "Add folder",
             Self::Settings => "Auth & variables…",

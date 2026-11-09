@@ -1,5 +1,5 @@
 //! FerrumAPI product page. Claims follow the FerrumAPI README: the core is
-//! built and tested, the UI is an early preview not yet hand-tested.
+//! built and tested, the UI is in alpha, not yet hand-tested.
 
 use maud::{Markup, html};
 
@@ -67,16 +67,16 @@ const PRINCIPLES: &[&str] = &[
 const PAGE: ProductPage = ProductPage {
     product: FERRUMAPI,
     meta_description: "FerrumAPI is a native, local-first desktop API client written in Rust with \
-                       GPUI. Early preview: request builder, collections, environments, Postman import.",
+                       GPUI. Alpha: request builder, collections, environments, Postman import.",
     intro: "A desktop API client written in Rust, focused on the Postman basics: build a \
             request, send it, organise it. Native GPUI app and local-first, with no Electron \
             shell and no webview.",
-    features_lead: "These are the features in the early preview. The request engine, storage \
+    features_lead: "These are the features in the alpha. The request engine, storage \
                     and import/export are covered by automated tests; the GPUI interface has been \
                     launch-tested and is still being polished.",
     features: FEATURES,
     screenshots: &["Request builder with the response panel"],
-    status_summary: "FerrumAPI is an early preview. The Postman basics are in place; below is \
+    status_summary: "FerrumAPI is in alpha. The Postman basics are in place; below is \
                      what is built today and what is not yet.",
     status_groups: &[
         BulletGroup {
@@ -119,11 +119,11 @@ mod tests {
     }
 
     #[test]
-    fn renders_single_h1_and_preview_status() {
+    fn renders_single_h1_and_alpha_status() {
         let html = rendered();
         assert_eq!(html.matches("<h1").count(), 1);
         assert!(html.contains(">FerrumAPI</h1>"));
-        assert!(html.contains("Early preview"));
+        assert!(html.contains("Alpha"));
     }
 
     #[test]

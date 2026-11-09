@@ -2,8 +2,10 @@
 
 mod code;
 mod collection_settings;
+mod cookies;
 mod environment;
 mod import;
+mod runner;
 mod save_request;
 
 use crate::app::FerrumApi;
@@ -88,6 +90,8 @@ impl FerrumApi {
             Dialog::EditEnvironment(env) => self.render_environment_dialog(*env, window, cx),
             Dialog::Import { curl, error } => self.render_import_dialog(curl, error, window, cx),
             Dialog::Code { tab_id, target } => self.render_code_dialog(tab_id, target, window, cx),
+            Dialog::Cookies(jar) => self.render_cookies_dialog(*jar, cx),
+            Dialog::Runner => self.render_runner_dialog(cx),
             Dialog::DeleteItem {
                 collection,
                 item,

@@ -5,6 +5,9 @@
 
 mod app;
 mod input;
+mod selection;
+mod sidebar;
+mod ui_state;
 mod view;
 
 use app::App;
@@ -18,24 +21,19 @@ fn main() {
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn".into()),
         )
         .init();
-    let runtime = match tokio::runtime::Builder::new_multi_thread()
-        .worker_threads(2)
-        .enable_all()
-        .build()
-    {
-        Ok(runtime) => runtime,
-        Err(error) => {
-            eprintln!("FerrumTerm: {error}");
-            std::process::exit(1);
-        }
-    };
+    let runtime =
+        match tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build() {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                eprintln!("FerrumTerm: {error}");
+                std::process::exit(1);
+            }
+        };
     let (sender, receiver) = futures::channel::mpsc::unbounded();
     let app = App::new(runtime, sender);
 
     ferrum_ui::run(
-        AppConfig::new("FerrumTerm")
-            .size(1100., 700.)
-            .min_size(420., 260.),
+        AppConfig::new("FerrumTerm").size(1100., 700.).min_size(420., 260.),
         move |window, cx| cx.new(|cx| TermView::new(app, receiver, window, cx)),
     );
 }

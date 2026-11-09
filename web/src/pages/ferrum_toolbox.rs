@@ -61,7 +61,7 @@ const PAGE: ProductPage = ProductPage {
     features_lead: "Install the toolbox once; it takes care of the rest.",
     features: FEATURES,
     screenshots: &["App list with update badges and the version history of one app"],
-    status_summary: "Ferrum Toolbox is an early preview. Its install, checksum, unpacking and \
+    status_summary: "Ferrum Toolbox is in alpha. Its install, checksum, unpacking and \
                      version-pruning logic is covered by automated tests against a local fake \
                      release server.",
     status_groups: &[

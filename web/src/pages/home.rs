@@ -172,13 +172,13 @@ fn status_strip() -> Markup {
                     ul class="status-list" {
                         li {
                             span class="status-dot status-dot--ok" {}
-                            strong { "FerrumData" }
-                            " is in alpha with a working PostgreSQL foundation."
+                            "Every Ferrum app is in " strong { "alpha" } ": installable and "
+                            "updated through Ferrum Toolbox, with frequent releases."
                         }
                         li {
                             span class="status-dot" {}
-                            "The other apps are early previews: their core logic is tested, and "
-                            "their GPUI interfaces have been launch-tested."
+                            "Core logic is covered by automated tests; expect rough edges in "
+                            "the interfaces."
                         }
                         li {
                             span class="status-dot" {}

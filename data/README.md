@@ -26,6 +26,10 @@ no webview, no React/TypeScript/Tauri/Electron. Part of the Ferrum monorepo (`..
 | Table browser tab: breadcrumb, refresh, editable SQL bar, ordered by primary key (warns if none), auto-sized columns | ✅ |
 | Browse queries per engine (backtick/double-quote quoting, SurrealQL `SELECT … ORDER BY id`, MongoDB `db.getCollection(…).find({}).sort({_id: 1})`) | ✅ unit-tested; SurrealDB/MongoDB forms also run live |
 | Editor tabs + SQL text (and table tabs) restored after restart | ✅ |
+| Query history (IDE-013): every run recorded per connection (text, time, duration, rows or error, incl. failed/cancelled runs and table browsing) in the local app DB, max 2,000 per connection; **History** tab in the results panel with search, this connection / all connections, Open (new tab), Run (new tab + run, production confirmation applies), double-click to open, Clear… | ✅ store + service unit-tested; panel compiles, not yet manually smoke tested |
+| Export (IDE-017): **Export → CSV / JSON…** saves every loaded row (not just the visible ones, in the current sort order) via a save dialog; **Copy as → CSV / JSON / Markdown** copies the selection, or all rows when nothing is selected | ✅ serializers unit-tested (quotes, newlines, NULL vs `''`, binary, decimals, JSON columns, absent document fields); dialog/clipboard not yet manually smoke tested |
+| Grid: click a header to sort (asc → desc → off; client-side, type-aware: numbers by value incl. exact decimals, dates/timestamps chronologically, text case-insensitively, NULL/absent last), drag a header's right edge to resize, click/shift-click/row-number selection, ⌘C copies a cell (full value) or a range (TSV), ⌘A selects all | ✅ comparator, selection and copy logic unit-tested; mouse/keyboard wiring not yet manually smoke tested |
+| Explorer: expand a PostgreSQL / MySQL / SQLite table (chevron) to see its columns (type, nullable, default, PK) and indexes (unique, primary, key columns or expressions) | ✅ live-tested (PG 17, MySQL 8.4, SQLite); tree UI not yet manually smoke tested |
 
 ### Drivers
 "Live" means the driver contract tests (`crates/db-*/tests/`) passed against a real server
@@ -56,9 +60,11 @@ unquoted, strings single-quoted, and `ObjectId("…")`, `ISODate("…")`, `Numbe
 `NumberDecimal("…")`, `UUID("…")` are understood (they become Extended JSON).
 
 ## Not built yet (from the spec)
-Row editing / "+ Row" / column add (IDE-014), column and index details in the tree, syntax highlighting/autocomplete (gated on ADR-003 spike),
-query history (IDE-013), CSV/JSON export (IDE-017), transactions UI, column resize/sort/copy, SSH, packaging
-and signing, Redis, AI. MongoDB: no `explain`, change streams, GridFS or regex literals (`/x/i`; use
+Row editing / "+ Row" / column add (IDE-014), syntax highlighting/autocomplete (gated on ADR-003 spike),
+transactions UI, SSH, packaging and signing, Redis, AI. Column/index details for SurrealDB and MongoDB
+(SQL engines only), foreign keys / constraints / triggers in the tree. Export of more than the loaded rows
+(it never re-runs the query: a result cut at `max_rows` exports those rows), Excel/SQL-INSERT export, persisted
+column widths and sort, keyboard navigation of the grid selection, history paging beyond the newest 200 matches. MongoDB: no `explain`, change streams, GridFS or regex literals (`/x/i`; use
 `{ $regex: "x", $options: "i" }`). SurrealDB: no `LIVE SELECT` streaming, no server-side cancel. The grid shows at most `max_rows` (default 10,000).
 
 ## Prerequisites
@@ -102,7 +108,7 @@ IDE-018).
 
 ## Layout
 ```
-apps/desktop/            GPUI app: root view (app.rs), components/{shell,connection,explorer,sql_editor,result_grid,table_view,dialogs}, state/, commands/
+apps/desktop/            GPUI app: root view (app.rs), components/{shell,connection,explorer,sql_editor,result_grid,history,table_view,dialogs}, state/, commands/
 crates/domain/           pure types: profiles, Secret, CellValue, QueryEvent, QueryState
 crates/db-driver-api/    DatabaseDriver / DbConnection traits, bounded event channel, cancellation, document flattening
 crates/db-postgres/      SQLx PostgreSQL adapter (streaming, cancel, exact NUMERIC decoding)
@@ -111,14 +117,15 @@ crates/db-sqlite/        SQLx SQLite adapter (database files, progress-handler i
 crates/db-surrealdb/     SurrealDB adapter (official SDK, remote ws/wss only, SurrealQL)
 crates/db-mongodb/       MongoDB adapter (official driver, shell-subset/JSON-command input)
 crates/application/      AppServices runtime, ConnectionService, QueryService, safety heuristics
-crates/persistence/      SQLite app state + migrations (settings, profiles, tabs)
+crates/persistence/      SQLite app state + migrations (settings, profiles, tabs, query history)
 crates/credentials/      OS keychain (keyring 4) + session-memory fallback
 crates/editor-core/      statement splitter, cursor → statement, UTF-16 ↔ byte offsets
-crates/result-grid-core/ viewport math, bounded ResultBuffer
+crates/result-grid-core/ viewport math, bounded ResultBuffer, sort comparator, selection, CSV/JSON/Markdown export
 docs/                    ARCHITECTURE, SECURITY, DRIVER_CONTRACT, QA_TEST_PLAN, ADR/
 ```
 
 ## Local data
 `~/Library/Application Support/dev.FerrumData.FerrumData/ferrumdata.db` on macOS (OS-appropriate
-elsewhere via `directories`). Deleting it resets FerrumData. Saved passwords live in the OS
+elsewhere via `directories`). Deleting it resets FerrumData. It holds settings, profiles, editor
+tabs and the query history (SQL text, never row values). Saved passwords live in the OS
 keychain under the service `dev.ferrumdata.connection`.

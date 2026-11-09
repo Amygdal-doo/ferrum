@@ -4,6 +4,8 @@
 //! [`AppServices`], so HTTP, disk and SQLite I/O never execute on the UI
 //! thread. UI code calls [`AppServices::spawn`] and awaits the handle.
 
+mod cookies;
+mod runner;
 mod send;
 mod transfer;
 
@@ -13,6 +15,7 @@ pub use ferrumapi_http::CancellationToken;
 pub use ferrumapi_interop as interop;
 pub use ferrumapi_persistence as persistence;
 pub use ferrumapi_persistence::{Store, StoreError};
+pub use runner::{RunEvent, RunItem, RunOutcome, plan_run, run_sequence};
 pub use send::{Prepared, code_snippet, prepare, variables_for};
 pub use transfer::TransferError;
 
@@ -62,6 +65,7 @@ pub struct AppServices {
     runtime: Arc<RuntimeGuard>,
     pub store: Store,
     pub http: HttpClient,
+    cookies: cookies::SharedJar,
 }
 
 impl AppServices {
@@ -79,6 +83,7 @@ impl AppServices {
             runtime: Arc::new(RuntimeGuard(Some(runtime))),
             store,
             http: HttpClient::new(),
+            cookies: cookies::SharedJar::default(),
         })
     }
 

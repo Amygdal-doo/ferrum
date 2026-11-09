@@ -5,6 +5,7 @@
 
 pub mod connection;
 pub mod error;
+pub mod history;
 pub mod ids;
 pub mod query;
 pub mod schema;
@@ -17,11 +18,12 @@ pub use connection::{
     EnvironmentTag, ResolvedConnectionConfig, SecretRef, TlsMode,
 };
 pub use error::{DbError, DbErrorKind};
+pub use history::{HistoryEntry, HistoryStatus};
 pub use ids::{EditorTabId, ExecutionId, ProfileId};
 pub use query::{
     ExecutionEnvelope, QueryEvent, QueryLimits, QueryOutcome, QueryRequest, QueryState, RowBatch,
 };
-pub use schema::{TableInfo, TableKind, TableRef};
+pub use schema::{ColumnInfo, IndexInfo, TableDetails, TableInfo, TableKind, TableRef};
 pub use secret::Secret;
 pub use settings::{AppSettings, EditorTabState, LayoutSettings, Theme};
 pub use value::{CellValue, ColumnMeta, LogicalType};

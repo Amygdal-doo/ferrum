@@ -74,6 +74,8 @@ pub struct CommitRowProps {
     pub refs: Vec<GitRef>,
     pub is_head: bool,
     pub selected: bool,
+    /// While searching: whether this commit matches (others are dimmed).
+    pub matched: Option<bool>,
     pub graph_px: f32,
     pub lanes: usize,
 }
@@ -91,6 +93,7 @@ pub fn commit_row(
         refs,
         is_head,
         selected,
+        matched,
         graph_px,
         lanes,
     } = props;
@@ -150,6 +153,10 @@ pub fn commit_row(
                 .rounded_lg()
                 .text_color(text)
                 .when_some(card_bg, |d, bg| d.bg(bg))
+                .when(matched == Some(true) && !selected, |d| {
+                    d.bg(accent.opacity(0.14))
+                })
+                .when(matched == Some(false) && !selected, |d| d.opacity(0.4))
                 .when(!selected, |d| d.hover(move |s| s.bg(hover)))
                 .on_click(move |_, _, cx| {
                     if let Err(error) = open_view.update(cx, |app, cx| {

@@ -267,10 +267,15 @@ mod tests {
         let settings = AppSettings {
             theme: Theme::Dark,
             pull_mode: PullMode::Rebase,
+            side_by_side: true,
             ..AppSettings::default()
         };
         s.save_settings(&settings).await.expect("save");
         assert_eq!(s.load_settings().await.expect("load"), settings);
+        // Settings saved before a field existed load with its default.
+        s.exec(r#"UPDATE settings SET value = '{"theme":"dark"}' WHERE key = 'app'"#)
+            .await;
+        assert!(!s.load_settings().await.expect("old").side_by_side);
 
         let ws = WorkspaceState {
             open: vec![RepoId::new()],

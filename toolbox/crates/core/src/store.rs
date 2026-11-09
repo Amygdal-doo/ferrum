@@ -151,6 +151,11 @@ pub struct Settings {
     /// old state files can be migrated.
     #[serde(rename = "include_prereleases", skip_serializing)]
     pub legacy_include_prereleases: bool,
+    /// Bumped by one-time moves of every app's update channel, so a later
+    /// choice on an app's page isn't overridden again. Missing in older state
+    /// files, which therefore read as 0 rather than the current revision.
+    #[serde(default)]
+    pub channels_revision: u32,
 }
 
 /// The public repo customers download from: releases only, no source, so
@@ -159,6 +164,9 @@ pub const PUBLIC_REPO: (&str, &str) = ("Amygdal-doo", "ferrum-releases");
 
 /// Where releases were published before [`PUBLIC_REPO`] (private).
 const LEGACY_REPO: (&str, &str) = ("Amygdal-doo", "ferrum");
+
+/// 1: every app moved to the Alpha channel, where all Ferrum releases are.
+const CHANNELS_REVISION: u32 = 1;
 
 impl Settings {
     /// Whether the configured repo is [`PUBLIC_REPO`], which needs no token.
@@ -176,6 +184,7 @@ impl Default for Settings {
             check_interval_hours: 6,
             keep_versions: 3,
             legacy_include_prereleases: false,
+            channels_revision: CHANNELS_REVISION,
         }
     }
 }
@@ -234,8 +243,9 @@ impl State {
         Ok(state)
     }
 
-    /// "Include prereleases" became the Beta channel for every app, and
-    /// releases moved from the private source repo to [`PUBLIC_REPO`].
+    /// "Include prereleases" became the Beta channel for every app, then every
+    /// app moved to Alpha; releases moved from the private source repo to
+    /// [`PUBLIC_REPO`].
     fn migrate(&mut self) {
         if (
             self.settings.repo_owner.as_str(),
@@ -248,6 +258,12 @@ impl State {
             for app in AppId::ALL {
                 self.apps.entry(app).or_default().channel = UpdateChannel::Beta;
             }
+        }
+        if self.settings.channels_revision < CHANNELS_REVISION {
+            for app in AppId::ALL {
+                self.apps.entry(app).or_default().channel = UpdateChannel::Alpha;
+            }
+            self.settings.channels_revision = CHANNELS_REVISION;
         }
     }
 
@@ -921,6 +937,7 @@ mod tests {
             release(AppId::Git, "1.0.0", false),
         ]);
         state.record_install(AppId::Api, installed("0.2.0"));
+        state.set_channel(AppId::Api, UpdateChannel::Stable);
         assert_eq!(state.updates(), vec![(AppId::Api, Version::new(0, 3, 0))]);
         state.set_channel(AppId::Api, UpdateChannel::Beta);
         assert_eq!(
@@ -951,17 +968,39 @@ mod tests {
         assert!(
             AppId::ALL
                 .iter()
-                .all(|app| state.channel(*app) == UpdateChannel::Beta)
+                .all(|app| state.channel(*app) == UpdateChannel::Alpha)
         );
         assert!(!state.settings.legacy_include_prereleases);
         state.save(&paths).expect("save");
         let json = std::fs::read_to_string(paths.state_file()).expect("read");
         assert!(!json.contains("include_prereleases"));
-        assert!(json.contains(r#""channel": "beta""#));
+        assert!(json.contains(r#""channel": "alpha""#));
 
         std::fs::write(paths.state_file(), r#"{"settings":{"repo_owner":"o"}}"#).expect("write");
         let fresh = State::load(&paths).expect("load");
-        assert_eq!(fresh.channel(AppId::Data), UpdateChannel::Stable);
+        assert_eq!(fresh.channel(AppId::Data), UpdateChannel::Alpha);
+    }
+
+    #[test]
+    fn moves_every_app_to_alpha_once() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        std::fs::create_dir_all(&paths.data_dir).expect("mkdir");
+        std::fs::write(
+            paths.state_file(),
+            r#"{"settings":{"repo_owner":"o","repo_name":"r"},
+                "apps":{"ide":{"channel":"stable"},"git":{"channel":"beta"}}}"#,
+        )
+        .expect("write");
+        let mut state = State::load(&paths).expect("load");
+        assert_eq!(state.channel(AppId::Ide), UpdateChannel::Alpha);
+        assert_eq!(state.channel(AppId::Git), UpdateChannel::Alpha);
+        assert_eq!(state.channel(AppId::Toolbox), UpdateChannel::Alpha);
+
+        state.set_channel(AppId::Ide, UpdateChannel::Stable);
+        state.save(&paths).expect("save");
+        let reloaded = State::load(&paths).expect("load");
+        assert_eq!(reloaded.channel(AppId::Ide), UpdateChannel::Stable);
     }
 
     #[test]

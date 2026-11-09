@@ -77,7 +77,7 @@ impl FerrumToolbox {
                                     .child(header("Installed", Some(VERSION_WIDTH)))
                                     .child(header("Latest stable", Some(VERSION_WIDTH)))
                                     .child(header("", Some(ACTION_WIDTH)))
-                                    .child(header("Latest beta", Some(VERSION_WIDTH)))
+                                    .child(header("Latest alpha", Some(VERSION_WIDTH)))
                                     .child(header("Released", Some(DATE_WIDTH)))
                                     .child(header("Downloads", Some(DOWNLOADS_WIDTH))),
                             )
@@ -99,9 +99,12 @@ impl FerrumToolbox {
             .state
             .latest_in(app, Channel::Stable)
             .map(|r| r.version.to_string());
-        let beta = self
+        let preview = self
             .state
-            .latest_in(app, Channel::Beta)
+            .latest_in(app, Channel::Alpha)
+            .into_iter()
+            .chain(self.state.latest_in(app, Channel::Beta))
+            .max_by(|a, b| a.version.cmp(&b.version))
             .map(|r| r.version.to_string());
         let released = format_date(self.state.last_released(app));
         let downloads = self.state.total_downloads(app);
@@ -141,7 +144,7 @@ impl FerrumToolbox {
             .child(cell(VERSION_WIDTH).child(version_label(active)))
             .child(cell(VERSION_WIDTH).child(version_label(stable)))
             .child(cell(ACTION_WIDTH).child(self.render_overview_action(app, cx)))
-            .child(cell(VERSION_WIDTH).child(version_label(beta)))
+            .child(cell(VERSION_WIDTH).child(version_label(preview)))
             .child(
                 cell(DATE_WIDTH).child(
                     Label::new(released)

@@ -35,4 +35,6 @@ pub struct AppSettings {
     pub prune_on_fetch: bool,
     /// Hide `·` / `¬` whitespace markers in diffs.
     pub hide_invisibles: bool,
+    /// Show diffs side by side instead of unified.
+    pub side_by_side: bool,
 }

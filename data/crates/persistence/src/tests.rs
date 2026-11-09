@@ -115,3 +115,156 @@ async fn legacy_postgres_rows_load_alongside_new_engines() {
     assert_eq!(old.namespace, None);
     assert_eq!(all[1], mongo);
 }
+
+fn history(profile: ProfileId, sql: &str) -> ferrumdata_domain::HistoryEntry {
+    ferrumdata_domain::HistoryEntry {
+        id: 0,
+        profile_id: profile,
+        sql: sql.into(),
+        executed_at: Utc::now(),
+        duration: std::time::Duration::from_millis(42),
+        status: ferrumdata_domain::HistoryStatus::Completed,
+        rows_returned: Some(7),
+        rows_affected: None,
+        error: None,
+    }
+}
+
+fn all_of(profile: Option<ProfileId>, search: &str) -> HistoryQuery {
+    HistoryQuery {
+        profile_id: profile,
+        search: search.into(),
+        limit: 100,
+    }
+}
+
+#[tokio::test]
+async fn history_round_trips_newest_first_per_profile() {
+    let store = AppStore::in_memory().await.expect("open");
+    let (a, b) = (ProfileId::new(), ProfileId::new());
+    store
+        .record_history(&history(a, "select 1"))
+        .await
+        .expect("rec");
+    let mut failed = history(a, "selec 2");
+    failed.status = ferrumdata_domain::HistoryStatus::Failed;
+    failed.rows_returned = None;
+    failed.error = Some("syntax error at or near \"selec\"".into());
+    let id = store.record_history(&failed).await.expect("rec");
+    store
+        .record_history(&history(b, "select 3"))
+        .await
+        .expect("rec");
+
+    let got = store
+        .list_history(&all_of(Some(a), ""))
+        .await
+        .expect("list");
+    assert_eq!(
+        got.iter().map(|e| e.sql.as_str()).collect::<Vec<_>>(),
+        vec!["selec 2", "select 1"]
+    );
+    let mut expected = failed.clone();
+    expected.id = id;
+    // RFC 3339 keeps sub-second precision, so the entry survives unchanged.
+    assert_eq!(got[0], expected);
+    assert_eq!(got[1].duration, std::time::Duration::from_millis(42));
+    assert_eq!(got[1].rows_returned, Some(7));
+
+    assert_eq!(
+        store
+            .list_history(&all_of(None, ""))
+            .await
+            .expect("all")
+            .len(),
+        3
+    );
+}
+
+#[tokio::test]
+async fn history_search_is_literal_and_case_insensitive() {
+    let store = AppStore::in_memory().await.expect("open");
+    let p = ProfileId::new();
+    for sql in [
+        "SELECT * FROM Users",
+        "select discount from t where pct = '50%'",
+        "select 500 from t",
+        "select a_b from t",
+        "select axb from t",
+    ] {
+        store.record_history(&history(p, sql)).await.expect("rec");
+    }
+    let search = |s: &'static str| {
+        let store = store.clone();
+        async move {
+            store
+                .list_history(&all_of(Some(p), s))
+                .await
+                .expect("list")
+                .into_iter()
+                .map(|e| e.sql)
+                .collect::<Vec<_>>()
+        }
+    };
+    assert_eq!(search("from users").await, vec!["SELECT * FROM Users"]);
+    assert_eq!(
+        search("50%").await,
+        vec!["select discount from t where pct = '50%'"]
+    );
+    assert_eq!(search("a_b").await, vec!["select a_b from t"]);
+    assert_eq!(search("").await.len(), 5);
+    let limited = store
+        .list_history(&HistoryQuery {
+            limit: 2,
+            ..all_of(Some(p), "")
+        })
+        .await
+        .expect("list");
+    assert_eq!(limited.len(), 2);
+}
+
+#[tokio::test]
+async fn history_is_pruned_cleared_and_removed_with_its_profile() {
+    let store = AppStore::in_memory().await.expect("open");
+    let p = ConnectionProfile::new_postgres("p");
+    store.upsert_profile(&p).await.expect("profile");
+    let other = ProfileId::new();
+    for i in 0..HISTORY_RETENTION + 3 {
+        store
+            .record_history(&history(p.id, &format!("select {i}")))
+            .await
+            .expect("rec");
+    }
+    store
+        .record_history(&history(other, "keep me"))
+        .await
+        .expect("rec");
+    let all = HistoryQuery {
+        limit: usize::MAX,
+        ..all_of(Some(p.id), "")
+    };
+    let kept = store.list_history(&all).await.expect("list");
+    assert_eq!(kept.len(), HISTORY_RETENTION);
+    assert_eq!(kept[0].sql, format!("select {}", HISTORY_RETENTION + 2));
+    assert_eq!(kept.last().map(|e| e.sql.as_str()), Some("select 3"));
+
+    store.delete_profile(p.id).await.expect("delete");
+    assert!(store.list_history(&all).await.expect("list").is_empty());
+    assert_eq!(
+        store
+            .list_history(&all_of(None, ""))
+            .await
+            .expect("list")
+            .len(),
+        1
+    );
+
+    store.clear_history(Some(other)).await.expect("clear");
+    assert!(
+        store
+            .list_history(&all_of(None, ""))
+            .await
+            .expect("list")
+            .is_empty()
+    );
+}

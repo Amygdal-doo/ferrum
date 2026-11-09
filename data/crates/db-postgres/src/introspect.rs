@@ -2,7 +2,9 @@
 
 use crate::error::map_sqlx_error;
 use ferrumdata_db_driver_api::DbResult;
-use ferrumdata_domain::{Secret, TableInfo, TableKind, TableRef};
+use ferrumdata_domain::{
+    ColumnInfo, IndexInfo, Secret, TableDetails, TableInfo, TableKind, TableRef,
+};
 use sqlx::{PgPool, Row};
 
 const LIST_TABLES: &str = r"
@@ -59,4 +61,82 @@ fn relkind(k: &str) -> TableKind {
         "p" => TableKind::PartitionedTable,
         _ => TableKind::Table,
     }
+}
+
+const COLUMNS: &str = r"
+SELECT a.attname::text AS name,
+       format_type(a.atttypid, a.atttypmod) AS data_type,
+       NOT a.attnotnull AS nullable,
+       pg_get_expr(d.adbin, d.adrelid) AS default_expr,
+       COALESCE(a.attnum = ANY (pk.indkey::int2[]), false) AS is_pk
+FROM pg_attribute a
+JOIN pg_class c ON c.oid = a.attrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+LEFT JOIN pg_index pk ON pk.indrelid = c.oid AND pk.indisprimary
+WHERE n.nspname = $1 AND c.relname = $2 AND a.attnum > 0 AND NOT a.attisdropped
+ORDER BY a.attnum
+";
+
+/// Key columns only (INCLUDE columns are left out); expressions as written.
+const INDEXES: &str = r"
+SELECT ic.relname::text AS name,
+       i.indisunique AS is_unique,
+       i.indisprimary AS is_primary,
+       ARRAY(
+           SELECT pg_get_indexdef(i.indexrelid, k, true)
+           FROM generate_series(1, i.indnkeyatts::int) AS k
+           ORDER BY k
+       ) AS columns
+FROM pg_index i
+JOIN pg_class ic ON ic.oid = i.indexrelid
+JOIN pg_class c ON c.oid = i.indrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = $1 AND c.relname = $2
+ORDER BY i.indisprimary DESC, ic.relname
+";
+
+pub async fn describe_table(
+    pool: &PgPool,
+    secret: &Secret,
+    table: &TableRef,
+) -> DbResult<TableDetails> {
+    let map = |e: sqlx::Error| map_sqlx_error(&e, secret);
+    let schema = table.schema.as_deref().unwrap_or("public");
+    let columns = sqlx::query(COLUMNS)
+        .bind(schema)
+        .bind(&table.name)
+        .fetch_all(pool)
+        .await
+        .map_err(map)?
+        .iter()
+        .map(|r| {
+            Ok(ColumnInfo {
+                name: r.try_get("name")?,
+                data_type: r.try_get("data_type")?,
+                nullable: r.try_get("nullable")?,
+                default: r.try_get("default_expr")?,
+                primary_key: r.try_get("is_pk")?,
+            })
+        })
+        .collect::<Result<_, sqlx::Error>>()
+        .map_err(map)?;
+    let indexes = sqlx::query(INDEXES)
+        .bind(schema)
+        .bind(&table.name)
+        .fetch_all(pool)
+        .await
+        .map_err(map)?
+        .iter()
+        .map(|r| {
+            Ok(IndexInfo {
+                name: r.try_get("name")?,
+                columns: r.try_get("columns")?,
+                unique: r.try_get("is_unique")?,
+                primary: r.try_get("is_primary")?,
+            })
+        })
+        .collect::<Result<_, sqlx::Error>>()
+        .map_err(map)?;
+    Ok(TableDetails { columns, indexes })
 }

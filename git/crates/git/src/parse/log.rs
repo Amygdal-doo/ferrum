@@ -10,7 +10,7 @@ pub const DETAILS_FORMAT: &str = "%H%x1f%P%x1f%an%x1f%ae%x1f%at%x1f%s%x1f%cn%x1f
 /// Fields: oid, time, reflog subject.
 pub const STASH_FORMAT: &str = "%H%x1f%at%x1f%gs";
 
-fn commit_from(f: &[&str]) -> Option<Commit> {
+pub(super) fn commit_from(f: &[&str]) -> Option<Commit> {
     if f.len() < 6 || f[0].len() < 7 {
         return None;
     }

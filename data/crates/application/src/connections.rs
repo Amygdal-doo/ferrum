@@ -68,6 +68,12 @@ impl ConnectionService {
         }
     }
 
+    /// Local app-state store shared with the other services.
+    #[must_use]
+    pub(crate) const fn store(&self) -> &AppStore {
+        &self.store
+    }
+
     #[must_use]
     pub fn vault_name(&self) -> &'static str {
         self.vault.name()
@@ -181,6 +187,18 @@ impl ConnectionService {
         id: ProfileId,
     ) -> Result<Vec<ferrumdata_domain::TableInfo>, DbError> {
         self.ensure_connected(id).await?.list_tables().await
+    }
+
+    /// Columns and indexes of one table, connecting if needed.
+    pub async fn describe_table(
+        &self,
+        id: ProfileId,
+        table: ferrumdata_domain::TableRef,
+    ) -> Result<ferrumdata_domain::TableDetails, DbError> {
+        self.ensure_connected(id)
+            .await?
+            .describe_table(&table)
+            .await
     }
 
     pub async fn disconnect(&self, id: ProfileId) {

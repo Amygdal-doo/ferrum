@@ -34,6 +34,10 @@ or a specific private key). Each repository is assigned one profile (toolbar →
 | Commit graph: lane layout (straight lanes, merges, branch-offs, colours), ref badges, WIP row, virtualized, 2000 commits + "load more" | ✅ layout unit-tested; rendered on demo repo |
 | Working copy: unstaged / staged / conflicted lists, stage / unstage / discard file or all | ✅ tested |
 | Diff viewer; **stage / unstage / discard per hunk and per selected lines** | ✅ tested end-to-end with `git apply` |
+| **Side-by-side diffs**: Unified / Split switch in the diff and commit-details headers, remembered in settings; line staging works in both | ⚠️ line pairing + setting persistence unit-tested; UI built but not clicked through |
+| **File history** (commits touching a file, follows renames, from the diff header or a file in commit details) and **blame** (short id, author, relative date per run of lines; uncommitted lines marked; clicking selects the commit in the graph; "Blame" at any history entry) | ⚠️ git layer + parsers tested against real repos; UI built but not clicked through |
+| **Commit search**: toolbar search matches summary, author name/email and SHA prefix instantly, plus full message bodies via `git log --grep`; matches highlighted in the graph, ↑/↓ (Enter = next) select and scroll, optional "only matches" filter | ⚠️ matching + navigation unit-tested, `--grep` tested; UI built but not clicked through |
+| **Undo** (toolbar) of the last local commit / amend (soft reset, changes stay staged, not offered once pushed) or checkout (switch back), read from the HEAD reflog and re-checked before running; discards, resets, merges, rebases, pulls are never undoable | ✅ tested (service level); UI not clicked through |
 | Commit with summary + description, amend (pre-fills last message), ⌘↩ | ✅ tested |
 | Branches: create (from anything), checkout, checkout remote (tracking), rename, delete, delete on remote, merge, rebase | ✅ tested |
 | Commits: checkout detached, cherry-pick, revert (merge commits use `-m 1`), reset soft/mixed/hard, create branch/tag here, copy SHA | ✅ tested |
@@ -46,11 +50,13 @@ or a specific private key). Each repository is assigned one profile (toolbar →
 | FerrumIDE "One Dark" theme, resizable + persisted panels | ✅ (light theme not available yet) |
 
 ## Not built yet
-Undo/redo of operations, interactive rebase, file history and blame, submodules, LFS, worktrees,
-GPG/SSH commit signing UI (signing configured in git config still works), PR/issue
-integrations (GitHub/GitLab), search across commits, syntax highlighting in diffs, side-by-side diffs,
-merge-conflict editor (use ours/theirs or edit the file, then *Resolved*), progress percentages for
-network ops, and packaging and signing.
+Redo, and undo beyond the last commit / amend / checkout (merges, rebases, cherry-picks, resets);
+interactive rebase, submodules, LFS, worktrees, GPG/SSH commit signing UI (signing configured in
+git config still works), PR/issue integrations (GitHub/GitLab), search beyond the loaded history
+(matches are limited to the commits in the graph; "Load more" extends it), blame of a line's
+previous revision ("blame parent"), horizontal scrolling of long lines in blame and split diffs
+(they are clipped), merge-conflict editor (use ours/theirs or edit the file, then *Resolved*),
+progress percentages for network ops, and packaging and signing.
 
 ## Prerequisites
 - Rust via rustup; `rust-toolchain.toml` installs **1.99.1**.
@@ -77,11 +83,13 @@ widgets live in `apps/desktop/src/components/widgets.rs`.
 
 ## Layout
 ```
-apps/desktop/        GPUI app: root view in app.rs; components/{shell,sidebar,graph,detail,diff,dialogs,home,widgets},
+apps/desktop/        GPUI app: root view in app.rs; components/{shell,sidebar,graph,detail,diff,split,file_panel,dialogs,home,widgets},
                      state/ (plain data owned by the root view), commands/ (methods on the root view)
-crates/domain/       pure types: Commit, GitRef, WorkingStatus, FileDiff/Hunk, Stash, Profile/SshAuth, RepoEntry, RepoOp
-crates/git/          git CLI runner (non-interactive env, cancellation), porcelain/log/refs/diff parsers, RepoOp executor,
-                     hunk/line patch builder, per-profile SSH env + askpass, ssh -T test
+crates/domain/       pure types: Commit, GitRef, WorkingStatus, FileDiff/Hunk (+ side-by-side pairing), Stash,
+                     FileCommit/Blame, Undo (planned from the reflog), commit search, Profile/SshAuth, RepoEntry, RepoOp
+crates/git/          git CLI runner (non-interactive env, cancellation), porcelain/log/refs/diff/blame/reflog parsers,
+                     RepoOp executor, file history / blame / message grep / undo plan, hunk/line patch builder,
+                     per-profile SSH env + askpass, ssh -T test
 crates/graph/        commit-graph lane layout
 crates/persistence/  SQLite: repos, profiles, settings, workspace
 crates/credentials/  OS keychain (keyring) + session fallback for passphrases

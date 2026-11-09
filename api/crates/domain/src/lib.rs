@@ -6,8 +6,10 @@
 mod auth;
 mod body;
 mod collection;
+mod cookie_jar;
 mod environment;
 mod error;
+pub mod highlight;
 mod history;
 mod ids;
 mod request;
@@ -21,6 +23,9 @@ mod workspace;
 pub use auth::{ApiKeyLocation, Auth};
 pub use body::{FormField, FormFieldKind, RawLanguage, RequestBody};
 pub use collection::{Collection, Folder, Item, RequestOrigin, SavedRequest};
+pub use cookie_jar::{
+    CookieJar, StoredCookie, default_path, domain_matches, parse_cookie_date, path_matches,
+};
 pub use environment::{Environment, Variable};
 pub use error::ExecError;
 pub use history::HistoryEntry;

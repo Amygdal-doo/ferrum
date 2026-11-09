@@ -80,7 +80,7 @@ const PAGE: ProductPage = ProductPage {
         "Commit graph with branches, tags and the working-copy row",
         "Diff viewer with hunk and line staging",
     ],
-    status_summary: "FerrumGIT is an early preview. Git operations are covered by automated \
+    status_summary: "FerrumGIT is in alpha. Git operations are covered by automated \
                      tests; the GPUI interface has been launch-tested on a demo repository but \
                      not yet clicked through by a person.",
     status_groups: &[
@@ -120,11 +120,11 @@ mod tests {
     }
 
     #[test]
-    fn renders_single_h1_and_preview_status() {
+    fn renders_single_h1_and_alpha_status() {
         let html = rendered();
         assert_eq!(html.matches("<h1").count(), 1);
         assert!(html.contains(">FerrumGIT</h1>"));
-        assert!(html.contains("Early preview"));
+        assert!(html.contains("Alpha"));
     }
 
     #[test]

@@ -39,10 +39,13 @@ override that. Use `fterm awake always` to hold the assertion permanently.
 | tmux-style `fterm attach` (renders splits, status line, `C-b` prefix: d c % " o n p 0-9 x [ ]) | ✅ attach/detach checked in a real PTY |
 | Remote: TCP listeners on loopback/Tailscale addresses only, 256-bit token, `--tailscale` auto-detects this Mac's tailnet IP, `fterm hosts add` + `fterm -S host …` | ✅ token auth tested on loopback; not tested across two machines |
 | GPUI window: tabs, splits with focus accent, truecolor/256/16 colours, bold/italic/underline/strike/dim/inverse, block/beam/underline cursor, wide (CJK/emoji) cells, scrollback (wheel / Cmd+PgUp), paste (bracketed), copy screen, font size, IME composition | ⚠️ ported to GPUI; launch-tested, not yet visually re-checked |
-| Shortcuts: ⌘T tab · ⌘N session · ⌘D / ⌘⇧D split · ⌘W close · ⌘[ ⌘] pane · ⌘⇧[ ⌘⇧] / ⌘1–9 tabs · ⌘⇧S next session · ⌘V · ⌘⇧C copy screen · ⌘= ⌘- ⌘0 | ⚠️ wired, not hand-tested |
+| Sidebar (⌘B or the tab-bar button; open/closed and width remembered): **Agents** section (Claude Code, Codex, aider…, `agent…` labels, or anything reporting a status) with a coloured dot + `working` / `blocked · permission` / `done` / `error` and the status message; a badge counting agents that are blocked, or done / failed since you last looked at their tab; below it every session with its tabs and split panes (label, program, cwd). Click a row to show that session and focus the pane | ⚠️ builds; model unit-tested; not yet looked at on screen |
+| **+ New agent** menu in the sidebar: Claude Code, Codex, recent custom commands, or "Custom command…" (inline field). Opens a new tab labelled after the program (`claude`, `claude-2`…), like `fterm run --window -l claude -- claude`, in the focused pane's directory, through your login shell so `.zprofile`/`.zshrc` PATH applies | ⚠️ builds; label/command logic unit-tested; not launched by hand |
+| Mouse selection (drag inside a pane) and ⌘C copy; the text is captured on mouse-up, cleared by typing, paste or scrolling | ⚠️ selection/hit-testing unit-tested; not hand-tested |
+| Shortcuts: ⌘T tab · ⌘N session · ⌘D / ⌘⇧D split · ⌘W close · ⌘[ ⌘] pane · ⌘⇧[ ⌘⇧] / ⌘1–9 tabs · ⌘⇧S next session · ⌘B sidebar · ⌘C copy selection · ⌘V · ⌘⇧C copy screen · ⌘= ⌘- ⌘0 | ⚠️ wired, not hand-tested |
 
 ## Not built yet
-Mouse selection and copy, mouse reporting to programs, OSC 8 hyperlinks, ligatures,
+Selection by word/line (double/triple click), selecting into scrollback, mouse reporting to programs, OSC 8 hyperlinks, ligatures,
 dead keys, kitty keyboard and graphics protocols, a config file and themes, ⌘F search,
 restoring sessions after the *server* restarts (programs can't survive their PTY owner),
 built-in Tailscale node (Rex embeds Go's tsnet; there is no Rust equivalent, so FerrumTerm
@@ -81,7 +84,8 @@ any address that isn't loopback or in Tailscale's ranges.
 
 ## Layout
 ```
-apps/gui/            FerrumTerm window: GPUI view painting frames as quads + shaped text (view, input, app)
+apps/gui/            FerrumTerm window: GPUI view painting frames as quads + shaped text (view, input, app),
+                     sidebar (model, agents), mouse selection, persisted window state (ui_state)
 apps/cli/            fterm: commands, server management + LaunchAgent, attach (crossterm), skill, hosts
 crates/protocol/     wire types, length-prefixed JSON framing, layouts, OSC 7501 parser/scanner
 crates/emulator/     alacritty_terminal wrapper: frames, capture, replies, key-spec encoding, palette
@@ -92,5 +96,6 @@ docs/                ARCHITECTURE
 
 ## Local data
 `~/Library/Application Support/dev.FerrumTerm.FerrumTerm/` holds `token` (0600), `server.log`
-and `hosts.json` (0600). The socket is at `$TMPDIR/ferrumterm-$USER/server.sock`, in a 0700
+and `hosts.json` (0600); the window keeps sidebar state and recent custom agent commands
+in `gui-state` (plain `key=value`). The socket is at `$TMPDIR/ferrumterm-$USER/server.sock`, in a 0700
 directory with 0600 permissions. Override with `FTERM_STATE_DIR` / `FTERM_SOCKET`.

@@ -6,11 +6,12 @@ use crate::components::actions::Action;
 use crate::components::code::code_diff;
 use crate::components::graph::ref_badge;
 use crate::components::icons::Icon;
+use crate::components::split::layout_toggle;
 use crate::components::widgets::{danger_button, ghost_button, primary_button, small_button};
 use crate::components::{avatar_color, change_word, plural};
-use crate::state::Selection;
+use crate::state::{FileTab, Selection};
 use ferrumgit_domain::text::initials;
-use ferrumgit_domain::{CommitDetails, DiffSource, FileDiff, RepoId};
+use ferrumgit_domain::{ChangeKind, CommitDetails, DiffSource, FileDiff, Oid, RepoId};
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -200,6 +201,7 @@ pub fn commit_panel(
                 })),
         )
         .child(div().flex_1())
+        .when(!tree, |d| d.child(layout_toggle(app, cx)))
         .child(
             h_flex()
                 .rounded_md()
@@ -238,6 +240,10 @@ pub fn commit_panel(
         plural(adds as usize),
         plural(dels as usize)
     );
+    // History / blame per file for commits (not stashes): (commit, first parent).
+    let file_rev = stash
+        .is_none()
+        .then(|| (c.oid.clone(), c.parents.first().cloned()));
     let files: Vec<AnyElement> = if tree {
         vec![file_tree(id, &details.files, cx)]
     } else {
@@ -246,7 +252,7 @@ pub fn commit_panel(
             .iter()
             .map(|f| {
                 let open = view.expanded.contains(&f.path);
-                file_section(app, id, Arc::new(f.clone()), open, cx)
+                file_section(app, id, Arc::new(f.clone()), open, file_rev.as_ref(), cx)
             })
             .collect()
     };
@@ -357,17 +363,67 @@ fn capitalize(s: &str) -> String {
         .map_or_else(String::new, |f| f.to_uppercase().chain(c).collect())
 }
 
+/// "History" / "Blame" buttons shown while hovering a file header. A deleted
+/// file is blamed as of the parent commit, where it still existed.
+fn file_buttons(
+    id: RepoId,
+    file: &FileDiff,
+    rev: Option<&(Oid, Option<Oid>)>,
+    group: SharedString,
+    cx: &mut Context<FerrumGit>,
+) -> Vec<AnyElement> {
+    let Some((oid, parent)) = rev else {
+        return Vec::new();
+    };
+    let colors = cx.theme().colors().clone();
+    let blame_rev = if file.change == ChangeKind::Deleted {
+        parent.clone()
+    } else {
+        Some(oid.clone())
+    };
+    let mut targets = vec![("History", FileTab::History, Some(oid.clone()))];
+    if blame_rev.is_some() {
+        targets.push(("Blame", FileTab::Blame, blame_rev));
+    }
+    targets
+        .into_iter()
+        .map(|(label, tab, rev)| {
+            let path = file.path.clone();
+            div()
+                .id(SharedString::from(format!("file-{label}-{}", file.path)))
+                .flex_none()
+                .px_1p5()
+                .rounded_sm()
+                .border_1()
+                .border_color(colors.border)
+                .bg(colors.editor_background)
+                .invisible()
+                .group_hover(group.clone(), |s| s.visible())
+                .hover(|s| s.bg(colors.element_hover))
+                .child(Label::new(label).size(LabelSize::XSmall))
+                .on_click(cx.listener(move |app, _, _, cx| {
+                    cx.stop_propagation();
+                    app.open_file_view(id, path.clone(), rev.clone(), tab, cx);
+                }))
+                .into_any_element()
+        })
+        .collect()
+}
+
 fn file_section(
     app: &FerrumGit,
     id: RepoId,
     file: Arc<FileDiff>,
     open: bool,
+    rev: Option<&(Oid, Option<Oid>)>,
     cx: &mut Context<FerrumGit>,
 ) -> AnyElement {
     let theme = cx.theme().clone();
     let colors = theme.colors();
     let status = theme.status();
     let (word, word_color) = change_word(file.change, cx);
+    let group = SharedString::from(format!("file-section-group-{}", file.path));
+    let buttons = file_buttons(id, &file, rev, group.clone(), cx);
     let path = file.path.clone();
     let shown = match &file.old_path {
         Some(old) => format!("{old} → {}", file.path),
@@ -385,6 +441,7 @@ fn file_section(
         .child(
             h_flex()
                 .id(SharedString::from(format!("file-section-{}", file.path)))
+                .group(group)
                 .h(px(36.))
                 .gap_2()
                 .px_3()
@@ -431,6 +488,7 @@ fn file_section(
                         .child(file.change.letter().to_string()),
                 )
                 .child(div().flex_1().min_w_0().truncate().child(shown))
+                .children(buttons)
                 .child(
                     div()
                         .font_buffer(cx)

@@ -23,6 +23,7 @@ pub enum Icon {
     ChevronLeft,
     ChevronRight,
     ChevronDown,
+    ChevronUp,
     QuickOpen,
     History,
     Layers,
@@ -31,6 +32,9 @@ pub enum Icon {
     Bookmark,
     Plus,
     Close,
+    Undo,
+    File,
+    Filter,
 }
 
 impl Icon {
@@ -56,6 +60,7 @@ impl Icon {
             Self::ChevronLeft => IconName::ChevronLeft,
             Self::ChevronRight => IconName::ChevronRight,
             Self::ChevronDown => IconName::ChevronDown,
+            Self::ChevronUp => IconName::ChevronUp,
             Self::QuickOpen => IconName::FolderSearch,
             Self::History => IconName::Clock,
             Self::Layers => IconName::Box,
@@ -64,6 +69,9 @@ impl Icon {
             Self::Bookmark => IconName::Bookmark,
             Self::Plus => IconName::Plus,
             Self::Close => IconName::Close,
+            Self::Undo => IconName::Undo,
+            Self::File => IconName::File,
+            Self::Filter => IconName::Filter,
         }
     }
 

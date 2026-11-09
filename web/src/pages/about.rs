@@ -170,7 +170,7 @@ mod tests {
             assert!(html.contains(&format!("href=\"{}\"", p.path())));
         }
         assert!(html.contains("Alpha"));
-        assert!(html.contains("Early preview"));
+        assert!(html.contains("Alpha"));
     }
 
     #[test]

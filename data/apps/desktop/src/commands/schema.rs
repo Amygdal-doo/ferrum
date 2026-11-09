@@ -2,10 +2,10 @@
 
 use super::{background, log_dropped};
 use crate::app::FerrumData;
-use crate::state::{ConnStatus, EditorTab, SchemaLoad};
+use crate::state::{ConnStatus, DetailsLoad, EditorTab, SchemaLoad};
 use ferrum_ui::prelude::*;
 use ferrumdata_application::browse::browse_query;
-use ferrumdata_domain::{ProfileId, TableInfo};
+use ferrumdata_domain::{ProfileId, TableInfo, TableRef};
 
 impl FerrumData {
     /// Expands/collapses a connection's table tree, loading it on first expand.
@@ -24,6 +24,9 @@ impl FerrumData {
 
     pub fn load_tables(&mut self, id: ProfileId, cx: &mut Context<Self>) {
         self.state.schemas.insert(id, SchemaLoad::Loading);
+        // Reloading the tree also refreshes column details on next expand.
+        self.state.table_details.retain(|(p, _), _| *p != id);
+        self.state.expanded_tables.retain(|(p, _)| *p != id);
         cx.notify();
         let services = self.services.clone();
         cx.spawn(async move |this, cx| {
@@ -52,6 +55,61 @@ impl FerrumData {
                 };
                 this.state.schemas.insert(id, load);
                 cx.notify();
+            }));
+        })
+        .detach();
+    }
+
+    /// Shows/hides a table's columns and indexes, loading them on first expand.
+    pub fn toggle_table_details(
+        &mut self,
+        profile_id: ProfileId,
+        table: TableRef,
+        cx: &mut Context<Self>,
+    ) {
+        let key = (profile_id, table);
+        if self.state.expanded_tables.remove(&key) {
+            cx.notify();
+            return;
+        }
+        self.state.expanded_tables.insert(key.clone());
+        if !matches!(
+            self.state.table_details.get(&key),
+            Some(DetailsLoad::Loaded(_))
+        ) {
+            self.load_table_details(key.0, key.1, cx);
+        }
+        cx.notify();
+    }
+
+    pub fn load_table_details(
+        &mut self,
+        profile_id: ProfileId,
+        table: TableRef,
+        cx: &mut Context<Self>,
+    ) {
+        let key = (profile_id, table.clone());
+        self.state
+            .table_details
+            .insert(key.clone(), DetailsLoad::Loading);
+        let services = self.services.clone();
+        cx.spawn(async move |this, cx| {
+            let svc = services.clone();
+            let result = background(&services, async move {
+                svc.connections.describe_table(profile_id, table).await
+            })
+            .await;
+            log_dropped(this.update(cx, |this, cx| {
+                let load = match result {
+                    Ok(Ok(details)) => DetailsLoad::Loaded(details),
+                    Ok(Err(e)) => DetailsLoad::Failed(e.message),
+                    Err(e) => DetailsLoad::Failed(e),
+                };
+                // Dropped if the tree was reloaded meanwhile.
+                if let Some(slot) = this.state.table_details.get_mut(&key) {
+                    *slot = load;
+                    cx.notify();
+                }
             }));
         })
         .detach();

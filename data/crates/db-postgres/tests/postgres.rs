@@ -342,3 +342,77 @@ async fn lists_tables_with_case_preserved_names_and_primary_keys() {
     .await;
     conn.close().await;
 }
+
+#[tokio::test]
+async fn describes_columns_and_indexes() {
+    if !enabled() {
+        return;
+    }
+    let conn = connect().await;
+    let schema = format!("s_{}", ExecutionId::new().0.simple());
+    let setup = [
+        format!("create schema {schema}"),
+        format!(
+            "create table {schema}.\"Order\" (
+                id bigserial,
+                \"customerEmail\" varchar(80) not null default 'n/a',
+                total numeric(10, 2),
+                created timestamptz default now(),
+                region text,
+                primary key (region, id)
+            )"
+        ),
+        format!(
+            "create unique index order_email on {schema}.\"Order\" (lower(\"customerEmail\"), total) include (created)"
+        ),
+        format!("create index order_created on {schema}.\"Order\" (created)"),
+    ];
+    for sql in &setup {
+        let events = run(&conn, sql, QueryLimits::default()).await;
+        assert!(
+            matches!(events.last(), Some(QueryEvent::Completed(_))),
+            "{sql}: {events:?}"
+        );
+    }
+    let table = ferrumdata_domain::TableRef {
+        schema: Some(schema.clone()),
+        name: "Order".into(),
+    };
+    let d = conn.describe_table(&table).await.expect("describe");
+    let cols: Vec<String> = d
+        .columns
+        .iter()
+        .map(|c| format!("{} {}", c.name, c.summary()))
+        .collect();
+    assert_eq!(
+        cols,
+        vec![
+            format!("id bigint · PK · NOT NULL · = nextval('{schema}.\"Order_id_seq\"'::regclass)"),
+            "customerEmail character varying(80) · NOT NULL · = 'n/a'::character varying"
+                .to_owned(),
+            "total numeric(10,2) · NULL".to_owned(),
+            "created timestamp with time zone · NULL · = now()".to_owned(),
+            "region text · PK · NOT NULL".to_owned(),
+        ]
+    );
+    let idx: Vec<String> = d
+        .indexes
+        .iter()
+        .map(|i| format!("{} {}", i.name, i.summary()))
+        .collect();
+    assert_eq!(
+        idx,
+        vec![
+            "Order_pkey PRIMARY KEY (region, id)",
+            "order_created (created)",
+            "order_email UNIQUE (lower(\"customerEmail\"::text), total)",
+        ]
+    );
+    run(
+        &conn,
+        &format!("drop schema {schema} cascade"),
+        QueryLimits::default(),
+    )
+    .await;
+    conn.close().await;
+}

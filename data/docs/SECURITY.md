@@ -15,6 +15,12 @@
 `tracing` logs ids, states and sanitized errors only. No SQL text, row values or
 credentials. Default filter: `warn,ferrumdata_*=info`; override with `RUST_LOG`.
 
+## Local query text
+Editor tabs and the query history (`query_history`) store SQL text in the local app database
+(never row values). SQL that embeds a literal password (e.g. `CREATE USER … PASSWORD '…'`)
+is therefore kept on disk like any other statement; clear it from the History panel
+(per connection or all) or delete the app database.
+
 ## Database safety
 - Read-only profiles set `default_transaction_read_only=on` for the session (server
   enforced; verified by test with SQLSTATE 25006). A session can override it, so it is

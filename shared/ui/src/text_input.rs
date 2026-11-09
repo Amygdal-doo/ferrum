@@ -2,10 +2,10 @@ use std::ops::Range;
 
 use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, ElementId, ElementInputHandler, Entity,
-    EntityInputHandler, EventEmitter, FocusHandle, Focusable, GlobalElementId, KeyBinding,
-    LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point,
-    ShapedLine, SharedString, Style, TextRun, UTF16Selection, UnderlineStyle, Window, actions,
-    fill, point, prelude::*, px, relative, size,
+    EntityInputHandler, EventEmitter, FocusHandle, Focusable, GlobalElementId, HighlightStyle,
+    KeyBinding, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad,
+    Pixels, Point, ShapedLine, SharedString, Style, TextRun, UTF16Selection, UnderlineStyle,
+    Window, actions, fill, point, prelude::*, px, relative, size,
 };
 use theme::ActiveTheme;
 use ui::{StyledTypography, h_flex};
@@ -117,6 +117,8 @@ pub struct TextInput {
     bordered: bool,
     min_lines: usize,
     scroll_x: Pixels,
+    /// Styled byte ranges (sorted, non-overlapping), e.g. syntax colours.
+    highlights: Vec<(Range<usize>, HighlightStyle)>,
     last_layout: Option<TextLayout>,
     is_selecting: bool,
     _blur: Option<gpui::Subscription>,
@@ -158,6 +160,7 @@ impl TextInput {
             bordered: true,
             min_lines: 1,
             scroll_x: px(0.),
+            highlights: Vec::new(),
             last_layout: None,
             is_selecting: false,
             _blur: Some(blur),
@@ -235,6 +238,7 @@ impl TextInput {
         self.selected_range = end..end;
         self.selection_reversed = false;
         self.marked_range = None;
+        self.highlights.clear();
         cx.notify();
     }
 
@@ -251,6 +255,22 @@ impl TextInput {
     pub fn set_placeholder(&mut self, placeholder: impl Into<SharedString>, cx: &mut Context<Self>) {
         self.placeholder = placeholder.into();
         cx.notify();
+    }
+
+    /// Styles byte ranges of the text (sorted, non-overlapping, on char
+    /// boundaries). Ignored while masked. Cleared by [`Self::set_text`].
+    pub fn set_highlights(
+        &mut self,
+        highlights: Vec<(Range<usize>, HighlightStyle)>,
+        cx: &mut Context<Self>,
+    ) {
+        self.highlights = highlights;
+        cx.notify();
+    }
+
+    /// Height of one text row as last painted (`None` before the first paint).
+    pub fn line_height(&self) -> Option<Pixels> {
+        self.last_layout.as_ref().map(|layout| layout.line_height)
     }
 
     /// Selects `range` (byte offsets, clamped to char boundaries).
@@ -879,6 +899,47 @@ impl EntityInputHandler for TextInput {
     }
 }
 
+/// Runs for the line `line` (content byte range) with `highlights` applied
+/// over `base`.
+fn highlight_runs(
+    base: &TextRun,
+    line: Range<usize>,
+    highlights: &[(Range<usize>, HighlightStyle)],
+) -> Vec<TextRun> {
+    let first = highlights.partition_point(|(range, _)| range.end <= line.start);
+    let mut runs = Vec::new();
+    let mut pos = line.start;
+    for (range, style) in &highlights[first..] {
+        if range.start >= line.end {
+            break;
+        }
+        let start = range.start.max(line.start);
+        let end = range.end.min(line.end);
+        if start > pos {
+            runs.push(TextRun {
+                len: start - pos,
+                ..base.clone()
+            });
+        }
+        if end > start {
+            runs.push(TextRun {
+                len: end - start,
+                color: style.color.unwrap_or(base.color),
+                background_color: style.background_color,
+                ..base.clone()
+            });
+        }
+        pos = pos.max(end);
+    }
+    if pos < line.end || runs.is_empty() {
+        runs.push(TextRun {
+            len: line.end - pos,
+            ..base.clone()
+        });
+    }
+    runs
+}
+
 struct TextElement {
     input: Entity<TextInput>,
 }
@@ -1010,6 +1071,9 @@ impl Element for TextElement {
                         .into_iter()
                         .filter(|run| run.len > 0)
                         .collect()
+                    }
+                    _ if !input.masked && !input.highlights.is_empty() => {
+                        highlight_runs(&base, line_start..line_end, &input.highlights)
                     }
                     _ => vec![base],
                 };

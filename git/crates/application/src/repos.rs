@@ -2,7 +2,8 @@
 
 use crate::{AppError, AppResult, AppServices};
 use ferrumgit_domain::{
-    CommitDetails, DiffSource, FileDiff, Oid, Profile, ProfileId, RepoEntry, RepoOp, Stash,
+    Blame, CommitDetails, DiffSource, FileCommit, FileDiff, Oid, Profile, ProfileId, RepoEntry,
+    RepoOp, Stash,
 };
 use ferrumgit_git::{CancellationToken, NetEnv, OpContext, Snapshot};
 use ferrumgit_graph::{GraphRow, layout};
@@ -71,6 +72,34 @@ impl AppServices {
 
     pub async fn stash_details(&self, path: &str, stash: &Stash) -> AppResult<CommitDetails> {
         Ok(self.repo(path).await?.stash_details(stash).await?)
+    }
+
+    /// Commits touching `file` (following renames), from `rev` or HEAD.
+    pub async fn file_history(
+        &self,
+        path: &str,
+        file: &str,
+        rev: Option<&Oid>,
+        limit: usize,
+    ) -> AppResult<Vec<FileCommit>> {
+        let repo = self.repo(path).await?;
+        Ok(repo.file_history(file, rev.map(Oid::as_str), limit).await?)
+    }
+
+    /// Blame of `file` at `rev`, or of the working-tree copy.
+    pub async fn blame(&self, path: &str, file: &str, rev: Option<&Oid>) -> AppResult<Blame> {
+        let repo = self.repo(path).await?;
+        Ok(repo.blame(file, rev.map(Oid::as_str)).await?)
+    }
+
+    /// Full ids of commits whose whole message contains `text` (case-insensitive).
+    pub async fn grep_messages(
+        &self,
+        path: &str,
+        text: &str,
+        limit: usize,
+    ) -> AppResult<Vec<String>> {
+        Ok(self.repo(path).await?.grep_messages(text, limit).await?)
     }
 
     pub async fn head_message(&self, path: &str) -> AppResult<String> {

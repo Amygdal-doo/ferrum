@@ -3,6 +3,7 @@ pub mod code;
 pub mod detail;
 pub mod dialogs;
 pub mod diff;
+pub mod file_panel;
 pub mod graph;
 pub mod highlight;
 pub mod home;
@@ -10,6 +11,7 @@ pub mod icons;
 pub mod menu;
 pub mod shell;
 pub mod sidebar;
+pub mod split;
 pub mod widgets;
 
 use ferrumgit_domain::ChangeKind;

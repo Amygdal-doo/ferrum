@@ -132,7 +132,7 @@ impl SettingsForm {
                 repo_name: repo,
                 check_interval_hours,
                 keep_versions,
-                legacy_include_prereleases: false,
+                ..Settings::default()
             },
             token,
         ))
@@ -222,7 +222,7 @@ impl Render for SettingsForm {
                     ))),
             )
             .child(
-                Label::new("Update channels (Stable or Beta) are set per app on its page.")
+                Label::new("Update channels (Stable, Beta or Alpha) are set per app on its page.")
                     .size(LabelSize::Small)
                     .color(Color::Muted),
             )

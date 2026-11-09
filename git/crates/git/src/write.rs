@@ -363,6 +363,7 @@ impl Repo {
                 };
                 self.run(net(c)).await?
             }
+            RepoOp::Undo(undo) => self.undo(undo).await?,
         };
         Ok(out.summary())
     }

@@ -11,3 +11,5 @@ workspace = true
 
 [dependencies]
 ferrumdata-domain.workspace = true
+chrono.workspace = true
+serde_json.workspace = true

@@ -69,7 +69,7 @@ const PAGE: ProductPage = ProductPage {
         "FerrumTerm window with tabs and split panes",
         "fterm attach running inside another terminal",
     ],
-    status_summary: "FerrumTerm is an early preview. The GPUI window has been launch-tested \
+    status_summary: "FerrumTerm is in alpha. The GPUI window has been launch-tested \
                      (connects, creates a session, sizes the grid) but not yet used day to day.",
     status_groups: &[
         BulletGroup {
@@ -108,11 +108,11 @@ mod tests {
     }
 
     #[test]
-    fn renders_single_h1_and_preview_status() {
+    fn renders_single_h1_and_alpha_status() {
         let html = rendered();
         assert_eq!(html.matches("<h1").count(), 1);
         assert!(html.contains(">FerrumTerm</h1>"));
-        assert!(html.contains("Early preview"));
+        assert!(html.contains("Alpha"));
     }
 
     #[test]

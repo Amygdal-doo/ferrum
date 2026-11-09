@@ -1,7 +1,11 @@
 //! Response viewer: empty / loading / error states and the response itself.
 
 mod body_view;
+mod display;
+mod search_bar;
 mod tables;
+
+pub use display::BodyDisplay;
 
 use crate::app::FerrumApi;
 use crate::commands::files;

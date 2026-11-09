@@ -31,12 +31,19 @@ tab.request (authored, with {{vars}}, auth may be Inherit)
        • Inherit → nearest folder/collection auth (tab's unsaved auth respected)
        • VariableSet = globals < collection variables < active environment
   └─ AppServices::send(authored, prepared, origin, cancel)      [services runtime]
+       └─ cookie jar → Cookie header for the resolved URL (user Cookie header wins per name)
        └─ http::HttpClient::execute(prepared.request, vars, cancel)
             substitute → build URL/headers/auth/body → reqwest (cached client per
             verify_tls × follow_redirects) → select! with CancellationToken
+       └─ Set-Cookie of the response → cookie jar (stored against the final URL, saved to SQLite)
        └─ history row (authored request + status/time/size or error; not on cancel)
   └─ UI shows HttpResponse (in memory only, per tab)
 ```
+
+The collection runner (`application::runner`) plans saved requests of a collection or
+folder in tree order (`plan_run`, same `prepare` as a tab), then `run_collection` executes
+them one by one through the same cookie-jar path, without history, streaming `RunEvent`s
+over a channel that the UI drains into `AppState::runner`. Stop cancels the shared token.
 
 ### URL ↔ params invariant
 `HttpRequest.url` is the source of truth for the query string. `params` mirrors the

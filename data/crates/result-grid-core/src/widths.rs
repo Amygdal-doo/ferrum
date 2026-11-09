@@ -4,6 +4,9 @@ use ferrumdata_domain::{CellValue, ColumnMeta};
 
 pub const MIN_COL_WIDTH: f64 = 72.0;
 pub const MAX_COL_WIDTH: f64 = 360.0;
+/// Bounds for a width the user set by dragging a header edge.
+pub const MIN_RESIZED_WIDTH: f64 = 40.0;
+pub const MAX_RESIZED_WIDTH: f64 = 2000.0;
 /// Approximate monospace glyph width at 12px plus horizontal padding.
 const CHAR_WIDTH: f64 = 7.4;
 const PADDING: f64 = 24.0;

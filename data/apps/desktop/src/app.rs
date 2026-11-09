@@ -36,6 +36,10 @@ pub struct FerrumData {
     /// One-line SQL bars for table-browser tabs.
     pub table_inputs: HashMap<EditorTabId, TabInput>,
     pub filter: Entity<TextInput>,
+    /// Search box of the History panel.
+    pub history_filter: Entity<TextInput>,
+    /// Focus target of the results grid (⌘C / ⌘A while it has focus).
+    pub grid_focus: FocusHandle,
     pub form: Option<Entity<ConnectionForm>>,
     pub grid_scroll: UniformListScrollHandle,
     pub notice: Option<Notice>,
@@ -49,8 +53,13 @@ impl FerrumData {
         let filter =
             cx.new(|cx| TextInput::new(window, cx).placeholder("Filter connections and tables"));
         let filter_changed = cx.observe(&filter, |_, _, cx| cx.notify());
+        let history_filter =
+            cx.new(|cx| TextInput::new(window, cx).placeholder("Search query history"));
+        // The panel reloads on render when the search text differs from the loaded one.
+        let history_changed = cx.observe(&history_filter, |_, _, cx| cx.notify());
         let focus_handle = cx.focus_handle();
         window.focus(&focus_handle, cx);
+        crate::components::result_grid::bind_grid_keys(cx);
 
         let mut this = Self {
             services,
@@ -59,12 +68,14 @@ impl FerrumData {
             editors: HashMap::new(),
             table_inputs: HashMap::new(),
             filter,
+            history_filter,
+            grid_focus: cx.focus_handle(),
             form: None,
             grid_scroll: UniformListScrollHandle::new(),
             notice: None,
             notice_task: None,
             _autosave: Task::ready(()),
-            _subscriptions: vec![filter_changed],
+            _subscriptions: vec![filter_changed, history_changed],
         };
         this.bootstrap(cx);
         this._autosave = this.autosave_loop(cx);
@@ -267,7 +278,7 @@ impl FerrumData {
                     div()
                         .flex_none()
                         .h(px(layout.results_height as f32))
-                        .child(self.render_results(cx)),
+                        .child(self.render_results(window, cx)),
                 )
                 .into_any_element()
         };

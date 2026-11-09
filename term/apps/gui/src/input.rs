@@ -26,6 +26,8 @@ pub enum Shortcut {
     NewSession,
     ScrollPageUp,
     ScrollPageDown,
+    ToggleSidebar,
+    Copy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,10 +82,12 @@ fn shortcut(key: &str, shift: bool) -> Option<Shortcut> {
         ("[" | "{", true) => Shortcut::PrevTab,
         ("v", _) => Shortcut::Paste,
         ("c", true) => Shortcut::CopyScreen,
+        ("c", false) => Shortcut::Copy,
         ("=" | "+", _) => Shortcut::FontBigger,
         ("-", _) => Shortcut::FontSmaller,
         ("0", false) => Shortcut::FontReset,
         ("s", true) => Shortcut::NextSession,
+        ("b", false) => Shortcut::ToggleSidebar,
         ("pageup", _) => Shortcut::ScrollPageUp,
         ("pagedown", _) => Shortcut::ScrollPageDown,
         (digit, false) if digit.len() == 1 && digit != "0" => {
@@ -165,6 +169,8 @@ mod tests {
         assert_eq!(key("cmd-3"), Some(Action::Shortcut(Shortcut::Tab(2))));
         assert_eq!(key("cmd-shift-]"), Some(Action::Shortcut(Shortcut::NextTab)));
         assert_eq!(key("cmd-pageup"), Some(Action::Shortcut(Shortcut::ScrollPageUp)));
+        assert_eq!(key("cmd-c"), Some(Action::Shortcut(Shortcut::Copy)));
+        assert_eq!(key("cmd-b"), Some(Action::Shortcut(Shortcut::ToggleSidebar)));
         assert_eq!(key("cmd-q"), None);
     }
 }

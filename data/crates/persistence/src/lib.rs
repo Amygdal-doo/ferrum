@@ -6,6 +6,10 @@ use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Row, SqlitePool};
 use std::path::Path;
 
+mod history;
+
+pub use history::{HISTORY_RETENTION, HistoryQuery};
+
 const SETTINGS_KEY: &str = "app";
 
 #[derive(Debug, thiserror::Error)]
@@ -113,11 +117,18 @@ impl AppStore {
         Ok(())
     }
 
+    /// Removes the profile and its query history.
     pub async fn delete_profile(&self, id: ProfileId) -> StoreResult<()> {
+        let mut tx = self.pool.begin().await?;
         sqlx::query("DELETE FROM connection_profiles WHERE id = ?")
             .bind(id.to_string())
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?;
+        sqlx::query("DELETE FROM query_history WHERE profile_id = ?")
+            .bind(id.to_string())
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
         Ok(())
     }
 

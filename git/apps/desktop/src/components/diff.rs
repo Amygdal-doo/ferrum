@@ -5,14 +5,15 @@ use crate::app::FerrumGit;
 use crate::components::change_word;
 use crate::components::code::code_diff;
 use crate::components::icons::Icon;
+use crate::components::split::layout_toggle;
 use crate::components::widgets::{ghost_button, primary_button, small_button};
-use crate::state::Dialog;
+use crate::state::{Dialog, FileTab};
 use ferrumgit_domain::{DiffSource, RepoOp};
 use gpui::{AnyElement, Context, div, prelude::*, px};
 use theme::ActiveTheme;
 use ui::{
-    Clickable, Color, Disableable, IconSize, Label, LabelCommon, LabelSize, StyledTypography,
-    Tooltip, h_flex, v_flex,
+    ButtonCommon, Clickable, Color, Disableable, IconSize, Label, LabelCommon, LabelSize,
+    StyledTypography, Tooltip, h_flex, v_flex,
 };
 
 pub fn diff_pane(app: &FerrumGit, cx: &mut Context<FerrumGit>) -> AnyElement {
@@ -76,6 +77,30 @@ pub fn diff_pane(app: &FerrumGit, cx: &mut Context<FerrumGit>) -> AnyElement {
         ],
         DiffSource::Commit => Vec::new(),
     };
+    // Untracked files have no history yet; deleted ones cannot be blamed in the working tree.
+    let tracked = source != DiffSource::Untracked;
+    let blameable = tracked && file.change != ferrumgit_domain::ChangeKind::Deleted;
+    let (p_history, p_blame) = (file.path.clone(), file.path.clone());
+    let file_buttons = h_flex()
+        .gap_1()
+        .when(tracked, |d| {
+            d.child(
+                ghost_button("diff-history", "History")
+                    .tooltip(Tooltip::text("Commits that changed this file"))
+                    .on_click(cx.listener(move |app, _, _, cx| {
+                        app.open_file_view(id, p_history.clone(), None, FileTab::History, cx);
+                    })),
+            )
+        })
+        .when(blameable, |d| {
+            d.child(
+                ghost_button("diff-blame", "Blame")
+                    .tooltip(Tooltip::text("Who last changed each line"))
+                    .on_click(cx.listener(move |app, _, _, cx| {
+                        app.open_file_view(id, p_blame.clone(), None, FileTab::Blame, cx);
+                    })),
+            )
+        });
     v_flex()
         .size_full()
         .child(
@@ -135,6 +160,8 @@ pub fn diff_pane(app: &FerrumGit, cx: &mut Context<FerrumGit>) -> AnyElement {
                         .child(format!("−{}", file.deletions)),
                 )
                 .child(div().flex_1())
+                .child(file_buttons)
+                .child(layout_toggle(app, cx))
                 .children(actions)
                 .child(
                     div()

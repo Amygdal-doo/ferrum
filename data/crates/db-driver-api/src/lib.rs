@@ -8,7 +8,7 @@ pub mod documents;
 use async_trait::async_trait;
 use ferrumdata_domain::{
     CapabilitySet, DatabaseEngine, DbError, QueryEvent, QueryRequest, ResolvedConnectionConfig,
-    TableInfo,
+    TableDetails, TableInfo, TableRef,
 };
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -44,6 +44,15 @@ pub trait DbConnection: Send + Sync {
     /// User-visible tables, views and similar objects, ordered by schema then name.
     /// System schemas are excluded.
     async fn list_tables(&self) -> DbResult<Vec<TableInfo>>;
+
+    /// Columns and indexes of one table, from the catalog. SQL engines only;
+    /// document engines keep the default `Unsupported` error.
+    async fn describe_table(&self, table: &TableRef) -> DbResult<TableDetails> {
+        let _ = table;
+        Err(DbError::unsupported(
+            "Column and index details are not available for this engine",
+        ))
+    }
 
     /// Starts executing one statement. The returned handle streams events
     /// over a bounded channel; the driver keeps its session leased until the

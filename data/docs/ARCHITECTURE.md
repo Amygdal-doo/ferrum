@@ -53,4 +53,7 @@ tab closed), the supervisor cancels the driver.
 `~/Library/Application Support/dev.FerrumData.FerrumData/ferrumdata.db` (platform equivalent elsewhere),
 SQLite with WAL, migrations in `crates/persistence/migrations` (embedded via
 `sqlx::migrate!`). Tables: `settings` (versioned JSON with serde defaults),
-`connection_profiles` (JSON, no secrets) and `editor_tabs` (autosaved every 1.5 s when changed).
+`connection_profiles` (JSON, no secrets), `editor_tabs` (autosaved every 1.5 s when changed)
+and `query_history` (one row per run, written by `QueryService` before the terminal event is
+forwarded; query text and a result summary, never row values; pruned to 2,000 entries per
+connection and deleted with the connection).

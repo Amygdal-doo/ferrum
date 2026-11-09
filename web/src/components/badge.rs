@@ -1,4 +1,4 @@
-//! Status badge. Classes: `.badge`, `.badge--alpha`, `.badge--preview`.
+//! Status badge. Classes: `.badge`, `.badge--alpha`.
 
 use maud::{Markup, html};
 
@@ -20,10 +20,5 @@ mod tests {
         let html = status(Status::Alpha).into_string();
         assert!(html.contains("badge badge--alpha"));
         assert!(html.contains("Alpha"));
-        assert!(
-            status(Status::Preview)
-                .into_string()
-                .contains("Early preview")
-        );
     }
 }

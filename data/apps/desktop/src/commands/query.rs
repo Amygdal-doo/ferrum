@@ -105,6 +105,8 @@ impl FerrumData {
                             .conn_status
                             .insert(profile.id, ConnStatus::Failed(e.message.clone()));
                         this.with_run(tab_id, execution_id, |r| r.fail(e));
+                        // The failed attempt was recorded in the history.
+                        this.invalidate_history();
                         cx.notify();
                     }));
                     return;
@@ -134,6 +136,10 @@ impl FerrumData {
                 // A newer run replaced this one, or the tab closed: drop the stream,
                 // which tells the supervisor to cancel server-side work.
                 let current = this.update(cx, |this, cx| {
+                    // The service records the run before sending its terminal event.
+                    if envelope.event.is_terminal() {
+                        this.invalidate_history();
+                    }
                     let current =
                         this.with_run(tab_id, envelope.execution_id, |r| r.apply(envelope.event));
                     cx.notify();
