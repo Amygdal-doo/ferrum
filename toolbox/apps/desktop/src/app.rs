@@ -4,16 +4,13 @@ use crate::components::logo::logo;
 use crate::components::onboarding::Onboarding;
 use crate::components::settings::{SettingsForm, SettingsFormEvent};
 use crate::services::Services;
-use ferrum_ui::gpui::Axis;
 use ferrum_ui::prelude::*;
-use ferrumtoolbox_core::{AppId, Channel, State, TokenSource};
+use ferrumtoolbox_core::{AppId, State, TokenSource};
 use semver::Version;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio_util::sync::CancellationToken;
-
-const SIDEBAR_SPLITTER: &str = "sidebar";
 
 /// An install in flight. Progress is written by the download task on the
 /// runtime and read on each render.
@@ -38,7 +35,6 @@ impl Download {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Page {
     Overview,
-    Releases,
     App,
 }
 
@@ -47,11 +43,6 @@ pub struct FerrumToolbox {
     pub state: State,
     pub page: Page,
     pub selected: AppId,
-    /// Releases page filters (`None` = all).
-    pub timeline_app: Option<AppId>,
-    pub timeline_channel: Option<Channel>,
-    /// Release tags whose notes are expanded on the Releases page.
-    pub expanded_notes: HashSet<String>,
     /// Release whose notes are shown; `None` shows the latest.
     pub selected_release: Option<Version>,
     pub downloads: HashMap<AppId, Download>,
@@ -64,7 +55,6 @@ pub struct FerrumToolbox {
     pub settings_form: Option<Entity<SettingsForm>>,
     pub onboarding: Option<Entity<Onboarding>>,
     pub(crate) onboarding_subscription: Option<Subscription>,
-    pub sidebar_width: Pixels,
     pub notice: Option<Notice>,
     notice_task: Option<Task<()>>,
     pub(crate) check_loop: Task<()>,
@@ -84,9 +74,6 @@ impl FerrumToolbox {
             state,
             page: Page::Overview,
             selected: AppId::Ide,
-            timeline_app: None,
-            timeline_channel: None,
-            expanded_notes: HashSet::new(),
             selected_release: None,
             downloads: HashMap::new(),
             checking: false,
@@ -96,7 +83,6 @@ impl FerrumToolbox {
             settings_form: None,
             onboarding: None,
             onboarding_subscription: None,
-            sidebar_width: px(260.),
             notice: None,
             notice_task: None,
             check_loop: Task::ready(()),
@@ -307,31 +293,10 @@ impl Render for FerrumToolbox {
             .bg(colors.background)
             .text_color(colors.text)
             .child(self.render_toolbar(cx))
-            .child(
-                h_flex()
-                    .flex_1()
-                    .min_h_0()
-                    .on_drag_move(cx.listener(
-                        |this, event: &DragMoveEvent<DraggedSplitter>, _, cx| {
-                            this.sidebar_width = (event.event.position.x - event.bounds.left())
-                                .clamp(px(200.), px(420.));
-                            cx.notify();
-                        },
-                    ))
-                    .child(
-                        div()
-                            .w(self.sidebar_width)
-                            .h_full()
-                            .flex_none()
-                            .child(self.render_sidebar(cx)),
-                    )
-                    .child(splitter(SIDEBAR_SPLITTER, Axis::Horizontal, cx))
-                    .child(div().flex_1().min_w_0().h_full().child(match self.page {
-                        Page::Overview => self.render_overview(cx).into_any_element(),
-                        Page::Releases => self.render_releases(cx).into_any_element(),
-                        Page::App => self.render_detail(window, cx).into_any_element(),
-                    })),
-            )
+            .child(div().flex_1().min_h_0().child(match self.page {
+                Page::Overview => self.render_overview(cx).into_any_element(),
+                Page::App => self.render_detail(window, cx).into_any_element(),
+            }))
             .child(
                 status_bar(cx)
                     .child(Label::new(repo).size(LabelSize::Small).color(Color::Muted))

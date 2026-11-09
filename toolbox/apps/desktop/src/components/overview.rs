@@ -1,4 +1,5 @@
 //! Overview: every app with its status, versions and the next action.
+//! Clicking a row opens the app's page.
 
 use super::logo::logo;
 use super::{format_count, format_date, status_badge};
@@ -37,17 +38,6 @@ fn version_label(version: Option<String>) -> Label {
 
 impl FerrumToolbox {
     pub fn render_overview(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-        let installed = AppId::MANAGED
-            .iter()
-            .filter(|app| self.state.active(**app).is_some())
-            .count();
-        let updates = self.state.app_updates().len();
-        let releases = self
-            .state
-            .releases
-            .iter()
-            .filter(|release| release.app != AppId::Toolbox)
-            .count();
         let rows: Vec<AnyElement> = AppId::MANAGED
             .into_iter()
             .map(|app| self.render_overview_row(app, cx))
@@ -67,45 +57,32 @@ impl FerrumToolbox {
             .size_full()
             .overflow_y_scroll()
             .child(
-                v_flex()
-                    .gap_1()
-                    .p_4()
-                    .border_b_1()
-                    .border_color(colors.border)
-                    .child(Headline::new("Overview").size(HeadlineSize::Small))
+                div()
+                    .id("overview-table")
+                    .w_full()
+                    .overflow_x_scroll()
                     .child(
-                        Label::new(format!(
-                            "{installed} of {} apps installed · {updates} update{} · {releases} release{} published",
-                            AppId::MANAGED.len(),
-                            if updates == 1 { "" } else { "s" },
-                            if releases == 1 { "" } else { "s" },
-                        ))
-                        .color(Color::Muted),
+                        v_flex()
+                            .w_full()
+                            .min_w(px(TABLE_MIN_WIDTH))
+                            .child(
+                                h_flex()
+                                    .px_4()
+                                    .py_2()
+                                    .gap_3()
+                                    .border_b_1()
+                                    .border_color(colors.border_variant)
+                                    .child(header("App", None))
+                                    .child(header("Status", Some(STATUS_WIDTH)))
+                                    .child(header("Installed", Some(VERSION_WIDTH)))
+                                    .child(header("Latest stable", Some(VERSION_WIDTH)))
+                                    .child(header("", Some(ACTION_WIDTH)))
+                                    .child(header("Latest beta", Some(VERSION_WIDTH)))
+                                    .child(header("Released", Some(DATE_WIDTH)))
+                                    .child(header("Downloads", Some(DOWNLOADS_WIDTH))),
+                            )
+                            .children(rows),
                     ),
-            )
-            .child(
-                div().id("overview-table").w_full().overflow_x_scroll().child(
-                    v_flex()
-                        .w_full()
-                        .min_w(px(TABLE_MIN_WIDTH))
-                        .child(
-                h_flex()
-                    .px_4()
-                    .py_2()
-                    .gap_3()
-                    .border_b_1()
-                    .border_color(colors.border_variant)
-                    .child(header("App", None))
-                    .child(header("Status", Some(STATUS_WIDTH)))
-                    .child(header("Installed", Some(VERSION_WIDTH)))
-                    .child(header("Latest stable", Some(VERSION_WIDTH)))
-                                .child(header("", Some(ACTION_WIDTH)))
-                    .child(header("Latest beta", Some(VERSION_WIDTH)))
-                    .child(header("Released", Some(DATE_WIDTH)))
-                    .child(header("Downloads", Some(DOWNLOADS_WIDTH))),
-                        )
-                        .children(rows),
-                ),
             )
     }
 

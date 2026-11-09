@@ -2,9 +2,7 @@ pub mod detail;
 pub mod logo;
 pub mod onboarding;
 pub mod overview;
-pub mod releases;
 pub mod settings;
-pub mod sidebar;
 
 use ferrum_ui::gpui::Hsla;
 use ferrum_ui::prelude::*;

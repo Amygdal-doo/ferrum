@@ -96,13 +96,8 @@ apps use its GPUI crates.
   installed version, latest stable, latest beta, last release date, total
   downloads (GitHub download counts, checksum files excluded) and the next
   action: **Install**, **Update**, **Open** or ✓ up to date. Click a row to
-  open the app.
-- **Releases:** every release of every app, newest first, with channel,
-  date, the size of this platform's build and download count. Filter by app
-  and channel; click a release to expand its notes.
-- **Sidebar:** each app with its logo, status badge and one line:
-  *v0.1.0 · active*, *v0.1.0 available*, *Update to vX* or *No releases yet*.
-- **App page:** logo, status, summary, highlights and roadmap from the
+  open the app. There is no sidebar: the overview is the whole window.
+- **App page** (**All apps** goes back): logo, status, summary, highlights and roadmap from the
   catalog, the **Stable | Beta** update channel, the **Launch**,
   **Install / Update to vX** and **Uninstall** buttons, then a list of every
   version with its channel, date, size, downloads and an active/installed

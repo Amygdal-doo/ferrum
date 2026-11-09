@@ -2,7 +2,7 @@
 
 use super::logo::logo;
 use super::{channel_badge, format_count, format_size, status_badge};
-use crate::app::FerrumToolbox;
+use crate::app::{FerrumToolbox, Page};
 use ferrum_ui::prelude::*;
 use ferrumtoolbox_core::{AppId, ReleaseInfo, UpdateChannel, current_target};
 use semver::Version;
@@ -98,6 +98,18 @@ impl FerrumToolbox {
                     .p_4()
                     .border_b_1()
                     .border_color(border)
+                    .child(
+                        h_flex().child(
+                            Button::new("back-to-overview", "All apps")
+                                .style(ButtonStyle::Subtle)
+                                .start_icon(Icon::new(IconName::ArrowLeft))
+                                .on_click(
+                                    cx.listener(|this, _, _, cx| {
+                                        this.show_page(Page::Overview, cx)
+                                    }),
+                                ),
+                        ),
+                    )
                     .child(self.render_header(app, cx))
                     .child(actions)
                     .children(download),
