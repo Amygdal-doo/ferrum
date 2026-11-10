@@ -2,6 +2,7 @@
 //! columns and indexes.
 
 mod details;
+mod keys;
 
 use crate::app::FerrumData;
 use crate::state::SchemaLoad;

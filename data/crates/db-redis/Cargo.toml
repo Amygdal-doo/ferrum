@@ -1,0 +1,24 @@
+[package]
+name = "ferrumdata-db-redis"
+description = "Redis/Valkey adapter (redis-rs, async, rustls): key browser and command console."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrumdata-domain.workspace = true
+ferrumdata-db-driver-api.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tracing.workspace = true
+serde_json.workspace = true
+redis = { workspace = true, features = ["aio", "tokio-comp", "tokio-rustls-comp", "tls-rustls-insecure"] }
+rustls = { workspace = true, features = ["ring", "std"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

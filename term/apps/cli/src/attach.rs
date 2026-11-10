@@ -165,7 +165,7 @@ async fn event_loop(
                     }
                     dirty = true;
                 }
-                Some(Event::Bell { .. }) => {}
+                Some(Event::Bell { .. } | Event::Forwards) => {}
             },
             k = keys.recv() => {
                 let Some(k) = k else { return Ok(None) };

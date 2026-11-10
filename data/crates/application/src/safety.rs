@@ -55,6 +55,8 @@ pub fn may_mutate_in(engine: DatabaseEngine, text: &str) -> bool {
         }
         DatabaseEngine::SurrealDb => ferrumdata_db_surrealdb::writes(text),
         DatabaseEngine::MongoDb => ferrumdata_db_mongodb::is_write_query(text),
+        // Anything off the read-only allow-list counts as a write.
+        DatabaseEngine::Redis => ferrumdata_db_redis::writes(text),
     }
 }
 
@@ -111,6 +113,18 @@ mod tests {
         assert!(!may_mutate_in(m, "DROP TABLE t"));
         assert!(!may_mutate_in(m, "db.("));
         assert!(!may_mutate_in(m, ""));
+    }
+
+    #[test]
+    fn redis_commands_use_the_read_allow_list() {
+        let r = DatabaseEngine::Redis;
+        assert!(may_mutate_in(r, "DEL user:1"));
+        assert!(may_mutate_in(r, "flushall"));
+        assert!(may_mutate_in(r, "CONFIG SET maxmemory 1"));
+        assert!(!may_mutate_in(r, "GET delete"));
+        assert!(!may_mutate_in(r, "CONFIG GET maxmemory"));
+        assert!(!may_mutate_in(r, "SELECT 1"));
+        assert!(!may_mutate_in(r, ""));
     }
 
     #[test]

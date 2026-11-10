@@ -4,7 +4,7 @@ A local-first, DataGrip-class database IDE written in Rust: GPUI desktop (the UI
 from Zed, via the FerrumIDE fork) with the shared `ferrum-ui` crate, SQLx. No backend server,
 no webview, no React/TypeScript/Tauri/Electron. Part of the Ferrum monorepo (`../`).
 
-> **Status: M0/M1 foundation + PostgreSQL, MySQL, SQLite, SurrealDB and MongoDB drivers.**
+> **Status: M0/M1 foundation + PostgreSQL, MySQL, SQLite, SurrealDB and MongoDB drivers, plus a Redis key browser (alpha).**
 > See "What works" below; nothing
 > beyond that list should be assumed. The full specification lives in your planning
 > docs; decisions and open risks are in [`docs/ADR`](docs/ADR/README.md).
@@ -30,6 +30,11 @@ no webview, no React/TypeScript/Tauri/Electron. Part of the Ferrum monorepo (`..
 | Export (IDE-017): **Export → CSV / JSON…** saves every loaded row (not just the visible ones, in the current sort order) via a save dialog; **Copy as → CSV / JSON / Markdown** copies the selection, or all rows when nothing is selected | ✅ serializers unit-tested (quotes, newlines, NULL vs `''`, binary, decimals, JSON columns, absent document fields); dialog/clipboard not yet manually smoke tested |
 | Grid: click a header to sort (asc → desc → off; client-side, type-aware: numbers by value incl. exact decimals, dates/timestamps chronologically, text case-insensitively, NULL/absent last), drag a header's right edge to resize, click/shift-click/row-number selection, ⌘C copies a cell (full value) or a range (TSV), ⌘A selects all | ✅ comparator, selection and copy logic unit-tested; mouse/keyboard wiring not yet manually smoke tested |
 | Explorer: expand a PostgreSQL / MySQL / SQLite table (chevron) to see its columns (type, nullable, default, PK) and indexes (unique, primary, key columns or expressions) | ✅ live-tested (PG 17, MySQL 8.4, SQLite); tree UI not yet manually smoke tested |
+| Redis profiles (alpha): host + port **or** a `redis://` / `rediss://` URL in the Host field, ACL user + password (keychain), DB index, TLS mode, read-only flag | ✅ profile validation and connection settings unit-tested; connect/auth live-tested (Redis 7.4); form compiles, not yet manually smoke tested |
+| Redis key explorer: expand the connection → pattern box (`SCAN … MATCH`, never `KEYS`), 200-key pages with **Load more**, loaded / `DBSIZE` count, keys grouped into a `:` tree (lazy folders with counts), type badge and TTL per key | ✅ SCAN paging + `TYPE`/`PTTL` pipeline live-tested; tree grouping unit-tested; tree UI compiles, not yet manually smoke tested |
+| Redis value viewer (key tab): string (pretty JSON when it is an object/array; > 1 MiB shown truncated), hash (field/value), list (index/value), set (member), sorted set (member/score), stream (id + one column per field), all in the results grid (sort, copy, export); summary with length, TTL and `MEMORY USAGE` | ✅ every type live-tested at the adapter; key tab UI compiles, not yet manually smoke tested |
+| Redis edits: save a string value (`SET … KEEPTTL`), set TTL (`90`, `15m`, `2h`, `1d`) / remove TTL (`PERSIST`), delete key (confirmation dialog); disabled in read-only profiles and refused by the adapter | ✅ live-tested at the adapter (incl. read-only refusal); buttons/dialog compile, not yet manually smoke tested |
+| Redis command console: an editor tab on a Redis connection runs the line under the caret (redis-cli quoting); replies map to the grid (scalars → `value`, arrays → `#`/`value`, maps and `HGETALL`/`CONFIG GET`/`… WITHSCORES` → two columns, `INFO` → section/field/value, nested → JSON); recorded in the query history | ✅ live-tested (incl. `WRONGTYPE` errors, row limit, cancel and timeout of a blocking `BLPOP`) |
 
 ### Drivers
 "Live" means the driver contract tests (`crates/db-*/tests/`) passed against a real server
@@ -43,6 +48,7 @@ no webview, no React/TypeScript/Tauri/Electron. Part of the Ferrum monorepo (`..
 | SQLite | `db-sqlite` | SQL; profile = existing file path | ✅ (missing file) | ✅ storage-class decoding, `BOOLEAN` columns as bool | ✅ | ✅ engine-side interrupt (progress handler) | ✅ | ✅ opened read-only by SQLite | ✅ |
 | SurrealDB 3.x | `db-surrealdb` | SurrealQL over `ws://` / `wss://` (no embedded engine) | ✅ live (root, then database, then namespace user) | ✅ live; record ids as `table:id`, nested values as JSON | ✅ live | ⚠️ client-side only: the result stream is dropped, the server may finish the statement | ✅ live (client-side) | ⚠️ FerrumData refuses writing keywords (UX guard) | ✅ live (`INFO FOR DB`, views = `AS SELECT` tables) |
 | MongoDB 8 | `db-mongodb` | mongo-shell subset or JSON command (below) | ✅ live (no-auth server; bad credentials, unreachable host) | ✅ live; ObjectId as hex, dates with offset, Decimal128 exact, nested values as Extended JSON | ✅ live | ✅ cursor killed on drop; a running operation is bounded by `maxTimeMS` | ✅ live (`maxTimeMS` + client) | ⚠️ FerrumData refuses write methods/commands (UX guard) | ✅ live (collections + views) |
+| Redis 7 (alpha; Valkey untested) | `db-redis` | one Redis command per run (redis-cli quoting) | ✅ live (Redis 7.4 with `requirepass`: bad password, unreachable port); TLS (rustls) compiled and unit-tested only, **not live-tested** | ✅ live; UTF-8 as text, other bytes as binary, nil as `NULL`, integers/doubles typed | ✅ live (reply cut at `max_rows`) | ✅ client-side: the run's own connection is dropped, which also unblocks the server (live-tested with `BLPOP`) | ✅ live (client) | ⚠️ explicit read allow-list (UX guard; use an ACL user for real protection) | n/a: key explorer instead (`SCAN`, live) |
 
 SQLite tests need no server and always run. Document engines (SurrealDB, MongoDB) buffer up
 to `max_rows` documents before sending column metadata, so the grid's columns are the union
@@ -59,9 +65,19 @@ of every fetched document's top-level fields; a field a document lacks shows as 
 unquoted, strings single-quoted, and `ObjectId("…")`, `ISODate("…")`, `NumberLong(…)`,
 `NumberDecimal("…")`, `UUID("…")` are understood (they become Extended JSON).
 
+**Redis console and read-only.** Each console run uses its own connection, so `SELECT`, `MULTI`/`EXEC`,
+`WATCH`, `AUTH`/`HELLO` and streaming commands (`SUBSCRIBE`, `MONITOR`) are refused with an explanation (set the
+DB index and credentials in the profile). On read-only profiles only commands on an explicit allow-list run
+(`GET`, `HGETALL`, `SCAN`, `TYPE`, `TTL`, `INFO`, `CONFIG GET`, `XRANGE`, `MEMORY USAGE`, …; see
+`crates/db-redis/src/command.rs`); anything else, including unknown commands, is refused with the command name.
+On production-tagged profiles the same list decides when to ask for confirmation.
+
 ## Not built yet (from the spec)
 Row editing / "+ Row" / column add (IDE-014), syntax highlighting/autocomplete (gated on ADR-003 spike),
-transactions UI, SSH, packaging and signing, Redis, AI. Column/index details for SurrealDB and MongoDB
+transactions UI, SSH, packaging and signing, AI. Redis (alpha) does not yet have: editing of hash/list/set/
+sorted-set/stream elements (only string values, TTL and delete), pub/sub, `MONITOR`, transactions, Cluster/Sentinel,
+RESP3, key rename/create, opening keys that are not valid UTF-8 (they are listed but disabled), key tabs restored
+after a restart, a live-tested TLS connection, or separate "verify CA only" (both verify modes check chain and host). Column/index details for SurrealDB and MongoDB
 (SQL engines only), foreign keys / constraints / triggers in the tree. Export of more than the loaded rows
 (it never re-runs the query: a result cut at `max_rows` exports those rows), Excel/SQL-INSERT export, persisted
 column widths and sort, keyboard navigation of the grid selection, history paging beyond the newest 200 matches. MongoDB: no `explain`, change streams, GridFS or regex literals (`/x/i`; use
@@ -74,7 +90,7 @@ column widths and sort, keyboard navigation of the grid selection, history pagin
   GPUI system packages listed in `../ide/script/linux` (Vulkan, Wayland/X11, fontconfig).
 - Build from the monorepo root (`../`): the workspace and Cargo aliases live there, and GPUI
   is a path dependency into `../ide`.
-- Optional: Docker (local PostgreSQL, MySQL, SurrealDB, MongoDB for integration tests).
+- Optional: Docker (local PostgreSQL, MySQL, SurrealDB, MongoDB, Redis for integration tests).
 
 ## Commands
 ```bash
@@ -86,9 +102,11 @@ cargo fmt --all
 docker compose up -d postgres    # local PG on 127.0.0.1:54329 (ferrumdata / ferrumdata-dev-password, db ferrumdata_test)
 FERRUMDATA_TEST_PG=1 cargo test -p ferrumdata-db-postgres --test postgres
 docker compose up -d mysql surrealdb mongodb   # MySQL :33069, SurrealDB :18000 (root / ferrumdata-dev-password), MongoDB :27019
+docker compose up -d redis                     # Redis 7.4 :63799 (password ferrumdata-dev-password, no persistence)
 FERRUMDATA_TEST_MYSQL=1 cargo test -p ferrumdata-db-mysql --test mysql
 FERRUMDATA_TEST_SURREAL=1 cargo test -p ferrumdata-db-surrealdb --test surrealdb
 FERRUMDATA_TEST_MONGO=1 cargo test -p ferrumdata-db-mongodb --test mongodb
+FERRUMDATA_TEST_REDIS=1 cargo test -p ferrumdata-db-redis --test redis
 cargo test -p ferrumdata-db-sqlite              # temp-file databases, no server needed
 
 cargo test -p ferrumdata-credentials -- --ignored   # real OS keychain round trip (may prompt)
@@ -108,7 +126,7 @@ IDE-018).
 
 ## Layout
 ```
-apps/desktop/            GPUI app: root view (app.rs), components/{shell,connection,explorer,sql_editor,result_grid,history,table_view,dialogs}, state/, commands/
+apps/desktop/            GPUI app: root view (app.rs), components/{shell,connection,explorer,sql_editor,result_grid,history,table_view,key_view,dialogs}, state/, commands/
 crates/domain/           pure types: profiles, Secret, CellValue, QueryEvent, QueryState
 crates/db-driver-api/    DatabaseDriver / DbConnection traits, bounded event channel, cancellation, document flattening
 crates/db-postgres/      SQLx PostgreSQL adapter (streaming, cancel, exact NUMERIC decoding)
@@ -116,6 +134,7 @@ crates/db-mysql/         SQLx MySQL/MariaDB adapter (streaming, KILL QUERY cance
 crates/db-sqlite/        SQLx SQLite adapter (database files, progress-handler interrupt)
 crates/db-surrealdb/     SurrealDB adapter (official SDK, remote ws/wss only, SurrealQL)
 crates/db-mongodb/       MongoDB adapter (official driver, shell-subset/JSON-command input)
+crates/db-redis/         Redis/Valkey adapter (redis-rs + rustls): SCAN key browser, value views, console, read allow-list
 crates/application/      AppServices runtime, ConnectionService, QueryService, safety heuristics
 crates/persistence/      SQLite app state + migrations (settings, profiles, tabs, query history)
 crates/credentials/      OS keychain (keyring 4) + session-memory fallback

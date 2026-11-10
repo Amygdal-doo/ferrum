@@ -1,35 +1,41 @@
-/* Design tokens: "iron oxide" identity. Dark (charcoal + rust) is the default.
-   Only this file defines raw colour values; everything else uses var(--*). */
+/* Design tokens: "tempered steel". Dark blued steel is the default; the accents
+   are the temper colours steel takes on as it heats (straw, bronze, violet,
+   blue). Only this file defines raw colour values; everything else uses var(--*). */
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  /* Surfaces: warm charcoal, like forged iron */
-  --bg: #16130f;
-  --bg-elev: #1e1a15;
-  --surface: #241f19;
-  --surface-2: #2d2720;
-  --border: #3a3229;
-  --border-strong: #52463a;
+  /* Steel */
+  --bg: #0d1520;
+  --bg-elev: #111b28;
+  --surface: #142030;
+  --surface-2: #1b2a3d;
+  --border: #22324a;
+  --border-strong: #33496a;
   /* Text */
-  --text: #f1e9df;
-  --text-muted: #b3a593;
-  --text-faint: #807362;
-  /* Rust / iron-oxide accents */
-  --rust-300: #f5a26b;
-  --rust-400: #ec7f3c;
-  --rust-500: #d9622b;   /* primary accent */
-  --rust-600: #b44a1d;
-  --rust-700: #8a3714;
-  --ember: #ffb347;      /* hot highlight */
-  --patina: #5fb3a1;     /* oxidised-copper secondary (status: ok) */
-  --accent: var(--rust-500);
-  --accent-hover: var(--rust-400);
-  --accent-text: #1a0f08;
-  --link: var(--rust-300);
-  --focus: var(--ember);
-  --glow: 0 0 0 1px rgba(217, 98, 43, 0.35), 0 8px 40px -12px rgba(217, 98, 43, 0.45);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px -16px rgba(0, 0, 0, 0.6);
-  --grain-opacity: 0.06;
+  --text: #eaf0f5;
+  --text-muted: #9db0c3;
+  --text-faint: #6c8098;
+  /* Temper colours */
+  --straw: #e9c46a;
+  --straw-soft: #f3dc9c;
+  --bronze: #c97b3b;
+  --violet: #8257c9;
+  --blue: #3e73d9;
+  --ok: #6cc3a0;
+  --accent: var(--straw);
+  --accent-hover: var(--straw-soft);
+  --accent-text: #1a1305;
+  --link: var(--straw);
+  --focus: var(--straw);
+  --temper: linear-gradient(90deg, var(--straw), var(--bronze) 38%, var(--violet) 70%, var(--blue));
+  --glow: 0 0 0 1px color-mix(in srgb, var(--straw) 40%, transparent), 0 10px 40px -14px color-mix(in srgb, var(--straw) 55%, transparent);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 18px 40px -22px rgba(0, 0, 0, 0.75);
+  /* Filings canvas (read by js/filings.js): weak field to strong. */
+  --filing: #4b6079;
+  --heat-1: var(--blue);
+  --heat-2: var(--violet);
+  --heat-3: var(--bronze);
+  --heat-4: var(--straw);
   /* Brand accents, one per app (see brand/README.md). Used for logos, borders
      and glows; never as body-text colour, so contrast holds in both themes. */
   --app-ferrum: #e8743b;
@@ -39,45 +45,52 @@
   --app-data: #a07cf0;
   --app-term: #7cc85a;
   --app-toolbox: #e85a7e;
-  --app-accent: var(--app-ferrum);
+  --app-kit: #d46be0;
+  --app-dock: #38bdf8;
+  --app-accent: var(--straw);
 }
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f7f2ec;
-  --bg-elev: #fffaf4;
-  --surface: #fffdf9;
-  --surface-2: #f1e8dd;
-  --border: #e2d5c5;
-  --border-strong: #c9b6a0;
-  --text: #1f1913;
-  --text-muted: #5e5143;
-  --text-faint: #8a7a68;
-  --accent: var(--rust-600);
-  --accent-hover: var(--rust-700);
-  --accent-text: #fff8f2;
-  --link: var(--rust-700);
-  --focus: var(--rust-500);
-  --patina: #2f7f6f;
-  --glow: 0 0 0 1px rgba(180, 74, 29, 0.25), 0 8px 32px -14px rgba(180, 74, 29, 0.35);
-  --shadow: 0 1px 2px rgba(60, 40, 20, 0.08), 0 12px 32px -18px rgba(60, 40, 20, 0.25);
-  --grain-opacity: 0.03;
+  --bg: #edf1f5;
+  --bg-elev: #f5f8fa;
+  --surface: #ffffff;
+  --surface-2: #e3e9ef;
+  --border: #cfd8e2;
+  --border-strong: #a9b8c8;
+  --text: #0d1520;
+  --text-muted: #44566b;
+  --text-faint: #6c7f94;
+  --accent: #0d1520;
+  --accent-hover: #22324a;
+  --accent-text: #f3dc9c;
+  --link: #8a5a14;
+  --focus: #3e73d9;
+  --ok: #23805d;
+  --glow: 0 10px 30px -16px rgba(13, 21, 32, 0.45);
+  --shadow: 0 1px 2px rgba(13, 21, 32, 0.08), 0 18px 40px -24px rgba(13, 21, 32, 0.3);
+  --filing: #a9b8c8;
+  --heat-1: #2f5fbf;
+  --heat-2: #6a40b5;
+  --heat-3: #b0612a;
+  --heat-4: #a87a12;
 }
 
 :root {
-  /* Typography */
-  --font-sans: "Space Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Typography: condensed industrial display, humanist grotesk body. */
+  --font-display: "Big Shoulders Display", "Arial Narrow", ui-sans-serif, sans-serif;
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --fs-xs: 0.75rem;
   --fs-sm: 0.875rem;
-  --fs-base: 1rem;
-  --fs-lg: 1.125rem;
-  --fs-xl: 1.375rem;
-  --fs-2xl: clamp(1.6rem, 1.2rem + 1.5vw, 2.25rem);
-  --fs-3xl: clamp(2.1rem, 1.4rem + 3vw, 3.5rem);
-  --fs-hero: clamp(2.6rem, 1.5rem + 5vw, 5rem);
-  --lh-tight: 1.1;
-  --lh-body: 1.65;
+  --fs-base: 1.0625rem;
+  --fs-lg: 1.1875rem;
+  --fs-xl: 1.5rem;
+  --fs-2xl: clamp(2.2rem, 1.6rem + 2.4vw, 3.4rem);
+  --fs-3xl: clamp(2.8rem, 1.8rem + 4vw, 4.8rem);
+  --fs-hero: clamp(2.9rem, 1.2rem + 8.5vw, 9rem);
+  --lh-tight: 0.95;
+  --lh-body: 1.6;
   /* Spacing (4px scale) */
   --sp-1: 0.25rem;
   --sp-2: 0.5rem;
@@ -88,16 +101,17 @@
   --sp-12: 3rem;
   --sp-16: 4rem;
   --sp-24: 6rem;
-  /* Shape & layout */
-  --radius-sm: 4px;
-  --radius: 8px;
-  --radius-lg: 14px;
-  --container: 1160px;
-  --gutter: 16px;
+  --sp-32: 8rem;
+  /* Shape & layout: tight radii for controls, larger for windows. */
+  --radius-sm: 3px;
+  --radius: 6px;
+  --radius-lg: 12px;
+  --container: 1240px;
+  --gutter: 20px;
   --header-h: 64px;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 @media (min-width: 720px) {
-  :root { --gutter: 32px; }
+  :root { --gutter: 40px; }
 }

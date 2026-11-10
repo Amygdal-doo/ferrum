@@ -87,7 +87,7 @@ const PAGE: ProductPage = ProductPage {
                  first-launch step.",
 };
 
-/// The five managed apps, shown right after the hero.
+/// The managed apps, shown right after the hero.
 fn managed_apps() -> Markup {
     html! {
         section class="section section--tight" aria-labelledby="managed-title" {

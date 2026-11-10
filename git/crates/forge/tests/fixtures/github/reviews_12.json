@@ -1,0 +1,6 @@
+[
+  {"id": 1, "user": {"login": "hubot"}, "body": "Please rename the button.", "state": "CHANGES_REQUESTED", "submitted_at": "2026-11-02T10:00:00Z"},
+  {"id": 2, "user": {"login": "hubot"}, "body": "", "state": "COMMENTED", "submitted_at": "2026-11-03T10:00:00Z"},
+  {"id": 3, "user": {"login": "monalisa"}, "body": "LGTM", "state": "APPROVED", "submitted_at": "2026-11-04T10:00:00Z"},
+  {"id": 4, "user": {"login": "octocat"}, "body": "", "state": "PENDING"}
+]

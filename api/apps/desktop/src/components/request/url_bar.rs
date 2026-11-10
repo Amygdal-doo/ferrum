@@ -126,6 +126,15 @@ impl FerrumApi {
                             })),
                     )
                     .child(
+                        Button::new("load-test", "Load")
+                            .style(ButtonStyle::Subtle)
+                            .tooltip(Tooltip::text("Load test this request"))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.open_load_test(id);
+                                cx.notify();
+                            })),
+                    )
+                    .child(
                         Button::new("generate-code", "</>")
                             .style(ButtonStyle::Subtle)
                             .tooltip(Tooltip::text("Generate code"))

@@ -4,8 +4,8 @@
 pub const SITE_NAME: &str = "Ferrum";
 pub const SITE_TAGLINE: &str = "One toolbox, every tool.";
 pub const SITE_DESCRIPTION: &str = "Ferrum is a family of native developer tools written in Rust and \
-     rendered with GPUI: an IDE, an API client, a Git client, a database IDE and a terminal, \
-     installed and updated by Ferrum Toolbox.";
+     rendered with GPUI: an IDE, an API client, a Git client, a database IDE, a terminal, a \
+     container manager and developer utilities, installed and updated by Ferrum Toolbox.";
 
 /// Every download CTA on the site links here.
 pub const DOWNLOAD_PATH: &str = "/download";

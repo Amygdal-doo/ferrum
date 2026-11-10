@@ -106,6 +106,28 @@ pub const FERRUMTERM: Product = Product {
     status: Status::Alpha,
 };
 
+pub const FERRUMKIT: Product = Product {
+    slug: "ferrumkit",
+    name: "FerrumKit",
+    symbol: "Fk",
+    logo: "kit",
+    accent_var: "--app-kit",
+    kind: "Developer utilities",
+    tagline: "JSON, JWT, Base64, regex, hashes and timestamps in one native window. Nothing leaves your Mac.",
+    status: Status::Alpha,
+};
+
+pub const FERRUMDOCK: Product = Product {
+    slug: "ferrumdock",
+    name: "FerrumDock",
+    symbol: "Fc",
+    logo: "dock",
+    accent_var: "--app-dock",
+    kind: "Container manager",
+    tagline: "A fast, native window on your containers, for Docker Desktop, OrbStack, Colima and Podman.",
+    status: Status::Alpha,
+};
+
 pub const FERRUM_TOOLBOX: Product = Product {
     slug: "ferrum-toolbox",
     name: "Ferrum Toolbox",
@@ -117,16 +139,18 @@ pub const FERRUM_TOOLBOX: Product = Product {
     status: Status::Alpha,
 };
 
-pub const ALL: [Product; 6] = [
+pub const ALL: [Product; 8] = [
     FERRUM_IDE,
     FERRUMAPI,
     FERRUMGIT,
     FERRUMDATA,
     FERRUMTERM,
+    FERRUMKIT,
+    FERRUMDOCK,
     FERRUM_TOOLBOX,
 ];
 
-/// The five apps Ferrum Toolbox manages, i.e. everything except the toolbox itself.
+/// The apps Ferrum Toolbox manages, i.e. everything except the toolbox itself.
 pub fn apps() -> impl Iterator<Item = &'static Product> {
     ALL.iter().filter(|p| p.slug != FERRUM_TOOLBOX.slug)
 }

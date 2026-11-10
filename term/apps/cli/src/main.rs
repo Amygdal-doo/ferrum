@@ -4,9 +4,12 @@
 
 mod attach;
 mod cmd;
+mod forward;
 mod hosts;
+mod ports;
 mod server;
 mod skill;
+mod ssh;
 mod util;
 
 use clap::{Parser, Subcommand};
@@ -75,6 +78,20 @@ pub enum Cmd {
     /// Saved remote servers (other Macs on your tailnet).
     #[command(subcommand)]
     Hosts(hosts::HostsCmd),
+    /// Open a tab running ssh to a saved or ~/.ssh/config host; `--list`; `add` / `remove`.
+    Ssh(ssh::SshArgs),
+    /// SSH port forwards (-L / -R / -D), run by the server: list, add, remove, start, stop.
+    #[command(subcommand)]
+    Forward(forward::ForwardCmd),
+    /// What's listening on a TCP port: PID, process, user, command line.
+    Port {
+        port: u16,
+        /// Offer to stop it (asks before SIGTERM, and again before SIGKILL).
+        #[arg(long)]
+        kill: bool,
+    },
+    /// List every listening TCP port and its process.
+    Ports,
 }
 
 fn main() -> ExitCode {
@@ -108,6 +125,10 @@ async fn dispatch(cli: Cli) -> Result<ExitCode, String> {
         Cmd::Server(c) => server::run(c, &ctx).await,
         Cmd::Skill(c) => skill::run(c),
         Cmd::Hosts(c) => hosts::run(c, &ctx),
+        Cmd::Ssh(a) => ssh::run(a, &ctx).await,
+        Cmd::Forward(c) => forward::run(c, &ctx).await,
+        Cmd::Port { port, kill } => ports::port(port, kill, &ctx),
+        Cmd::Ports => ports::list(&ctx),
         Cmd::Attach { target } => attach::run(&ctx, target).await,
         other => cmd::run(other, &ctx).await,
     }

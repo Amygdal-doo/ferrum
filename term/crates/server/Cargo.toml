@@ -12,6 +12,7 @@ workspace = true
 [dependencies]
 ferrumterm-protocol.workspace = true
 ferrumterm-emulator.workspace = true
+ferrumterm-net.workspace = true
 portable-pty.workspace = true
 tokio.workspace = true
 serde.workspace = true

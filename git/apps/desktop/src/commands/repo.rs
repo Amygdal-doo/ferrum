@@ -278,6 +278,10 @@ impl FerrumGit {
 
     /// Switches the workspace page, picking a sensible selection for it.
     pub fn set_page(&mut self, id: RepoId, page: Page, cx: &mut Context<Self>) {
+        if page == Page::PullRequests {
+            self.open_pull_requests(id, cx);
+            return;
+        }
         let view = self.state.view(id);
         let sel = match page {
             Page::WorkingCopy => Selection::Wip,
@@ -293,6 +297,7 @@ impl FerrumGit {
                 })
                 .unwrap_or(Selection::Wip),
             Page::Stashes => Selection::Stash(0),
+            Page::PullRequests => view.selection.clone(),
         };
         self.state.update_view(id, |v| v.page = page);
         let has_stash = view

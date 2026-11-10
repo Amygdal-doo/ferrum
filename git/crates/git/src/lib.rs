@@ -13,12 +13,14 @@ mod error;
 mod history;
 pub mod parse;
 pub mod patch;
+mod pr;
 mod read;
 mod runner;
 mod ssh;
 mod write;
 
 pub use error::{GitError, GitResult};
+pub use pr::PR_NAMESPACE;
 pub use read::{MAX_PATCH_BYTES, Repo, Snapshot};
 pub use runner::{Cmd, Git, Output};
 pub use ssh::{

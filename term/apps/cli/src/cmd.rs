@@ -397,7 +397,14 @@ pub async fn run(cmd: Cmd, ctx: &Ctx) -> Result<ExitCode, String> {
             };
             req(Request::SetAwake { mode }).await.map_err(e)?;
         }
-        Cmd::Attach { .. } | Cmd::Server(_) | Cmd::Skill(_) | Cmd::Hosts(_) => {
+        Cmd::Attach { .. }
+        | Cmd::Server(_)
+        | Cmd::Skill(_)
+        | Cmd::Hosts(_)
+        | Cmd::Ssh(_)
+        | Cmd::Forward(_)
+        | Cmd::Port { .. }
+        | Cmd::Ports => {
             unreachable!("dispatched in main")
         }
     }
@@ -477,6 +484,7 @@ fn describe(e: &Event) -> String {
         Event::Exited { block, code } => format!("exited {block} {code}"),
         Event::Bell { block } => format!("bell {block}"),
         Event::Bye => "server stopped".into(),
+        Event::Forwards => "forwards".into(),
         Event::Frame { block, .. } => format!("frame {block}"),
     }
 }

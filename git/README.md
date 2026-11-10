@@ -46,13 +46,24 @@ or a specific private key). Each repository is assigned one profile (toolbar →
 | Stash: save (message, include untracked), apply, pop, drop, view stash diff | ✅ tested |
 | Remotes: fetch (all / one, prune), pull (ff-only / merge / rebase), push (auto-sets upstream; force-with-lease), add/remove remote | ✅ tested against local bare remote |
 | Profiles with per-repo assignment, keychain passphrases, askpass, key generation, test connection | ✅ env/identity tested; real SSH servers not tested automatically |
+| **Pull / merge requests (GitHub, GitLab, GitHub Enterprise, self-managed GitLab)**: forge detected from the remote (SSH, `ssh://` with ports, HTTPS, nested GitLab groups, `insteadOf` aliases); per-repo override of forge type, API base URL and remote (sidebar → *Pull Requests* → ⚙, or Repository settings → *Token & forge…*) | ✅ URL parsing / detection unit-tested; settings persisted and tested |
+| Tokens: a personal access token per forge host in the **OS keychain** (service `dev.ferrumgit.forge-token`, account = host), or for GitHub the `gh` CLI login (`gh auth token --hostname <host>`, read on demand and kept only in memory). Onboarding lists the scopes (GitHub `repo`, GitLab `api`) and opens the token page | ✅ keychain/session store + gh source tested with fakes (no real token or CLI in tests); dialog built, not clicked through |
+| PR list: open PRs/MRs with title, number, author, branch → base, draft, labels, review decision and CI status, updated time; filter All / Mine / Review requested; open in browser | ✅ REST mapping + status aggregation tested against recorded GitHub v3 / GitLab v4 JSON fixtures; UI built, not clicked through |
+| PR detail: description (basic Markdown), conversation (comments, reviews, line comments, GitLab system notes), commits, CI checks (GitHub check runs + commit statuses, GitLab pipeline jobs), **changed files in the existing diff view** — the PR head (`refs/pull/<n>/head` / `refs/merge-requests/<n>/head`) and base are fetched into `refs/ferrumgit/pr/<n>/…` (hidden from the graph) with the repo's profile, and diffed against the merge base | ✅ fetch + merge-base diff tested end to end against a local bare remote; Markdown parser unit-tested; UI built, not clicked through |
+| PR actions: check out (same-project branch → tracking branch of the same name; fork → `pr-<n>-<branch>`; existing branch fast-forwarded), create from the current branch (title, description, base, draft; pushes first when needed), comment, review (approve / request changes / comment), **merge** with a confirmation and only the methods the project allows (head SHA must be unchanged) | ✅ checkout/create tested end to end (local bare remote + fake API); review/merge payloads fixture-tested; UI not clicked through |
+| API errors and rate limits: 401 explains the needed scopes, 403/404/409/422 show the forge's message; rate-limit headers are tracked per API, an exhausted limit is reported with the reset time and not retried, and lists skip per-PR status lookups when fewer than 100 requests remain | ✅ unit + fixture tested |
 | Auto-refresh when the repo changes outside the app (3 s fingerprint poll) | ⚠️ implemented, not hand-tested |
 | FerrumIDE "One Dark" theme, resizable + persisted panels | ✅ (light theme not available yet) |
 
 ## Not built yet
 Redo, and undo beyond the last commit / amend / checkout (merges, rebases, cherry-picks, resets);
 interactive rebase, submodules, LFS, worktrees, GPG/SSH commit signing UI (signing configured in
-git config still works), PR/issue integrations (GitHub/GitLab), search beyond the loaded history
+git config still works), issue integrations; for pull requests: inline (per-line) review comments
+and replying to threads, editing / closing PRs, creating PRs whose head is in a fork, pagination
+beyond the first 50 PRs and 100 commits / comments / checks, GitHub team review requests in the
+"Review requested" filter, and the GitLab "requested changes" reviewer state (GitLab REST v4 has no
+call for it on every edition: *Request changes* withdraws your approval and posts the comment);
+search beyond the loaded history
 (matches are limited to the commits in the graph; "Load more" extends it), blame of a line's
 previous revision ("blame parent"), horizontal scrolling of long lines in blame and split diffs
 (they are clipped), merge-conflict editor (use ours/theirs or edit the file, then *Resolved*),
@@ -61,6 +72,7 @@ progress percentages for network ops, and packaging and signing.
 ## Prerequisites
 - Rust via rustup; `rust-toolchain.toml` installs **1.99.1**.
 - `git` ≥ 2.32 and OpenSSH on `PATH` (`ssh`, `ssh-keygen`).
+- Optional: the GitHub CLI (`gh`) to reuse its login for pull requests.
 - macOS: Xcode (GPUI compiles Metal shaders). Linux: the GPUI/Zed build dependencies
   (`../ide/script/linux` installs them).
 
@@ -74,6 +86,7 @@ cargo fmt -p ferrumgit-desktop
 
 FERRUMGIT_DATA_DIR=/tmp/fg cargo git-ui        # isolated local state
 cargo test -p ferrumgit-credentials -- --ignored   # real OS keychain round trip
+cargo test -p ferrumgit-forge     # GitHub / GitLab mapping from recorded fixtures (no network)
 ```
 
 ### Styling
@@ -92,11 +105,15 @@ crates/git/          git CLI runner (non-interactive env, cancellation), porcela
                      per-profile SSH env + askpass, ssh -T test
 crates/graph/        commit-graph lane layout
 crates/persistence/  SQLite: repos, profiles, settings, workspace
-crates/credentials/  OS keychain (keyring) + session fallback for passphrases
+crates/forge/        GitHub REST v3 / GitLab v4 pull & merge requests behind a `Transport` trait (reqwest; JSON fixtures in tests),
+                     remote URL → forge/owner/repo, rate limits, error mapping, status aggregation, basic Markdown, checkout plan
+crates/credentials/  OS keychain (keyring) + session fallback for passphrases and forge tokens
 crates/application/  AppServices runtime; applies each repo's profile to every operation
 docs/                ARCHITECTURE
 ```
 
 ## Local data
 `~/Library/Application Support/dev.FerrumGIT.FerrumGIT/ferrumgit.db` (OS-appropriate elsewhere).
-It holds repository paths, profiles (key *paths*, never keys or passphrases) and UI state.
+It holds repository paths, profiles (key *paths*, never keys or passphrases), per-repo forge
+overrides, the token *source* per forge host (keychain or `gh`), and UI state. Tokens live only in
+the OS keychain (or in `gh`) and are never logged; HTTP request debug output redacts them.

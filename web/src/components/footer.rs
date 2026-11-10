@@ -1,14 +1,26 @@
-//! Site footer. Classes: `.site-footer`, `.footer-grid`, `.footer-col`, `.footer-bottom`.
+//! Site footer. Classes: `.site-footer`, `.footer-credit`, `.footer-grid`, `.footer-col`,
+//! `.footer-bottom`.
 
 use maud::{Markup, html};
 
-use crate::components::ferrum_mark;
+use crate::components::{
+    button::{self, Variant},
+    ferrum_mark,
+};
 use crate::{products, site};
 
 pub fn render() -> Markup {
     html! {
         footer class="site-footer" {
             div class="container" {
+                div class="footer-credit" {
+                    p class="footer-credit__line" {
+                        "Built by "
+                        a href=(site::AMYGDAL_URL) rel="noopener" { "amygdal.com" }
+                        " for the Rust community."
+                    }
+                    (button::link(site::DOWNLOAD_LABEL, site::DOWNLOAD_PATH, Variant::Primary))
+                }
                 div class="footer-grid" {
                     div class="footer-col footer-col--brand" {
                         a class="brand" href="/" {
@@ -42,11 +54,6 @@ pub fn render() -> Markup {
                         a href=(site::ZED_UPSTREAM_URL) rel="noopener" { "Zed editor" }
                         "."
                     }
-                    p {
-                        "Built by "
-                        a href=(site::AMYGDAL_URL) rel="noopener" { "Amygdal" }
-                        " for the Rust community."
-                    }
                     p class="footer-copy" { "© 2026 Ferrum" }
                 }
             }
@@ -64,6 +71,8 @@ mod tests {
         assert!(html.contains(site::ZED_UPSTREAM_URL));
         assert!(html.contains(r#"href="/download""#));
         assert!(html.contains("© 2026 Ferrum"));
+        assert!(html.contains(site::AMYGDAL_URL));
+        assert!(html.contains("for the Rust community"));
         for p in products::ALL {
             assert!(html.contains(&format!(r#"href="{}""#, p.path())));
         }

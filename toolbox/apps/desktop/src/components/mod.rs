@@ -15,6 +15,8 @@ pub fn icon_for(app: AppId) -> IconName {
         AppId::Git => IconName::GitBranch,
         AppId::Data => IconName::DatabaseZap,
         AppId::Term => IconName::Terminal,
+        AppId::Kit => IconName::ToolHammer,
+        AppId::Dock => IconName::Blocks,
         AppId::Toolbox => IconName::Box,
     }
 }

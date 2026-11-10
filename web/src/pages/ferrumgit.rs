@@ -57,13 +57,14 @@ const WORKS_TODAY: &[&str] = &[
     "Profiles with per-repo identity, SSH key and keychain passphrase",
     "File history (follows renames), blame and side-by-side diffs",
     "Commit search and Undo for the last commit, amend or checkout",
+    "GitHub and GitLab pull requests: list, review, checkout, create, comment, merge",
 ];
 
 const NOT_BUILT_YET: &[&str] = &[
     "Redo, and undo for other operations",
     "Interactive rebase",
     "Submodules, LFS and worktrees",
-    "Pull request and issue integrations",
+    "Inline review comments, issues, and pull requests from forks",
     "Syntax highlighting in diffs",
     "A merge-conflict editor",
 ];

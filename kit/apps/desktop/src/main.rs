@@ -1,0 +1,20 @@
+//! FerrumKit desktop entry point. Everything runs locally; the app makes no
+//! network requests and stores nothing on disk.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
+mod app;
+mod tools;
+mod widgets;
+
+use ferrum_ui::AppConfig;
+use ferrum_ui::gpui::AppContext as _;
+
+fn main() {
+    let config = AppConfig::new("FerrumKit")
+        .size(1180., 760.)
+        .min_size(820., 520.);
+    ferrum_ui::run(config, |window, cx| {
+        app::bind_keys(cx);
+        cx.new(|cx| app::FerrumKit::new(window, cx))
+    });
+}

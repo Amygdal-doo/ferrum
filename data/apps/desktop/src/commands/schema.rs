@@ -16,7 +16,16 @@ impl FerrumData {
             self.state.expanded.insert(id);
             true
         };
-        if now_open && !matches!(self.state.schemas.get(&id), Some(SchemaLoad::Loaded(_))) {
+        let key_value = self
+            .state
+            .profile(id)
+            .is_some_and(|p| p.engine.is_key_value());
+        if now_open && key_value {
+            // Key-value engines list keys (SCAN pages) instead of tables.
+            if !self.state.key_browsers.contains_key(&id) {
+                self.scan_keys(id, true, cx);
+            }
+        } else if now_open && !matches!(self.state.schemas.get(&id), Some(SchemaLoad::Loaded(_))) {
             self.load_tables(id, cx);
         }
         cx.notify();

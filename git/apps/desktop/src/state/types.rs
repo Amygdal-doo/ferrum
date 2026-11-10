@@ -1,6 +1,7 @@
 //! Small UI-state value types.
 
-use ferrumgit_application::{CancellationToken, RepoData};
+use ferrumgit_application::forge::{PrDetail, PrFilter, PrList, ReviewEvent};
+use ferrumgit_application::{CancellationToken, ForgeInfo, PrChanges, RepoData};
 use ferrumgit_domain::{
     Blame, CommitDetails, DiffSource, FileCommit, FileDiff, Oid, ProfileId, RepoId, RepoOp,
 };
@@ -20,6 +21,66 @@ pub enum Page {
     #[default]
     History,
     Stashes,
+    /// GitHub pull requests / GitLab merge requests.
+    PullRequests,
+}
+
+/// Tab of the pull request detail panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PrTab {
+    #[default]
+    Conversation,
+    Commits,
+    Files,
+    Checks,
+}
+
+impl PrTab {
+    pub const ALL: [Self; 4] = [Self::Conversation, Self::Commits, Self::Files, Self::Checks];
+
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Conversation => "Conversation",
+            Self::Commits => "Commits",
+            Self::Files => "Files",
+            Self::Checks => "Checks",
+        }
+    }
+}
+
+/// A value being loaded from the forge.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum Load<T> {
+    #[default]
+    Idle,
+    Loading,
+    Ready(Arc<T>),
+    Failed(String),
+}
+
+impl<T> Load<T> {
+    #[must_use]
+    pub fn ready(&self) -> Option<&Arc<T>> {
+        match self {
+            Self::Ready(v) => Some(v),
+            _ => None,
+        }
+    }
+}
+
+/// Pull requests page state for one repository.
+#[derive(Debug, Clone, Default)]
+pub struct PrPanel {
+    /// Forge, token state and onboarding text.
+    pub info: Load<ForgeInfo>,
+    pub filter: PrFilter,
+    pub list: Load<PrList>,
+    pub selected: Option<u64>,
+    pub detail: Load<PrDetail>,
+    pub tab: PrTab,
+    /// Changed files, diffed locally after fetching the PR ref.
+    pub changes: Load<PrChanges>,
 }
 
 /// What the detail panel shows.
@@ -103,6 +164,8 @@ pub struct RepoView {
     pub tree: bool,
     /// Scroll the graph to this row once rendered.
     pub scroll_to: Option<usize>,
+    /// Pull requests page.
+    pub prs: PrPanel,
 }
 
 /// A running operation (one per repository at a time).
@@ -219,4 +282,17 @@ pub enum Dialog {
     },
     RepoSettings(RepoId),
     Profiles(Option<ProfileId>),
+    /// Forge detection overrides and access token for a repository.
+    ForgeSettings(RepoId),
+    /// New pull / merge request from the current branch.
+    CreatePr,
+    /// Comment or review the selected pull request.
+    PrReview {
+        number: u64,
+        event: ReviewEvent,
+    },
+    /// Merge the selected pull request on the forge.
+    PrMerge {
+        number: u64,
+    },
 }

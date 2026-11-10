@@ -6,7 +6,7 @@ use crate::state::{ConnStatus, Dialog, TabRun};
 use ferrum_ui::prelude::*;
 use ferrumdata_application::safety;
 use ferrumdata_domain::{
-    ConnectionProfile, DbError, DbErrorKind, EditorTabId, ExecutionId, QueryRequest,
+    ConnectionProfile, DatabaseEngine, DbError, DbErrorKind, EditorTabId, ExecutionId, QueryRequest,
 };
 use ferrumdata_editor_core::statement_at;
 use std::ops::Range;
@@ -26,6 +26,27 @@ pub fn sql_to_run(doc: &str, selection: Range<usize>) -> String {
         statement_at(doc, selection.start)
             .map(|s| s.text(doc).to_owned())
             .unwrap_or_default()
+    }
+}
+
+/// Redis console input: the trimmed selection, or the line under the caret
+/// (one command per line; `#` lines are comments).
+#[must_use]
+pub fn command_to_run(doc: &str, selection: Range<usize>) -> String {
+    if !selection.is_empty() {
+        return doc.get(selection).unwrap_or_default().trim().to_owned();
+    }
+    let caret = selection.start.min(doc.len());
+    let (Some(before), Some(after)) = (doc.get(..caret), doc.get(caret..)) else {
+        return String::new();
+    };
+    let start = before.rfind('\n').map_or(0, |i| i + 1);
+    let end = after.find('\n').map_or(doc.len(), |i| caret + i);
+    let line = doc.get(start..end).unwrap_or_default().trim();
+    if line.starts_with('#') {
+        String::new()
+    } else {
+        line.to_owned()
     }
 }
 
@@ -51,7 +72,11 @@ impl FerrumData {
         let selection = inputs
             .get(&tab.id)
             .map_or(0..0, |entry| entry.input.read(cx).selection());
-        let sql = sql_to_run(&tab.sql, selection);
+        let sql = if profile.engine == DatabaseEngine::Redis {
+            command_to_run(&tab.sql, selection)
+        } else {
+            sql_to_run(&tab.sql, selection)
+        };
         if sql.is_empty() {
             self.notify_user("Nothing to run.", false, cx);
             return;
@@ -183,7 +208,18 @@ impl FerrumData {
 
 #[cfg(test)]
 mod tests {
-    use super::sql_to_run;
+    use super::{command_to_run, sql_to_run};
+
+    #[test]
+    fn redis_runs_the_line_under_the_caret() {
+        let doc = "GET a\n  HGETALL h  \n# note\nSET k \"x;y\"";
+        assert_eq!(command_to_run(doc, 0..0), "GET a");
+        assert_eq!(command_to_run(doc, 9..9), "HGETALL h");
+        assert_eq!(command_to_run(doc, 22..22), "");
+        assert_eq!(command_to_run(doc, doc.len()..doc.len()), "SET k \"x;y\"");
+        assert_eq!(command_to_run(doc, 0..5), "GET a");
+        assert_eq!(command_to_run("", 0..0), "");
+    }
 
     #[test]
     fn runs_trimmed_selection_without_trailing_semicolon() {

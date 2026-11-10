@@ -3,7 +3,9 @@
 //! logged (ids only) and skipped instead of failing the whole load.
 
 use chrono::Utc;
-use ferrumgit_domain::{AppSettings, Profile, ProfileId, RepoEntry, RepoId, WorkspaceState};
+use ferrumgit_domain::{
+    AppSettings, ForgeHost, Profile, ProfileId, RepoEntry, RepoId, WorkspaceState,
+};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use sqlx::SqlitePool;
@@ -24,6 +26,8 @@ pub type StoreResult<T> = Result<T, StoreError>;
 
 const SETTINGS_KEY: &str = "app";
 const WORKSPACE_KEY: &str = "workspace";
+/// Per-host forge token source (never the token itself).
+const FORGE_HOSTS_KEY: &str = "forge_hosts";
 
 /// Handle to the app-state database. Cheap to clone.
 #[derive(Debug, Clone)]
@@ -145,6 +149,14 @@ impl Store {
 
     pub async fn save_workspace(&self, ws: &WorkspaceState) -> StoreResult<()> {
         self.save_key(WORKSPACE_KEY, ws).await
+    }
+
+    pub async fn load_forge_hosts(&self) -> StoreResult<Vec<ForgeHost>> {
+        self.load_key(FORGE_HOSTS_KEY).await
+    }
+
+    pub async fn save_forge_hosts(&self, hosts: &[ForgeHost]) -> StoreResult<()> {
+        self.save_key(FORGE_HOSTS_KEY, &hosts).await
     }
 
     async fn list_docs<T: DeserializeOwned>(&self, sql: &'static str) -> StoreResult<Vec<T>> {
@@ -276,6 +288,14 @@ mod tests {
         s.exec(r#"UPDATE settings SET value = '{"theme":"dark"}' WHERE key = 'app'"#)
             .await;
         assert!(!s.load_settings().await.expect("old").side_by_side);
+
+        assert!(s.load_forge_hosts().await.expect("hosts").is_empty());
+        let hosts = vec![ferrumgit_domain::ForgeHost {
+            host: "github.com".into(),
+            token_source: ferrumgit_domain::TokenSource::GhCli,
+        }];
+        s.save_forge_hosts(&hosts).await.expect("save hosts");
+        assert_eq!(s.load_forge_hosts().await.expect("hosts"), hosts);
 
         let ws = WorkspaceState {
             open: vec![RepoId::new()],

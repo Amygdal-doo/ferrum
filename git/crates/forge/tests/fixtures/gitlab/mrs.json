@@ -1,0 +1,15 @@
+[
+  {"id": 101, "iid": 4, "project_id": 55, "title": "Draft: Speed up CI", "description": "", "state": "opened",
+   "created_at": "2026-11-01T10:00:00.000Z", "updated_at": "2026-11-09T10:00:00.000Z",
+   "target_branch": "main", "source_branch": "ci/cache", "author": {"username": "jdoe"},
+   "reviewers": [{"username": "alex"}], "source_project_id": 55, "target_project_id": 55, "labels": ["ci"],
+   "draft": true, "work_in_progress": true, "sha": "4444444444444444444444444444444444444444",
+   "detailed_merge_status": "draft_status", "has_conflicts": false,
+   "web_url": "https://gitlab.example.com/platform/tools/app/-/merge_requests/4"},
+  {"id": 102, "iid": 6, "project_id": 55, "title": "Fix crash on start", "description": "Closes #3", "state": "opened",
+   "updated_at": "2026-11-10T08:00:00.000Z", "target_branch": "main", "source_branch": "fix-crash",
+   "author": {"username": "alex"}, "reviewers": [{"username": "jdoe"}], "source_project_id": 99, "target_project_id": 55,
+   "labels": [], "draft": false, "sha": "6666666666666666666666666666666666666666",
+   "detailed_merge_status": "mergeable", "has_conflicts": false,
+   "web_url": "https://gitlab.example.com/platform/tools/app/-/merge_requests/6"}
+]

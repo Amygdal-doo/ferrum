@@ -1,0 +1,4 @@
+[
+  {"sha": "aaaa000000000000000000000000000000000001", "commit": {"message": "Add login form\n\nWith validation.", "author": {"name": "Octo Cat", "email": "o@example.com", "date": "2026-11-01T10:00:00Z"}}, "author": {"login": "octocat"}},
+  {"sha": "1212121212121212121212121212121212121212", "commit": {"message": "Style button", "author": {"name": "Someone Else", "email": "s@example.com", "date": "2026-11-02T10:00:00Z"}}, "author": null}
+]

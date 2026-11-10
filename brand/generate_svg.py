@@ -6,7 +6,8 @@ INK = "#f1e9df"
 DARK = "#16130f"
 APPS = {
     # name: (symbol letter after "Fe", accent, glyph). The core mark is plain "Fe";
-    # every app is "Fe" + a capital in its accent: FeI, FeA, FeG, FeD, FeT, FeX.
+    # every app is "Fe" + a capital in its accent: FeI, FeA, FeG, FeD, FeT, FeX,
+    # FeK (Kit) and FeC (Dock: containers).
     "ferrum":  ("e", "#E8743B", None),
     "ide":     ("I", "#5B8DEF", "brackets"),
     "api":     ("A", "#3FB8A0", "arrows"),
@@ -14,6 +15,8 @@ APPS = {
     "data":    ("D", "#A07CF0", "cylinder"),
     "term":    ("T", "#7CC85A", "prompt"),
     "toolbox": ("X", "#E85A7E", "grid"),
+    "kit":     ("K", "#D46BE0", "sliders"),
+    "dock":    ("C", "#38BDF8", "containers"),
 }
 SW = 62  # letter stroke width
 
@@ -54,6 +57,8 @@ CAPITALS = {
     "D": (["M0 390 V730", "M0 390 H70 A130 170 0 0 1 70 730 H0"], 0, 200),
     "T": (["M-10 390 H210", "M100 390 V730"], -10, 210),
     "X": (["M0 390 L200 730", "M200 390 L0 730"], 0, 200),
+    "K": (["M0 390 V730", "M195 390 L0 600", "M70 525 L205 730"], 0, 205),
+    "C": (["M195 455 A105 170 0 1 0 195 665"], 5, 200),
 }
 CAP_SCALE = 0.72
 CAP_SW = 76  # heavier so the scaled-down strokes match the two-letter marks
@@ -97,6 +102,11 @@ def glyph(kind):
         return f'<path {common} d="M-60 -45 A60 22 0 1 0 60 -45 A60 22 0 1 0 -60 -45 V45 A60 22 0 0 0 60 45 V-45 M-60 0 A60 22 0 0 0 60 0"/>'
     if kind == "prompt":
         return f'<path {common} d="M-70 -50 L-20 0 L-70 50 M5 55 H75"/>'
+    if kind == "sliders":
+        return (f'<path {common} d="M-70 -40 H70 M-70 40 H70"/>'
+                f'<circle cx="-25" cy="-40" r="24" fill="{DARK}"/><circle cx="30" cy="40" r="24" fill="{DARK}"/>')
+    if kind == "containers":
+        return "".join(f'<rect x="{x-32}" y="{y-24}" width="64" height="48" rx="8" fill="{DARK}"/>' for x, y in ((-36, 30), (36, 30), (0, -30)))
     if kind == "grid":
         r = 18
         return "".join(f'<rect x="{x-30}" y="{y-30}" width="60" height="60" rx="{r}" fill="{DARK}"/>' for x in (-38, 38) for y in (-38, 38))

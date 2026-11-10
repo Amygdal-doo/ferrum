@@ -5,6 +5,8 @@
 //! thread. UI code calls [`AppServices::spawn`] and awaits the handle.
 
 mod cookies;
+mod load;
+mod mock;
 mod runner;
 mod send;
 mod transfer;
@@ -15,6 +17,10 @@ pub use ferrumapi_http::CancellationToken;
 pub use ferrumapi_interop as interop;
 pub use ferrumapi_persistence as persistence;
 pub use ferrumapi_persistence::{Store, StoreError};
+pub use ferrumapi_server as server;
+pub use ferrumapi_server::{MockServer, ServerError, WebhookInspector};
+pub use load::{LoadEnd, LoadEvent, load_target_warning, run_load};
+pub use mock::plan_mock_routes;
 pub use runner::{RunEvent, RunItem, RunOutcome, plan_run, run_sequence};
 pub use send::{Prepared, code_snippet, prepare, variables_for};
 pub use transfer::TransferError;

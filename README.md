@@ -11,6 +11,8 @@ one look through `shared/ui`.
 | `git/` | FerrumGIT: Git client | GPUI + `ferrum-ui` |
 | `data/` | FerrumData: database IDE | GPUI + `ferrum-ui` |
 | `term/` | FerrumTerm: terminal server, GUI and CLI | GPUI GUI, crossterm CLI |
+| `kit/` | FerrumKit: developer utilities | GPUI + `ferrum-ui` |
+| `dock/` | FerrumDock: container manager | GPUI + `ferrum-ui` |
 | `toolbox/` | FerrumToolbox: installs, updates and launches the apps | GPUI + `ferrum-ui` |
 | `shared/ui` | `ferrum-ui`: shared shell and widgets | GPUI + Zed `ui`/`theme` |
 | `web/` | Marketing site | axum + maud (standalone package) |
@@ -18,7 +20,7 @@ one look through `shared/ui`.
 ## Layout
 
 - The root `Cargo.toml` is a single workspace for `shared/`, `api/`, `git/`,
-  `data/`, `term/` and `toolbox/`. It has one `Cargo.lock` and one toolchain
+  `data/`, `term/`, `kit/`, `dock/` and `toolbox/`. It has one `Cargo.lock` and one toolchain
   (`rust-toolchain.toml`).
 - `ide/` keeps its own workspace and toolchain so merges from upstream Zed
   stay easy. The other tools depend on its `gpui`, `gpui_platform`, `ui`,
@@ -53,6 +55,8 @@ cargo git-ui     # FerrumGIT
 cargo desktop    # FerrumData
 cargo term       # FerrumTerm GUI
 cargo fterm      # FerrumTerm CLI
+cargo kit        # FerrumKit
+cargo dock       # FerrumDock
 cargo toolbox    # FerrumToolbox
 cargo lint       # clippy, whole workspace, -D warnings
 cargo test --workspace

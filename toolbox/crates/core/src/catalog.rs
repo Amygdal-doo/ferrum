@@ -14,22 +14,34 @@ pub enum AppId {
     Git,
     Data,
     Term,
+    Kit,
+    Dock,
     Toolbox,
 }
 
 impl AppId {
-    pub const ALL: [AppId; 6] = [
+    pub const ALL: [AppId; 8] = [
         AppId::Ide,
         AppId::Api,
         AppId::Git,
         AppId::Data,
         AppId::Term,
+        AppId::Kit,
+        AppId::Dock,
         AppId::Toolbox,
     ];
 
     /// The apps the toolbox installs. The toolbox itself ships as its own
     /// download and offers its updates from the toolbar, so it isn't listed.
-    pub const MANAGED: [AppId; 5] = [AppId::Ide, AppId::Api, AppId::Git, AppId::Data, AppId::Term];
+    pub const MANAGED: [AppId; 7] = [
+        AppId::Ide,
+        AppId::Api,
+        AppId::Git,
+        AppId::Data,
+        AppId::Term,
+        AppId::Kit,
+        AppId::Dock,
+    ];
 
     #[must_use]
     pub fn as_str(self) -> &'static str {
@@ -39,6 +51,8 @@ impl AppId {
             AppId::Git => "git",
             AppId::Data => "data",
             AppId::Term => "term",
+            AppId::Kit => "kit",
+            AppId::Dock => "dock",
             AppId::Toolbox => "toolbox",
         }
     }
@@ -82,7 +96,7 @@ pub struct AppInfo {
     pub icon: &'static str,
 }
 
-pub static CATALOG: [AppInfo; 6] = [
+pub static CATALOG: [AppInfo; 8] = [
     AppInfo {
         id: AppId::Ide,
         name: "FerrumIDE",
@@ -127,6 +141,24 @@ pub static CATALOG: [AppInfo; 6] = [
         extra_binaries: &["fterm"],
         bundle_name: "FerrumTerm",
         icon: "Terminal",
+    },
+    AppInfo {
+        id: AppId::Kit,
+        name: "FerrumKit",
+        description: "Developer utilities: JSON, Base64, JWT, regex, timestamps, hashes and more.",
+        binary: "ferrumkit",
+        extra_binaries: &[],
+        bundle_name: "FerrumKit",
+        icon: "ToolHammer",
+    },
+    AppInfo {
+        id: AppId::Dock,
+        name: "FerrumDock",
+        description: "Container manager for Docker, OrbStack, Colima and Podman engines.",
+        binary: "ferrumdock",
+        extra_binaries: &[],
+        bundle_name: "FerrumDock",
+        icon: "Blocks",
     },
     AppInfo {
         id: AppId::Toolbox,

@@ -17,6 +17,7 @@ ferrumdata-db-mysql.workspace = true
 ferrumdata-db-sqlite.workspace = true
 ferrumdata-db-surrealdb.workspace = true
 ferrumdata-db-mongodb.workspace = true
+ferrumdata-db-redis.workspace = true
 ferrumdata-persistence.workspace = true
 ferrumdata-credentials.workspace = true
 tokio.workspace = true

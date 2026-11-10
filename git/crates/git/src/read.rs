@@ -111,6 +111,8 @@ impl Repo {
             .run(self.cmd([
                 "log".to_owned(),
                 "--exclude=refs/stash".to_owned(),
+                // Fetched pull requests (refs/ferrumgit/pr/…) stay out of the graph.
+                format!("--exclude={}*", crate::PR_NAMESPACE),
                 "--all".to_owned(),
                 "--date-order".to_owned(),
                 "-z".to_owned(),
@@ -351,7 +353,7 @@ pub(crate) fn check_rev(rev: &str) -> GitResult<()> {
     Ok(())
 }
 
-fn parse_limited(raw: &[u8]) -> (Vec<FileDiff>, bool) {
+pub(crate) fn parse_limited(raw: &[u8]) -> (Vec<FileDiff>, bool) {
     if raw.len() <= MAX_PATCH_BYTES {
         return (parse::parse_diff(&String::from_utf8_lossy(raw)), false);
     }

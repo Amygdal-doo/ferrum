@@ -17,6 +17,7 @@ path = "src/main.rs"
 ferrumterm-protocol.workspace = true
 ferrumterm-server.workspace = true
 ferrumterm-client.workspace = true
+ferrumterm-net.workspace = true
 clap.workspace = true
 crossterm.workspace = true
 tokio.workspace = true

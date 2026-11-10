@@ -61,6 +61,8 @@ jobs:
             git)     package=ferrumgit-desktop;     binaries="ferrumgit" ;;
             data)    package=ferrumdata-desktop;    binaries="ferrumdata" ;;
             term)    package="ferrumterm-gui ferrumterm-cli"; binaries="ferrumterm fterm" ;;
+            kit)     package=ferrumkit-desktop;     binaries="ferrumkit" ;;
+            dock)    package=ferrumdock-desktop;    binaries="ferrumdock" ;;
             toolbox) package=ferrumtoolbox-desktop; binaries="ferrum-toolbox" ;;
             *) echo "::error::unknown app id '$app'"; exit 1 ;;
           esac

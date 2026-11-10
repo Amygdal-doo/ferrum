@@ -18,6 +18,10 @@ members = [
     "term/crates/*",
     "toolbox/apps/*",
     "toolbox/crates/*",
+    "dock/apps/*",
+    "dock/crates/*",
+    "kit/apps/*",
+    "kit/crates/*",
 ]
 exclude = ["ide", "web"]
 
@@ -50,6 +54,7 @@ ferrumapi-http = { path = "api/crates/http" }
 ferrumapi-persistence = { path = "api/crates/persistence" }
 ferrumapi-interop = { path = "api/crates/interop" }
 ferrumapi-application = { path = "api/crates/application" }
+ferrumapi-server = { path = "api/crates/server" }
 
 # FerrumGIT
 ferrumgit-domain = { path = "git/crates/domain" }
@@ -57,6 +62,7 @@ ferrumgit-git = { path = "git/crates/git" }
 ferrumgit-graph = { path = "git/crates/graph" }
 ferrumgit-persistence = { path = "git/crates/persistence" }
 ferrumgit-credentials = { path = "git/crates/credentials" }
+ferrumgit-forge = { path = "git/crates/forge" }
 ferrumgit-application = { path = "git/crates/application" }
 
 # FerrumData
@@ -67,6 +73,7 @@ ferrumdata-db-mysql = { path = "data/crates/db-mysql" }
 ferrumdata-db-sqlite = { path = "data/crates/db-sqlite" }
 ferrumdata-db-surrealdb = { path = "data/crates/db-surrealdb" }
 ferrumdata-db-mongodb = { path = "data/crates/db-mongodb" }
+ferrumdata-db-redis = { path = "data/crates/db-redis" }
 ferrumdata-persistence = { path = "data/crates/persistence" }
 ferrumdata-credentials = { path = "data/crates/credentials" }
 ferrumdata-application = { path = "data/crates/application" }
@@ -78,9 +85,18 @@ ferrumterm-protocol = { path = "term/crates/protocol" }
 ferrumterm-emulator = { path = "term/crates/emulator" }
 ferrumterm-server = { path = "term/crates/server" }
 ferrumterm-client = { path = "term/crates/client" }
+ferrumterm-net = { path = "term/crates/net" }
 
 # FerrumToolbox
 ferrumtoolbox-core = { path = "toolbox/crates/core" }
+
+# FerrumDock
+ferrumdock-engine = { path = "dock/crates/engine" }
+# Docker Engine API client (Unix socket + TCP; no TLS features).
+bollard = { version = "0.21", default-features = false, features = ["http", "pipe"] }
+
+# FerrumKit
+ferrumkit-core = { path = "kit/crates/core" }
 
 # Terminal
 alacritty_terminal = "0.25"
@@ -104,6 +120,11 @@ url = "2.5"
 base64 = "0.22"
 percent-encoding = "2.3"
 mime_guess = "2.0"
+# Local HTTP servers (FerrumAPI mock server / webhook inspector)
+hyper = { version = "1.6", default-features = false }
+hyper-util = { version = "0.1", default-features = false }
+http-body-util = "0.1"
+bytes = "1"
 
 # Database
 sqlx = { version = "0.9.0", default-features = false }
@@ -111,6 +132,10 @@ sqlx = { version = "0.9.0", default-features = false }
 surrealdb = { version = "4.0", default-features = false }
 mongodb = { version = "3.10", default-features = false }
 bson = { version = "3.1", features = ["serde", "serde_json-1"] }
+# Redis/Valkey client (FerrumData): async over Tokio, TLS via rustls.
+redis = { version = "1.2", default-features = false }
+# Named only to install a rustls crypto provider (several are compiled into the workspace).
+rustls = { version = "0.23", default-features = false }
 
 # Utilities
 anyhow = "1.0"
@@ -132,6 +157,14 @@ zip = { version = "2.2", default-features = false, features = ["deflate"] }
 tar = "0.4"
 unicode-segmentation = "1.10"
 smallvec = { version = "1.6", features = ["union", "const_new"] }
+# FerrumKit tools (same versions as ide/ where it uses them)
+regex = "1.12"
+similar = "2.7"
+serde_yaml_ng = "0.10"
+toml = "0.9"
+md-5 = "0.10"
+sha1 = "0.10"
+ulid = "1.2"
 
 
 [workspace.lints.rust]

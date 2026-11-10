@@ -6,8 +6,11 @@ pub mod cookies;
 pub mod environments;
 pub mod files;
 pub mod history;
+pub mod load;
+pub mod mock;
 pub mod runner;
 pub mod send;
+pub mod webhook;
 pub mod workspace;
 
 use crate::app::FerrumApi;

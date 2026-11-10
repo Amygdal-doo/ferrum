@@ -2,8 +2,10 @@
 //! [`ResultBuffer`](ferrumdata_result_grid_core::ResultBuffer)s; the grid only
 //! ever renders the visible slice.
 
+mod keys;
 mod run;
 
+pub use keys::{KeyBrowser, KeyViewLoad};
 pub use run::TabRun;
 
 use ferrumdata_domain::{
@@ -45,6 +47,8 @@ pub struct EditorTab {
     pub unsaved: bool,
     /// Set for table-browser tabs.
     pub table: Option<TableRef>,
+    /// Set for key tabs (Redis value viewer). Not restored after a restart.
+    pub key: Option<String>,
 }
 
 impl EditorTab {
@@ -57,6 +61,7 @@ impl EditorTab {
             profile_id,
             unsaved: false,
             table: None,
+            key: None,
         }
     }
 
@@ -82,6 +87,7 @@ impl From<EditorTabState> for EditorTab {
             profile_id: s.profile_id,
             unsaved: false,
             table: s.table,
+            key: None,
         }
     }
 }
@@ -98,6 +104,10 @@ pub enum Dialog {
     },
     /// `None` clears the history of every connection.
     ClearHistory(Option<ConnectionProfile>),
+    DeleteKey {
+        profile: ConnectionProfile,
+        key: String,
+    },
 }
 
 /// What the bottom panel shows.
@@ -146,6 +156,10 @@ pub struct AppState {
     pub dialog: Option<Dialog>,
     pub results_pane: ResultsPane,
     pub history: HistoryPanel,
+    /// Key explorer per key-value (Redis) connection.
+    pub key_browsers: HashMap<ProfileId, KeyBrowser>,
+    /// Value of the key shown in each key tab.
+    pub key_views: HashMap<EditorTabId, KeyViewLoad>,
 }
 
 impl AppState {

@@ -1,0 +1,7 @@
+[
+  {"id": 1, "body": "requested review from @jdoe", "author": {"username": "alex"}, "created_at": "2026-11-09T09:10:00.000Z", "system": true, "type": null},
+  {"id": 2, "body": "Could you add a test?", "author": {"username": "jdoe"}, "created_at": "2026-11-09T09:20:00.000Z", "system": false, "type": "DiffNote",
+   "position": {"base_sha": "a", "head_sha": "b", "old_path": "src/main.rs", "new_path": "src/main.rs", "new_line": null, "old_line": 17}},
+  {"id": 3, "body": "Done, thanks!", "author": {"username": "alex"}, "created_at": "2026-11-09T09:30:00.000Z", "system": false, "type": null},
+  {"id": 4, "body": "approved this merge request", "author": {"username": "sam"}, "created_at": "2026-11-09T09:40:00.000Z", "system": true}
+]

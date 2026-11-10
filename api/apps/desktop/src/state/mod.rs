@@ -5,6 +5,7 @@ pub mod history;
 pub mod kv;
 pub mod runner;
 pub mod tabs;
+pub mod tools;
 mod types;
 
 pub use types::{
@@ -55,6 +56,11 @@ pub struct AppState {
     pub response_search: Option<ResponseSearch>,
     /// The current or last collection run (kept after its dialog closes).
     pub runner: Option<runner::RunnerState>,
+    /// Mock servers by collection (running or with unsaved edits).
+    pub mocks: HashMap<CollectionId, tools::MockState>,
+    pub webhooks: tools::WebhookState,
+    /// The current or last load test.
+    pub load_test: Option<tools::LoadTestState>,
     pub results_height: f64,
     pub dialog: Option<Dialog>,
 }
@@ -86,6 +92,9 @@ impl AppState {
             body_mode: BodyMode::Pretty,
             response_search: None,
             runner: None,
+            mocks: HashMap::new(),
+            webhooks: tools::WebhookState::default(),
+            load_test: None,
             results_height: 320.0,
             dialog: None,
         }

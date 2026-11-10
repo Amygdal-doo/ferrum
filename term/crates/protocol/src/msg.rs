@@ -237,6 +237,21 @@ pub enum Request {
     SetAwake {
         mode: AwakeMode,
     },
+    /// Start an SSH port forward as a server-owned child process
+    /// (`command` is the full `ssh -N …` argv, built by the client).
+    ForwardStart {
+        host: String,
+        spec: crate::ForwardSpec,
+        command: Vec<String>,
+        /// Extra environment (e.g. `SSH_AUTH_SOCK`, so ssh-agent keys work).
+        #[serde(default)]
+        env: Vec<(String, String)>,
+    },
+    /// Stop a forward (`host/L8080`), or clear a failed one.
+    ForwardStop {
+        key: String,
+    },
+    ForwardList,
     Shutdown,
 }
 
@@ -349,6 +364,9 @@ pub enum Response {
         exit: Option<i32>,
         status: Option<ProgramStatus>,
     },
+    Forwards {
+        forwards: Vec<crate::ForwardInfo>,
+    },
     Error {
         message: String,
     },
@@ -374,6 +392,8 @@ pub enum Event {
     Bell {
         block: BlockId,
     },
+    /// A port forward started, stopped or failed; re-`ForwardList`.
+    Forwards,
     /// The server is shutting down.
     Bye,
 }

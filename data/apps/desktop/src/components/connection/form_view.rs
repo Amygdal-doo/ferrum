@@ -60,6 +60,20 @@ impl ConnectionForm {
     /// Host/port, database file, or connection string.
     fn endpoint_fields(&self, cx: &mut Context<Self>) -> AnyElement {
         match self.engine.endpoint_kind() {
+            EndpointKind::Tcp if self.engine == DatabaseEngine::Redis => v_flex()
+                .gap_1p5()
+                .child(
+                    h_flex()
+                        .gap_3()
+                        .items_start()
+                        .child(div().flex_1().child(Self::field("Host or URL", &self.host)))
+                        .child(div().w(px(110.)).child(Self::field("Port", &self.port))),
+                )
+                .child(Self::hint(
+                    "A redis:// or rediss:// URL replaces host and port (rediss:// enables TLS, \
+                     #insecure skips verification). Put the password in the Password field.",
+                ))
+                .into_any_element(),
             EndpointKind::Tcp => h_flex()
                 .gap_3()
                 .items_start()
@@ -99,6 +113,7 @@ impl ConnectionForm {
         let db_label = match self.engine {
             DatabaseEngine::Sqlite => return None,
             DatabaseEngine::MySql => "Database (optional)",
+            DatabaseEngine::Redis => "DB index",
             _ => "Database",
         };
         let mut row = h_flex().gap_3().items_start();
@@ -111,7 +126,14 @@ impl ConnectionForm {
         }
         Some(
             row.child(div().flex_1().child(Self::field(db_label, &self.database)))
-                .child(div().flex_1().child(Self::field("User", &self.username)))
+                .child(div().flex_1().child(Self::field(
+                    if self.engine == DatabaseEngine::Redis {
+                        "ACL user (optional)"
+                    } else {
+                        "User"
+                    },
+                    &self.username,
+                )))
                 .into_any_element(),
         )
     }
@@ -123,6 +145,12 @@ impl ConnectionForm {
             } else {
                 "wss:// with server certificate verification."
             })),
+            DatabaseEngine::Redis if self.tls == TlsMode::Disable => {
+                Some(Self::hint("Plain TCP (a rediss:// URL still enables TLS)."))
+            }
+            DatabaseEngine::Redis if self.tls.verifies_server() => Some(Self::hint(
+                "TLS; the certificate chain and host name are verified.",
+            )),
             _ if !self.tls.verifies_server() => Some(
                 Label::new("Server certificate is not verified.")
                     .size(LabelSize::XSmall)
@@ -141,6 +169,10 @@ impl ConnectionForm {
             DatabaseEngine::Sqlite => "Open the file read-only (enforced by SQLite)",
             DatabaseEngine::SurrealDb | DatabaseEngine::MongoDb => {
                 "Read-only: FerrumData refuses writing statements (use a read-only user for real protection)"
+            }
+            DatabaseEngine::Redis => {
+                "Read-only: only commands on FerrumData's read allow-list run and key edits are \
+                 disabled (use an ACL user without write permissions for real protection)"
             }
         }
     }

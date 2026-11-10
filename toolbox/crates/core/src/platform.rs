@@ -156,6 +156,8 @@ pub fn icon_png(app: AppId) -> &'static [u8] {
         AppId::Git => include_bytes!("../../../../brand/png/git-256.png"),
         AppId::Data => include_bytes!("../../../../brand/png/data-256.png"),
         AppId::Term => include_bytes!("../../../../brand/png/term-256.png"),
+        AppId::Kit => include_bytes!("../../../../brand/png/kit-256.png"),
+        AppId::Dock => include_bytes!("../../../../brand/png/dock-256.png"),
         AppId::Toolbox => include_bytes!("../../../../brand/png/toolbox-256.png"),
     }
 }

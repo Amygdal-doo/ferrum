@@ -410,7 +410,7 @@ fn file_buttons(
         .collect()
 }
 
-fn file_section(
+pub(super) fn file_section(
     app: &FerrumGit,
     id: RepoId,
     file: Arc<FileDiff>,

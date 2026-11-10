@@ -6,7 +6,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 <ide|api|git|data|term|toolbox> <semver> [-m \"release notes\"]" >&2
+  echo "usage: $0 <ide|api|git|data|term|kit|dock|toolbox> <semver> [-m \"release notes\"]" >&2
   exit 2
 }
 
@@ -23,7 +23,7 @@ while [ $# -gt 0 ]; do
 done
 
 case "$app" in
-  ide|api|git|data|term|toolbox) ;;
+  ide|api|git|data|term|kit|dock|toolbox) ;;
   *) echo "error: unknown app id '$app'" >&2; usage ;;
 esac
 

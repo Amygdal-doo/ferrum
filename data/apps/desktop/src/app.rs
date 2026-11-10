@@ -1,11 +1,12 @@
 //! Root view and window layout.
 
+use crate::commands::keys::KeyInputs;
 use crate::components::connection::{ConnectionForm, ConnectionFormEvent};
 use crate::state::{AppState, Dialog};
 use ferrum_ui::gpui::{Axis, UniformListScrollHandle};
 use ferrum_ui::prelude::*;
 use ferrumdata_application::AppServices;
-use ferrumdata_domain::{DatabaseEngine, EditorTabId};
+use ferrumdata_domain::{DatabaseEngine, EditorTabId, ProfileId};
 use std::collections::HashMap;
 
 const SIDEBAR_SPLITTER: &str = "sidebar";
@@ -35,6 +36,10 @@ pub struct FerrumData {
     pub editors: HashMap<EditorTabId, TabInput>,
     /// One-line SQL bars for table-browser tabs.
     pub table_inputs: HashMap<EditorTabId, TabInput>,
+    /// Value editor and TTL box of key tabs (Redis).
+    pub key_inputs: HashMap<EditorTabId, KeyInputs>,
+    /// SCAN pattern box above each Redis connection's key tree.
+    pub key_patterns: HashMap<ProfileId, (Entity<TextInput>, Subscription)>,
     pub filter: Entity<TextInput>,
     /// Search box of the History panel.
     pub history_filter: Entity<TextInput>,
@@ -67,6 +72,8 @@ impl FerrumData {
             focus_handle,
             editors: HashMap::new(),
             table_inputs: HashMap::new(),
+            key_inputs: HashMap::new(),
+            key_patterns: HashMap::new(),
             filter,
             history_filter,
             grid_focus: cx.focus_handle(),
@@ -257,14 +264,20 @@ impl FerrumData {
     fn render_main(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let layout = self.state.settings.layout.clamped();
         let table_tab = self.state.active_tab().is_some_and(|t| t.table.is_some());
-        let main = if table_tab {
-            // Tab bar stays visible; the table view replaces editor + results.
+        let key_tab = self.state.active_tab().is_some_and(|t| t.key.is_some());
+        let main = if table_tab || key_tab {
+            // Tab bar stays visible; the table/key view replaces editor + results.
+            let view = if key_tab {
+                self.render_key_view(window, cx)
+            } else {
+                self.render_table_view(window, cx)
+            };
             v_flex()
                 .flex_1()
                 .min_w_0()
                 .min_h_0()
                 .child(self.render_tab_bar(cx))
-                .child(self.render_table_view(window, cx))
+                .child(view)
                 .into_any_element()
         } else {
             v_flex()

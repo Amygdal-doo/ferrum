@@ -54,6 +54,9 @@ impl FerrumData {
                     .when(tab.table.is_some(), |this| {
                         this.child(div().text_color(colors.text_muted).child("▦"))
                     })
+                    .when(tab.key.is_some(), |this| {
+                        this.child(div().text_color(colors.text_muted).child("⚷"))
+                    })
                     .child(tab.title.clone())
                     .when(tab.unsaved, |this| {
                         this.child(

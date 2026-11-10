@@ -54,6 +54,17 @@ impl FerrumApi {
             })
             .child(div().flex_1())
             .child(
+                Button::new("webhooks", "Webhooks")
+                    .style(ButtonStyle::Subtle)
+                    .tooltip(Tooltip::text(
+                        "Capture incoming requests on a local port (webhook inspector)",
+                    ))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.state.dialog = Some(Dialog::Webhooks);
+                        cx.notify();
+                    })),
+            )
+            .child(
                 Button::new("cookies", "Cookies")
                     .style(ButtonStyle::Subtle)
                     .tooltip(Tooltip::text("View and clear stored cookies"))

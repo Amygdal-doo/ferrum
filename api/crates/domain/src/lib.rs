@@ -12,12 +12,15 @@ mod error;
 pub mod highlight;
 mod history;
 mod ids;
+pub mod load;
+pub mod mock;
 mod request;
 mod response;
 pub mod text;
 mod tree;
 pub mod urlparams;
 pub mod vars;
+pub mod webhook;
 mod workspace;
 
 pub use auth::{ApiKeyLocation, Auth};
@@ -29,7 +32,7 @@ pub use cookie_jar::{
 pub use environment::{Environment, Variable};
 pub use error::ExecError;
 pub use history::HistoryEntry;
-pub use ids::{CollectionId, EnvironmentId, HistoryId, ItemId, TabId};
+pub use ids::{CollectionId, EnvironmentId, HistoryId, ItemId, MockId, TabId};
 pub use request::{HttpMethod, HttpRequest, KeyValue, RequestSettings};
 pub use response::{HttpResponse, ResponseCookie};
 pub use vars::VariableSet;

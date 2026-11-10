@@ -47,6 +47,9 @@ const BUILT: &[&str] = &[
     "Collections with folders, environments and globals with {{vars}}",
     "History, restored tabs, cancel and timeouts",
     "Postman Collection v2.1 import/export, cURL import, cURL/Python/JS snippets",
+    "Local mock server per collection, with path params, conditions and delays",
+    "Webhook inspector: capture, inspect and replay incoming requests",
+    "Load test with requests per second and p50/p90/p99 latency",
 ];
 
 const NOT_YET: &[&str] = &[
@@ -56,6 +59,7 @@ const NOT_YET: &[&str] = &[
     "Secrets in the OS keychain",
     "WebSocket, GraphQL editor and gRPC",
     "Light theme and soft-wrap in the response view",
+    "HTTPS mocks, templated mock bodies and a public tunnel for webhooks",
 ];
 
 const PRINCIPLES: &[&str] = &[

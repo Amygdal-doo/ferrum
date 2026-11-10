@@ -5,8 +5,12 @@ mod collection_settings;
 mod cookies;
 mod environment;
 mod import;
+mod load_test;
+mod mock_editor;
+mod mock_server;
 mod runner;
 mod save_request;
+mod webhooks;
 
 use crate::app::FerrumApi;
 use crate::state::Dialog;
@@ -92,6 +96,9 @@ impl FerrumApi {
             Dialog::Code { tab_id, target } => self.render_code_dialog(tab_id, target, window, cx),
             Dialog::Cookies(jar) => self.render_cookies_dialog(*jar, cx),
             Dialog::Runner => self.render_runner_dialog(cx),
+            Dialog::MockServer(collection) => self.render_mock_dialog(collection, window, cx),
+            Dialog::Webhooks => self.render_webhooks_dialog(window, cx),
+            Dialog::LoadTest => self.render_load_test_dialog(window, cx),
             Dialog::DeleteItem {
                 collection,
                 item,

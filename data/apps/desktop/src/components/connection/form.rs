@@ -65,6 +65,10 @@ impl ConnectionForm {
         // Seed every endpoint field so switching engines keeps typed values.
         let (host, port) = match &base.endpoint {
             Endpoint::Tcp { host, port } => (host.clone(), port.to_string()),
+            // Redis accepts a redis:// URL in the Host field.
+            Endpoint::Uri { uri } if engine == DatabaseEngine::Redis => {
+                (uri.clone(), port_text(engine))
+            }
             _ => ("localhost".to_owned(), port_text(engine)),
         };
         let path = match &base.endpoint {
@@ -171,6 +175,13 @@ impl ConnectionForm {
         p.engine = self.engine;
         p.display_name = text(&self.name);
         p.endpoint = match self.engine.endpoint_kind() {
+            EndpointKind::Tcp
+                if self.engine == DatabaseEngine::Redis && is_redis_url(&text(&self.host)) =>
+            {
+                Endpoint::Uri {
+                    uri: text(&self.host),
+                }
+            }
             EndpointKind::Tcp => Endpoint::Tcp {
                 host: text(&self.host),
                 port: text(&self.port).parse::<u16>().unwrap_or(0),
@@ -309,6 +320,11 @@ impl ConnectionForm {
             }
         }));
     }
+}
+
+/// A Redis profile given as a URL instead of a host name.
+fn is_redis_url(text: &str) -> bool {
+    text.starts_with("redis://") || text.starts_with("rediss://")
 }
 
 fn port_text(engine: DatabaseEngine) -> String {

@@ -1,8 +1,10 @@
 //! The collapsible left sidebar (⌘B): an "Agents" section with status dots
 //! and a badge for agents that need you, every session's tabs and panes, and
-//! a "New agent" menu (Claude Code, Codex, recent or custom commands).
+//! a "New agent" menu (Claude Code, Codex, recent or custom commands), and
+//! SSH hosts with their port forwards (see `hosts`).
 
 pub mod agents;
+mod hosts;
 pub mod model;
 
 use crate::view::TermView;
@@ -42,6 +44,7 @@ impl TermView {
                 list = list.child(self.render_row(format!("row-{}", row.block), row, cx));
             }
         }
+        list = list.child(self.render_hosts(cx));
 
         v_flex()
             .flex_none()

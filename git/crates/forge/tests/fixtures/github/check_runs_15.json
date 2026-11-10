@@ -1,0 +1,1 @@
+{"total_count": 1, "check_runs": [{"name": "build", "status": "completed", "conclusion": "failure", "html_url": "https://github.com/acme/widgets/runs/9", "output": {"title": "2 errors"}}]}

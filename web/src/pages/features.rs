@@ -5,13 +5,9 @@
 use maud::{Markup, html};
 
 use super::feature_demos;
-use crate::components::{
-    button::{self, Variant},
-    card,
-};
+use crate::components::card;
 use crate::layout::{PageMeta, page};
 use crate::products::{self, Product};
-use crate::site;
 
 pub const PATH: &str = "/features";
 
@@ -26,21 +22,17 @@ struct AppFeatures {
     demo_label: &'static str,
 }
 
-const APPS: [AppFeatures; 6] = [
+const APPS: [AppFeatures; 8] = [
     AppFeatures {
         product: products::FERRUM_IDE,
-        version: "0.3.0-alpha.1",
-        summary: "The editor is now the front door to the rest of the suite: open the project \
+        version: "0.4.0-alpha.1",
+        summary: "The editor is the front door to the rest of the suite: open the project \
                   you're in with the right Ferrum app in one keystroke.",
         points: &[
             (
-                "Ferrum in the command palette",
-                "Open FerrumGIT, FerrumTerm, FerrumData or FerrumAPI from the palette or \
-                 File → Ferrum.",
-            ),
-            (
-                "Status-bar button",
-                "A Ferrum button in the status bar lists every app, ready to launch.",
+                "Every Ferrum app, one menu",
+                "Open FerrumGIT, FerrumTerm, FerrumData, FerrumAPI and now FerrumKit and \
+                 FerrumDock from the palette, File → Ferrum or the status-bar button.",
             ),
             (
                 "Two keystrokes",
@@ -54,22 +46,24 @@ const APPS: [AppFeatures; 6] = [
     },
     AppFeatures {
         product: products::FERRUMAPI,
-        version: "0.2.0-alpha.1",
-        summary: "Read responses faster, keep sessions alive across requests and check a \
-                  whole collection in one run.",
+        version: "0.3.0-alpha.1",
+        summary: "Three local tools for the parts of API work that happen before the backend \
+                  is ready, or after it ships.",
         points: &[
             (
-                "Search and colour in responses",
-                "⌘F finds text in the response body, and JSON is syntax-coloured.",
+                "Mock server",
+                "Serve a collection's mock responses on 127.0.0.1, with path parameters, \
+                 query and header conditions, delays and a live log of what answered.",
             ),
             (
-                "Cookie jar",
-                "Cookies from Set-Cookie are stored and sent to matching hosts. View and \
-                 clear them any time.",
+                "Webhook inspector",
+                "A local listener that records every request it gets. Open any capture as a \
+                 new request to replay it.",
             ),
             (
-                "Collection runner",
-                "Run every request in a collection or folder and see pass or fail for each.",
+                "Load test",
+                "Send a request N times with C at once and get requests per second, errors \
+                 by status and p50, p90 and p99 latency.",
             ),
         ],
         demo: feature_demos::api,
@@ -78,27 +72,23 @@ const APPS: [AppFeatures; 6] = [
     },
     AppFeatures {
         product: products::FERRUMGIT,
-        version: "0.2.0-alpha.1",
-        summary: "Dig into history, compare changes side by side and take back the last \
-                  thing you did.",
+        version: "0.3.0-alpha.1",
+        summary: "Review and ship pull requests without leaving the Git client.",
         points: &[
             (
-                "File history and blame",
-                "Every commit that touched a file, following renames, plus line-by-line blame.",
+                "GitHub and GitLab",
+                "Pull and merge requests for github.com, gitlab.com and self-hosted GitLab or \
+                 GitHub Enterprise, with a token in the keychain or your gh login.",
             ),
             (
-                "Side-by-side diff",
-                "Toggle between the unified view and old and new versions next to each other.",
+                "Review in place",
+                "Description, conversation, commits, checks, and the changed files in \
+                 FerrumGIT's own diff view.",
             ),
             (
-                "Commit search",
-                "Search across commits and jump through the matches with next and previous.",
-            ),
-            (
-                "Undo",
-                "Take back the last commit, amend or checkout. FerrumGIT also opens a \
-                 repository passed on the command line, which is how Ferrum IDE hands \
-                 projects over.",
+                "Act on it",
+                "Check out a pull request, open one from your branch, comment, approve or \
+                 request changes, and merge after a confirmation.",
             ),
         ],
         demo: feature_demos::git,
@@ -107,25 +97,27 @@ const APPS: [AppFeatures; 6] = [
     },
     AppFeatures {
         product: products::FERRUMDATA,
-        version: "0.3.0-alpha.1",
-        summary: "Find the query you ran yesterday, get results out in the format you need \
-                  and work the grid like a spreadsheet.",
+        version: "0.4.0-alpha.1",
+        summary: "Redis joins PostgreSQL, MySQL, SQLite, SurrealDB and MongoDB.",
         points: &[
             (
-                "Query history",
-                "Every query per connection, searchable, ready to open or run again.",
+                "Redis key browser",
+                "Keys found with SCAN and grouped into folders by `:`, each with its type \
+                 and TTL.",
             ),
             (
-                "Export and copy",
-                "Export results to CSV or JSON, or copy them as CSV, JSON or Markdown.",
+                "Every value type",
+                "Strings (with pretty JSON), hashes, lists, sets, sorted sets and streams, \
+                 shown in the results grid with sort, copy and export.",
             ),
             (
-                "A better grid",
-                "Sort by column, resize columns, select cells and copy them with ⌘C.",
+                "Command console",
+                "Run Redis commands with redis-cli quoting. Read-only profiles only allow \
+                 read commands.",
             ),
             (
-                "Column and index details",
-                "Types, defaults, keys and indexes for PostgreSQL, MySQL and SQLite tables.",
+                "Quick edits",
+                "Change a string, set or remove a TTL, or delete a key, with a confirmation.",
             ),
         ],
         demo: feature_demos::data,
@@ -134,52 +126,105 @@ const APPS: [AppFeatures; 6] = [
     },
     AppFeatures {
         product: products::FERRUMTERM,
-        version: "0.2.0-alpha.1",
-        summary: "A terminal that keeps an eye on your AI agents, with every session one \
-                  click away.",
+        version: "0.3.0-alpha.1",
+        summary: "Remote machines and the ports on yours, from the sidebar.",
         points: &[
             (
-                "Sidebar",
-                "⌘B shows every session and tab, so switching is a click away.",
+                "SSH hosts",
+                "Hosts from ~/.ssh/config and ones you save open in a new tab with one click, \
+                 or with fterm ssh. Passwords and keys stay with ssh.",
             ),
             (
-                "Agents section",
-                "Claude Code and Codex sessions show whether they're working, done or \
-                 waiting, with a badge when one needs you.",
+                "Port forwards",
+                "Local, remote and SOCKS forwards per host, started and stopped from the \
+                 sidebar. They keep running when you close the window.",
             ),
             (
-                "New agent",
-                "Start Claude Code, Codex or your own command in a new tab from one menu.",
+                "What's using a port?",
+                "See which process listens on a port, and stop it after a confirmation. Also \
+                 fterm port 3000.",
             ),
-            ("Select and copy", "Select with the mouse and copy with ⌘C."),
         ],
         demo: feature_demos::term,
         demo_label: "FerrumTerm with a sidebar of sessions and agents, an agent finishing its \
                      work and terminal output being selected and copied",
     },
     AppFeatures {
-        product: products::FERRUM_TOOLBOX,
-        version: "0.5.0",
-        summary: "One window that installs and updates the whole suite, and now updates \
-                  itself too.",
+        product: products::FERRUMKIT,
+        version: "0.1.0-alpha.1",
+        summary: "New: the small tools you otherwise look up on random websites, in one native \
+                  window that works offline.",
         points: &[
+            (
+                "JSON, YAML and TOML",
+                "Format, minify and validate with the exact error position, and convert \
+                 between the three.",
+            ),
+            (
+                "JWT decoder",
+                "Header and payload pretty-printed, expiry shown as a date. Tokens never \
+                 leave your Mac.",
+            ),
+            (
+                "Everyday converters",
+                "Base64, URL, timestamps, UUID and ULID, hashes, number bases, colours and \
+                 text case.",
+            ),
+            (
+                "Regex tester and diff",
+                "Live match highlighting with capture groups, and a line diff of two texts.",
+            ),
+        ],
+        demo: feature_demos::kit,
+        demo_label: "FerrumKit decoding a JWT: the header and payload are shown and the token \
+                     is marked expired",
+    },
+    AppFeatures {
+        product: products::FERRUMDOCK,
+        version: "0.1.0-alpha.1",
+        summary: "New: a fast native window on Docker Desktop, OrbStack or Colima, and Podman \
+                  through DOCKER_HOST.",
+        points: &[
+            (
+                "Containers by Compose project",
+                "Status, ports and live CPU and memory, with start, stop, restart and remove.",
+            ),
+            (
+                "Logs and a shell",
+                "Follow logs live with search, and open a shell in the container in \
+                 FerrumTerm.",
+            ),
+            (
+                "Images, volumes and networks",
+                "Pull with progress, remove, and prune unused data with the space you get back.",
+            ),
+            (
+                "Compose in one click",
+                "Bring a whole project up, down or restart it.",
+            ),
+        ],
+        demo: feature_demos::dock,
+        demo_label: "FerrumDock listing a Compose project's running containers with live CPU \
+                     bars and their logs",
+    },
+    AppFeatures {
+        product: products::FERRUM_TOOLBOX,
+        version: "0.6.0",
+        summary: "One window that installs and updates the whole suite, now eight apps \
+                  strong.",
+        points: &[
+            (
+                "FerrumKit and FerrumDock",
+                "Both new apps are ready to install from the overview, on the Alpha channel.",
+            ),
             (
                 "Updates itself in place",
                 "Update Toolbox replaces the app and restarts it. No DMG to download again.",
             ),
             (
-                "Alpha channel",
-                "Every app follows the Alpha channel by default. Switch any app back to Beta \
-                 or Stable on its page.",
-            ),
-            (
                 "Signed and notarized",
                 "Every app is signed with Developer ID and notarized by Apple, so macOS opens \
                  it without warnings.",
-            ),
-            (
-                "One-line install",
-                "Install from Terminal with a single curl command (see Download).",
             ),
         ],
         demo: feature_demos::toolbox,
@@ -203,7 +248,6 @@ pub fn render(site_url: &str) -> Markup {
             @for app in &APPS {
                 (app_section(app))
             }
-            (credit())
         },
     )
 }
@@ -215,7 +259,7 @@ fn hero() -> Markup {
                 p class="eyebrow" { "Every app is in alpha" }
                 h1 id="features-title" { "What's new across Ferrum" }
                 p class="lead" {
-                    "Six native apps, written in Rust and rendered with GPUI. This is what \
+                    "Eight native apps, written in Rust and rendered with GPUI. This is what \
                      each one can do in the current alpha, and Ferrum Toolbox keeps them all \
                      up to date."
                 }
@@ -271,31 +315,6 @@ fn app_section(app: &AppFeatures) -> Markup {
     }
 }
 
-fn credit() -> Markup {
-    html! {
-        section class="features-credit" aria-labelledby="credit-title" {
-            div class="container features-credit__inner" {
-                p class="eyebrow" { "Made in Rust, for Rust" }
-                h2 id="credit-title" {
-                    "Built by "
-                    a href=(site::AMYGDAL_URL) rel="noopener" { "amygdal.com" }
-                    " for the Rust community"
-                }
-                p class="lead" {
-                    "Ferrum is designed and built by Amygdal and shared with the Rust \
-                     community: native tools, written in Rust, for the people who write it. \
-                     Every app is free to download, and every release is a thank-you to the \
-                     crates and the people that made it possible."
-                }
-                div class="features-credit__ctas" {
-                    (button::link(site::DOWNLOAD_LABEL, site::DOWNLOAD_PATH, Variant::Primary))
-                    (button::link("Visit amygdal.com", site::AMYGDAL_URL, Variant::Secondary))
-                }
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,7 +342,7 @@ mod tests {
     #[test]
     fn credits_amygdal_to_the_rust_community() {
         let html = rendered();
-        assert!(html.contains(site::AMYGDAL_URL));
+        assert!(html.contains(crate::site::AMYGDAL_URL));
         assert!(html.contains("for the Rust community"));
     }
 }

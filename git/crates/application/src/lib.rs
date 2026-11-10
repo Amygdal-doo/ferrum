@@ -5,15 +5,18 @@
 //! code calls [`AppServices::spawn`] and awaits the handle.
 
 mod profiles;
+mod pulls;
 mod repos;
 
 pub use ferrumgit_domain as domain;
+pub use ferrumgit_forge as forge;
 pub use ferrumgit_git::{
     CancellationToken, GitError, MAX_PATCH_BYTES, Snapshot, askpass_main, patch,
 };
 pub use ferrumgit_graph::{Edge, GraphRow};
 pub use ferrumgit_persistence::{Store, StoreError};
 pub use profiles::PassphraseChange;
+pub use pulls::{ForgeInfo, GhLookup, PrChanges};
 pub use repos::RepoData;
 
 use ferrumgit_credentials::CredentialStore;
@@ -36,6 +39,8 @@ pub enum AppError {
     Store(#[from] StoreError),
     #[error(transparent)]
     Git(#[from] GitError),
+    #[error(transparent)]
+    Forge(#[from] ferrumgit_forge::ForgeError),
     #[error("{0}")]
     Credentials(String),
     #[error("{0}")]
@@ -73,6 +78,8 @@ pub struct AppServices {
     creds: Arc<dyn CredentialStore>,
     /// Opened repositories by path (saves a `rev-parse` per call).
     repos: Arc<Mutex<HashMap<String, Repo>>>,
+    /// Forge tokens, HTTP transport and rate limits (pull requests).
+    forge: Arc<pulls::ForgeState>,
 }
 
 impl AppServices {
@@ -83,9 +90,13 @@ impl AppServices {
         if let Ok(exe) = std::env::current_exe() {
             git = git.with_askpass(exe);
         }
-        Self::start_with(data_dir, git, ferrumgit_credentials::default_store())
+        Ok(
+            Self::start_with(data_dir, git, ferrumgit_credentials::default_store())?
+                .with_token_store(ferrumgit_credentials::default_token_store()),
+        )
     }
 
+    /// Forge tokens stay in session memory unless [`Self::with_token_store`] is used.
     pub fn start_with(
         data_dir: &Path,
         git: Git,
@@ -104,6 +115,9 @@ impl AppServices {
             git,
             creds,
             repos: Arc::default(),
+            forge: Arc::new(pulls::ForgeState::new(Arc::new(
+                ferrumgit_credentials::SessionStore::default(),
+            ))),
         })
     }
 

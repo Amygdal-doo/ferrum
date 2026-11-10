@@ -7,6 +7,8 @@
 #   FERRUMDATA_TEST_SURREAL=1 cargo test -p ferrumdata-db-surrealdb --test surrealdb
 #   docker compose up -d mongodb
 #   FERRUMDATA_TEST_MONGO=1 cargo test -p ferrumdata-db-mongodb --test mongodb
+#   docker compose up -d redis
+#   FERRUMDATA_TEST_REDIS=1 cargo test -p ferrumdata-db-redis --test redis
 # SQLite needs no server: its integration tests always run.
 services:
   postgres:
@@ -46,3 +48,14 @@ services:
     image: mongo:8
     ports:
       - "27019:27017"
+
+  redis:
+    image: redis:7.4-alpine
+    # Password on the default user so authentication errors can be tested.
+    command: redis-server --requirepass ferrumdata-dev-password --save "" --appendonly no
+    ports:
+      - "63799:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "ferrumdata-dev-password", "--no-auth-warning", "ping"]
+      interval: 2s
+      retries: 30

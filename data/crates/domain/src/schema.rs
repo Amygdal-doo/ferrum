@@ -129,8 +129,40 @@ impl DatabaseEngine {
             Self::SurrealDb => format!("`{}`", ident.replace('\\', "\\\\").replace('`', "\\`")),
             // Collection names are JSON strings in the MongoDB query syntax.
             Self::MongoDb => json_string(ident),
+            // Redis console arguments: redis-cli double-quoted string.
+            Self::Redis => redis_quote(ident),
         }
     }
+}
+
+/// A Redis console argument: bare when it is safe to, otherwise a
+/// redis-cli style double-quoted string (`\"`, `\\`, `\n`, `\xHH` escapes).
+#[must_use]
+pub fn redis_quote(arg: &str) -> String {
+    let bare = !arg.is_empty()
+        && arg
+            .chars()
+            .all(|c| !c.is_whitespace() && !c.is_control() && !matches!(c, '"' | '\'' | '\\'));
+    if bare {
+        return arg.to_owned();
+    }
+    let mut out = String::with_capacity(arg.len() + 2);
+    out.push('"');
+    for c in arg.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if c.is_ascii_control() => {
+                out.push_str(&format!("\\x{:02x}", u32::from(c)));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// Minimal JSON string literal (quotes, backslashes and control characters escaped).
@@ -160,6 +192,16 @@ mod tests {
             "`my\\`tab`"
         );
         assert_eq!(DatabaseEngine::MongoDb.quote_ident("a\"b"), "\"a\\\"b\"");
+    }
+
+    #[test]
+    fn redis_arguments_are_bare_or_double_quoted() {
+        assert_eq!(redis_quote("user:1"), "user:1");
+        assert_eq!(redis_quote("a b"), "\"a b\"");
+        assert_eq!(redis_quote(""), "\"\"");
+        assert_eq!(redis_quote("q\"x\\\n"), "\"q\\\"x\\\\\\n\"");
+        assert_eq!(redis_quote("it's"), "\"it's\"");
+        assert_eq!(redis_quote("\u{1}"), "\"\\x01\"");
     }
 
     #[test]

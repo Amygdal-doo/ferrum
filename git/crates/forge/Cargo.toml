@@ -1,0 +1,25 @@
+[package]
+name = "ferrumgit-forge"
+description = "GitHub / GitLab pull and merge requests over REST (GitHub v3, GitLab v4), behind a testable transport."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrumgit-domain.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+reqwest = { workspace = true, features = ["rustls"] }
+serde.workspace = true
+serde_json.workspace = true
+percent-encoding.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

@@ -7,6 +7,24 @@
 
 use maud::{Markup, html};
 
+use crate::products;
+
+/// The demo for a product, by slug.
+pub fn for_slug(slug: &str) -> Option<Markup> {
+    let demo: fn() -> Markup = match slug {
+        s if s == products::FERRUM_IDE.slug => ide,
+        s if s == products::FERRUMAPI.slug => api,
+        s if s == products::FERRUMGIT.slug => git,
+        s if s == products::FERRUMDATA.slug => data,
+        s if s == products::FERRUMTERM.slug => term,
+        s if s == products::FERRUMKIT.slug => kit,
+        s if s == products::FERRUMDOCK.slug => dock,
+        s if s == products::FERRUM_TOOLBOX.slug => toolbox,
+        _ => return None,
+    };
+    Some(demo())
+}
+
 /// Window chrome: traffic lights, a title and the app-specific body.
 fn window(title: &str, body_class: &str, body: Markup) -> Markup {
     html! {
@@ -254,6 +272,94 @@ pub fn toolbox() -> Markup {
                         span class="tb__btn" { span { "Update" } span { "✓ Up to date" } }
                     }
                 }
+            }
+        },
+    )
+}
+
+pub fn kit() -> Markup {
+    let tools = [
+        "JSON format",
+        "JWT decode",
+        "Base64",
+        "URL parse",
+        "Timestamp",
+        "UUID / ULID",
+        "Hash",
+        "Regex",
+    ];
+    window(
+        "FerrumKit",
+        "kit",
+        html! {
+            div class="kit__side" {
+                p class="kit__search" { "⌘K " span { "jwt" } }
+                ul {
+                    @for (i, tool) in tools.iter().enumerate() {
+                        li class=[(i == 1).then_some("is-open")] { (tool) }
+                    }
+                }
+            }
+            div class="kit__main" {
+                p class="demo__label" { "Token" }
+                p class="kit__token" {
+                    span class="t-kw" { "eyJhbGciOiJIUzI1NiJ9" } "."
+                    span class="t-num" { "eyJzdWIiOiJhbGljZSIsImV4cCI6MTc2Mjc4MDAwMH0" } "."
+                    span class="t-str" { "kM3p0Qe…" }
+                }
+                div class="kit__out" {
+                    div {
+                        p class="demo__label" { "Header" }
+                        p { "{ " span class="t-key" { "\"alg\"" } ": " span class="t-str" { "\"HS256\"" } " }" }
+                    }
+                    div {
+                        p class="demo__label" { "Payload" }
+                        p { "{ " span class="t-key" { "\"sub\"" } ": " span class="t-str" { "\"alice\"" } "," }
+                        p { "  " span class="t-key" { "\"exp\"" } ": " span class="t-num" { "1762780000" } " }" }
+                        p class="kit__exp" { "exp 10 Nov 2025, 13:06 " b { "Expired" } }
+                    }
+                }
+                span class="demo__toast" { "Payload copied" }
+            }
+        },
+    )
+}
+
+pub fn dock() -> Markup {
+    let containers = [
+        ("api", "shop-api:dev", "8080→80", 62),
+        ("db", "postgres:17", "5432", 24),
+        ("cache", "redis:7", "6379", 8),
+    ];
+    window(
+        "FerrumDock — orbstack",
+        "dock",
+        html! {
+            ul class="dock__side" {
+                li class="is-open" { "Containers" em { "5" } }
+                li { "Images" em { "12" } }
+                li { "Volumes" em { "4" } }
+                li { "Networks" em { "3" } }
+            }
+            div class="dock__main" {
+                p class="dock__group" { "▾ shop " em { "Compose · 3 running" } span { "Restart" } }
+                @for (name, image, ports, cpu) in containers {
+                    div class="dock__row" style={ "--cpu: " (cpu) "%" } {
+                        i class="dock__dot" {}
+                        span class="dock__name" { (name) }
+                        span class="dock__image" { (image) }
+                        span class="dock__ports" { (ports) }
+                        span class="dock__cpu" { b {} }
+                    }
+                }
+                p class="dock__group dock__group--off" { "▸ blog " em { "Compose · stopped" } }
+                div class="dock__logs" {
+                    p class="demo__label" { "api · logs" }
+                    p { span class="t-prompt" { "INFO" } " listening on 0.0.0.0:80" }
+                    p { span class="t-prompt" { "INFO" } " GET /health 200 2ms" }
+                    p { span class="t-kw" { "WARN" } " slow query 812ms" }
+                }
+                span class="demo__toast" { "Restarted shop" span { "Logs" } }
             }
         },
     )

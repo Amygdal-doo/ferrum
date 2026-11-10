@@ -16,6 +16,7 @@ path = "src/main.rs"
 [dependencies]
 ferrumterm-protocol.workspace = true
 ferrumterm-client.workspace = true
+ferrumterm-net.workspace = true
 ferrum-ui.workspace = true
 futures.workspace = true
 unicode-width.workspace = true

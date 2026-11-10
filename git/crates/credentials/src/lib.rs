@@ -1,5 +1,6 @@
-//! SSH key passphrases in the OS vault (macOS Keychain, Windows Credential
-//! Manager, Linux Secret Service), keyed by profile id. Falls back to
+//! Secrets in the OS vault (macOS Keychain, Windows Credential Manager, Linux
+//! Secret Service): SSH key passphrases keyed by profile id, and forge
+//! (GitHub / GitLab) personal access tokens keyed by host. Falls back to
 //! session memory when the vault is unavailable; never writes to disk.
 
 use std::collections::HashMap;
@@ -7,6 +8,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 /// Keychain service name for FerrumGIT passphrases.
 pub const SERVICE: &str = "dev.ferrumgit.ssh-passphrase";
+/// Keychain service name for forge access tokens (account = host, e.g. `github.com`).
+pub const TOKEN_SERVICE: &str = "dev.ferrumgit.forge-token";
 
 #[derive(Debug, thiserror::Error)]
 pub enum CredentialError {
@@ -28,19 +31,33 @@ pub trait CredentialStore: Send + Sync {
     fn delete(&self, account: &str) -> CredentialResult<()>;
 }
 
-#[derive(Debug, Default)]
-pub struct KeyringStore;
+#[derive(Debug)]
+pub struct KeyringStore {
+    service: &'static str,
+}
+
+impl Default for KeyringStore {
+    fn default() -> Self {
+        Self { service: SERVICE }
+    }
+}
 
 impl KeyringStore {
+    /// The passphrase store.
     pub fn try_new() -> CredentialResult<Self> {
+        Self::try_with_service(SERVICE)
+    }
+
+    /// A store under another keychain service (e.g. [`TOKEN_SERVICE`]).
+    pub fn try_with_service(service: &'static str) -> CredentialResult<Self> {
         match keyring::Entry::store_status() {
-            Ok(()) => Ok(Self),
+            Ok(()) => Ok(Self { service }),
             Err(e) => Err(CredentialError::Unavailable(e.to_string())),
         }
     }
 
-    fn entry(account: &str) -> CredentialResult<keyring::Entry> {
-        keyring::Entry::new(SERVICE, account).map_err(map_err)
+    fn entry(&self, account: &str) -> CredentialResult<keyring::Entry> {
+        keyring::Entry::new(self.service, account).map_err(map_err)
     }
 }
 
@@ -57,7 +74,7 @@ impl CredentialStore for KeyringStore {
     }
 
     fn get(&self, account: &str) -> CredentialResult<Option<String>> {
-        match Self::entry(account)?.get_password() {
+        match self.entry(account)?.get_password() {
             Ok(pw) => Ok(Some(pw)),
             Err(keyring::Error::NoEntry) => Ok(None),
             Err(e) => Err(map_err(e)),
@@ -65,11 +82,11 @@ impl CredentialStore for KeyringStore {
     }
 
     fn set(&self, account: &str, secret: &str) -> CredentialResult<()> {
-        Self::entry(account)?.set_password(secret).map_err(map_err)
+        self.entry(account)?.set_password(secret).map_err(map_err)
     }
 
     fn delete(&self, account: &str) -> CredentialResult<()> {
-        match Self::entry(account)?.delete_credential() {
+        match self.entry(account)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(map_err(e)),
         }
@@ -108,13 +125,23 @@ impl CredentialStore for SessionStore {
     }
 }
 
-/// The OS vault, or session memory with a warning.
+/// The OS vault for passphrases, or session memory with a warning.
 #[must_use]
 pub fn default_store() -> Arc<dyn CredentialStore> {
-    match KeyringStore::try_new() {
+    store_for(SERVICE, "passphrases")
+}
+
+/// The OS vault for forge tokens, or session memory with a warning.
+#[must_use]
+pub fn default_token_store() -> Arc<dyn CredentialStore> {
+    store_for(TOKEN_SERVICE, "forge tokens")
+}
+
+fn store_for(service: &'static str, what: &'static str) -> Arc<dyn CredentialStore> {
+    match KeyringStore::try_with_service(service) {
         Ok(s) => Arc::new(s),
         Err(e) => {
-            tracing::warn!(error = %e, "OS credential store unavailable; passphrases are session-only");
+            tracing::warn!(error = %e, what, "OS credential store unavailable; secrets are session-only");
             Arc::new(SessionStore::default())
         }
     }

@@ -5,6 +5,7 @@
 
 mod commit;
 mod diff;
+mod forge;
 mod history;
 mod ids;
 mod ops;
@@ -20,6 +21,7 @@ mod workspace;
 
 pub use commit::{Commit, CommitDetails, Oid, Stash};
 pub use diff::{DiffLine, DiffSource, FileDiff, Hunk, LineKind, SplitRow};
+pub use forge::{ForgeHost, ForgeKind, RepoForge, TokenSource};
 pub use history::{Blame, BlameCommit, BlameLine, FileCommit};
 pub use ids::{ProfileId, RepoId};
 pub use ops::{PullMode, RepoOp, ResetMode};

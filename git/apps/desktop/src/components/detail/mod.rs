@@ -3,6 +3,8 @@
 
 mod commit;
 mod files;
+mod pull_detail;
+mod pull_list;
 mod stashes;
 mod wip;
 
@@ -29,6 +31,7 @@ pub fn middle_column(
         Page::History => commit_list(app, window, cx),
         Page::WorkingCopy if view.data.is_some() => wip::wip_panel(app, id, window, cx),
         Page::Stashes if view.data.is_some() => stashes::stash_list(app, id, cx),
+        Page::PullRequests => pull_list::pull_list(app, id, cx),
         _ => empty("Loading…"),
     };
     v_flex()
@@ -51,6 +54,7 @@ pub fn right_column(
     let body = match view.page {
         // File history / blame covers the panel on every page until closed.
         _ if let Some(f) = view.file.clone() => file_panel(app, id, f, cx),
+        Page::PullRequests => pull_detail::pull_detail(app, id, cx),
         Page::WorkingCopy => match view.diff {
             Some(_) => diff_pane(app, cx),
             None => empty("Select a file to see its changes"),

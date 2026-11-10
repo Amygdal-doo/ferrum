@@ -128,4 +128,10 @@ pub enum Dialog {
     Cookies(Box<CookieJar>),
     /// Progress of `AppState::runner`.
     Runner,
+    /// Mock server of a collection (`AppState::mocks`).
+    MockServer(CollectionId),
+    /// The webhook inspector (`AppState::webhooks`).
+    Webhooks,
+    /// The load test (`AppState::load_test`).
+    LoadTest,
 }

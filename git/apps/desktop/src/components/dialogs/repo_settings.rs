@@ -206,6 +206,23 @@ pub fn render(
         .child(
             v_flex()
                 .gap_2()
+                .child(section_head(
+                    "Pull requests",
+                    Some(
+                        ghost_button("forge-settings", "Token & forge…")
+                            .on_click(cx.listener(move |app, _, window, cx| {
+                                app.open_dialog(Dialog::ForgeSettings(id), window, cx);
+                            }))
+                            .into_any_element(),
+                    ),
+                ))
+                .child(hint(
+                    "GitHub and GitLab (including self-hosted) are detected from the remote. Tokens are kept in the OS keychain.",
+                )),
+        )
+        .child(
+            v_flex()
+                .gap_2()
                 .child(caption("Preferences (all repositories)"))
                 .child(
                     h_flex()

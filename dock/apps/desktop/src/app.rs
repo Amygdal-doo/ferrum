@@ -1,0 +1,176 @@
+//! Root view and window layout: toolbar / sidebar | section (+ detail) / status bar.
+
+use crate::services::Services;
+use crate::state::{AppState, EngineStatus};
+use crate::views;
+use ferrum_ui::{TextInput, TextInputEvent};
+use ferrumdock_engine::DockerCli;
+use gpui::{
+    App, Context, Entity, FocusHandle, KeyBinding, Subscription, Task, UniformListScrollHandle,
+    Window, actions, prelude::*,
+};
+use theme::ActiveTheme;
+use ui::v_flex;
+
+actions!(ferrumdock, [Refresh, FocusFilter]);
+
+const KEY_CONTEXT: &str = "FerrumDock";
+
+pub fn bind_keys(cx: &mut App) {
+    let context = Some(KEY_CONTEXT);
+    cx.bind_keys([
+        KeyBinding::new("cmd-r", Refresh, context),
+        KeyBinding::new("ctrl-r", Refresh, context),
+        KeyBinding::new("cmd-f", FocusFilter, context),
+        KeyBinding::new("ctrl-f", FocusFilter, context),
+    ]);
+}
+
+/// Text inputs that live as long as the window.
+pub struct Inputs {
+    pub filter: Entity<TextInput>,
+    pub log_search: Entity<TextInput>,
+    pub pull: Entity<TextInput>,
+}
+
+pub struct FerrumDock {
+    pub state: AppState,
+    pub status: EngineStatus,
+    pub services: Services,
+    /// `docker` CLI for compose and "open shell" (None: those actions explain why).
+    pub docker_cli: Option<DockerCli>,
+    pub inputs: Inputs,
+    pub log_scroll: UniformListScrollHandle,
+    pub detail_width: f32,
+    pub(crate) connecting: bool,
+    pub(crate) polling: bool,
+    pub(crate) log_task: Option<(Task<()>, tokio::task::AbortHandle)>,
+    pub(crate) notice_task: Option<Task<()>>,
+    focus_handle: FocusHandle,
+    _poll: Task<()>,
+    _subscriptions: Vec<Subscription>,
+}
+
+impl FerrumDock {
+    pub fn new(
+        services: Services,
+        docker_cli: Option<DockerCli>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let filter = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("Filter")
+                .borderless()
+        });
+        let log_search = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("Search logs")
+                .borderless()
+        });
+        let pull = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("e.g. nginx:latest, ghcr.io/org/app:1.2")
+                .monospace()
+        });
+        let subscriptions = vec![
+            cx.subscribe(&filter, |app: &mut Self, input, event, cx| {
+                if *event == TextInputEvent::Changed {
+                    app.state.filter = input.read(cx).text().to_owned();
+                    cx.notify();
+                }
+            }),
+            cx.subscribe(&log_search, |app: &mut Self, input, event, cx| {
+                if *event == TextInputEvent::Changed {
+                    let text = input.read(cx).text().to_owned();
+                    app.set_log_search(text, cx);
+                }
+            }),
+            cx.subscribe(&pull, |app: &mut Self, _, event, cx| {
+                if *event == TextInputEvent::Submit {
+                    app.start_pull(cx);
+                }
+            }),
+        ];
+        let mut app = Self {
+            state: AppState::default(),
+            status: EngineStatus::Connecting,
+            services,
+            docker_cli,
+            inputs: Inputs {
+                filter,
+                log_search,
+                pull,
+            },
+            log_scroll: UniformListScrollHandle::new(),
+            detail_width: 560.,
+            connecting: false,
+            polling: false,
+            log_task: None,
+            notice_task: None,
+            focus_handle: cx.focus_handle(),
+            _poll: Self::start_polling(cx),
+            _subscriptions: subscriptions,
+        };
+        window.focus(&app.focus_handle, cx);
+        app.connect(false, cx);
+        app
+    }
+
+    fn on_refresh(&mut self, _: &Refresh, _: &mut Window, cx: &mut Context<Self>) {
+        match self.status {
+            EngineStatus::Connected(_) => self.refresh(self.state.section, cx),
+            EngineStatus::Offline(_) => self.connect(false, cx),
+            EngineStatus::Connecting => {}
+        }
+    }
+
+    fn on_focus_filter(&mut self, _: &FocusFilter, window: &mut Window, cx: &mut Context<Self>) {
+        let filter = self.inputs.filter.clone();
+        filter.update(cx, |input, cx| input.focus(window, cx));
+    }
+
+    fn on_cancel(&mut self, _: &::menu::Cancel, window: &mut Window, cx: &mut Context<Self>) {
+        if self.state.dialog.take().is_some() {
+            window.focus(&self.focus_handle, cx);
+        } else if self.state.detail.is_some() {
+            self.close_detail(cx);
+        }
+        cx.notify();
+    }
+}
+
+impl Render for FerrumDock {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
+        let (background, text) = (colors.background, colors.text);
+        let toolbar = views::chrome::toolbar(self, cx);
+        let body = views::body(self, window, cx);
+        let status = views::chrome::status_bar(self, cx);
+        let dialog = views::dialogs::render(self, window, cx);
+        let notice = views::chrome::notice(self, cx);
+        v_flex()
+            .id("ferrumdock")
+            .key_context(KEY_CONTEXT)
+            .track_focus(&self.focus_handle)
+            .on_action(cx.listener(Self::on_refresh))
+            .on_action(cx.listener(Self::on_focus_filter))
+            .on_action(cx.listener(Self::on_cancel))
+            .relative()
+            .size_full()
+            .bg(background)
+            .text_color(text)
+            .text_sm()
+            .child(toolbar)
+            .child(body)
+            .child(status)
+            .children(dialog)
+            .children(notice)
+    }
+}
+
+impl gpui::Focusable for FerrumDock {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus_handle.clone()
+    }
+}

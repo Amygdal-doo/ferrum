@@ -9,11 +9,16 @@ impl FerrumData {
         let colors = cx.theme().colors().clone();
         let needle = self.filter.read(cx).text().to_lowercase();
         let schemas = &self.state.schemas;
+        let key_browsers = &self.state.key_browsers;
         let table_match = |p: &ConnectionProfile| match schemas.get(&p.id) {
             Some(SchemaLoad::Loaded(t)) => t
                 .iter()
                 .any(|t| t.table.name.to_lowercase().contains(&needle)),
-            _ => false,
+            _ => key_browsers.get(&p.id).is_some_and(|b| {
+                b.keys
+                    .iter()
+                    .any(|k| k.name.to_lowercase().contains(&needle))
+            }),
         };
         let profiles: Vec<ConnectionProfile> = self
             .state
@@ -118,10 +123,11 @@ impl FerrumData {
         let expanded = self.state.expanded.contains(&id);
         let group: SharedString = format!("profile-{id}").into();
         let target = profile.target_label();
-        let tree = if expanded {
-            Some(self.render_table_tree(id, filter, window, cx))
-        } else {
-            None
+        let key_value = profile.engine.is_key_value();
+        let tree = match (expanded, key_value) {
+            (false, _) => None,
+            (true, true) => Some(self.render_key_tree(id, filter, window, cx)),
+            (true, false) => Some(self.render_table_tree(id, filter, window, cx)),
         };
         let (edit, delete) = (profile.clone(), profile.clone());
 
@@ -160,10 +166,11 @@ impl FerrumData {
                             },
                         )
                         .icon_size(IconSize::XSmall)
-                        .tooltip(Tooltip::text(if expanded {
-                            "Collapse tables"
-                        } else {
-                            "Expand tables"
+                        .tooltip(Tooltip::text(match (expanded, key_value) {
+                            (true, true) => "Collapse keys",
+                            (false, true) => "Expand keys",
+                            (true, false) => "Collapse tables",
+                            (false, false) => "Expand tables",
                         }))
                         .on_click(cx.listener(move |this, _, _, cx| {
                             cx.stop_propagation();

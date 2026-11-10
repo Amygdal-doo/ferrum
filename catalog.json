@@ -7,11 +7,10 @@
       "summary": "Fast, native code editor: a fork of Zed with an agents sidebar and the Ferrum theme.",
       "highlights": [
         "Agent threads sidebar, open by default",
-        "Opens FerrumGIT, FerrumTerm, FerrumData and FerrumAPI from the editor",
+        "Opens every Ferrum app from the editor, now including FerrumKit and FerrumDock",
         "Ferrum Dark and Light themes; telemetry and auto-update off"
       ],
       "roadmap": [
-        "Signed and notarized builds",
         "Deeper suite integration"
       ],
       "homepage": "https://ferrum-web-production.up.railway.app/ferrum-ide"
@@ -21,13 +20,14 @@
       "status": "alpha",
       "summary": "Local-first, Postman-style API client. No backend, no account, no webview.",
       "highlights": [
-        "Collections, environments, Postman and cURL import, code generation",
-        "Collection runner with pass/fail per request",
-        "Cookie jar, response search and JSON colouring"
+        "Local mock server per collection",
+        "Webhook inspector with replay",
+        "Load test with p50/p90/p99 latency"
       ],
       "roadmap": [
         "OAuth 1/2, Digest and AWS auth",
-        "Pre-request and test scripts"
+        "Pre-request and test scripts",
+        "HTTPS and templated mocks"
       ],
       "homepage": "https://ferrum-web-production.up.railway.app/ferrumapi"
     },
@@ -36,22 +36,22 @@
       "status": "alpha",
       "summary": "Local-first Git client with a commit graph and per-project SSH profiles.",
       "highlights": [
-        "Virtualized commit graph with search across commits",
+        "GitHub and GitLab pull requests: review, checkout, create, merge",
         "File history, blame and side-by-side diffs",
         "Undo for commit, amend and checkout; per-project SSH profiles"
       ],
       "roadmap": [
         "Interactive rebase",
-        "GitHub and GitLab pull requests"
+        "Inline review comments"
       ],
       "homepage": "https://ferrum-web-production.up.railway.app/ferrumgit"
     },
     {
       "id": "data",
       "status": "alpha",
-      "summary": "Local-first database IDE for PostgreSQL, MySQL, SQLite, SurrealDB and MongoDB.",
+      "summary": "Local-first database IDE for PostgreSQL, MySQL, SQLite, SurrealDB, MongoDB and Redis.",
       "highlights": [
-        "Five engines with read-only sessions and keychain passwords",
+        "Redis key browser, value viewer and command console",
         "Query history, CSV/JSON export and sortable, resizable grid",
         "Column and index details for SQL tables"
       ],
@@ -66,15 +66,46 @@
       "status": "alpha",
       "summary": "GPU terminal for humans and AI agents, with persistent server-side sessions.",
       "highlights": [
-        "Terminals live in a server: close the window, programs keep running",
-        "Sidebar with agents (Claude Code, Codex) and their live status",
-        "Start an agent in a new tab from the sidebar; mouse selection and copy"
+        "Saved SSH hosts and ~/.ssh/config hosts in one click",
+        "Port forwards that keep running, and what's using a port",
+        "Agents sidebar for Claude Code and Codex"
       ],
       "roadmap": [
         "Search in the scrollback",
         "Themes and a config file"
       ],
       "homepage": "https://ferrum-web-production.up.railway.app/ferrumterm"
+    },
+    {
+      "id": "kit",
+      "status": "alpha",
+      "summary": "Everyday developer utilities in one native window: no websites, nothing leaves your Mac.",
+      "highlights": [
+        "JSON, YAML and TOML formatting, validation and conversion",
+        "JWT decoder, Base64, URL, hashes, UUID/ULID and timestamps",
+        "Regex tester, text diff, case and line tools"
+      ],
+      "roadmap": [
+        "Saved inputs",
+        "Wrapping for long lines"
+      ],
+      "homepage": "https://ferrum-web-production.up.railway.app/ferrumkit"
+    },
+    {
+      "id": "dock",
+      "status": "alpha",
+      "summary": "Native container manager for Docker Desktop, OrbStack and Colima, and Podman via DOCKER_HOST.",
+      "highlights": [
+        "Containers grouped by Compose project, with live CPU and memory",
+        "Live logs, inspect, and a shell in FerrumTerm",
+        "Images, volumes and networks with prune"
+      ],
+      "roadmap": [
+        "Private registry sign-in",
+        "Docker contexts",
+        "Container file browser"
+      ],
+      "homepage": "https://ferrum-web-production.up.railway.app/ferrumdock"
     },
     {
       "id": "toolbox",

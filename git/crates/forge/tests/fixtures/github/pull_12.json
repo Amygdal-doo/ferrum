@@ -1,0 +1,17 @@
+{
+  "html_url": "https://github.com/acme/widgets/pull/12",
+  "number": 12,
+  "state": "open",
+  "title": "Add login screen",
+  "user": {"login": "octocat"},
+  "body": "## Summary\r\nAdds the **login** screen.\r\n\r\n- [x] tests",
+  "updated_at": "2026-11-09T12:30:00Z",
+  "merged_at": null,
+  "mergeable": true,
+  "mergeable_state": "clean",
+  "requested_reviewers": [{"login": "hubot"}],
+  "labels": [{"name": "feature"}],
+  "draft": false,
+  "head": {"ref": "feature/login", "sha": "1212121212121212121212121212121212121212", "repo": {"full_name": "acme/widgets"}},
+  "base": {"ref": "main", "sha": "0000000000000000000000000000000000000000", "repo": {"full_name": "acme/widgets"}}
+}

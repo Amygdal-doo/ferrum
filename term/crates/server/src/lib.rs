@@ -6,11 +6,13 @@
 
 mod block;
 mod conn;
+mod forward;
 mod listen;
 mod ops;
 mod state;
 mod system;
 
+use forward::ForwardTable;
 pub use listen::{check_listen_addr, load_or_create_token};
 pub use state::{DEFAULT_COLS, DEFAULT_ROWS};
 
@@ -60,6 +62,7 @@ pub struct Server {
     pub(crate) internal: mpsc::UnboundedSender<Internal>,
     pub(crate) awake: Mutex<system::Awake>,
     pub(crate) listeners: Mutex<Vec<String>>,
+    pub(crate) forwards: Mutex<ForwardTable>,
     pub(crate) shutdown: Notify,
 }
 
@@ -207,6 +210,7 @@ pub async fn run(config: ServerConfig) -> Result<(), ServerError> {
         internal,
         awake: Mutex::new(awake),
         listeners: Mutex::new(Vec::new()),
+        forwards: Mutex::new(ForwardTable::default()),
         shutdown: Notify::new(),
         config,
     });
@@ -235,6 +239,7 @@ pub async fn run(config: ServerConfig) -> Result<(), ServerError> {
     for b in lock(&server.state).blocks.values() {
         b.kill();
     }
+    lock(&server.forwards).stop_all();
     lock(&server.awake).update(false);
     let _ = std::fs::remove_file(&server.config.socket);
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;

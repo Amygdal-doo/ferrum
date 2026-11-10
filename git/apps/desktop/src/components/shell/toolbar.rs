@@ -136,6 +136,18 @@ pub fn render(app: &FerrumGit, _: &mut Window, cx: &mut Context<FerrumGit>) -> A
         ),
         Page::WorkingCopy => format!("Working Copy ({} changes)", status.files.len()),
         Page::Stashes => format!("Stashes ({})", snap.stashes.len()),
+        Page::PullRequests => match view.prs.info.ready() {
+            Some(info) => {
+                let noun = info.repo.kind.pr_noun();
+                let n = view.prs.list.ready().map_or(0, |l| l.prs.len());
+                let mut title = noun.to_owned();
+                if let Some(first) = title.get_mut(..1) {
+                    first.make_ascii_uppercase();
+                }
+                format!("{title}s ({n} open) · {}", info.repo.path())
+            }
+            None => "Pull Requests".to_owned(),
+        },
     };
     let profile = app
         .state

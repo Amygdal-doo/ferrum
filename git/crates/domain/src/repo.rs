@@ -1,5 +1,6 @@
 //! A repository bookmarked in FerrumGIT.
 
+use crate::forge::RepoForge;
 use crate::ids::{ProfileId, RepoId};
 use serde::{Deserialize, Serialize};
 
@@ -14,6 +15,8 @@ pub struct RepoEntry {
     pub profile: Option<ProfileId>,
     /// Unix millis; used to sort the recent list.
     pub last_opened_ms: i64,
+    /// Pull request integration overrides (remote, forge type, API URL).
+    pub forge: RepoForge,
 }
 
 impl RepoEntry {
@@ -32,6 +35,7 @@ impl RepoEntry {
             name,
             profile: None,
             last_opened_ms: 0,
+            forge: RepoForge::default(),
         }
     }
 }

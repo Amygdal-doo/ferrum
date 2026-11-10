@@ -61,6 +61,12 @@ pub fn hosts_file() -> PathBuf {
     state_dir().join("hosts.json")
 }
 
+/// Saved SSH hosts and port-forward definitions (see `ferrumterm-net`).
+#[must_use]
+pub fn ssh_hosts_file() -> PathBuf {
+    state_dir().join("ssh-hosts.json")
+}
+
 #[cfg(test)]
 mod tests {
     use super::short_enough;

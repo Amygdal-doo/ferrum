@@ -52,6 +52,10 @@ id_type!(
     /// An open request tab.
     TabId
 );
+id_type!(
+    /// A mock response attached to a saved request.
+    MockId
+);
 
 impl EnvironmentId {
     /// Fixed id of the single globals environment.

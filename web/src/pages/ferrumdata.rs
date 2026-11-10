@@ -62,6 +62,7 @@ const WORKS_TODAY: &[&str] = &[
     "Table explorer and table browser tabs",
     "Column and index details for PostgreSQL, MySQL and SQLite tables",
     "Query history, CSV / JSON export, and grid sort, resize and copy",
+    "Redis key browser, value viewer, command console and quick edits",
 ];
 
 const NOT_BUILT_YET: &[&str] = &[
@@ -137,7 +138,7 @@ mod tests {
         assert!(html.contains("Not built yet"));
         assert!(html.contains("Syntax highlighting and autocomplete"));
         assert!(html.contains("href=\"/download\""));
-        assert!(html.contains("Screenshot placeholder"));
+        assert!(html.contains("Animated preview of FerrumData"));
     }
 
     #[test]

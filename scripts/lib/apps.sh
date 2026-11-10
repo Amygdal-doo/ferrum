@@ -25,6 +25,12 @@ ferrum_app() {
       APP_SUMMARY="GPU terminal with persistent server sessions"
       # The server and client talk over Unix sockets; no Windows build yet.
       APP_WINDOWS=no ;;
+    kit)
+      APP_NAME="FerrumKit"; APP_BINARIES="ferrumkit"; DEB_PACKAGE="ferrumkit"
+      APP_SUMMARY="Developer utilities: JSON, Base64, JWT, regex, hashes and more" ;;
+    dock)
+      APP_NAME="FerrumDock"; APP_BINARIES="ferrumdock"; DEB_PACKAGE="ferrumdock"
+      APP_SUMMARY="Native container manager for Docker-compatible engines" ;;
     toolbox)
       APP_NAME="Ferrum Toolbox"; APP_BINARIES="ferrum-toolbox"; DEB_PACKAGE="ferrum-toolbox"
       APP_SUMMARY="Installs, updates and rolls back the Ferrum apps" ;;

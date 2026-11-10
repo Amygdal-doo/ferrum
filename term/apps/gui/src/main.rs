@@ -4,9 +4,11 @@
 //! anywhere, even over SSH) to pick up where you left off.
 
 mod app;
+mod dialogs;
 mod input;
 mod selection;
 mod sidebar;
+mod ssh;
 mod ui_state;
 mod view;
 

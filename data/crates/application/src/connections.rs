@@ -5,15 +5,17 @@ use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection, ServerInfo};
 use ferrumdata_db_mongodb::MongoDriver;
 use ferrumdata_db_mysql::MySqlDriver;
 use ferrumdata_db_postgres::PostgresDriver;
+use ferrumdata_db_redis::RedisDriver;
 use ferrumdata_db_sqlite::SqliteDriver;
 use ferrumdata_db_surrealdb::SurrealDriver;
 use ferrumdata_domain::{
-    ConnectionProfile, DatabaseEngine, DbError, DbErrorKind, ProfileId, ResolvedConnectionConfig,
-    Secret, SecretRef,
+    ConnectionProfile, DatabaseEngine, DbError, DbErrorKind, KeyScanPage, KeyValueView, ProfileId,
+    ResolvedConnectionConfig, Secret, SecretRef,
 };
 use ferrumdata_persistence::AppStore;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 
 /// What to do with the password when saving a profile.
@@ -37,6 +39,10 @@ pub struct ConnectionService {
     live: Arc<RwLock<HashMap<ProfileId, Arc<dyn DbConnection>>>>,
 }
 
+fn no_key_browser() -> DbError {
+    DbError::unsupported("This connection has no key browser (key-value engines only)")
+}
+
 fn internal(e: impl std::fmt::Display) -> DbError {
     DbError::new(DbErrorKind::Internal, e.to_string())
 }
@@ -50,6 +56,7 @@ impl ConnectionService {
         drivers.insert(DatabaseEngine::Sqlite, Arc::new(SqliteDriver));
         drivers.insert(DatabaseEngine::SurrealDb, Arc::new(SurrealDriver));
         drivers.insert(DatabaseEngine::MongoDb, Arc::new(MongoDriver));
+        drivers.insert(DatabaseEngine::Redis, Arc::new(RedisDriver));
         Self::with_drivers(store, vault, drivers)
     }
 
@@ -199,6 +206,69 @@ impl ConnectionService {
             .await?
             .describe_table(&table)
             .await
+    }
+
+    /// Number of keys in the profile's database.
+    pub async fn key_count(&self, id: ProfileId) -> Result<u64, DbError> {
+        let conn = self.ensure_connected(id).await?;
+        let store = conn.key_value().ok_or_else(no_key_browser)?;
+        store.key_count().await
+    }
+
+    /// One `SCAN` page of keys matching `pattern`, from `cursor`.
+    pub async fn scan_keys(
+        &self,
+        id: ProfileId,
+        pattern: String,
+        cursor: u64,
+        page_size: usize,
+    ) -> Result<KeyScanPage, DbError> {
+        let conn = self.ensure_connected(id).await?;
+        let store = conn.key_value().ok_or_else(no_key_browser)?;
+        store.scan_keys(&pattern, cursor, page_size).await
+    }
+
+    /// Type, TTL, memory and up to `max_items` elements of one key.
+    pub async fn inspect_key(
+        &self,
+        id: ProfileId,
+        key: String,
+        max_items: usize,
+    ) -> Result<KeyValueView, DbError> {
+        let conn = self.ensure_connected(id).await?;
+        let store = conn.key_value().ok_or_else(no_key_browser)?;
+        store.inspect_key(&key, max_items).await
+    }
+
+    /// Replaces a string value (TTL kept). Refused on read-only profiles.
+    pub async fn set_key_string(
+        &self,
+        id: ProfileId,
+        key: String,
+        value: String,
+    ) -> Result<(), DbError> {
+        let conn = self.ensure_connected(id).await?;
+        let store = conn.key_value().ok_or_else(no_key_browser)?;
+        store.set_string(&key, &value).await
+    }
+
+    /// Sets (`Some`) or removes (`None`) a key's TTL. Refused on read-only profiles.
+    pub async fn set_key_ttl(
+        &self,
+        id: ProfileId,
+        key: String,
+        ttl: Option<Duration>,
+    ) -> Result<bool, DbError> {
+        let conn = self.ensure_connected(id).await?;
+        let store = conn.key_value().ok_or_else(no_key_browser)?;
+        store.set_ttl(&key, ttl).await
+    }
+
+    /// Deletes a key. Refused on read-only profiles.
+    pub async fn delete_key(&self, id: ProfileId, key: String) -> Result<bool, DbError> {
+        let conn = self.ensure_connected(id).await?;
+        let store = conn.key_value().ok_or_else(no_key_browser)?;
+        store.delete_key(&key).await
     }
 
     pub async fn disconnect(&self, id: ProfileId) {

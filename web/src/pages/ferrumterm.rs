@@ -48,6 +48,9 @@ const WORKS_TODAY: &[&str] = &[
     "Token-protected remote access over loopback or Tailscale",
     "Sidebar with sessions and an Agents section (Claude Code, Codex)",
     "Mouse selection and copy (⌘C)",
+    "Saved SSH hosts and ~/.ssh/config hosts, with fterm ssh",
+    "Local, remote and SOCKS port forwards run by the server",
+    "What's using a port, with a confirmed kill (fterm port)",
 ];
 
 const NOT_BUILT_YET: &[&str] = &[

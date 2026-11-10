@@ -1,0 +1,5 @@
+{"total_count": 3, "check_runs": [
+  {"id": 1, "name": "build", "status": "completed", "conclusion": "success", "html_url": "https://github.com/acme/widgets/runs/1", "output": {"title": "Build passed"}},
+  {"id": 2, "name": "lint", "status": "completed", "conclusion": "skipped", "html_url": "https://github.com/acme/widgets/runs/2", "output": {"title": null}},
+  {"id": 3, "name": "test", "status": "in_progress", "conclusion": null, "html_url": "https://github.com/acme/widgets/runs/3", "output": {}}
+]}

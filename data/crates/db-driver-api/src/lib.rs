@@ -7,10 +7,11 @@ pub mod documents;
 
 use async_trait::async_trait;
 use ferrumdata_domain::{
-    CapabilitySet, DatabaseEngine, DbError, QueryEvent, QueryRequest, ResolvedConnectionConfig,
-    TableDetails, TableInfo, TableRef,
+    CapabilitySet, DatabaseEngine, DbError, KeyScanPage, KeyValueView, QueryEvent, QueryRequest,
+    ResolvedConnectionConfig, TableDetails, TableInfo, TableRef,
 };
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -54,6 +55,12 @@ pub trait DbConnection: Send + Sync {
         ))
     }
 
+    /// Key browser operations for key-value engines (Redis); `None` for
+    /// engines browsed by table.
+    fn key_value(&self) -> Option<&dyn KeyValueStore> {
+        None
+    }
+
     /// Starts executing one statement. The returned handle streams events
     /// over a bounded channel; the driver keeps its session leased until the
     /// stream ends, is cancelled, or the receiver is dropped.
@@ -61,6 +68,37 @@ pub trait DbConnection: Send + Sync {
 
     /// Closes the pool. In-flight executions are cancelled.
     async fn close(&self);
+}
+
+/// Key-level browsing and editing for key-value engines. Writes are refused
+/// with a `Query` error on read-only profiles.
+#[async_trait]
+pub trait KeyValueStore: Send + Sync {
+    /// Number of keys in the selected database (`DBSIZE`).
+    async fn key_count(&self) -> DbResult<u64>;
+
+    /// One page of keys matching the glob `pattern`, with type and TTL,
+    /// continuing from `cursor` (`0` starts over). Uses incremental `SCAN`,
+    /// never `KEYS`; a page may hold fewer than `page_size` keys.
+    async fn scan_keys(
+        &self,
+        pattern: &str,
+        cursor: u64,
+        page_size: usize,
+    ) -> DbResult<KeyScanPage>;
+
+    /// Type, TTL, memory usage and up to `max_items` elements of one key.
+    async fn inspect_key(&self, key: &str, max_items: usize) -> DbResult<KeyValueView>;
+
+    /// Replaces a string value, keeping the key's TTL.
+    async fn set_string(&self, key: &str, value: &str) -> DbResult<()>;
+
+    /// Sets a TTL, or removes it when `ttl` is `None`. Returns false if nothing
+    /// changed (no such key, or no TTL to remove).
+    async fn set_ttl(&self, key: &str, ttl: Option<Duration>) -> DbResult<bool>;
+
+    /// Deletes a key. Returns false if it did not exist.
+    async fn delete_key(&self, key: &str) -> DbResult<bool>;
 }
 
 /// Handle to a running execution.

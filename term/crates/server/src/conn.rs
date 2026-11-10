@@ -182,6 +182,25 @@ where
                 server.update_awake();
                 Response::Ok
             }
+            Request::ForwardStart {
+                host,
+                spec,
+                command,
+                env,
+            } => {
+                // Takes a moment (ssh must stay up); reply later with the same id.
+                let s = server.clone();
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    let res = crate::forward::start(s, host, spec, command, env).await;
+                    let _ = tx.send(ServerMsg::Reply { id, res }).await;
+                });
+                continue;
+            }
+            Request::ForwardStop { key } => crate::forward::stop(&server, &key),
+            Request::ForwardList => Response::Forwards {
+                forwards: lock(&server.forwards).list(),
+            },
             Request::Shutdown => {
                 let _ = tx.send(reply(Response::Ok)).await;
                 server.shutdown.notify_one();

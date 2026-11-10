@@ -1,18 +1,42 @@
-//! Home page: hero, the six apps, built on GPUI, install flow, honest status.
+//! Home page: the iron-filings hero, the app showcase, why native, install.
 
 use maud::{Markup, html};
 
+use super::feature_demos;
 use crate::components::{
     button::{self, Variant},
-    card, icons,
+    card,
 };
 use crate::layout::{PageMeta, page};
-use crate::routes::assets;
 use crate::{products, site};
 
 const DESCRIPTION: &str = "Ferrum is a family of native developer tools written in Rust and \
-     rendered with GPUI: Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData and FerrumTerm, \
-     installed and updated by Ferrum Toolbox.";
+     rendered with GPUI: Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit \
+     and FerrumDock, installed and updated by Ferrum Toolbox.";
+
+/// (title, body) pairs for the "native" section.
+const NATIVE: [(&str, &str); 4] = [
+    (
+        "Drawn on the GPU",
+        "Every app renders with GPUI, the framework behind Zed, so long lists, big result \
+         grids and deep histories scroll without a stutter.",
+    ),
+    (
+        "No browser inside",
+        "No Electron, no webview, no JavaScript runtime. Compiled Rust talking straight to \
+         your machine, starting in a blink.",
+    ),
+    (
+        "Your work stays local",
+        "Requests, queries, repositories and terminal sessions live on your Mac. Nothing \
+         needs an account.",
+    ),
+    (
+        "One family",
+        "The apps share one UI crate and one theme, and open each other: the IDE hands a \
+         project to FerrumGIT or FerrumTerm in one keystroke.",
+    ),
+];
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(None, DESCRIPTION, "/", "page-home");
@@ -21,104 +45,111 @@ pub fn render(site_url: &str) -> Markup {
         &meta,
         html! {
             (hero())
-            (apps_section())
-            (gpui_section())
+            (showcase())
+            (native_section())
             (install_section())
-            (status_strip())
         },
     )
 }
 
+/// The one-line Terminal install with a copy button (js/site.js).
+pub fn install_command() -> Markup {
+    html! {
+        div class="install-cmd" {
+            code { (site::MACOS_INSTALL_COMMAND) }
+            button class="install-cmd__copy" type="button"
+                data-copy=(site::MACOS_INSTALL_COMMAND) { "Copy" }
+        }
+    }
+}
+
 fn hero() -> Markup {
+    // The canvas is the iron-filings field drawn by js/filings.js.
     html! {
         section class="hero" aria-labelledby="hero-title" {
+            canvas class="hero__field" data-filings aria-hidden="true" {}
             div class="container hero__inner" {
-                div class="hero__copy" {
-                    img class="hero__wordmark hero__wordmark--dark"
-                        src=(assets::url("img/brand/ferrum-wordmark.svg"))
-                        alt="Ferrum" width="390" height="160";
-                    img class="hero__wordmark hero__wordmark--light"
-                        src=(assets::url("img/brand/ferrum-wordmark-light.svg"))
-                        alt="Ferrum" width="390" height="160";
-                    h1 class="hero__title" id="hero-title" {
-                        "One toolbox, " span class="hero__accent" { "every tool." }
-                    }
-                    p class="lead" {
-                        "Ferrum is a family of native developer tools written in Rust: a code "
-                        "editor, an API client, a Git client, a database IDE and a terminal. "
-                        "Install them all, keep them updated and roll back with Ferrum Toolbox."
-                    }
-                    div class="hero__ctas" {
-                        (button::link("Get Ferrum Toolbox", site::DOWNLOAD_PATH, Variant::Primary))
-                        (button::link("Explore the apps", "#apps", Variant::Secondary))
-                    }
+                h1 class="hero__title" id="hero-title" {
+                    span class="hero__line" { "Your daily tools," }
+                    " "
+                    span class="hero__line" { "rebuilt in Rust." }
                 }
-                (hero_visual())
-            }
-        }
-    }
-}
-
-/// Decorative logo cluster: the toolbox in the middle of the five apps.
-fn hero_visual() -> Markup {
-    html! {
-        div class="hero__visual" aria-hidden="true" {
-            div class="logo-cluster" {
-                @for p in products::ALL {
-                    (card::app_logo(&p, "logo-cluster__item", true))
+                p class="hero__lead" {
+                    "A code editor, API client, Git client, database IDE, terminal, container "
+                    "manager and utilities. Native apps drawn on the GPU, installed and kept up "
+                    "to date by Ferrum Toolbox."
+                }
+                div class="hero__ctas" {
+                    (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
+                    (button::link("See what's new", super::features::PATH, Variant::Secondary))
+                }
+                (install_command())
+                p class="hero__note" {
+                    "Free for Apple Silicon Macs. Signed and notarized by Apple."
                 }
             }
         }
     }
 }
 
-fn apps_section() -> Markup {
+fn showcase() -> Markup {
     html! {
-        section class="section" id="apps" aria-labelledby="apps-title" {
+        section class="section showcase" id="apps" aria-labelledby="apps-title" {
             div class="container" {
                 div class="section-header" {
-                    p class="eyebrow" { "The family" }
-                    h2 id="apps-title" { "Six apps, one alloy" }
+                    h2 id="apps-title" { "Eight apps that work as one" }
                     p class="lead" {
-                        "Each app is a native desktop application with the same look, the same \
-                         keyboard-first feel and the same rule: your work stays on your machine."
+                        "Pick an app to see it at work. Each one is a native desktop app with the \
+                         same keyboard-first feel."
                     }
                 }
-                div class="grid grid--3" {
-                    @for p in products::ALL { (card::product_card(&p)) }
+                div class="showcase__body" data-showcase {
+                    div class="showcase__tabs" role="tablist" aria-label="Ferrum apps"
+                        aria-orientation="vertical" {
+                        @for (i, p) in products::ALL.iter().enumerate() {
+                            button class="showcase__tab" type="button" role="tab"
+                                id={ "tab-" (p.slug) } aria-controls={ "panel-" (p.slug) }
+                                aria-selected=(if i == 0 { "true" } else { "false" })
+                                tabindex=(if i == 0 { "0" } else { "-1" })
+                                style=(p.accent_style()) {
+                                (card::app_logo(p, "app-logo--xs", true))
+                                span class="showcase__name" { (p.name) }
+                                span class="showcase__kind" { (p.kind) }
+                            }
+                        }
+                    }
+                    @for (i, p) in products::ALL.iter().enumerate() {
+                        div class="showcase__panel" role="tabpanel" id={ "panel-" (p.slug) }
+                            aria-labelledby={ "tab-" (p.slug) } hidden[i > 0]
+                            style=(p.accent_style()) {
+                            div class="showcase__demo" role="img"
+                                aria-label={ "Animated preview of " (p.name) } {
+                                @if let Some(demo) = feature_demos::for_slug(p.slug) { (demo) }
+                            }
+                            div class="showcase__info" {
+                                p { (p.tagline) }
+                                a href=(p.path()) { "More about " (p.name) }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-fn gpui_section() -> Markup {
+fn native_section() -> Markup {
     html! {
-        section class="section built-on" aria-labelledby="gpui-title" {
-            div class="container" {
-                div class="section-header" {
-                    p class="eyebrow" { "Built on GPUI" }
-                    h2 id="gpui-title" { "The UI framework behind Zed, in every app" }
-                    p class="lead" {
-                        "Every Ferrum desktop app renders with "
-                        a href=(site::GPUI_URL) rel="noopener" { "GPUI" }
-                        ", taken from the Ferrum IDE fork of Zed. One framework, one theme, \
-                         one set of components."
+        section class="section native" aria-labelledby="native-title" {
+            div class="container native__inner" {
+                h2 id="native-title" { "Native, not a browser in a box" }
+                dl class="native__list" {
+                    @for (title, body) in NATIVE {
+                        div {
+                            dt { (title) }
+                            dd { (body) }
+                        }
                     }
-                }
-                ul class="feature-list" {
-                    (card::feature(icons::bolt(), "GPU-accelerated",
-                        "The interface is drawn on the GPU, so long lists, big result grids and \
-                         deep commit histories stay smooth."))
-                    (card::feature(icons::cube(), "Native, no webview",
-                        "No Electron, no bundled browser, no JavaScript runtime: compiled Rust \
-                         talking straight to your machine."))
-                    (card::feature(icons::layers(), "Shared Ferrum UI",
-                        "Text inputs, dialogs, panes, notices and the FerrumIDE theme come from \
-                         one shared crate, so the apps look and behave alike."))
-                    (card::feature(icons::shield(), "Memory-safe Rust",
-                        "Rust's ownership model rules out whole classes of memory bugs at \
-                         compile time, without a garbage collector."))
                 }
             }
         }
@@ -129,64 +160,34 @@ fn install_section() -> Markup {
     let steps = [
         (
             "Get Ferrum Toolbox",
-            html! { p { "Download the toolbox for your Mac and drag it to Applications." } },
+            html! { p { "Run the command above, or download the DMG and drag it to Applications." } },
         ),
         (
             "Open it",
-            html! { p { "No account, no sign-in. The toolbox lists every Ferrum app." } },
+            html! { p { "No account and no sign-in. The toolbox lists every Ferrum app." } },
         ),
         (
             "Install the apps",
             html! { p { "Pick any app and click Install. It lands in Applications, ready to launch." } },
         ),
         (
-            "Update or roll back",
-            html! { p { "New versions show up automatically. Switch to any version with one click." } },
+            "Stay current",
+            html! { p { "New versions show up on their own, and the toolbox updates itself in place." } },
         ),
     ];
     html! {
         section class="section install-flow" id="install" aria-labelledby="install-title" {
             div class="container" {
                 div class="section-header" {
-                    p class="eyebrow" { "Install" }
-                    h2 id="install-title" { "From zero to every tool in four steps" }
+                    h2 id="install-title" { "Every tool in four steps" }
+                    p class="lead" {
+                        "Every app is in alpha: usable every day, released often, with rough \
+                         edges in the interface. Windows and Linux builds are coming."
+                    }
                 }
                 (card::steps(&steps))
                 div class="install-flow__cta" {
-                    (button::link("Download & install guide", site::DOWNLOAD_PATH, Variant::Primary))
-                }
-            }
-        }
-    }
-}
-
-fn status_strip() -> Markup {
-    html! {
-        section class="section section--tight" aria-labelledby="status-title" {
-            div class="container" {
-                div class="status-strip" {
-                    div class="status-strip__head" {
-                        p class="eyebrow" { "Status" }
-                        h2 class="status-strip__title" id="status-title" { "Where things stand" }
-                    }
-                    ul class="status-list" {
-                        li {
-                            span class="status-dot status-dot--ok" {}
-                            "Every Ferrum app is in " strong { "alpha" } ": installable and "
-                            "updated through Ferrum Toolbox, with frequent releases."
-                        }
-                        li {
-                            span class="status-dot" {}
-                            "Core logic is covered by automated tests; expect rough edges in "
-                            "the interfaces."
-                        }
-                        li {
-                            span class="status-dot" {}
-                            "Free public builds for Apple Silicon Macs; Windows and Linux are "
-                            "coming soon. "
-                            a href=(site::DOWNLOAD_PATH) { "Download Ferrum Toolbox" } "."
-                        }
-                    }
+                    (button::link("Download & install guide", site::DOWNLOAD_PATH, Variant::Secondary))
                 }
             }
         }
@@ -198,23 +199,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn lists_all_apps_with_links_and_logos() {
+    fn showcases_every_app_with_a_demo_and_link() {
         let html = render("https://example.test").into_string();
         for p in products::ALL {
             assert!(html.contains(p.name), "missing {}", p.name);
             assert!(html.contains(&format!(r#"href="{}""#, p.path())));
             assert!(html.contains(&format!("/assets/{}?v=", p.logo_asset())));
+            assert!(html.contains(&format!(r#"id="panel-{}""#, p.slug)));
         }
+        assert_eq!(html.matches(r#"class="demo""#).count(), products::ALL.len());
+        assert_eq!(html.matches(r#"aria-selected="true""#).count(), 1);
         assert!(html.contains(r#"id="apps""#));
         assert_eq!(html.matches("<h1").count(), 1);
     }
 
     #[test]
-    fn has_gpui_and_install_sections_pointing_to_download() {
+    fn hero_offers_download_and_the_install_command() {
         let html = render("https://example.test").into_string();
-        assert!(html.contains("Built on GPUI"));
+        assert!(html.contains("data-filings"));
+        assert!(html.contains(site::MACOS_DOWNLOAD_PATH));
+        assert!(html.contains(r#"data-copy="curl -fsSL"#));
         assert!(html.contains(r#"class="steps""#));
         assert!(html.contains(r#"href="/download""#));
-        assert!(html.contains(r#"alt="Ferrum""#));
     }
 }

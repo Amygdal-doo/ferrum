@@ -24,6 +24,8 @@ $apps = @{
     api     = @{ Name = "FerrumAPI";      Binaries = @("ferrumapi") }
     git     = @{ Name = "FerrumGIT";      Binaries = @("ferrumgit") }
     data    = @{ Name = "FerrumData";     Binaries = @("ferrumdata") }
+    kit     = @{ Name = "FerrumKit";      Binaries = @("ferrumkit") }
+    dock    = @{ Name = "FerrumDock";     Binaries = @("ferrumdock") }
     toolbox = @{ Name = "Ferrum Toolbox"; Binaries = @("ferrum-toolbox") }
 }
 if ($App -eq "term") {

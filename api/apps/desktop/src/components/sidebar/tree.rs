@@ -47,6 +47,7 @@ impl FerrumApi {
         let expanded = self.state.expanded.contains(&cid.0);
         let mut actions = CONTAINER_ACTIONS.to_vec();
         actions.insert(3, MenuAction::Settings);
+        actions.insert(1, MenuAction::MockServer);
         let row = self.render_tree_row(
             RowSpec {
                 uid: cid.0,
@@ -203,6 +204,7 @@ impl FerrumApi {
                     move |this: &mut FerrumApi, _, cx| match action {
                         MenuAction::Open => this.open_tree_row(uid, cid, item, folder),
                         MenuAction::Run => this.start_run(cid, item, cx),
+                        MenuAction::MockServer => this.open_mock_server(cid, cx),
                         MenuAction::AddRequest => this.add_request(cid, item, cx),
                         MenuAction::AddFolder => this.add_folder(cid, item, cx),
                         MenuAction::Settings => this.open_collection_settings(cid),

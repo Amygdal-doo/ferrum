@@ -4,6 +4,7 @@
 pub mod connection;
 pub mod export;
 pub mod history;
+pub mod keys;
 pub mod query;
 pub mod schema;
 pub mod workspace;

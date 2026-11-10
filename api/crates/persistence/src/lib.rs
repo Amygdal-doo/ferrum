@@ -9,6 +9,7 @@ mod collections;
 mod cookies;
 mod environments;
 mod history;
+mod mocks;
 mod workspace;
 
 use chrono::Utc;

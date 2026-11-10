@@ -88,6 +88,9 @@ pub struct TermView {
     pub(crate) custom_agent: Option<Entity<TextInput>>,
     pub(crate) _custom_agent_events: Option<Subscription>,
     pub(crate) resizing_sidebar: bool,
+    /// Open modal (SSH host form, ports).
+    pub(crate) dialog: Option<crate::dialogs::Dialog>,
+    pub(crate) _dialog_events: Vec<Subscription>,
     selection: Option<Selection>,
     /// Text under the selection when the drag ended (what ⌘C copies).
     selection_text: Option<String>,
@@ -125,6 +128,8 @@ impl TermView {
             custom_agent: None,
             _custom_agent_events: None,
             resizing_sidebar: false,
+            dialog: None,
+            _dialog_events: Vec::new(),
             selection: None,
             selection_text: None,
             selecting: false,
@@ -139,6 +144,7 @@ impl TermView {
                 self.app.client = Some(client);
                 self.app.subscribed.clear();
                 self.app.refresh();
+                self.app.refresh_forwards();
             }
             UiEvent::Server(event) => {
                 let frame = matches!(event, ferrumterm_protocol::Event::Frame { .. });
@@ -159,6 +165,9 @@ impl TermView {
                 cx.write_to_clipboard(ClipboardItem::new_string(text));
                 self.app.notify("Copied screen to clipboard");
             }
+            UiEvent::Forwards(forwards) => self.app.ssh.forwards = forwards,
+            UiEvent::Ports(result) => self.on_ports_result(result),
+            UiEvent::Killed(outcome) => self.on_killed(outcome, cx),
         }
         self.after_change(cx);
     }
@@ -207,7 +216,11 @@ impl TermView {
         // Keys typed into the sidebar's text field are not for the terminal.
         if !self.focus_handle.is_focused(window) {
             if event.keystroke.key == "escape" {
-                self.end_custom_agent(window, cx);
+                if self.dialog.is_some() {
+                    self.close_dialog(window, cx);
+                } else {
+                    self.end_custom_agent(window, cx);
+                }
             }
             return;
         }
@@ -438,6 +451,7 @@ impl Render for TermView {
                 ),
         );
 
+        let dialog = self.render_dialog(cx);
         h_flex()
             .relative()
             .size_full()
@@ -480,6 +494,7 @@ impl Render for TermView {
                         .child(message),
                 )
             })
+            .when_some(dialog, |root, dialog| root.child(dialog))
     }
 }
 

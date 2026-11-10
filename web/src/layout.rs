@@ -79,7 +79,7 @@ pub fn page(site_url: &str, meta: &PageMeta, main: Markup) -> Markup {
                     link rel="canonical" href=(canonical);
                 }
                 meta name="color-scheme" content="dark light";
-                meta name="theme-color" content="#16130f";
+                meta name="theme-color" content="#0d1520";
                 meta property="og:type" content="website";
                 meta property="og:site_name" content=(site::SITE_NAME);
                 meta property="og:title" content=(title);
@@ -94,13 +94,14 @@ pub fn page(site_url: &str, meta: &PageMeta, main: Markup) -> Markup {
                 link rel="apple-touch-icon" href=(assets::url("img/apple-touch-icon.png"));
                 link rel="preconnect" href="https://fonts.googleapis.com";
                 link rel="preconnect" href="https://fonts.gstatic.com" crossorigin;
-                link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap";
+                link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap";
                 @for sheet in STYLESHEETS {
                     link rel="stylesheet" href=(assets::url(sheet));
                 }
                 // Runs before first paint to apply the saved theme (no flash).
                 script src=(assets::url("js/theme-init.js")) {}
                 script src=(assets::url("js/site.js")) defer {}
+                script src=(assets::url("js/filings.js")) defer {}
             }
             body class=(meta.body_class) {
                 a class="skip-link" href="#main" { "Skip to content" }

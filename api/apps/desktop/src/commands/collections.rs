@@ -149,6 +149,8 @@ impl FerrumApi {
             }
             None => {
                 self.state.collections.retain(|col| col.id != c);
+                // Stops its mock server, if any (dropping the handle stops it).
+                self.state.mocks.remove(&c);
                 self.reconcile_origins();
                 let svc = self.services.clone();
                 self.io(

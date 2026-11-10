@@ -12,7 +12,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 <ide|api|git|data|term|toolbox> <semver> <target> <binary-dir> <out-dir>" >&2
+  echo "usage: $0 <ide|api|git|data|term|kit|dock|toolbox> <semver> <target> <binary-dir> <out-dir>" >&2
   exit 2
 }
 
@@ -29,6 +29,8 @@ case "$app" in
   git)     name="FerrumGIT";      binaries="ferrumgit" ;;
   data)    name="FerrumData";     binaries="ferrumdata" ;;
   term)    name="FerrumTerm";     binaries="ferrumterm fterm" ;;
+  kit)     name="FerrumKit";      binaries="ferrumkit" ;;
+  dock)    name="FerrumDock";     binaries="ferrumdock" ;;
   toolbox) name="Ferrum Toolbox"; binaries="ferrum-toolbox" ;;
   *) echo "error: unknown app id '$app'" >&2; usage ;;
 esac

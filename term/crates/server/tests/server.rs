@@ -394,3 +394,98 @@ async fn tcp_requires_token() {
     }
     drop(h.client);
 }
+
+fn free_port() -> u16 {
+    std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+/// Port forwards are server-owned child processes. A stand-in command
+/// replaces `ssh -N` so no connection is made.
+#[tokio::test(flavor = "multi_thread")]
+async fn forwards_run_stop_fail_and_refuse_taken_ports() {
+    use ferrumterm_protocol::{ForwardSpec, ForwardState};
+    let mut h = start(false).await;
+    let c = &h.client;
+    c.request(Request::Watch).await.unwrap();
+    let spec = ForwardSpec::parse(&format!("L {}:localhost:80", free_port())).unwrap();
+    let key = ferrumterm_protocol::forward_key("box", &spec);
+    let start = |spec: ForwardSpec, script: &str| Request::ForwardStart {
+        host: "box".into(),
+        spec,
+        command: vec!["/bin/sh".into(), "-c".into(), script.into()],
+        env: Vec::new(),
+    };
+
+    // Stays up → running, with a pid; stopping removes it.
+    let Response::Forwards { forwards } = c
+        .request(start(spec.clone(), "exec sleep 30"))
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert_eq!(forwards[0].key, key);
+    assert!(forwards[0].pid.is_some());
+    assert!(
+        c.request(start(spec.clone(), "exec sleep 30"))
+            .await
+            .is_err(),
+        "already running"
+    );
+    let Response::Forwards { forwards } = c.request(Request::ForwardList).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(forwards.len(), 1);
+    assert_eq!(forwards[0].state, ForwardState::Running);
+    let mut saw_event = false;
+    while let Ok(Some(e)) = tokio::time::timeout(Duration::from_millis(200), h.events.recv()).await
+    {
+        saw_event |= matches!(e, Event::Forwards);
+    }
+    assert!(saw_event, "watchers hear about forwards");
+    c.request(Request::ForwardStop { key: key.clone() })
+        .await
+        .unwrap();
+    let Response::Forwards { forwards } = c.request(Request::ForwardList).await.unwrap() else {
+        panic!()
+    };
+    assert!(forwards.is_empty());
+
+    // Exits at once → error with ssh's stderr, kept as a failed entry.
+    let err = c
+        .request(start(
+            spec.clone(),
+            "echo 'Permission denied (publickey).' >&2; exit 255",
+        ))
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("code 255") && err.contains("Permission denied"),
+        "{err}"
+    );
+    let Response::Forwards { forwards } = c.request(Request::ForwardList).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(forwards[0].state, ForwardState::Failed);
+    c.request(Request::ForwardStop { key }).await.unwrap();
+
+    // The local port is taken → refused before anything runs.
+    let holder = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = holder.local_addr().unwrap().port();
+    let taken = ForwardSpec::parse(&format!("L {port}:localhost:80")).unwrap();
+    let err = c
+        .request(start(taken, "exec sleep 30"))
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains(&format!("local port {port} is already in use")),
+        "{err}"
+    );
+    drop(holder);
+}

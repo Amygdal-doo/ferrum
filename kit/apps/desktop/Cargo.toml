@@ -1,0 +1,20 @@
+[package]
+name = "ferrumkit-desktop"
+description = "FerrumKit developer utilities — GPUI desktop shell."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "ferrumkit"
+path = "src/main.rs"
+
+[dependencies]
+ferrumkit-core.workspace = true
+ferrum-ui.workspace = true
+gpui.workspace = true
+chrono.workspace = true
+
+[lints]
+workspace = true

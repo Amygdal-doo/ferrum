@@ -4,6 +4,7 @@
 
 pub mod history;
 pub mod profiles;
+pub mod pulls;
 pub mod repo;
 pub mod workspace;
 

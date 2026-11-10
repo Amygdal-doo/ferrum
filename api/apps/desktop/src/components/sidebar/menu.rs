@@ -12,6 +12,7 @@ use uuid::Uuid;
 pub enum MenuAction {
     Open,
     Run,
+    MockServer,
     AddRequest,
     AddFolder,
     Settings,
@@ -27,6 +28,7 @@ impl MenuAction {
         match self {
             Self::Open => "Open in tab",
             Self::Run => "Run…",
+            Self::MockServer => "Mock server…",
             Self::AddRequest => "Add request",
             Self::AddFolder => "Add folder",
             Self::Settings => "Auth & variables…",

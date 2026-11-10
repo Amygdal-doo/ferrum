@@ -6,6 +6,7 @@
 
 pub mod browse;
 mod connections;
+pub mod key_tree;
 mod queries;
 pub mod safety;
 

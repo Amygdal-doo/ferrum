@@ -1,0 +1,27 @@
+[package]
+name = "ferrumdock-desktop"
+description = "FerrumDock container manager — GPUI desktop shell."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "ferrumdock"
+path = "src/main.rs"
+
+[dependencies]
+ferrumdock-engine.workspace = true
+ferrum-ui.workspace = true
+gpui.workspace = true
+ui.workspace = true
+theme.workspace = true
+menu.workspace = true
+tokio.workspace = true
+futures.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+chrono.workspace = true
+
+[lints]
+workspace = true

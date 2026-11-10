@@ -5,6 +5,7 @@
 
 use maud::{Markup, html};
 
+use super::feature_demos;
 use crate::components::{
     self,
     button::{self, Variant},
@@ -31,7 +32,7 @@ pub struct ProductPage {
     pub features_lead: &'static str,
     /// (title, body) pairs for the features grid.
     pub features: &'static [(&'static str, &'static str)],
-    /// Captions for screenshot placeholders (no images ship yet).
+    /// What the preview shows: the demo's text alternative, or placeholder captions.
     pub screenshots: &'static [&'static str],
     /// One-paragraph honest status summary.
     pub status_summary: &'static str,
@@ -54,9 +55,9 @@ pub fn render(site_url: &str, p: &ProductPage, extra: Markup) -> Markup {
         &meta,
         html! {
             (hero(p))
+            (screenshots(p))
             (extra)
             (features(p))
-            (screenshots(p))
             (status(p))
             (specs(p))
             (related(prod))
@@ -111,19 +112,29 @@ fn features(p: &ProductPage) -> Markup {
     }
 }
 
+/// The app's animated demo window, or screenshot placeholders for an app
+/// without one.
 fn screenshots(p: &ProductPage) -> Markup {
+    let demo = feature_demos::for_slug(p.product.slug);
     html! {
-        section class="section section--tight" aria-labelledby="screens-title" {
+        section class="section section--tight product-preview" aria-labelledby="screens-title" {
             div class="container" {
-                h2 id="screens-title" class="visually-hidden" { "Screenshots" }
-                div class="grid grid--2" {
-                    @for caption in p.screenshots {
-                        figure class="product-shot" {
-                            div class="screenshot-placeholder" role="img"
-                                aria-label={ "Screenshot placeholder: " (caption) } {
-                                span class="mono" aria-hidden="true" { "Screenshot placeholder" }
+                h2 id="screens-title" class="visually-hidden" { "Preview" }
+                @if let Some(demo) = demo {
+                    div class="product-preview__demo" role="img"
+                        aria-label={ "Animated preview of " (p.product.name) ": " (p.screenshots.join(", ")) } {
+                        (demo)
+                    }
+                } @else {
+                    div class="grid grid--2" {
+                        @for caption in p.screenshots {
+                            figure class="product-shot" {
+                                div class="screenshot-placeholder" role="img"
+                                    aria-label={ "Screenshot placeholder: " (caption) } {
+                                    span aria-hidden="true" { "Screenshot placeholder" }
+                                }
+                                figcaption class="muted" { (caption) }
                             }
-                            figcaption class="muted" { (caption) }
                         }
                     }
                 }

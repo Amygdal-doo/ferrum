@@ -47,6 +47,8 @@ pub fn app_with(config: Config, macos_download: MacosDownload) -> Router {
         .route("/ferrum-ide", get(ferrum_ide))
         .route("/ferrumgit", get(ferrumgit))
         .route("/ferrumterm", get(ferrumterm))
+        .route("/ferrumkit", get(ferrumkit))
+        .route("/ferrumdock", get(ferrumdock))
         .route("/ferrum-toolbox", get(ferrum_toolbox))
         .route(pages::features::PATH, get(features))
         .route("/download", get(download))
@@ -78,6 +80,12 @@ async fn ferrumgit(State(s): State<AppState>) -> Markup {
 }
 async fn ferrumterm(State(s): State<AppState>) -> Markup {
     pages::ferrumterm::render(s.site_url())
+}
+async fn ferrumkit(State(s): State<AppState>) -> Markup {
+    pages::ferrumkit::render(s.site_url())
+}
+async fn ferrumdock(State(s): State<AppState>) -> Markup {
+    pages::ferrumdock::render(s.site_url())
 }
 async fn ferrum_toolbox(State(s): State<AppState>) -> Markup {
     pages::ferrum_toolbox::render(s.site_url())

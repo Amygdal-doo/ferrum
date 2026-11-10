@@ -14,6 +14,8 @@ ferrumapi-domain.workspace = true
 ferrumapi-http.workspace = true
 ferrumapi-persistence.workspace = true
 ferrumapi-interop.workspace = true
+ferrumapi-server.workspace = true
+futures.workspace = true
 tokio = { workspace = true, features = ["fs"] }
 chrono.workspace = true
 thiserror.workspace = true

@@ -76,6 +76,28 @@ impl FerrumData {
                         .into_any_element(),
                 )
             }
+            Dialog::DeleteKey { profile, key } => {
+                let id = profile.id;
+                Some(
+                    Modal::new("Delete key?")
+                        .on_dismiss(close(cx))
+                        .child(Label::new(format!(
+                            "“{key}” will be deleted from {} ({}). This cannot be undone.",
+                            profile.display_name,
+                            profile.target_label()
+                        )))
+                        .footer(Button::new("delete-key-cancel", "Cancel").on_click(close(cx)))
+                        .footer(
+                            Button::new("delete-key-confirm", "Delete key")
+                                .style(ButtonStyle::Tinted(TintColor::Error))
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.close_dialog(window, cx);
+                                    this.delete_key(id, key.clone(), cx);
+                                })),
+                        )
+                        .into_any_element(),
+                )
+            }
             Dialog::ClearHistory(profile) => {
                 let id = profile.as_ref().map(|p| p.id);
                 let text = profile.map_or_else(

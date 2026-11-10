@@ -1,0 +1,5 @@
+[
+  {"id": 1, "name": "build", "stage": "build", "status": "success", "web_url": "https://gitlab.example.com/platform/tools/app/-/jobs/1", "allow_failure": false},
+  {"id": 2, "name": "flaky-e2e", "stage": "test", "status": "failed", "web_url": "https://gitlab.example.com/platform/tools/app/-/jobs/2", "allow_failure": true},
+  {"id": 3, "name": "unit", "stage": "test", "status": "failed", "web_url": "https://gitlab.example.com/platform/tools/app/-/jobs/3", "allow_failure": false}
+]

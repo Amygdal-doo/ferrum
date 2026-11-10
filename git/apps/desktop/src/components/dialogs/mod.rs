@@ -4,6 +4,7 @@
 mod clone;
 mod pickers;
 mod profiles;
+mod pulls;
 mod repo_settings;
 
 use crate::app::FerrumGit;
@@ -45,6 +46,10 @@ pub enum DialogState {
     },
     RepoSettings(RepoId),
     Profiles(profiles::ProfilesForm),
+    ForgeSettings(pulls::ForgeSettingsForm),
+    CreatePr(pulls::CreatePrForm),
+    PrReview(pulls::ReviewForm),
+    PrMerge(pulls::MergeForm),
 }
 
 fn short(rev: &str) -> &str {
@@ -159,6 +164,30 @@ impl FerrumGit {
             Dialog::Profiles(selected) => {
                 DialogState::Profiles(profiles::ProfilesForm::new(self, selected, window, cx))
             }
+            Dialog::ForgeSettings(id) => {
+                let form = pulls::ForgeSettingsForm::new(self, id, window, cx);
+                focus = Some(form.token.clone());
+                DialogState::ForgeSettings(form)
+            }
+            Dialog::CreatePr => {
+                let form = pulls::CreatePrForm::new(self, window, cx);
+                for input in [&form.title, &form.base] {
+                    self.watch_input(input, window, cx);
+                }
+                let body = form.body.clone();
+                let sub = cx.subscribe_in(&body, window, |_, _, _, _, cx| cx.notify());
+                self.dialog_subscriptions.push(sub);
+                focus = Some(form.title.clone());
+                DialogState::CreatePr(form)
+            }
+            Dialog::PrReview { number, event } => {
+                let form = pulls::ReviewForm::new(number, event, window, cx);
+                let sub = cx.subscribe_in(&form.body, window, |_, _, _, _, cx| cx.notify());
+                self.dialog_subscriptions.push(sub);
+                focus = Some(form.body.clone());
+                DialogState::PrReview(form)
+            }
+            Dialog::PrMerge { number } => DialogState::PrMerge(pulls::MergeForm::new(self, number)),
         };
         self.dialog = Some(state);
         match focus {
@@ -225,6 +254,42 @@ impl FerrumGit {
             DialogState::Clone(_) => self.start_clone(cx),
             DialogState::QuickOpen(_) => self.quick_open_pick(None, window, cx),
             DialogState::PickBranch { .. } => self.pick_branch(None, window, cx),
+            DialogState::ForgeSettings(form) => {
+                let token = form.token.read(cx).text().to_owned();
+                let id = form.id;
+                let host = self
+                    .state
+                    .view(id)
+                    .prs
+                    .info
+                    .ready()
+                    .map(|i| i.repo.host.clone());
+                if let Some(host) = host.filter(|_| !token.trim().is_empty()) {
+                    self.close_dialog(window, cx);
+                    self.save_forge_token(id, host, token, cx);
+                }
+            }
+            DialogState::CreatePr(form) => {
+                if let Some(new) = form.build(cx).filter(|_| !form.head.is_empty()) {
+                    self.close_dialog(window, cx);
+                    self.create_pull_request(new, cx);
+                }
+            }
+            DialogState::PrReview(form) => {
+                if form.valid(cx) {
+                    let (number, event) = (form.number, form.event);
+                    let body = form.body.read(cx).text().to_owned();
+                    self.close_dialog(window, cx);
+                    self.submit_review(number, event, body, cx);
+                }
+            }
+            DialogState::PrMerge(form) => {
+                if let Some(method) = form.method {
+                    let number = form.number;
+                    self.close_dialog(window, cx);
+                    self.merge_pull_request(number, method, cx);
+                }
+            }
             DialogState::RepoSettings(_) | DialogState::Profiles(_) => {}
         }
     }
@@ -379,6 +444,10 @@ pub fn render(
             repo_settings::render(app, id, window, cx)
         }
         DialogState::Profiles(_) => profiles::render(app, cx),
+        DialogState::ForgeSettings(form) => pulls::render_forge_settings(app, form, cx),
+        DialogState::CreatePr(form) => pulls::render_create(app, form, cx),
+        DialogState::PrReview(form) => pulls::render_review(form, cx),
+        DialogState::PrMerge(form) => pulls::render_merge(form, cx),
     };
     Some(element)
 }

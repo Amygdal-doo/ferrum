@@ -15,7 +15,7 @@ iron. The tile has these parts:
 - **Symbol:** monoline, geometric letters. The core mark is `Fe` (iron) with
   a light "ingot" `F` (`#f1e9df`) and an accent `e`. Each app is `Fe` in ingot
   ink plus a capital in its accent colour: `FeI`, `FeA`, `FeG`, `FeD`, `FeT`,
-  `FeX`.
+  `FeX`, `FeK`, `FeC`.
 - **Job badge** (app variants only): a circle in the accent colour that
   overlaps the top-right of the ring and shows the app's job in dark ink. The
   core mark has no badge.
@@ -38,6 +38,8 @@ own dark ground.
 | Data: amethyst | `#A07CF0` |
 | Term: phosphor | `#7CC85A` |
 | Toolbox: ember rose | `#E85A7E` |
+| Kit: orchid | `#D46BE0` |
+| Dock: glacier | `#38BDF8` |
 
 The rust and patina colours match the website tokens (`web/assets/css/tokens.css`).
 
@@ -52,6 +54,8 @@ The rust and patina colours match the website tokens (`web/assets/css/tokens.css
 | `data.svg` | FeD | database cylinder |
 | `term.svg` | FeT | prompt `>_` |
 | `toolbox.svg` | FeX | 2×2 app grid |
+| `kit.svg` | FeK | two sliders |
+| `dock.svg` | FeC | stacked containers |
 | `ferrum-wordmark.svg` | Fe + "Ferrum" | light lettering, for dark backgrounds |
 | `ferrum-wordmark-light.svg` | Fe + "Ferrum" | dark lettering, for light backgrounds |
 

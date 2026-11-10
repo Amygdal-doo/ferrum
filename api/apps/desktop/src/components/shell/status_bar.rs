@@ -43,6 +43,25 @@ impl FerrumApi {
             }
         });
 
+        let mocks = self.running_mocks();
+        let mock_label = match mocks.as_slice() {
+            [] => None,
+            [(id, url)] => Some((*id, format!("Mock {url}"))),
+            [(id, _), ..] => Some((*id, format!("{} mock servers", mocks.len()))),
+        };
+        let webhook_label = state.webhooks.inspector.as_ref().map(|i| {
+            format!(
+                "Webhooks :{} · {}",
+                i.addr().port(),
+                state.webhooks.captures.len()
+            )
+        });
+        let load_label = state.load_test.as_ref().filter(|l| l.running).map(|l| {
+            let done = l.tally.as_ref().map_or(0, |t| t.completed());
+            let total = l.config.map_or(0, |c| c.total);
+            format!("Load test {done}/{total}")
+        });
+
         status_bar(cx)
             .child(h_flex().gap_4().child(env_label).child(origin_label))
             .child(
@@ -56,6 +75,45 @@ impl FerrumApi {
                                 .tooltip(Tooltip::text("Show the collection runner"))
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.state.dialog = Some(Dialog::Runner);
+                                    cx.notify();
+                                }))
+                                .child(label),
+                        )
+                    })
+                    .when_some(mock_label, |this, (id, label)| {
+                        this.child(
+                            div()
+                                .id("mock-status")
+                                .cursor_pointer()
+                                .tooltip(Tooltip::text("Show the mock server"))
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.open_mock_server(id, cx);
+                                    cx.notify();
+                                }))
+                                .child(label),
+                        )
+                    })
+                    .when_some(webhook_label, |this, label| {
+                        this.child(
+                            div()
+                                .id("webhook-status")
+                                .cursor_pointer()
+                                .tooltip(Tooltip::text("Show the webhook inspector"))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.state.dialog = Some(Dialog::Webhooks);
+                                    cx.notify();
+                                }))
+                                .child(label),
+                        )
+                    })
+                    .when_some(load_label, |this, label| {
+                        this.child(
+                            div()
+                                .id("load-status")
+                                .cursor_pointer()
+                                .tooltip(Tooltip::text("Show the load test"))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.state.dialog = Some(Dialog::LoadTest);
                                     cx.notify();
                                 }))
                                 .child(label),

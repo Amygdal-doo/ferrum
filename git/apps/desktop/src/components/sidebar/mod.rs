@@ -256,6 +256,26 @@ pub fn render(app: &FerrumGit, _: &mut Window, cx: &mut Context<FerrumGit>) -> A
             move |app, _, _, cx| app.set_page(id, Page::Stashes, cx),
             cx,
         ));
+        let open_prs = view
+            .prs
+            .list
+            .ready()
+            .map(|l| l.prs.len())
+            .filter(|n| *n > 0)
+            .map(|n| n.to_string());
+        let prs_label = match view.prs.info.ready().map(|i| i.repo.kind) {
+            Some(ferrumgit_domain::ForgeKind::GitLab) => "Merge Requests",
+            _ => "Pull Requests",
+        };
+        items.push(nav_item(
+            "nav-prs",
+            Icon::Merge,
+            prs_label,
+            page == Page::PullRequests,
+            open_prs,
+            move |app, _, _, cx| app.open_pull_requests(id, cx),
+            cx,
+        ));
         items.push(nav_item(
             "nav-settings",
             Icon::Sliders,

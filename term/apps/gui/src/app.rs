@@ -23,6 +23,9 @@ pub enum UiEvent {
     Message(String),
     Disconnected(String),
     Clipboard(String),
+    Forwards(Vec<ferrumterm_protocol::ForwardInfo>),
+    Ports(crate::ssh::PortsResult),
+    Killed(crate::ssh::KillOutcome),
 }
 
 pub type UiSender = futures::channel::mpsc::UnboundedSender<UiEvent>;
@@ -43,13 +46,15 @@ pub struct App {
     /// Agent statuses already shown on screen (for the sidebar's badge).
     pub seen: Seen,
     pub ui: UiState,
+    /// SSH hosts and port forwards (sidebar).
+    pub ssh: crate::ssh::SshState,
     creating: bool,
     want_newest: bool,
 }
 
 pub const DEFAULT_FONT_PT: f32 = 14.0;
 
-fn spawn_env() -> Spawn {
+pub(crate) fn spawn_env() -> Spawn {
     let env = ["PATH", "LANG", "SSH_AUTH_SOCK"]
         .iter()
         .filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v)))
@@ -59,7 +64,7 @@ fn spawn_env() -> Spawn {
 
 impl App {
     pub fn new(rt: tokio::runtime::Runtime, proxy: UiSender) -> Self {
-        Self {
+        let mut app = Self {
             rt,
             proxy,
             client: None,
@@ -73,9 +78,12 @@ impl App {
             message: None,
             seen: Seen::default(),
             ui: UiState::load(),
+            ssh: crate::ssh::SshState::default(),
             creating: false,
             want_newest: false,
-        }
+        };
+        app.reload_ssh();
+        app
     }
 
     /// Connects (starting the server if needed) and forwards its events.
@@ -191,6 +199,7 @@ impl App {
             }
             Event::Changed | Event::Status { .. } | Event::Exited { .. } => self.refresh(),
             Event::Bell { .. } => {}
+            Event::Forwards => self.refresh_forwards(),
             Event::Bye => {
                 self.client = None;
                 self.notify("FerrumTerm server stopped — reconnecting…");
