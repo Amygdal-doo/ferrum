@@ -29,6 +29,7 @@ pub fn render() -> Markup {
                         h2 class="footer-col__title" id="footer-project" { "Ferrum" }
                         ul {
                             li { a href=(site::DOWNLOAD_PATH) { "Download & install" } }
+                            li { a href="/features" { "Features" } }
                             li { a href="/about" { "About" } }
                             li { a href=(site::GPUI_URL) rel="noopener" { "GPUI" } }
                         }
@@ -40,6 +41,11 @@ pub fn render() -> Markup {
                         "Ferrum IDE is based on the open-source "
                         a href=(site::ZED_UPSTREAM_URL) rel="noopener" { "Zed editor" }
                         "."
+                    }
+                    p {
+                        "Built by "
+                        a href=(site::AMYGDAL_URL) rel="noopener" { "Amygdal" }
+                        " for the Rust community."
                     }
                     p class="footer-copy" { "© 2026 Ferrum" }
                 }

@@ -55,15 +55,16 @@ const WORKS_TODAY: &[&str] = &[
     "Branches, commits, tags, stash and remotes",
     "Merge, rebase, cherry-pick and revert conflict flow",
     "Profiles with per-repo identity, SSH key and keychain passphrase",
+    "File history (follows renames), blame and side-by-side diffs",
+    "Commit search and Undo for the last commit, amend or checkout",
 ];
 
 const NOT_BUILT_YET: &[&str] = &[
-    "Undo and redo of operations",
+    "Redo, and undo for other operations",
     "Interactive rebase",
-    "File history and blame",
     "Submodules, LFS and worktrees",
     "Pull request and issue integrations",
-    "Syntax highlighting and side-by-side diffs",
+    "Syntax highlighting in diffs",
     "A merge-conflict editor",
 ];
 

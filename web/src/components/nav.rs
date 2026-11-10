@@ -9,6 +9,7 @@ use crate::components::{ferrum_mark, icons};
 use crate::{products, site};
 
 const APPS_HREF: &str = "/#apps";
+const FEATURES_HREF: &str = crate::pages::features::PATH;
 
 fn nav_link(href: &str, label: &str, active: bool, extra_class: &str) -> Markup {
     html! {
@@ -48,6 +49,7 @@ pub fn render(current_path: &str) -> Markup {
                 nav class="site-nav" id="site-nav" aria-label="Primary" {
                     ul class="nav-list" {
                         (nav_link(APPS_HREF, "Apps", is_app_page(current_path), ""))
+                        (nav_link(FEATURES_HREF, "Features", current_path == FEATURES_HREF, ""))
                         (nav_link(&toolbox, "Toolbox", current_path == toolbox, ""))
                         (nav_link("/about", "About", current_path == "/about", ""))
                         (nav_link(site::DOWNLOAD_PATH, site::DOWNLOAD_LABEL,

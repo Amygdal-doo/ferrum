@@ -46,10 +46,12 @@ const WORKS_TODAY: &[&str] = &[
     "Program status via OSC 7501 or fterm status, with notifications",
     "tmux-style attach",
     "Token-protected remote access over loopback or Tailscale",
+    "Sidebar with sessions and an Agents section (Claude Code, Codex)",
+    "Mouse selection and copy (⌘C)",
 ];
 
 const NOT_BUILT_YET: &[&str] = &[
-    "Mouse selection and copy, and mouse reporting to programs",
+    "Mouse reporting to programs",
     "OSC 8 hyperlinks and ligatures",
     "Config file, themes and search",
     "Restoring sessions after the server itself restarts",

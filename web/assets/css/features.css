@@ -1,0 +1,344 @@
+/* Features page (.page-features) and its animated mock windows (.demo*).
+   Markup: src/pages/features.rs and src/pages/feature_demos.rs. Tokens only.
+   Every demo loops on the same 9s cycle. Base styles are the finished screen,
+   so the reduced-motion rule in base.css leaves a sensible still frame. */
+
+/* ---------- Page layout ---------- */
+.page-features .features-hero {
+  padding-block: var(--sp-16) var(--sp-12);
+  border-bottom: 1px solid var(--border);
+  background:
+    radial-gradient(55% 90% at 90% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
+    radial-gradient(40% 70% at 0% 100%, color-mix(in srgb, var(--patina) 10%, transparent), transparent 70%),
+    var(--bg);
+}
+.page-features .features-hero h1 { font-size: var(--fs-hero); max-width: 16ch; }
+.page-features .app-strip { grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); }
+
+.feature-app { padding-block: var(--sp-16); border-bottom: 1px solid var(--border); scroll-margin-top: var(--header-h); }
+.feature-app:nth-of-type(odd) {
+  background: radial-gradient(50% 70% at 100% 50%, color-mix(in srgb, var(--app-accent) 7%, transparent), transparent 70%);
+}
+.feature-app:nth-of-type(even) {
+  background: radial-gradient(50% 70% at 0% 50%, color-mix(in srgb, var(--app-accent) 7%, transparent), transparent 70%);
+}
+.feature-app__inner { display: grid; gap: var(--sp-8); align-items: center; }
+@media (min-width: 960px) {
+  .feature-app__inner { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: var(--sp-12); }
+  .feature-app:nth-of-type(even) .feature-app__demo { order: -1; }
+  .feature-app:nth-of-type(even) .feature-app__inner { grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); }
+}
+.feature-app__copy { min-width: 0; }
+.feature-app__head { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-4); }
+.feature-app__head h2 { margin: 0; }
+.feature-app__meta { margin: var(--sp-1) 0 0; font: var(--fs-xs)/1.4 var(--font-mono); color: var(--text-muted); letter-spacing: 0.04em; }
+.feature-points { list-style: none; margin: var(--sp-6) 0; padding: 0; display: grid; gap: var(--sp-4); }
+.feature-points li { position: relative; padding-left: var(--sp-6); }
+.feature-points li::before {
+  content: ""; position: absolute; left: 0; top: 0.5em;
+  width: 8px; height: 8px; border-radius: 2px; background: var(--app-accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--app-accent) 60%, transparent);
+}
+.feature-points strong { display: block; color: var(--text); }
+.feature-points span { color: var(--text-muted); font-size: var(--fs-sm); }
+.feature-app__more { font-weight: 600; }
+.feature-app__demo { min-width: 0; }
+
+.features-credit {
+  padding-block: var(--sp-24) var(--sp-16); text-align: center;
+  background: radial-gradient(50% 80% at 50% 100%, color-mix(in srgb, var(--rust-600) 18%, transparent), transparent 70%);
+}
+.features-credit__inner { display: grid; justify-items: center; }
+.features-credit h2 { font-size: var(--fs-3xl); max-width: 20ch; }
+.features-credit .lead { margin-inline: auto; }
+.features-credit__ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-3); margin-top: var(--sp-6); }
+
+/* ---------- Mock window ---------- */
+.demo {
+  --cycle: 9s;
+  position: relative; display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg);
+  box-shadow: var(--shadow), 0 30px 70px -36px color-mix(in srgb, var(--app-accent) 70%, transparent);
+  font: 12px/1.65 var(--font-mono); color: var(--text-muted);
+}
+.demo p, .demo ul { margin: 0; padding: 0; list-style: none; }
+.demo em { font-style: normal; color: var(--text-faint); }
+.demo kbd { font-size: 10px; padding: 0 4px; border: 1px solid var(--border-strong); border-radius: 3px; color: var(--text-muted); }
+.demo__bar {
+  display: flex; align-items: center; gap: var(--sp-2); height: 30px; padding: 0 12px; flex: none;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.demo__dots { display: flex; gap: 6px; }
+.demo__dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong); }
+.demo__dots i:first-child { background: color-mix(in srgb, var(--rust-500) 70%, var(--border-strong)); }
+.demo__title { flex: 1; margin-right: 46px; text-align: center; font-size: 11px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.demo__body { position: relative; flex: 1; min-height: 330px; }
+.demo__label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-faint); margin-bottom: 6px !important; }
+.demo__caret {
+  display: inline-block; width: 7px; height: 1.15em; vertical-align: text-bottom;
+  background: var(--app-accent); animation: demo-blink 1s steps(1) infinite;
+}
+.demo__check { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: color-mix(in srgb, var(--patina) 25%, transparent); color: var(--patina); font-size: 10px; }
+.demo__toast {
+  position: absolute; right: 14px; bottom: 14px; display: flex; gap: 10px; align-items: center;
+  padding: 6px 12px; border-radius: var(--radius); border: 1px solid var(--border-strong);
+  background: var(--surface-2); color: var(--text); box-shadow: var(--shadow);
+  animation: demo-toast var(--cycle) var(--ease) infinite;
+}
+.demo__toast span { color: var(--app-accent); font-weight: 600; }
+
+/* Syntax colours */
+.t-kw { color: var(--rust-300); }
+.t-fn { color: var(--app-ide); }
+.t-ty { color: var(--app-git); }
+.t-str { color: var(--patina); }
+.t-num { color: var(--app-data); }
+.t-key { color: var(--app-ide); }
+.t-prompt { color: var(--app-term); }
+:root[data-theme="light"] .t-kw { color: var(--rust-600); }
+
+/* ---------- Ferrum IDE ---------- */
+.ide { display: grid; grid-template-columns: 110px minmax(0, 1fr); grid-template-rows: 1fr auto; }
+.ide__tree { padding: 10px !important; border-right: 1px solid var(--border); background: var(--bg-elev); }
+.ide__tree li { padding: 1px 6px; white-space: nowrap; }
+.ide__tree .is-open { color: var(--text); background: color-mix(in srgb, var(--app-accent) 18%, transparent); border-radius: 3px; }
+.ide__editor { padding: 12px 16px; white-space: pre; overflow: hidden; color: var(--text); }
+.ide__typed { display: inline-block; overflow: hidden; vertical-align: bottom; animation: ide-type var(--cycle) steps(9) infinite; }
+.ide__palette {
+  position: absolute; top: 18px; left: 50%; width: min(78%, 360px); transform: translateX(-50%);
+  border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface);
+  box-shadow: var(--shadow), 0 20px 40px -20px rgba(0, 0, 0, 0.6);
+  animation: ide-palette var(--cycle) var(--ease) infinite;
+}
+.ide__query { padding: 8px 12px !important; border-bottom: 1px solid var(--border); color: var(--text); }
+.ide__palette ul { position: relative; padding: 4px !important; }
+.ide__palette li { position: relative; display: flex; justify-content: space-between; align-items: center; height: 26px; padding: 0 8px; color: var(--text); }
+.ide__palette li.ide__sel {
+  position: absolute; left: 4px; right: 4px; top: 4px; padding: 0; border-radius: 4px;
+  background: color-mix(in srgb, var(--app-accent) 24%, transparent);
+  animation: ide-sel var(--cycle) var(--ease) infinite;
+}
+.ide__status {
+  grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center;
+  height: 24px; padding: 0 10px; border-top: 1px solid var(--border); background: var(--surface); font-size: 11px;
+}
+.ide__ferrum {
+  padding: 0 8px; border-radius: 3px; color: var(--app-accent);
+  animation: demo-pulse var(--cycle) var(--ease) infinite;
+}
+
+/* ---------- FerrumAPI ---------- */
+.api { display: flex; flex-direction: column; }
+.api__req { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.api__method { padding: 2px 8px; border-radius: 3px; color: var(--patina); background: color-mix(in srgb, var(--patina) 16%, transparent); font-weight: 600; }
+.api__url { flex: 1; min-width: 0; padding: 2px 8px; border: 1px solid var(--border); border-radius: 3px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.api__send { padding: 2px 10px; border-radius: 3px; background: var(--app-accent); color: var(--accent-text); font-weight: 600; animation: demo-press var(--cycle) var(--ease) infinite; }
+.api__panes { flex: 1; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
+.api__resp { position: relative; padding: 40px 14px 12px; white-space: pre; overflow: hidden; color: var(--text); }
+.api__find {
+  position: absolute; top: 8px; right: 10px; left: 10px; display: flex; gap: 8px; align-items: center;
+  padding: 2px 8px; border: 1px solid var(--border-strong); border-radius: 4px; background: var(--surface); color: var(--text-faint);
+  animation: api-find var(--cycle) var(--ease) infinite;
+}
+.api__find span { flex: 1; color: var(--text); }
+.api__mark { color: inherit; background: color-mix(in srgb, var(--ember) 35%, transparent); border-radius: 2px; animation: api-mark var(--cycle) var(--ease) infinite; }
+.api__runner { padding: 12px; border-left: 1px solid var(--border); background: var(--bg-elev); }
+.api__runner li { display: flex; gap: 8px; align-items: center; padding: 4px 0; color: var(--text); animation: demo-row var(--cycle) var(--ease) infinite; }
+.api__runner li em { margin-left: auto; color: var(--patina); }
+.api__runner li:nth-child(2) { animation-delay: 0.35s; }
+.api__runner li:nth-child(3) { animation-delay: 0.7s; }
+.api__runner li:nth-child(4) { animation-delay: 1.05s; }
+.api__cookies { margin-top: 14px !important; padding: 6px 8px !important; border: 1px dashed var(--border-strong); border-radius: 4px; font-size: 11px; }
+
+/* ---------- FerrumGIT ---------- */
+.git { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
+.git__log { isolation: isolate; padding: 10px; border-right: 1px solid var(--border); background: var(--bg-elev); overflow: hidden; }
+.git__search { display: flex; justify-content: space-between; margin-bottom: 10px; padding: 2px 8px; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text); }
+.git__commit { position: relative; display: flex; gap: 8px; align-items: center; padding: 6px 6px 6px 26px; border-radius: 4px; white-space: nowrap; overflow: hidden; color: var(--text); }
+.git__commit code { color: var(--text-faint); }
+.git__commit span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.git__node { position: absolute; left: 8px; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border-radius: 50%; background: var(--app-accent); }
+.git__node::before { content: ""; position: absolute; left: 3.5px; top: -14px; bottom: -14px; width: 2px; background: color-mix(in srgb, var(--app-accent) 50%, transparent); z-index: -1; }
+.git__commit.lane-2 .git__node { left: 16px; background: var(--app-api); }
+.git__commit.lane-2 .git__node::before { background: color-mix(in srgb, var(--app-api) 50%, transparent); }
+.git__commit.lane-2 { padding-left: 34px; }
+.git__commit.is-hit { animation: git-hit var(--cycle) var(--ease) infinite; }
+.git__commit.is-hit:nth-child(4) { animation-delay: 2.2s; }
+.git__diff { position: relative; padding: 10px 12px; overflow: hidden; }
+.git__cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.git__cols p { padding: 1px 6px; white-space: pre; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-size: 11px; }
+.git__del { background: color-mix(in srgb, var(--rust-500) 22%, transparent); animation: demo-row var(--cycle) var(--ease) infinite; }
+.git__add { background: color-mix(in srgb, var(--app-term) 22%, transparent); animation: demo-row var(--cycle) var(--ease) infinite; animation-delay: 0.4s; }
+.git__blame { margin-top: 16px !important; font-size: 11px; color: var(--app-accent); }
+.git .demo__toast { animation-delay: 1s; }
+
+/* ---------- FerrumData ---------- */
+.data { display: grid; grid-template-columns: 128px minmax(0, 1fr); }
+.data__side { padding: 10px; border-right: 1px solid var(--border); background: var(--bg-elev); overflow: hidden; }
+.data__side ul { margin-bottom: 14px !important; }
+.data__side li { padding: 2px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.data__side li.is-new { border-radius: 3px; animation: data-hist var(--cycle) var(--ease) infinite; }
+.data__cols em { font-size: 10px; }
+.data__main { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.data__query { padding: 10px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; color: var(--text); }
+.data__typed { display: inline-block; overflow: hidden; vertical-align: bottom; max-width: 47ch; animation: data-type var(--cycle) steps(47) infinite; }
+.data__grid { padding: 8px 12px; }
+.data__row { display: grid; grid-template-columns: 0.5fr 1.4fr 1fr; border-bottom: 1px solid var(--border); color: var(--text); animation: data-row var(--cycle) var(--ease) infinite; }
+.data__row span { padding: 4px 6px; }
+.data__row span + span { border-left: 1px solid var(--border); }
+.data__head { color: var(--text-muted); background: var(--surface); animation: none; }
+.data__row:nth-child(3) { animation-delay: 0.15s; }
+.data__row:nth-child(4) { animation-delay: 0.3s; }
+.data__row:nth-child(5) { animation-delay: 0.45s; }
+.data__row:nth-child(3) span:nth-child(2), .data__row:nth-child(4) span:nth-child(2) { animation: data-cell var(--cycle) var(--ease) infinite; }
+.data__sort { display: inline-block; font-style: normal; color: var(--app-accent); animation: data-sort var(--cycle) var(--ease) infinite; }
+.data__menu {
+  position: absolute; right: 14px; bottom: 14px; padding: 4px !important; min-width: 160px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
+  animation: data-menu var(--cycle) var(--ease) infinite;
+}
+.data__menu li { padding: 3px 8px; border-radius: 3px; color: var(--text); }
+.data__menu li:first-child { background: color-mix(in srgb, var(--app-accent) 24%, transparent); }
+
+/* ---------- FerrumTerm ---------- */
+.term { display: grid; grid-template-columns: 150px minmax(0, 1fr); }
+.term__side { padding: 10px; border-right: 1px solid var(--border); background: var(--bg-elev); }
+.term__side ul { margin-bottom: 14px !important; }
+.term__side li { position: relative; display: flex; gap: 6px; align-items: center; padding: 3px 6px; border-radius: 3px; color: var(--text); white-space: nowrap; }
+.term__side li em { margin-left: auto; font-size: 10px; }
+.term__side li.is-open { background: color-mix(in srgb, var(--app-accent) 18%, transparent); }
+.term__dot { width: 8px; height: 8px; flex: none; border-radius: 50%; }
+.term__dot--run { background: var(--ember); animation: term-dot var(--cycle) steps(1) infinite; }
+.term__dot--wait { background: var(--rust-400); }
+.term__state { position: relative; display: inline-grid; margin-left: auto; }
+.term__state span { grid-area: 1 / 1; text-align: right; }
+.term__state span:first-child { opacity: 0; animation: term-working var(--cycle) steps(1) infinite; }
+.term__state span:last-child { color: var(--patina); animation: term-done var(--cycle) steps(1) infinite; }
+.term__badge {
+  display: grid; place-items: center; margin-left: auto; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--rust-500); color: var(--accent-text); font-size: 10px;
+  animation: term-badge 1.6s var(--ease) infinite;
+}
+.term__new { display: inline-block; padding: 3px 8px; border: 1px dashed var(--border-strong); border-radius: 4px; color: var(--app-accent); animation: demo-pulse var(--cycle) var(--ease) infinite; animation-delay: 4s; }
+.term__pane { position: relative; padding: 12px 14px; color: var(--text); white-space: pre; overflow: hidden; }
+.term__out { animation: demo-row var(--cycle) var(--ease) infinite; }
+.term__out:nth-child(3) { animation-delay: 0.5s; }
+.term__out:nth-child(4) { animation-delay: 1s; }
+.term__out:nth-child(5) { animation-delay: 1.3s; }
+.term__select {
+  background-image: linear-gradient(color-mix(in srgb, var(--app-accent) 35%, transparent), color-mix(in srgb, var(--app-accent) 35%, transparent));
+  background-repeat: no-repeat; background-size: 100% 100%;
+  animation: term-select var(--cycle) var(--ease) infinite;
+}
+.term__copied { animation-delay: 1.4s; }
+
+/* ---------- Ferrum Toolbox ---------- */
+.tb { display: flex; flex-direction: column; padding: 12px; gap: 10px; }
+.tb__banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--app-accent) 45%, var(--border)); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--app-accent) 10%, var(--surface)); color: var(--text);
+  animation: tb-banner var(--cycle) var(--ease) infinite;
+}
+.tb__apps { display: grid; gap: 6px; }
+.tb__apps li {
+  display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto 104px; gap: 10px; align-items: center;
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text);
+}
+.tb__logo { width: 18px; height: 18px; border-radius: 5px; background: var(--c); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 55%, transparent); }
+.tb__name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tb__chan { padding: 0 6px; border-radius: 999px; font-size: 10px; color: var(--patina); border: 1px solid color-mix(in srgb, var(--patina) 45%, transparent); }
+.tb__ver { color: var(--text-faint); font-size: 11px; }
+.tb__btn {
+  position: relative; display: inline-grid; overflow: hidden; padding: 2px 8px; border-radius: 4px; text-align: center;
+  border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); white-space: nowrap;
+}
+.tb__btn::before {
+  content: ""; position: absolute; inset: 0; transform-origin: left; transform: scaleX(0);
+  background: color-mix(in srgb, var(--c, var(--app-accent)) 35%, transparent);
+  animation: tb-fill var(--cycle) var(--ease) infinite; animation-delay: inherit;
+}
+.tb__btn > span { position: relative; grid-area: 1 / 1; }
+.tb__btn > span:last-child { opacity: 0; color: var(--patina); animation: tb-done var(--cycle) steps(1) infinite; animation-delay: inherit; }
+.tb__btn > span:first-child { animation: tb-todo var(--cycle) steps(1) infinite; animation-delay: inherit; }
+.tb__btn--self { background: var(--app-accent); border-color: transparent; color: var(--accent-text); font-weight: 600; }
+.tb__btn--self::before { background: color-mix(in srgb, var(--text) 30%, transparent); animation-name: tb-fill-self; }
+.tb__apps li:nth-child(2) .tb__btn { animation-delay: 0.3s; }
+.tb__apps li:nth-child(3) .tb__btn { animation-delay: 0.6s; }
+.tb__apps li:nth-child(4) .tb__btn { animation-delay: 0.9s; }
+.tb__apps li:nth-child(5) .tb__btn { animation-delay: 1.2s; }
+
+@media (max-width: 640px) {
+  .ide { grid-template-columns: minmax(0, 1fr); }
+  .ide__tree, .data__side, .term__side { display: none; }
+  .data, .term { grid-template-columns: minmax(0, 1fr); }
+  .api__panes, .git { grid-template-columns: minmax(0, 1fr); }
+  .api__runner, .git__diff { display: none; }
+  .tb__apps li { grid-template-columns: 18px minmax(0, 1fr) 108px; }
+  .tb__chan, .tb__ver { display: none; }
+}
+
+/* ---------- Keyframes (percentages of the 9s cycle) ---------- */
+@keyframes demo-blink { 50% { opacity: 0; } }
+@keyframes demo-pulse {
+  0%, 8%, 30%, 100% { box-shadow: 0 0 0 0 transparent; background: transparent; }
+  14%, 22% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent) 25%, transparent); background: color-mix(in srgb, var(--app-accent) 15%, transparent); }
+}
+@keyframes demo-press { 0%, 6%, 12%, 100% { transform: none; } 9% { transform: scale(0.92); } }
+@keyframes demo-row {
+  0%, 12% { opacity: 0; transform: translateY(4px); }
+  18%, 92% { opacity: 1; transform: none; }
+  100% { opacity: 0; }
+}
+@keyframes demo-toast {
+  0%, 60% { opacity: 0; transform: translateY(10px); }
+  66%, 90% { opacity: 1; transform: none; }
+  96%, 100% { opacity: 0; transform: translateY(10px); }
+}
+
+@keyframes ide-type { 0%, 4% { width: 0; } 14%, 100% { width: 9ch; } }
+@keyframes ide-palette {
+  0%, 22% { opacity: 0; transform: translate(-50%, -8px) scale(0.98); }
+  28%, 74% { opacity: 1; transform: translate(-50%, 0); }
+  80%, 100% { opacity: 0; transform: translate(-50%, -8px) scale(0.98); }
+}
+@keyframes ide-sel {
+  0%, 38% { transform: translateY(0); }
+  44%, 56% { transform: translateY(26px); }
+  62%, 100% { transform: translateY(0); }
+}
+
+@keyframes api-find { 0%, 34% { opacity: 0; transform: translateY(-6px); } 40%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@keyframes api-mark { 0%, 40% { background: transparent; } 46%, 92% { background: color-mix(in srgb, var(--ember) 35%, transparent); } 100% { background: transparent; } }
+
+@keyframes git-hit {
+  0%, 20%, 50%, 100% { background: transparent; }
+  26%, 44% { background: color-mix(in srgb, var(--app-accent) 20%, transparent); }
+}
+
+@keyframes data-type { 0%, 3% { width: 0; } 28%, 100% { width: 47ch; } }
+@keyframes data-row {
+  0%, 30% { opacity: 0; }
+  34%, 94% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes data-sort { 0%, 48% { transform: none; } 52%, 100% { transform: rotate(180deg); } }
+@keyframes data-cell { 0%, 56% { background: transparent; } 60%, 92% { background: color-mix(in srgb, var(--app-accent) 22%, transparent); } 100% { background: transparent; } }
+@keyframes data-menu {
+  0%, 66% { opacity: 0; transform: translateY(6px); }
+  70%, 90% { opacity: 1; transform: none; }
+  95%, 100% { opacity: 0; transform: translateY(6px); }
+}
+@keyframes data-hist { 0%, 28% { background: transparent; } 32%, 60% { background: color-mix(in srgb, var(--app-accent) 22%, transparent); } 70%, 100% { background: transparent; } }
+
+@keyframes term-dot { 0% { background: var(--ember); } 55% { background: var(--patina); } }
+@keyframes term-working { 0% { opacity: 1; } 55% { opacity: 0; } }
+@keyframes term-done { 0% { opacity: 0; } 55% { opacity: 1; } }
+@keyframes term-badge { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--rust-500) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+@keyframes term-select { 0%, 48% { background-size: 0 100%; } 58%, 92% { background-size: 100% 100%; } 100% { background-size: 0 100%; } }
+
+@keyframes tb-banner { 0%, 30% { opacity: 1; } 34%, 100% { opacity: 0.55; } }
+@keyframes tb-fill-self { 0%, 6% { transform: scaleX(0); } 26% { transform: scaleX(1); } 30%, 100% { transform: scaleX(0); } }
+@keyframes tb-fill { 0%, 36% { transform: scaleX(0); } 58% { transform: scaleX(1); } 62%, 100% { transform: scaleX(0); } }
+@keyframes tb-todo { 0% { opacity: 1; } 62% { opacity: 0; } 96% { opacity: 1; } }
+@keyframes tb-done { 0% { opacity: 0; } 62% { opacity: 1; } 96% { opacity: 0; } }

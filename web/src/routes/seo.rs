@@ -6,7 +6,7 @@ use super::AppState;
 use crate::products;
 
 /// Non-product pages listed in the sitemap: home first, about last.
-const STATIC_PATHS: [&str; 3] = ["/", "/download", "/about"];
+const STATIC_PATHS: [&str; 4] = ["/", "/features", "/download", "/about"];
 
 pub async fn robots(State(s): State<AppState>) -> impl IntoResponse {
     let body = format!(
@@ -16,7 +16,7 @@ pub async fn robots(State(s): State<AppState>) -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body)
 }
 
-/// Every public page path: "/", each product, then "/download" and "/about".
+/// Every public page path: "/", each product, then "/features", "/download" and "/about".
 pub fn sitemap_paths() -> Vec<String> {
     let (home, rest) = STATIC_PATHS.split_at(1);
     home.iter()

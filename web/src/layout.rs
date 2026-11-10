@@ -52,11 +52,12 @@ impl PageMeta {
 }
 
 /// Stylesheets in cascade order. Each file is owned by one area of the codebase.
-const STYLESHEETS: [&str; 4] = [
+const STYLESHEETS: [&str; 5] = [
     "css/tokens.css",
     "css/base.css",
     "css/components.css",
     "css/pages.css",
+    "css/features.css",
 ];
 
 /// Render a complete HTML document. `site_url` has no trailing slash.

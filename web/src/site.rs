@@ -37,5 +37,7 @@ pub const CONTACT_EMAIL: Option<&str> = None;
 
 /// Upstream project credited by Ferrum IDE. Text credit only; no Zed logos.
 pub const ZED_UPSTREAM_URL: &str = "https://github.com/zed-industries/zed";
+/// Amygdal, the studio that builds Ferrum.
+pub const AMYGDAL_URL: &str = "https://amygdal.com";
 /// GPUI, the UI framework every Ferrum desktop app is built on.
 pub const GPUI_URL: &str = "https://gpui.rs";

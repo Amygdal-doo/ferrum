@@ -60,16 +60,14 @@ const WORKS_TODAY: &[&str] = &[
     "Streaming query execution with row limit, timeout and cancel",
     "Virtualized, typed results grid (shows up to 10,000 rows by default)",
     "Table explorer and table browser tabs",
+    "Column and index details for PostgreSQL, MySQL and SQLite tables",
+    "Query history, CSV / JSON export, and grid sort, resize and copy",
 ];
 
 const NOT_BUILT_YET: &[&str] = &[
     "Row editing, adding rows and columns",
     "Syntax highlighting and autocomplete",
-    "Query history",
-    "CSV / JSON export",
     "Transactions UI",
-    "MySQL and SQLite support",
-    "Column resize, sort and copy in the grid",
     "SSH tunnels",
     "Light theme (only the built-in One Dark theme renders today)",
     "Signed and notarized builds",

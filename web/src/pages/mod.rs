@@ -2,6 +2,8 @@
 
 pub mod about;
 pub mod download;
+pub mod feature_demos;
+pub mod features;
 pub mod ferrum_ide;
 pub mod ferrum_toolbox;
 pub mod ferrumapi;
