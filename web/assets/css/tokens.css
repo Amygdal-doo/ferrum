@@ -14,7 +14,7 @@
   /* Text */
   --text: #eaf0f5;
   --text-muted: #9db0c3;
-  --text-faint: #6c8098;
+  --text-faint: #8597ad;
   /* Temper colours */
   --straw: #e9c46a;
   --straw-soft: #f3dc9c;
@@ -25,6 +25,11 @@
   --accent: var(--straw);
   --accent-hover: var(--straw-soft);
   --accent-text: #1a1305;
+  /* Dark text for labels sitting on a bright app or temper colour. */
+  --on-color: #0d1520;
+  /* How much of an app accent survives when it is used as text colour
+     (the rest is --text); bright accents need darkening on light backgrounds. */
+  --ink-mix: 100%;
   --link: var(--straw);
   --focus: var(--straw);
   --temper: linear-gradient(90deg, var(--straw), var(--bronze) 38%, var(--violet) 70%, var(--blue));
@@ -48,6 +53,13 @@
   --app-kit: #d46be0;
   --app-dock: #38bdf8;
   --app-accent: var(--straw);
+  /* Syntax colours in the animated app windows. */
+  --syn-kw: var(--straw);
+  --syn-fn: var(--app-ide);
+  --syn-ty: var(--app-git);
+  --syn-str: var(--ok);
+  --syn-num: var(--app-data);
+  --syn-prompt: var(--app-term);
 }
 
 :root[data-theme="light"] {
@@ -60,13 +72,19 @@
   --border-strong: #a9b8c8;
   --text: #0d1520;
   --text-muted: #44566b;
-  --text-faint: #6c7f94;
+  --text-faint: #56687c;
   --accent: #0d1520;
   --accent-hover: #22324a;
   --accent-text: #f3dc9c;
   --link: #8a5a14;
   --focus: #3e73d9;
-  --ok: #23805d;
+  --ok: #1b6b4d;
+  --ink-mix: 45%;
+  --syn-kw: #9a4f17;
+  --syn-fn: #2456b8;
+  --syn-ty: #8a5a14;
+  --syn-num: #6a40b5;
+  --syn-prompt: #3d7a22;
   --glow: 0 10px 30px -16px rgba(13, 21, 32, 0.45);
   --shadow: 0 1px 2px rgba(13, 21, 32, 0.08), 0 18px 40px -24px rgba(13, 21, 32, 0.3);
   --filing: #a9b8c8;

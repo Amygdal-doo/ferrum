@@ -66,24 +66,26 @@
   display: inline-block; width: 7px; height: 1.15em; vertical-align: text-bottom;
   background: var(--app-accent); animation: demo-blink 1s steps(1) infinite;
 }
-.demo__check { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: color-mix(in srgb, var(--ok) 25%, transparent); color: var(--ok); font-size: 10px; }
+.demo__check { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); font-size: 10px; }
 .demo__toast {
   position: absolute; right: 14px; bottom: 14px; display: flex; gap: 10px; align-items: center;
   padding: 6px 12px; border-radius: var(--radius); border: 1px solid var(--border-strong);
   background: var(--surface-2); color: var(--text); box-shadow: var(--shadow);
   animation: demo-toast var(--cycle) var(--ease) infinite;
 }
-.demo__toast span { color: var(--app-accent); font-weight: 600; }
+.demo__toast span { color: color-mix(in srgb, var(--app-accent) var(--ink-mix), var(--text)); font-weight: 600; }
 
 /* Syntax colours */
-.t-kw { color: var(--straw); }
-.t-fn { color: var(--app-ide); }
-.t-ty { color: var(--app-git); }
+.t-kw { color: var(--syn-kw); }
+.t-fn { color: var(--syn-fn); }
+.t-ty { color: var(--syn-ty); }
 .t-str { color: var(--ok); }
-.t-num { color: var(--app-data); }
-.t-key { color: var(--app-ide); }
-.t-prompt { color: var(--app-term); }
-:root[data-theme="light"] .t-kw { color: var(--bronze); }
+.t-num { color: var(--syn-num); }
+.t-key { color: var(--syn-fn); }
+.t-prompt { color: var(--syn-prompt); }
+
+/* Counts and hints on a highlighted (accent-tinted) row. */
+.is-open em { color: var(--text-muted); }
 
 /* ---------- Ferrum IDE ---------- */
 .ide { display: grid; grid-template-columns: 110px minmax(0, 1fr); grid-template-rows: 1fr auto; }
@@ -111,7 +113,7 @@
   height: 24px; padding: 0 10px; border-top: 1px solid var(--border); background: var(--surface); font-size: 11px;
 }
 .ide__ferrum {
-  padding: 0 8px; border-radius: 3px; color: var(--app-accent);
+  padding: 0 8px; border-radius: 3px; color: color-mix(in srgb, var(--app-accent) var(--ink-mix), var(--text));
   animation: demo-pulse var(--cycle) var(--ease) infinite;
 }
 
@@ -120,7 +122,7 @@
 .api__req { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--border); }
 .api__method { padding: 2px 8px; border-radius: 3px; color: var(--ok); background: color-mix(in srgb, var(--ok) 16%, transparent); font-weight: 600; }
 .api__url { flex: 1; min-width: 0; padding: 2px 8px; border: 1px solid var(--border); border-radius: 3px; color: var(--text); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.api__send { padding: 2px 10px; border-radius: 3px; background: var(--app-accent); color: var(--accent-text); font-weight: 600; animation: demo-press var(--cycle) var(--ease) infinite; }
+.api__send { padding: 2px 10px; border-radius: 3px; background: var(--app-accent); color: var(--on-color); font-weight: 600; animation: demo-press var(--cycle) var(--ease) infinite; }
 .api__panes { flex: 1; display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
 .api__resp { position: relative; padding: 40px 14px 12px; white-space: pre; overflow: hidden; color: var(--text); }
 .api__find {
@@ -129,7 +131,7 @@
   animation: api-find var(--cycle) var(--ease) infinite;
 }
 .api__find span { flex: 1; color: var(--text); }
-.api__mark { color: inherit; background: color-mix(in srgb, var(--straw) 35%, transparent); border-radius: 2px; animation: api-mark var(--cycle) var(--ease) infinite; }
+.api__mark { color: var(--text); background: color-mix(in srgb, var(--straw) 35%, transparent); border-radius: 2px; animation: api-mark var(--cycle) var(--ease) infinite; }
 .api__runner { padding: 12px; border-left: 1px solid var(--border); background: var(--bg-elev); }
 .api__runner li { display: flex; gap: 8px; align-items: center; padding: 4px 0; color: var(--text); animation: demo-row var(--cycle) var(--ease) infinite; }
 .api__runner li em { margin-left: auto; color: var(--ok); }
@@ -157,7 +159,7 @@
 .git__cols p { padding: 1px 6px; white-space: pre; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-size: 11px; }
 .git__del { background: color-mix(in srgb, var(--bronze) 22%, transparent); animation: demo-row var(--cycle) var(--ease) infinite; }
 .git__add { background: color-mix(in srgb, var(--app-term) 22%, transparent); animation: demo-row var(--cycle) var(--ease) infinite; animation-delay: 0.4s; }
-.git__blame { margin-top: 16px !important; font-size: 11px; color: var(--app-accent); }
+.git__blame { margin-top: 16px !important; font-size: 11px; color: color-mix(in srgb, var(--app-accent) var(--ink-mix), var(--text)); }
 .git .demo__toast { animation-delay: 1s; }
 
 /* ---------- FerrumData ---------- */
@@ -179,7 +181,7 @@
 .data__row:nth-child(4) { animation-delay: 0.3s; }
 .data__row:nth-child(5) { animation-delay: 0.45s; }
 .data__row:nth-child(3) span:nth-child(2), .data__row:nth-child(4) span:nth-child(2) { animation: data-cell var(--cycle) var(--ease) infinite; }
-.data__sort { display: inline-block; font-style: normal; color: var(--app-accent); animation: data-sort var(--cycle) var(--ease) infinite; }
+.data__sort { display: inline-block; font-style: normal; color: color-mix(in srgb, var(--app-accent) var(--ink-mix), var(--text)); animation: data-sort var(--cycle) var(--ease) infinite; }
 .data__menu {
   position: absolute; right: 14px; bottom: 14px; padding: 4px !important; min-width: 160px;
   border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
@@ -204,10 +206,10 @@
 .term__state span:last-child { color: var(--ok); animation: term-done var(--cycle) steps(1) infinite; }
 .term__badge {
   display: grid; place-items: center; margin-left: auto; width: 16px; height: 16px; border-radius: 50%;
-  background: var(--bronze); color: var(--accent-text); font-size: 10px;
+  background: var(--bronze); color: var(--on-color); font-size: 10px;
   animation: term-badge 1.6s var(--ease) infinite;
 }
-.term__new { display: inline-block; padding: 3px 8px; border: 1px dashed var(--border-strong); border-radius: 4px; color: var(--app-accent); animation: demo-pulse var(--cycle) var(--ease) infinite; animation-delay: 4s; }
+.term__new { display: inline-block; padding: 3px 8px; border: 1px dashed var(--border-strong); border-radius: 4px; color: color-mix(in srgb, var(--app-accent) var(--ink-mix), var(--text)); animation: demo-pulse var(--cycle) var(--ease) infinite; animation-delay: 4s; }
 .term__pane { position: relative; padding: 12px 14px; color: var(--text); white-space: pre; overflow: hidden; }
 .term__out { animation: demo-row var(--cycle) var(--ease) infinite; }
 .term__out:nth-child(3) { animation-delay: 0.5s; }
@@ -249,7 +251,7 @@
 .tb__btn > span { position: relative; grid-area: 1 / 1; }
 .tb__btn > span:last-child { opacity: 0; color: var(--ok); animation: tb-done var(--cycle) steps(1) infinite; animation-delay: inherit; }
 .tb__btn > span:first-child { animation: tb-todo var(--cycle) steps(1) infinite; animation-delay: inherit; }
-.tb__btn--self { background: var(--app-accent); border-color: transparent; color: var(--accent-text); font-weight: 600; }
+.tb__btn--self { background: var(--app-accent); border-color: transparent; color: var(--on-color); font-weight: 600; }
 .tb__btn--self::before { background: color-mix(in srgb, var(--text) 30%, transparent); animation-name: tb-fill-self; }
 .tb__apps li:nth-child(2) .tb__btn { animation-delay: 0.3s; }
 .tb__apps li:nth-child(3) .tb__btn { animation-delay: 0.6s; }

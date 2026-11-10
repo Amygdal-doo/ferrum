@@ -155,6 +155,7 @@ html:not(.js) .showcase__panel[hidden] { display: block; margin-top: var(--sp-12
 }
 .page-404 .notfound__num { position: absolute; top: var(--sp-3); left: var(--sp-4); font-size: var(--fs-sm); color: var(--text-muted); }
 .page-404 .notfound__sym { font: 800 clamp(4rem, 15vw, 6rem)/1 var(--font-display); color: var(--straw); }
+:root[data-theme="light"] .page-404 .notfound__sym { color: var(--link); }
 .page-404 .notfound__formula { position: absolute; bottom: var(--sp-3); right: var(--sp-4); font-size: var(--fs-xs); color: var(--text-faint); }
 .page-404 .notfound__copy { min-width: 0; }
 .page-404 .notfound__ctas { margin-top: var(--sp-6); }
