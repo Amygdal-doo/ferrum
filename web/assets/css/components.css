@@ -250,7 +250,7 @@ html:not(.js) .theme-toggle, html:not(.js) .nav-toggle { display: none; }
 .install-cmd__copy:hover { color: var(--text); background: var(--surface); }
 html:not(.js) .install-cmd__copy { display: none; }
 
-/* Row of app logos with names (toolbox, download and features pages). */
+/* Row of app logos with names (launcher, download and features pages). */
 .app-strip {
   list-style: none; margin: var(--sp-8) 0 0; padding: 0; display: grid; gap: var(--sp-2);
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));

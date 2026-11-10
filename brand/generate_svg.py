@@ -14,7 +14,7 @@ APPS = {
     "git":     ("G", "#F0B43C", "branch"),
     "data":    ("D", "#A07CF0", "cylinder"),
     "term":    ("T", "#7CC85A", "prompt"),
-    "toolbox": ("X", "#E85A7E", "grid"),
+    "launcher": ("X", "#E85A7E", "grid"),
     "kit":     ("K", "#D46BE0", "sliders"),
     "dock":    ("C", "#38BDF8", "containers"),
 }

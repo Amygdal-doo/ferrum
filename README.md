@@ -13,14 +13,14 @@ one look through `shared/ui`.
 | `term/` | FerrumTerm: terminal server, GUI and CLI | GPUI GUI, crossterm CLI |
 | `kit/` | FerrumKit: developer utilities | GPUI + `ferrum-ui` |
 | `dock/` | FerrumDock: container manager | GPUI + `ferrum-ui` |
-| `toolbox/` | FerrumToolbox: installs, updates and launches the apps | GPUI + `ferrum-ui` |
+| `launcher/` | Ferrum Launcher (formerly Ferrum Toolbox): installs, updates and launches the apps | GPUI + `ferrum-ui` |
 | `shared/ui` | `ferrum-ui`: shared shell and widgets | GPUI + Zed `ui`/`theme` |
 | `web/` | Marketing site | axum + maud (standalone package) |
 
 ## Layout
 
 - The root `Cargo.toml` is a single workspace for `shared/`, `api/`, `git/`,
-  `data/`, `term/`, `kit/`, `dock/` and `toolbox/`. It has one `Cargo.lock` and one toolchain
+  `data/`, `term/`, `kit/`, `dock/` and `launcher/`. It has one `Cargo.lock` and one toolchain
   (`rust-toolchain.toml`).
 - `ide/` keeps its own workspace and toolchain so merges from upstream Zed
   stay easy. The other tools depend on its `gpui`, `gpui_platform`, `ui`,
@@ -57,7 +57,7 @@ cargo term       # FerrumTerm GUI
 cargo fterm      # FerrumTerm CLI
 cargo kit        # FerrumKit
 cargo dock       # FerrumDock
-cargo toolbox    # FerrumToolbox
+cargo launcher   # Ferrum Launcher
 cargo lint       # clippy, whole workspace, -D warnings
 cargo test --workspace
 
@@ -82,8 +82,10 @@ scripts/release.sh api 0.2.0 -m "Release notes"
 git push origin api-v0.2.0     # runs .github/workflows/release.yml
 ```
 
-FerrumToolbox reads these releases to install and update the apps. For
+Ferrum Launcher reads these releases to install and update the apps; a new
+app shows up in it once it has an entry in `catalog.json`. For
 installing Ferrum on a machine (DMG, GitHub sign-in, Launchpad apps), see
 **[INSTALL.md](INSTALL.md)**. See
-`toolbox/README.md` for the conventions and the `SUBMODULE_TOKEN` secret
-that the workflow needs.
+`launcher/README.md` for the conventions, the catalog schema, the
+`SUBMODULE_TOKEN` secret that the workflow needs, and the bridge release for
+Ferrum Toolbox 0.5.0.

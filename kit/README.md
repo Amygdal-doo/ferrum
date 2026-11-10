@@ -38,7 +38,7 @@ files, HMAC, other algorithms (SHA-3, BLAKE3, CRC32); regex replace and other re
 path queries, JSON schema, XML / CSV conversion; colour picker, contrast ratio and named
 colours; keyboard navigation of the tool list (arrow keys) and ⌘1… shortcuts; soft-wrap in
 text fields (long lines such as JWTs scroll horizontally — the shared text field lays out
-unwrapped lines); a light theme; packaging, signing and a Toolbox entry.
+unwrapped lines); a light theme; packaging, signing and a Ferrum Launcher entry.
 
 ## Prerequisites
 - Rust via rustup. `rust-toolchain.toml` installs the pinned toolchain automatically.

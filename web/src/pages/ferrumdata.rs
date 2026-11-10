@@ -102,14 +102,14 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Toolbox (free, see Download)"),
+        ("Install", "Ferrum Launcher (free, see Download)"),
         ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
         ("Databases", "PostgreSQL"),
         ("Built with", "Rust, GPUI, SQLx"),
         ("Data", "Stored locally; passwords in the OS keychain"),
     ],
     specs_note: "Builds are free public GitHub Releases, installed through Ferrum \
-                 Toolbox. The current macOS build is not notarized yet.",
+                 Launcher. The current macOS build is not notarized yet.",
 };
 
 pub fn render(site_url: &str) -> Markup {

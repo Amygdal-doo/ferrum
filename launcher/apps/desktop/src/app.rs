@@ -1,0 +1,389 @@
+//! Root view and window layout.
+
+use crate::components::onboarding::Onboarding;
+use crate::components::settings::{SettingsForm, SettingsFormEvent};
+use crate::services::Services;
+use ferrum_ui::prelude::*;
+use ferrum_ui::gpui::Image;
+use ferrumlauncher_core::{AppId, State, TokenSource};
+use semver::Version;
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use tokio_util::sync::CancellationToken;
+
+/// An install in flight. Progress is written by the download task on the
+/// runtime and read on each render.
+pub struct Download {
+    pub version: Version,
+    pub downloaded: Arc<AtomicU64>,
+    /// `0` while unknown.
+    pub total: Arc<AtomicU64>,
+    pub cancel: CancellationToken,
+    pub _task: Task<()>,
+}
+
+impl Download {
+    /// Fraction complete, if the size is known.
+    pub fn fraction(&self) -> Option<f32> {
+        let total = self.total.load(Ordering::Relaxed);
+        (total > 0).then(|| self.downloaded.load(Ordering::Relaxed) as f32 / total as f32)
+    }
+}
+
+/// The one-time announcement of an app that appeared in the catalog.
+pub struct NewAppNotice {
+    pub app: AppId,
+    pub message: SharedString,
+}
+
+/// What the main area shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Page {
+    Overview,
+    App,
+}
+
+pub struct FerrumLauncher {
+    pub services: Services,
+    pub state: State,
+    pub page: Page,
+    pub selected: AppId,
+    /// Release whose notes are shown; `None` shows the latest.
+    pub selected_release: Option<Version>,
+    pub downloads: HashMap<AppId, Download>,
+    pub checking: bool,
+    /// Launcher version being downloaded to replace the running bundle.
+    pub self_update: Option<Version>,
+    /// Catalog logos downloaded for apps (decoded once).
+    pub logos: HashMap<AppId, Arc<Image>>,
+    /// The `.app` this process runs from; `None` for unbundled builds.
+    pub running_bundle: Option<std::path::PathBuf>,
+    pub token_source: Option<TokenSource>,
+    pub settings_form: Option<Entity<SettingsForm>>,
+    pub onboarding: Option<Entity<Onboarding>>,
+    pub(crate) onboarding_subscription: Option<Subscription>,
+    pub notice: Option<Notice>,
+    notice_task: Option<Task<()>>,
+    /// Shown until dismissed or acted on.
+    pub new_app_notice: Option<NewAppNotice>,
+    pub(crate) check_loop: Task<()>,
+    progress_ticker: Option<Task<()>>,
+    _subscriptions: Vec<Subscription>,
+}
+
+impl FerrumLauncher {
+    pub fn new(
+        services: Services,
+        state: State,
+        startup_notice: Option<String>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let mut this = Self {
+            services,
+            state,
+            page: Page::Overview,
+            selected: AppId::IDE,
+            selected_release: None,
+            downloads: HashMap::new(),
+            checking: false,
+            self_update: None,
+            logos: HashMap::new(),
+            running_bundle: ferrumlauncher_core::self_update::running_bundle(),
+            token_source: None,
+            settings_form: None,
+            onboarding: None,
+            onboarding_subscription: None,
+            notice: None,
+            notice_task: None,
+            new_app_notice: None,
+            check_loop: Task::ready(()),
+            progress_ticker: None,
+            _subscriptions: Vec::new(),
+        };
+        if let Some(message) = startup_notice {
+            this.notify_user(message, true, cx);
+        }
+        // Apps added since the last start (e.g. by this launcher version)
+        // are announced; the catalog fetch announces later ones.
+        this.announce_new_apps(cx);
+        this.load_logos(cx);
+        this.detect_token(window, cx);
+        this
+    }
+
+    pub fn notify_user(
+        &mut self,
+        message: impl Into<SharedString>,
+        error: bool,
+        cx: &mut Context<Self>,
+    ) {
+        let message = message.into();
+        if error {
+            tracing::warn!(%message, "launcher error");
+        }
+        self.notice = Some(if error {
+            Notice::error(message)
+        } else {
+            Notice::info(message)
+        });
+        self.notice_task = Some(Notice::dismiss_later(cx, |this: &mut Self, _| {
+            this.notice = None;
+        }));
+        cx.notify();
+    }
+
+    pub fn select_app(&mut self, app: AppId, cx: &mut Context<Self>) {
+        self.page = Page::App;
+        self.selected = app;
+        self.selected_release = None;
+        if self.state.mark_seen(app) {
+            self.persist(cx);
+        }
+        cx.notify();
+    }
+
+    pub fn show_page(&mut self, page: Page, cx: &mut Context<Self>) {
+        self.page = page;
+        cx.notify();
+    }
+
+    /// Re-renders while downloads run so progress bars move.
+    pub(crate) fn ensure_progress_ticker(&mut self, cx: &mut Context<Self>) {
+        if self.progress_ticker.is_some() {
+            return;
+        }
+        self.progress_ticker = Some(cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor()
+                    .timer(std::time::Duration::from_millis(150))
+                    .await;
+                let keep_going = this
+                    .update(cx, |this, cx| {
+                        cx.notify();
+                        let active = !this.downloads.is_empty();
+                        if !active {
+                            this.progress_ticker = None;
+                        }
+                        active
+                    })
+                    .unwrap_or(false);
+                if !keep_going {
+                    break;
+                }
+            }
+        }));
+    }
+
+    pub fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let settings = self.state.settings.clone();
+        let token_source = self.token_source;
+        let form = cx.new(|cx| SettingsForm::new(settings, token_source, window, cx));
+        let subscription =
+            cx.subscribe_in(&form, window, |this, _, event, window, cx| match event {
+                SettingsFormEvent::Saved { settings, token } => {
+                    this.settings_form = None;
+                    this.apply_settings(settings.clone(), token.clone(), window, cx);
+                }
+                SettingsFormEvent::Cancelled => {
+                    this.settings_form = None;
+                    cx.notify();
+                }
+            });
+        self._subscriptions = vec![subscription];
+        form.update(cx, |form, cx| form.focus_first(window, cx));
+        self.settings_form = Some(form);
+        cx.notify();
+    }
+
+    fn render_toolbar(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let last_check = match self.state.last_check {
+            Some(time) => format!(
+                "Checked {}",
+                time.with_timezone(&chrono::Local).format("%b %e, %H:%M")
+            ),
+            None => "Never checked".to_string(),
+        };
+        let updates = self.state.app_updates().len();
+        let launcher_update = self
+            .state
+            .update_for(AppId::LAUNCHER)
+            .map(|release| (release.version.clone(), release.html_url.clone()));
+        let self_updatable = self.running_bundle.is_some();
+        toolbar(cx)
+            .justify_between()
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(self.logo(AppId::LAUNCHER, px(22.)))
+                    .child(Label::new(self.state.info(AppId::LAUNCHER).name))
+                    .when_some(self.state.running_launcher.clone(), |this, version| {
+                        this.child(
+                            Label::new(format!("v{version}"))
+                                .size(LabelSize::Small)
+                                .color(Color::Muted),
+                        )
+                    })
+                    // A bundled launcher swaps itself for the new version and
+                    // restarts; otherwise (cargo run, Windows, Linux) the
+                    // release page has the installer.
+                    .when_some(launcher_update, |this, (version, url)| {
+                        let updating = self.self_update.is_some();
+                        let button = Button::new(
+                            "launcher-update",
+                            if updating {
+                                format!("Updating to v{version}…")
+                            } else {
+                                format!("Update Launcher to v{version}")
+                            },
+                        )
+                        .style(ButtonStyle::Tinted(ferrum_ui::ui::TintColor::Accent))
+                        .start_icon(Icon::new(IconName::Download))
+                        .disabled(updating);
+                        this.child(if self_updatable {
+                            button
+                                .tooltip(Tooltip::text(
+                                    "Downloads the new version, replaces this app and restarts it",
+                                ))
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.update_launcher(version.clone(), cx)
+                                }))
+                        } else {
+                            button
+                                .tooltip(Tooltip::text(
+                                    "Opens the release page to download the new installer",
+                                ))
+                                .on_click(move |_, _, cx| cx.open_url(&url))
+                        })
+                    })
+                    .when(updates > 0, |this| {
+                        this.child(badge(
+                            format!("{updates} update{}", if updates == 1 { "" } else { "s" }),
+                            cx.theme().status().info,
+                            cx,
+                        ))
+                    }),
+            )
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(
+                        Label::new(last_check)
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .child(
+                        Button::new(
+                            "check-updates",
+                            if self.checking {
+                                "Checking…"
+                            } else {
+                                "Check for updates"
+                            },
+                        )
+                        .start_icon(Icon::new(IconName::RotateCw))
+                        .disabled(self.checking)
+                        .on_click(cx.listener(|this, _, _, cx| this.check_for_updates(true, cx))),
+                    )
+                    .child(
+                        IconButton::new("settings", IconName::Settings)
+                            .tooltip(Tooltip::text("Settings"))
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.open_settings(window, cx)),
+                            ),
+                    ),
+            )
+    }
+}
+
+impl FerrumLauncher {
+    fn render_new_app_notice(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let notice = self.new_app_notice.as_ref()?;
+        let app = notice.app;
+        let colors = cx.theme().colors();
+        Some(
+            h_flex()
+                .px_4()
+                .py_2()
+                .gap_3()
+                .border_b_1()
+                .border_color(colors.border_variant)
+                .bg(colors.elevated_surface_background)
+                .child(self.logo(app, px(20.)))
+                .child(div().flex_1().child(Label::new(notice.message.clone())))
+                .child(
+                    Button::new("new-app-install", "Install")
+                        .style(ButtonStyle::Filled)
+                        .start_icon(Icon::new(IconName::Download))
+                        .on_click(cx.listener(move |this, _, _, cx| this.install_new_app(app, cx))),
+                )
+                .child(
+                    IconButton::new("new-app-dismiss", IconName::Close)
+                        .tooltip(Tooltip::text("Dismiss"))
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.new_app_notice = None;
+                            cx.notify();
+                        })),
+                )
+                .into_any_element(),
+        )
+    }
+}
+
+impl Render for FerrumLauncher {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
+        let repo = format!(
+            "{}/{}",
+            self.state.settings.repo_owner, self.state.settings.repo_name
+        );
+        let auth = match self.token_source {
+            Some(source) => format!("Token: {source}"),
+            None => "No token (public repos only)".to_string(),
+        };
+        let downloads = self.downloads.len();
+
+        v_flex()
+            .relative()
+            .size_full()
+            .bg(colors.background)
+            .text_color(colors.text)
+            .child(self.render_toolbar(cx))
+            .children(self.render_new_app_notice(cx))
+            .child(div().flex_1().min_h_0().child(match self.page {
+                Page::Overview => self.render_overview(cx).into_any_element(),
+                Page::App => self.render_detail(window, cx).into_any_element(),
+            }))
+            .child(
+                status_bar(cx)
+                    .child(Label::new(repo).size(LabelSize::Small).color(Color::Muted))
+                    .child(
+                        h_flex()
+                            .gap_3()
+                            .when(downloads > 0, |this| {
+                                this.child(
+                                    Label::new(format!("{downloads} downloading"))
+                                        .size(LabelSize::Small)
+                                        .color(Color::Accent),
+                                )
+                            })
+                            .child(Label::new(auth).size(LabelSize::Small).color(Color::Muted)),
+                    ),
+            )
+            .when_some(self.onboarding.clone(), |this, onboarding| {
+                this.child(onboarding)
+            })
+            .when_some(self.settings_form.clone(), |this, form| this.child(form))
+            .when_some(self.notice.as_ref(), |this, notice| {
+                this.child(render_notice(
+                    notice,
+                    cx.listener(|this, _, _, cx| {
+                        this.notice = None;
+                        cx.notify();
+                    }),
+                    cx,
+                ))
+            })
+    }
+}

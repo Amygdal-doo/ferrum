@@ -7,7 +7,7 @@ term = "run -p ferrumterm-gui"
 fterm = "run -p ferrumterm-cli --"
 kit = "run -p ferrumkit-desktop"
 dock = "run -p ferrumdock-desktop"
-toolbox = "run -p ferrumtoolbox-desktop"
+launcher = "run -p ferrumlauncher-desktop"
 lint = "clippy --workspace --all-targets -- -D warnings"
 
 [env]

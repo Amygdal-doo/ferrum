@@ -12,7 +12,7 @@ use crate::{products, site};
 
 const DESCRIPTION: &str = "Ferrum is a family of native developer tools written in Rust and \
      rendered with GPUI: Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit \
-     and FerrumDock, installed and updated by Ferrum Toolbox.";
+     and FerrumDock, installed and updated by Ferrum Launcher.";
 
 /// (title, body) pairs for the "native" section.
 const NATIVE: [(&str, &str); 4] = [
@@ -77,7 +77,7 @@ fn hero() -> Markup {
                 p class="hero__lead" {
                     "A code editor, API client, Git client, database IDE, terminal, container "
                     "manager and utilities. Native apps drawn on the GPU, installed and kept up "
-                    "to date by Ferrum Toolbox."
+                    "to date by Ferrum Launcher."
                 }
                 div class="hero__ctas" {
                     (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
@@ -159,12 +159,12 @@ fn native_section() -> Markup {
 fn install_section() -> Markup {
     let steps = [
         (
-            "Get Ferrum Toolbox",
+            "Get Ferrum Launcher",
             html! { p { "Run the command above, or download the DMG and drag it to Applications." } },
         ),
         (
             "Open it",
-            html! { p { "No account and no sign-in. The toolbox lists every Ferrum app." } },
+            html! { p { "No account and no sign-in. The launcher lists every Ferrum app." } },
         ),
         (
             "Install the apps",
@@ -172,7 +172,7 @@ fn install_section() -> Markup {
         ),
         (
             "Stay current",
-            html! { p { "New versions show up on their own, and the toolbox updates itself in place." } },
+            html! { p { "New versions show up on their own, and the launcher updates itself in place." } },
         ),
     ];
     html! {

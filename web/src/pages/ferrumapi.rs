@@ -97,7 +97,7 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Toolbox (free, see Download)"),
+        ("Install", "Ferrum Launcher (free, see Download)"),
         ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
         ("Built with", "Rust, GPUI, reqwest + rustls, SQLite"),
         (
@@ -107,7 +107,7 @@ const PAGE: ProductPage = ProductPage {
         ("Data", "Stored locally on your machine"),
     ],
     specs_note: "Builds are free public GitHub Releases, installed through Ferrum \
-                 Toolbox. Only macOS has been smoke-tested so far.",
+                 Launcher. Only macOS has been smoke-tested so far.",
 };
 
 pub fn render(site_url: &str) -> Markup {

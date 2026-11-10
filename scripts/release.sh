@@ -2,11 +2,11 @@
 # Tags a Ferrum app release: scripts/release.sh <app-id> <version> [-m "notes"]
 # Creates the annotated tag `<app-id>-v<version>` locally. Pushing it runs
 # .github/workflows/release.yml, which builds and publishes the release that
-# FerrumToolbox picks up. This script never pushes.
+# Ferrum Launcher picks up. This script never pushes.
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 <ide|api|git|data|term|kit|dock|toolbox> <semver> [-m \"release notes\"]" >&2
+  echo "usage: $0 <ide|api|git|data|term|kit|dock|launcher> <semver> [-m \"release notes\"]" >&2
   exit 2
 }
 
@@ -23,7 +23,10 @@ while [ $# -gt 0 ]; do
 done
 
 case "$app" in
-  ide|api|git|data|term|kit|dock|toolbox) ;;
+  ide|api|git|data|term|kit|dock|launcher) ;;
+  toolbox)
+    echo "error: toolbox-v* tags are only the bridge for Ferrum Toolbox 0.5.0; release 'launcher' and see launcher/README.md" >&2
+    exit 2 ;;
   *) echo "error: unknown app id '$app'" >&2; usage ;;
 esac
 

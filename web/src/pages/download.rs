@@ -1,5 +1,5 @@
-//! Download page: the macOS toolbox installer (public, no sign-in), then how
-//! the toolbox installs and updates the apps.
+//! Download page: the macOS launcher installer (public, no sign-in), then how
+//! the launcher installs and updates the apps.
 
 use maud::{Markup, html};
 
@@ -10,40 +10,40 @@ use crate::components::{
 use crate::layout::{PageMeta, page};
 use crate::{products, site};
 
-const DESCRIPTION: &str = "Download Ferrum Toolbox for macOS (Apple Silicon) and install every \
+const DESCRIPTION: &str = "Download Ferrum Launcher for macOS (Apple Silicon) and install every \
      Ferrum app from it. Free public builds: no GitHub account, no sign-in.";
 
-/// Per-OS toolbox installers: (system, file, how to install, published yet).
-/// Only the toolbox has installers; it installs the other apps.
+/// Per-OS launcher installers: (system, file, how to install, published yet).
+/// Only the launcher has installers; it installs the other apps.
 const INSTALLERS: [(&str, &str, &str, bool); 3] = [
     (
         "macOS",
-        "FerrumToolbox-<version>-aarch64.dmg",
-        "open it and drag Ferrum Toolbox onto Applications. Apple Silicon only.",
+        "FerrumLauncher-<version>-aarch64.dmg",
+        "open it and drag Ferrum Launcher onto Applications. Apple Silicon only.",
         true,
     ),
     (
         "Windows",
-        "FerrumToolbox-<version>-x86_64-setup.exe",
+        "FerrumLauncher-<version>-x86_64-setup.exe",
         "coming soon.",
         false,
     ),
     (
         "Linux",
-        "ferrum-toolbox_<version>_amd64.deb",
+        "ferrum-launcher_<version>_amd64.deb",
         "coming soon (Debian and Ubuntu).",
         false,
     ),
 ];
 
-fn get_toolbox_steps() -> [(&'static str, Markup); 3] {
+fn get_launcher_steps() -> [(&'static str, Markup); 3] {
     [
         (
-            "Download the toolbox",
+            "Download the launcher",
             html! {
                 p {
                     "Click " strong { "Download for macOS" } " to get the newest "
-                    code { "FerrumToolbox-<version>-aarch64.dmg" } ". It needs a Mac with Apple \
+                    code { "FerrumLauncher-<version>-aarch64.dmg" } ". It needs a Mac with Apple \
                     Silicon. Every build is also listed in the "
                     a href=(site::RELEASES_URL) rel="noopener" { "public releases" }
                     " on GitHub."
@@ -53,11 +53,11 @@ fn get_toolbox_steps() -> [(&'static str, Markup); 3] {
         (
             "Install it",
             html! {
-                p { "Open the DMG and drag " strong { "Ferrum Toolbox.app" } " to Applications." }
+                p { "Open the DMG and drag " strong { "Ferrum Launcher.app" } " to Applications." }
             },
         ),
         (
-            "Open Ferrum Toolbox",
+            "Open Ferrum Launcher",
             html! {
                 p {
                     "Open it from Applications. There is nothing to sign in to: it downloads \
@@ -87,7 +87,7 @@ fn gatekeeper_section() -> Markup {
                         Apple, so a DMG downloaded in the browser is blocked on first launch \
                         with a \"could not verify\" malware warning. The easiest way around \
                         it is to install from Terminal instead; nothing downloaded this way is \
-                        quarantined, so the toolbox opens straight away:"
+                        quarantined, so the launcher opens straight away:"
                     }
                     pre class="code-block" {
                         code { (site::MACOS_INSTALL_COMMAND) }
@@ -99,11 +99,11 @@ fn gatekeeper_section() -> Markup {
                         app and choose Open.) Or clear the quarantine flag:"
                     }
                     pre class="code-block" {
-                        code { "xattr -dr com.apple.quarantine \"/Applications/Ferrum Toolbox.app\"" }
+                        code { "xattr -dr com.apple.quarantine \"/Applications/Ferrum Launcher.app\"" }
                     }
                     p class="muted" {
-                        "You only need to do this once. Apps the toolbox installs, and the \
-                        toolbox's own updates, are downloaded without the quarantine flag, \
+                        "You only need to do this once. Apps the launcher installs, and the \
+                        launcher's own updates, are downloaded without the quarantine flag, \
                         so they open without asking. Signed and notarized builds are on the way."
                     }
                 }
@@ -112,7 +112,7 @@ fn gatekeeper_section() -> Markup {
     }
 }
 
-fn use_toolbox_steps() -> [(&'static str, Markup); 3] {
+fn use_launcher_steps() -> [(&'static str, Markup); 3] {
     [
         (
             "Install any app",
@@ -128,7 +128,7 @@ fn use_toolbox_steps() -> [(&'static str, Markup); 3] {
             "Stay up to date",
             html! {
                 p {
-                    "The toolbox checks for new releases on startup and every few hours and "
+                    "The launcher checks for new releases on startup and every few hours and "
                     "shows an update badge next to each app. It updates itself in place too: "
                     "download, replace, restart."
                 }
@@ -147,7 +147,7 @@ fn use_toolbox_steps() -> [(&'static str, Markup); 3] {
 }
 
 pub fn render(site_url: &str) -> Markup {
-    let toolbox = products::FERRUM_TOOLBOX;
+    let launcher = products::FERRUM_LAUNCHER;
     let meta = PageMeta::new(
         Some("Download"),
         DESCRIPTION,
@@ -158,14 +158,14 @@ pub fn render(site_url: &str) -> Markup {
         site_url,
         &meta,
         html! {
-            section class="download-hero" style=(toolbox.accent_style()) aria-labelledby="download-title" {
+            section class="download-hero" style=(launcher.accent_style()) aria-labelledby="download-title" {
                 div class="container download-hero__inner" {
-                    (card::app_logo(&toolbox, "app-logo--hero", false))
+                    (card::app_logo(&launcher, "app-logo--hero", false))
                     div {
                         p class="eyebrow" { "Download" }
-                        h1 id="download-title" { "Get Ferrum Toolbox" }
+                        h1 id="download-title" { "Get Ferrum Launcher" }
                         p class="lead" {
-                            "Install the toolbox once, then install, update and roll back every "
+                            "Install the launcher once, then install, update and roll back every "
                             "Ferrum app from one window."
                         }
                         div class="download-actions" {
@@ -179,7 +179,7 @@ pub fn render(site_url: &str) -> Markup {
                                 strong { "Public builds." }
                                 " Releases are published in the public "
                                 code { (site::REPO_SLUG) } " repository on GitHub. You don't "
-                                "need a GitHub account, and the toolbox installs every other app "
+                                "need a GitHub account, and the launcher installs every other app "
                                 "without signing in."
                             }
                         }
@@ -189,8 +189,8 @@ pub fn render(site_url: &str) -> Markup {
             section class="section" aria-labelledby="get-title" {
                 div class="container" {
                     p class="eyebrow" { "Step by step" }
-                    h2 id="get-title" { "Install Ferrum Toolbox" }
-                    (card::steps(&get_toolbox_steps()))
+                    h2 id="get-title" { "Install Ferrum Launcher" }
+                    (card::steps(&get_launcher_steps()))
                 }
             }
             (gatekeeper_section())
@@ -198,7 +198,7 @@ pub fn render(site_url: &str) -> Markup {
                 div class="container" {
                     p class="eyebrow" { "Then" }
                     h2 id="use-title" { "Install the apps" }
-                    (card::steps(&use_toolbox_steps()))
+                    (card::steps(&use_launcher_steps()))
                     ul class="app-strip" {
                         @for p in products::apps() {
                             li style=(p.accent_style()) {
@@ -213,11 +213,11 @@ pub fn render(site_url: &str) -> Markup {
             }
             section class="section section--tight" aria-labelledby="platforms-title" {
                 div class="container" {
-                    h2 id="platforms-title" { "Toolbox installers" }
+                    h2 id="platforms-title" { "Launcher installers" }
                     p {
-                        "The toolbox is the only thing you download by hand. FerrumIDE, "
+                        "The launcher is the only thing you download by hand. FerrumIDE, "
                         "FerrumAPI, FerrumGIT, FerrumData and FerrumTerm have no separate "
-                        "installers: install, update and remove them from the toolbox."
+                        "installers: install, update and remove them from the launcher."
                     }
                     dl class="spec-sheet" {
                         @for (os, file, how, published) in INSTALLERS {
@@ -234,7 +234,7 @@ pub fn render(site_url: &str) -> Markup {
                     div class="download-actions" {
                         (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
                         (button::link("All releases on GitHub", site::RELEASES_URL, Variant::Secondary))
-                        (button::link("About Ferrum Toolbox", &toolbox.path(), Variant::Secondary))
+                        (button::link("About Ferrum Launcher", &launcher.path(), Variant::Secondary))
                     }
                 }
             }
@@ -286,8 +286,8 @@ mod tests {
     #[test]
     fn lists_an_installer_per_os() {
         let html = rendered();
-        assert!(html.contains("Toolbox installers"));
-        assert!(html.contains("FerrumToolbox-&lt;version&gt;-aarch64.dmg"));
+        assert!(html.contains("Launcher installers"));
+        assert!(html.contains("FerrumLauncher-&lt;version&gt;-aarch64.dmg"));
         assert!(!html.contains("x86_64.dmg"));
         for os in ["macOS", "Windows", "Linux"] {
             assert!(

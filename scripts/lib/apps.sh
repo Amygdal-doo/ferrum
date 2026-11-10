@@ -2,8 +2,8 @@
 #   ferrum_app <app-id>
 # which sets: APP_NAME, APP_FILE_NAME (no spaces), APP_BINARIES, DEB_PACKAGE,
 # APP_SUMMARY and APP_WINDOWS (yes/no). Returns 1 for unknown ids.
-# Keep in sync with scripts/bundle-macos.sh, scripts/package-windows.ps1 and
-# toolbox/crates/core/src/catalog.rs.
+# Keep in sync with scripts/bundle-macos.sh, scripts/package-windows.ps1,
+# launcher/crates/core/src/catalog.rs and catalog.json.
 
 ferrum_app() {
   APP_WINDOWS=yes
@@ -31,8 +31,8 @@ ferrum_app() {
     dock)
       APP_NAME="FerrumDock"; APP_BINARIES="ferrumdock"; DEB_PACKAGE="ferrumdock"
       APP_SUMMARY="Native container manager for Docker-compatible engines" ;;
-    toolbox)
-      APP_NAME="Ferrum Toolbox"; APP_BINARIES="ferrum-toolbox"; DEB_PACKAGE="ferrum-toolbox"
+    launcher)
+      APP_NAME="Ferrum Launcher"; APP_BINARIES="ferrum-launcher"; DEB_PACKAGE="ferrum-launcher"
       APP_SUMMARY="Installs, updates and rolls back the Ferrum apps" ;;
     *) return 1 ;;
   esac

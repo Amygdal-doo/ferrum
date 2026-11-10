@@ -81,9 +81,9 @@ fn hero(p: &ProductPage) -> Markup {
                     p class="lead" { (p.intro) }
                     div class="product-hero__ctas" {
                         (button::link(site::DOWNLOAD_LABEL, site::DOWNLOAD_PATH, Variant::Primary))
-                        @if prod.slug != products::FERRUM_TOOLBOX.slug {
-                            (button::link("Install with Ferrum Toolbox",
-                                &products::FERRUM_TOOLBOX.path(), Variant::Secondary))
+                        @if prod.slug != products::FERRUM_LAUNCHER.slug {
+                            (button::link("Install with Ferrum Launcher",
+                                &products::FERRUM_LAUNCHER.path(), Variant::Secondary))
                         }
                     }
                 }

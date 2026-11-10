@@ -11,7 +11,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 <ide|api|git|data|term|toolbox> <semver> <binary-dir> <out-dir> [arch]" >&2
+  echo "usage: $0 <ide|api|git|data|term|kit|dock|launcher> <semver> <binary-dir> <out-dir> [arch]" >&2
   exit 2
 }
 
@@ -52,6 +52,9 @@ for binary in $APP_BINARIES; do
   install -m 755 "$binary_dir/$binary" "$pkg$install_dir/$binary"
   ln -s "$install_dir/$binary" "$pkg/usr/bin/$binary"
 done
+
+# Ferrum Toolbox's command name, kept for one release after the rename.
+[ "$app" = "launcher" ] && ln -s "$install_dir/$main_binary" "$pkg/usr/bin/ferrum-toolbox"
 
 for size in 16 32 64 128 256 512; do
   icon="$root/brand/png/$app-$size.png"
@@ -104,6 +107,12 @@ fi
 depends="$(printf '%s\n' "$depends" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | awk 'NF { split($1, p, "|"); if (!seen[p[1]]++) print }' | paste -sd, - | sed 's/,/, /g')"
 
 installed_size="$(du -sk "$pkg" | cut -f1)"
+# Ferrum Launcher was called Ferrum Toolbox (package ferrum-toolbox) until 0.6.0.
+relations=""
+[ "$app" = "launcher" ] && relations="Conflicts: ferrum-toolbox
+Replaces: ferrum-toolbox
+Provides: ferrum-toolbox
+"
 cat > "$pkg/DEBIAN/control" <<CONTROL
 Package: $DEB_PACKAGE
 Version: $deb_version
@@ -111,7 +120,7 @@ Architecture: $arch
 Maintainer: $maintainer
 Installed-Size: $installed_size
 Depends: $depends
-Recommends: mesa-vulkan-drivers | vulkan-icd
+${relations}Recommends: mesa-vulkan-drivers | vulkan-icd
 Section: devel
 Priority: optional
 Homepage: $homepage

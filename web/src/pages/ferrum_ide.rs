@@ -47,7 +47,7 @@ const INHERITED: &[&str] = &[
 const FERRUM: &[&str] = &[
     "Rebranded as Ferrum IDE",
     "Its GPUI, UI and theme crates power every other Ferrum app",
-    "Installed and updated through Ferrum Toolbox",
+    "Installed and updated through Ferrum Launcher",
     "Ferrum-specific integrations with the other apps are being explored",
 ];
 
@@ -77,10 +77,10 @@ const PAGE: ProductPage = ProductPage {
         ("Upstream", "Zed, by Zed Industries"),
         ("Built with", "Rust, GPUI (via Zed)"),
         ("Licensing", "Follows Zed's open-source licenses"),
-        ("Install", "Ferrum Toolbox (free, see Download)"),
+        ("Install", "Ferrum Launcher (free, see Download)"),
     ],
     specs_note: "Builds are free public GitHub Releases, installed through Ferrum \
-                 Toolbox.",
+                 Launcher.",
 };
 
 /// Upstream credit and independence disclaimer, shown right after the hero.
@@ -140,6 +140,6 @@ mod tests {
     fn links_to_the_other_products() {
         let html = rendered();
         assert!(html.contains("href=\"/ferrumdata\""));
-        assert!(html.contains("href=\"/ferrum-toolbox\""));
+        assert!(html.contains("href=\"/ferrum-launcher\""));
     }
 }

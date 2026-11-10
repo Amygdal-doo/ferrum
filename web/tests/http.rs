@@ -55,7 +55,7 @@ const PAGES: [&str; 12] = [
     "/ferrumterm",
     "/ferrumkit",
     "/ferrumdock",
-    "/ferrum-toolbox",
+    "/ferrum-launcher",
     "/download",
     "/about",
 ];
@@ -87,7 +87,7 @@ async fn download_page_offers_public_macos_download() {
     let res = get("/download").await;
     assert_eq!(res.status, StatusCode::OK);
     let html = res.text();
-    assert!(html.contains("Get Ferrum Toolbox"));
+    assert!(html.contains("Get Ferrum Launcher"));
     assert!(html.contains(r#"href="/download/macos""#));
     assert!(html.contains("https://github.com/Amygdal-doo/ferrum-releases/releases"));
     assert!(!html.contains("gh auth login"));
@@ -115,8 +115,8 @@ async fn get_with(resolver: MacosDownload, uri: &str) -> Res {
 #[tokio::test]
 async fn macos_download_redirects_to_newest_dmg() {
     let json = r#"[
-      {"tag_name": "toolbox-v0.2.0", "draft": false, "prerelease": false,
-       "assets": [{"name": "FerrumToolbox-0.2.0-aarch64.dmg",
+      {"tag_name": "launcher-v0.2.0", "draft": false, "prerelease": false,
+       "assets": [{"name": "FerrumLauncher-0.2.0-aarch64.dmg",
                    "browser_download_url": "https://dl.test/0.2.0.dmg"}]}
     ]"#;
     let res = get_with(fake_releases(Ok(json)), "/download/macos").await;
@@ -139,7 +139,7 @@ async fn macos_download_falls_back_to_releases_page() {
 async fn brand_assets_are_served() {
     for path in [
         "/assets/img/brand/ferrum.svg",
-        "/assets/img/brand/toolbox.svg",
+        "/assets/img/brand/launcher.svg",
         "/assets/img/brand/ferrum-wordmark.svg",
         "/assets/img/favicon.svg",
     ] {
@@ -296,4 +296,11 @@ async fn security_headers_on_every_response() {
         assert_eq!(res.header(header::X_FRAME_OPTIONS), "DENY", "{path}");
         assert!(res.headers.get(header::CONTENT_SECURITY_POLICY).is_none());
     }
+}
+
+#[tokio::test]
+async fn old_toolbox_page_redirects_to_launcher() {
+    let res = get("/ferrum-toolbox").await;
+    assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.header(header::LOCATION), "/ferrum-launcher");
 }

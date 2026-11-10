@@ -16,8 +16,8 @@ members = [
     "data/crates/*",
     "term/apps/*",
     "term/crates/*",
-    "toolbox/apps/*",
-    "toolbox/crates/*",
+    "launcher/apps/*",
+    "launcher/crates/*",
     "dock/apps/*",
     "dock/crates/*",
     "kit/apps/*",
@@ -87,8 +87,8 @@ ferrumterm-server = { path = "term/crates/server" }
 ferrumterm-client = { path = "term/crates/client" }
 ferrumterm-net = { path = "term/crates/net" }
 
-# FerrumToolbox
-ferrumtoolbox-core = { path = "toolbox/crates/core" }
+# Ferrum Launcher
+ferrumlauncher-core = { path = "launcher/crates/core" }
 
 # FerrumDock
 ferrumdock-engine = { path = "dock/crates/engine" }

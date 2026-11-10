@@ -1,21 +1,25 @@
 # Publishes a Ferrum app release when a tag `<app-id>-v<semver>` is pushed,
-# e.g. `api-v0.2.0`. FerrumToolbox reads these releases.
+# e.g. `api-v0.2.0`. Ferrum Launcher reads these releases.
 #
 # Assets per target, each with a `<same>.sha256`.
-# Read by FerrumToolbox:
+# Read by Ferrum Launcher:
 #   <app-id>-<version>-<target>.tar.gz      macOS/Linux: binaries at the root
 #   <app-id>-<version>-<target>.app.tar.gz  macOS: the .app bundle
 #   <app-id>-<version>-<target>.zip         Windows: .exe files and <app-id>.ico
-# Installers for people downloading by hand (toolbox only; the other apps
-# are installed through the toolbox):
+# Installers for people downloading by hand (launcher only; the other apps
+# are installed through the launcher):
 #   <AppName>-<version>-<arch>.dmg          macOS disk image
 #   <package>_<version>_amd64.deb           Debian/Ubuntu package
 #   <AppName>-<version>-x86_64-setup.exe    Windows per-user installer (Inno Setup)
 # FerrumTerm has no Windows build (its server uses Unix sockets).
 #
 # Releases are published to the public, releases-only repo $RELEASE_REPO
-# (customers and FerrumToolbox download from it without signing in), not to
+# (customers and Ferrum Launcher download from it without signing in), not to
 # this private source repo.
+#
+# `toolbox-v*` releases (the bridge for Ferrum Toolbox 0.5.0) are not built
+# here: scripts/package-bridge.sh makes them from a launcher release (see
+# launcher/README.md).
 #
 # Secrets:
 #   RELEASES_TOKEN   A token with Contents: write on $RELEASE_REPO.
@@ -63,7 +67,8 @@ jobs:
             term)    package="ferrumterm-gui ferrumterm-cli"; binaries="ferrumterm fterm" ;;
             kit)     package=ferrumkit-desktop;     binaries="ferrumkit" ;;
             dock)    package=ferrumdock-desktop;    binaries="ferrumdock" ;;
-            toolbox) package=ferrumtoolbox-desktop; binaries="ferrum-toolbox" ;;
+            launcher) package=ferrumlauncher-desktop; binaries="ferrum-launcher" ;;
+            toolbox) echo "::error::toolbox-v* is the Ferrum Toolbox 0.5.0 bridge; build it with scripts/package-bridge.sh"; exit 1 ;;
             *) echo "::error::unknown app id '$app'"; exit 1 ;;
           esac
           {
@@ -141,7 +146,7 @@ jobs:
           rustup target add "${{ matrix.target }}"
           args=()
           for package in $PACKAGE; do args+=(-p "$package"); done
-          # Read by ferrumtoolbox_core::platform::running_version.
+          # Read by ferrumlauncher_core::platform::running_version.
           FERRUM_VERSION="$VERSION" cargo build --release --locked --target "${{ matrix.target }}" "${args[@]}"
           target_dir="$PWD/target/${{ matrix.target }}/release"
           if [ "${{ runner.os }}" = "Windows" ]; then
@@ -189,7 +194,7 @@ jobs:
             assets+=("$1" "$1.sha256")
           }
 
-          # Plain archive: binaries at the root (Linux, CLI use, older toolboxes).
+          # Plain archive: binaries at the root (Linux, CLI use, older launchers).
           name="${APP}-${VERSION}-${{ matrix.target }}.tar.gz"
           staging="$(mktemp -d)"
           for binary in $BINARIES; do
@@ -199,7 +204,7 @@ jobs:
           checksum "$name"
 
           if [ "${{ runner.os }}" = "macOS" ]; then
-            # .app bundle archive: preferred by FerrumToolbox on macOS.
+            # .app bundle archive: preferred by Ferrum Launcher on macOS.
             bundles="$(mktemp -d)"
             bundle="$(scripts/bundle-macos.sh "$APP" "$VERSION" "${{ matrix.target }}" "$TARGET_DIR" "$bundles")"
             if [ -n "${FERRUM_NOTARY_KEY:-}" ]; then
@@ -209,9 +214,9 @@ jobs:
             tar -C "$bundles" -czf "$app_archive" "$(basename "$bundle")"
             checksum "$app_archive"
 
-            # Only the toolbox gets an installer; the other apps are
+            # Only the launcher gets an installer; the other apps are
             # installed through it from the archives above.
-            if [ "$APP" = "toolbox" ]; then
+            if [ "$APP" = "launcher" ]; then
               arch="${{ matrix.target }}"
               arch="${arch%%-*}"
               dmg="${APP_FILE_NAME}-${VERSION}-${arch}.dmg"
@@ -221,7 +226,7 @@ jobs:
               fi
               checksum "$dmg"
             fi
-          elif [ "$APP" = "toolbox" ]; then
+          elif [ "$APP" = "launcher" ]; then
             deb="$(scripts/package-deb.sh "$APP" "$VERSION" "$TARGET_DIR" .)"
             checksum "$(basename "$deb")"
           fi
@@ -232,9 +237,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          # Only the toolbox gets a setup.exe; the other apps install from the zip.
+          # Only the launcher gets a setup.exe; the other apps install from the zip.
           $installer = @{}
-          if ($env:APP -ne "toolbox") { $installer.SkipInstaller = $true }
+          if ($env:APP -ne "launcher") { $installer.SkipInstaller = $true }
           $files = & ./scripts/package-windows.ps1 -App $env:APP -Version $env:VERSION `
             -BinaryDir $env:TARGET_DIR -OutDir . -Target "${{ matrix.target }}" @installer
           $assets = @()

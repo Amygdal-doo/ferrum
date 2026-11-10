@@ -19,7 +19,7 @@ pub fn for_slug(slug: &str) -> Option<Markup> {
         s if s == products::FERRUMTERM.slug => term,
         s if s == products::FERRUMKIT.slug => kit,
         s if s == products::FERRUMDOCK.slug => dock,
-        s if s == products::FERRUM_TOOLBOX.slug => toolbox,
+        s if s == products::FERRUM_LAUNCHER.slug => launcher,
         _ => return None,
     };
     Some(demo())
@@ -246,7 +246,7 @@ pub fn term() -> Markup {
     )
 }
 
-pub fn toolbox() -> Markup {
+pub fn launcher() -> Markup {
     let apps = [
         ("Ferrum IDE", "--app-ide", "0.3.0-alpha.1"),
         ("FerrumAPI", "--app-api", "0.2.0-alpha.1"),
@@ -255,12 +255,12 @@ pub fn toolbox() -> Markup {
         ("FerrumTerm", "--app-term", "0.2.0-alpha.1"),
     ];
     window(
-        "Ferrum Toolbox",
+        "Ferrum Launcher",
         "tb",
         html! {
             div class="tb__banner" {
-                span { "Ferrum Toolbox 0.5.0 is available" }
-                span class="tb__btn tb__btn--self" { "Update Toolbox" }
+                span { "Ferrum Launcher 0.5.0 is available" }
+                span class="tb__btn tb__btn--self" { "Update Launcher" }
             }
             ul class="tb__apps" {
                 @for (name, var, version) in apps {

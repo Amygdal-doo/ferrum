@@ -2,7 +2,7 @@
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
-    /// Installable through Ferrum Toolbox, actively developed. Every app today.
+    /// Installable through Ferrum Launcher, actively developed. Every app today.
     Alpha,
 }
 
@@ -128,12 +128,12 @@ pub const FERRUMDOCK: Product = Product {
     status: Status::Alpha,
 };
 
-pub const FERRUM_TOOLBOX: Product = Product {
-    slug: "ferrum-toolbox",
-    name: "Ferrum Toolbox",
+pub const FERRUM_LAUNCHER: Product = Product {
+    slug: "ferrum-launcher",
+    name: "Ferrum Launcher",
     symbol: "Fx",
-    logo: "toolbox",
-    accent_var: "--app-toolbox",
+    logo: "launcher",
+    accent_var: "--app-launcher",
     kind: "App manager",
     tagline: "Installs, updates, rolls back and launches every Ferrum app from one window.",
     status: Status::Alpha,
@@ -147,12 +147,12 @@ pub const ALL: [Product; 8] = [
     FERRUMTERM,
     FERRUMKIT,
     FERRUMDOCK,
-    FERRUM_TOOLBOX,
+    FERRUM_LAUNCHER,
 ];
 
-/// The apps Ferrum Toolbox manages, i.e. everything except the toolbox itself.
+/// The apps Ferrum Launcher manages, i.e. everything except the launcher itself.
 pub fn apps() -> impl Iterator<Item = &'static Product> {
-    ALL.iter().filter(|p| p.slug != FERRUM_TOOLBOX.slug)
+    ALL.iter().filter(|p| p.slug != FERRUM_LAUNCHER.slug)
 }
 
 #[cfg(test)]
@@ -182,8 +182,8 @@ mod tests {
     }
 
     #[test]
-    fn apps_excludes_the_toolbox() {
+    fn apps_excludes_the_launcher() {
         assert_eq!(apps().count(), ALL.len() - 1);
-        assert!(apps().all(|p| p.slug != FERRUM_TOOLBOX.slug));
+        assert!(apps().all(|p| p.slug != FERRUM_LAUNCHER.slug));
     }
 }

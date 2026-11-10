@@ -2931,6 +2931,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrumlauncher-core"
+version = "0.6.0"
+dependencies = [
+ "chrono",
+ "directories",
+ "flate2",
+ "futures",
+ "keyring",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tar",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+ "zip",
+]
+
+[[package]]
+name = "ferrumlauncher-desktop"
+version = "0.6.0"
+dependencies = [
+ "chrono",
+ "ferrum-ui",
+ "ferrumlauncher-core",
+ "semver",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ferrumterm-cli"
 version = "0.1.0"
 dependencies = [
@@ -3022,44 +3060,6 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "ferrumtoolbox-core"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "directories",
- "flate2",
- "futures",
- "keyring",
- "reqwest",
- "semver",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "tar",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tokio-util",
- "tracing",
- "uuid",
- "zip",
-]
-
-[[package]]
-name = "ferrumtoolbox-desktop"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "ferrum-ui",
- "ferrumtoolbox-core",
- "semver",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

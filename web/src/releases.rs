@@ -1,7 +1,7 @@
-//! Resolves the newest stable Ferrum Toolbox DMG in the public releases repo.
+//! Resolves the newest stable Ferrum Launcher DMG in the public releases repo.
 //!
 //! Selection is a pure function over the GitHub API JSON
-//! ([`newest_toolbox_dmg`]). [`MacosDownload`] wraps it with an injectable
+//! ([`newest_launcher_dmg`]). [`MacosDownload`] wraps it with an injectable
 //! fetcher and an in-memory cache, and falls back to [`site::RELEASES_URL`].
 
 use std::{
@@ -15,8 +15,11 @@ use serde::Deserialize;
 
 use crate::site;
 
-/// Toolbox release tags look like `toolbox-v0.4.2`. The repo also holds the
+/// Launcher release tags look like `launcher-v0.6.0`. The repo also holds the
 /// other apps' releases, so GitHub's "latest release" is not reliable.
+pub const LAUNCHER_TAG_PREFIX: &str = "launcher-v";
+/// The launcher was called Ferrum Toolbox up to 0.5.0, released as
+/// `toolbox-v*`; those (and the `toolbox-v*` bridge releases) still count.
 pub const TOOLBOX_TAG_PREFIX: &str = "toolbox-v";
 /// Asset name suffix of the Apple Silicon installer.
 pub const MACOS_DMG_SUFFIX: &str = "-aarch64.dmg";
@@ -44,25 +47,32 @@ struct Asset {
     browser_download_url: String,
 }
 
-/// `toolbox-v1.2.3` -> `(1, 2, 3)`. Anything else (including pre-release
-/// suffixes such as `-rc.1`) is `None`.
-fn toolbox_version(tag: &str) -> Option<(u64, u64, u64)> {
-    let mut parts = tag.strip_prefix(TOOLBOX_TAG_PREFIX)?.split('.');
+/// `launcher-v1.2.3` -> `((1, 2, 3), true)`, `toolbox-v1.2.3` ->
+/// `((1, 2, 3), false)`. Anything else (including pre-release suffixes such
+/// as `-rc.1`) is `None`. The flag makes a launcher release win a tie with
+/// the toolbox bridge release of the same version.
+fn launcher_version(tag: &str) -> Option<((u64, u64, u64), bool)> {
+    let (rest, is_launcher) = match tag.strip_prefix(LAUNCHER_TAG_PREFIX) {
+        Some(rest) => (rest, true),
+        None => (tag.strip_prefix(TOOLBOX_TAG_PREFIX)?, false),
+    };
+    let mut parts = rest.split('.');
     let mut next = || parts.next()?.parse::<u64>().ok();
     let version = (next()?, next()?, next()?);
-    parts.next().is_none().then_some(version)
+    parts.next().is_none().then_some((version, is_launcher))
 }
 
 /// Download URL of the `*-aarch64.dmg` asset of the newest non-draft,
-/// non-prerelease `toolbox-v*` release in a `GET /repos/{repo}/releases`
-/// response. `None` if the JSON is invalid or nothing matches.
-pub fn newest_toolbox_dmg(json: &str) -> Option<String> {
+/// non-prerelease `launcher-v*` (or older `toolbox-v*`) release in a
+/// `GET /repos/{repo}/releases` response. `None` if the JSON is invalid or
+/// nothing matches.
+pub fn newest_launcher_dmg(json: &str) -> Option<String> {
     let releases: Vec<Release> = serde_json::from_str(json).ok()?;
     releases
         .into_iter()
         .filter(|r| !r.draft && !r.prerelease)
         .filter_map(|r| {
-            let version = toolbox_version(&r.tag_name)?;
+            let version = launcher_version(&r.tag_name)?;
             let dmg = r
                 .assets
                 .into_iter()
@@ -134,21 +144,21 @@ impl MacosDownload {
             .map(|(_, url)| url.clone())
     }
 
-    /// Newest toolbox DMG URL, or [`site::RELEASES_URL`] if it can't be resolved.
+    /// Newest launcher DMG URL, or [`site::RELEASES_URL`] if it can't be resolved.
     pub async fn url(&self) -> String {
         if let Some(url) = self.cached() {
             return url;
         }
         let (url, ttl) = match (self.fetch)().await {
-            Ok(body) => match newest_toolbox_dmg(&body) {
+            Ok(body) => match newest_launcher_dmg(&body) {
                 Some(url) => (url, CACHE_TTL),
                 None => {
-                    tracing::warn!("no stable toolbox DMG found in releases");
+                    tracing::warn!("no stable launcher DMG found in releases");
                     (site::RELEASES_URL.to_owned(), FAILURE_TTL)
                 }
             },
             Err(err) => {
-                tracing::warn!(%err, "failed to fetch toolbox releases");
+                tracing::warn!(%err, "failed to fetch launcher releases");
                 (site::RELEASES_URL.to_owned(), FAILURE_TTL)
             }
         };
@@ -189,32 +199,52 @@ mod tests {
     ]"#;
 
     #[test]
-    fn parses_toolbox_tags() {
-        assert_eq!(toolbox_version("toolbox-v1.2.3"), Some((1, 2, 3)));
-        assert_eq!(toolbox_version("toolbox-v1.2"), None);
-        assert_eq!(toolbox_version("toolbox-v1.2.3.4"), None);
-        assert_eq!(toolbox_version("toolbox-v1.2.3-rc.1"), None);
-        assert_eq!(toolbox_version("api-v1.2.3"), None);
+    fn parses_launcher_and_toolbox_tags() {
+        assert_eq!(launcher_version("launcher-v1.2.3"), Some(((1, 2, 3), true)));
+        assert_eq!(launcher_version("toolbox-v1.2.3"), Some(((1, 2, 3), false)));
+        assert_eq!(launcher_version("launcher-v1.2"), None);
+        assert_eq!(launcher_version("toolbox-v1.2.3.4"), None);
+        assert_eq!(launcher_version("launcher-v1.2.3-rc.1"), None);
+        assert_eq!(launcher_version("api-v1.2.3"), None);
     }
 
     #[test]
-    fn picks_newest_stable_toolbox_dmg() {
+    fn launcher_release_wins_over_its_toolbox_bridge() {
+        let json = r#"[
+          {"tag_name": "toolbox-v0.6.0", "draft": false, "prerelease": false,
+           "assets": [{"name": "FerrumToolbox-0.6.0-aarch64.dmg",
+                       "browser_download_url": "https://dl.test/bridge.dmg"}]},
+          {"tag_name": "launcher-v0.6.0", "draft": false, "prerelease": false,
+           "assets": [{"name": "FerrumLauncher-0.6.0-aarch64.dmg",
+                       "browser_download_url": "https://dl.test/launcher.dmg"}]},
+          {"tag_name": "toolbox-v0.5.0", "draft": false, "prerelease": false,
+           "assets": [{"name": "FerrumToolbox-0.5.0-aarch64.dmg",
+                       "browser_download_url": "https://dl.test/0.5.0.dmg"}]}
+        ]"#;
+        assert_eq!(
+            newest_launcher_dmg(json).as_deref(),
+            Some("https://dl.test/launcher.dmg")
+        );
+    }
+
+    #[test]
+    fn picks_newest_stable_dmg() {
         // Skips other apps, drafts, prereleases and releases without a DMG;
         // compares versions numerically (0.3.10 > 0.3.9), not by list order.
         assert_eq!(
-            newest_toolbox_dmg(SAMPLE).as_deref(),
+            newest_launcher_dmg(SAMPLE).as_deref(),
             Some("https://dl.test/0.3.10.dmg")
         );
     }
 
     #[test]
     fn none_when_nothing_matches_or_json_is_invalid() {
-        assert_eq!(newest_toolbox_dmg("[]"), None);
+        assert_eq!(newest_launcher_dmg("[]"), None);
         assert_eq!(
-            newest_toolbox_dmg(r#"{"message": "API rate limit exceeded"}"#),
+            newest_launcher_dmg(r#"{"message": "API rate limit exceeded"}"#),
             None
         );
-        assert_eq!(newest_toolbox_dmg("not json"), None);
+        assert_eq!(newest_launcher_dmg("not json"), None);
     }
 
     fn counting(result: Result<&'static str, &'static str>) -> (Fetcher, Arc<AtomicUsize>) {

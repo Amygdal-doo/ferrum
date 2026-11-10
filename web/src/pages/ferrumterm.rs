@@ -87,7 +87,7 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Toolbox (free, see Download)"),
+        ("Install", "Ferrum Launcher (free, see Download)"),
         ("Includes", "The FerrumTerm window and the fterm CLI"),
         ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
         (

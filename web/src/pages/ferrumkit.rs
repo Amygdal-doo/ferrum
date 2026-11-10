@@ -79,7 +79,7 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Toolbox (free, see Download)"),
+        ("Install", "Ferrum Launcher (free, see Download)"),
         ("Network", "None: every tool runs offline"),
         (
             "Builds",

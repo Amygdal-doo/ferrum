@@ -208,18 +208,23 @@ const APPS: [AppFeatures; 8] = [
                      bars and their logs",
     },
     AppFeatures {
-        product: products::FERRUM_TOOLBOX,
+        product: products::FERRUM_LAUNCHER,
         version: "0.6.0",
-        summary: "One window that installs and updates the whole suite, now eight apps \
-                  strong.",
+        summary: "Ferrum Toolbox is now Ferrum Launcher: one window that installs, updates \
+                  and launches all eight apps.",
         points: &[
+            (
+                "New apps show up on their own",
+                "When a new Ferrum app is released it appears in the launcher with a New \
+                 badge, ready to install. No launcher update needed.",
+            ),
             (
                 "FerrumKit and FerrumDock",
                 "Both new apps are ready to install from the overview, on the Alpha channel.",
             ),
             (
                 "Updates itself in place",
-                "Update Toolbox replaces the app and restarts it. No DMG to download again.",
+                "Update Launcher replaces the app and restarts it. No DMG to download again.",
             ),
             (
                 "Signed and notarized",
@@ -227,8 +232,8 @@ const APPS: [AppFeatures; 8] = [
                  it without warnings.",
             ),
         ],
-        demo: feature_demos::toolbox,
-        demo_label: "Ferrum Toolbox updating itself, then updating each app on the Alpha channel",
+        demo: feature_demos::launcher,
+        demo_label: "Ferrum Launcher updating itself, then updating each app on the Alpha channel",
     },
 ];
 
@@ -236,7 +241,7 @@ pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Features"),
         "What every Ferrum app can do in the current alpha: Ferrum IDE, FerrumAPI, FerrumGIT, \
-         FerrumData, FerrumTerm and Ferrum Toolbox.",
+         FerrumData, FerrumTerm and Ferrum Launcher.",
         PATH,
         "page-features",
     );
@@ -260,7 +265,7 @@ fn hero() -> Markup {
                 h1 id="features-title" { "What's new across Ferrum" }
                 p class="lead" {
                     "Eight native apps, written in Rust and rendered with GPUI. This is what \
-                     each one can do in the current alpha, and Ferrum Toolbox keeps them all \
+                     each one can do in the current alpha, and Ferrum Launcher keeps them all \
                      up to date."
                 }
                 ul class="app-strip" {

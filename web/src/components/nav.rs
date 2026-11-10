@@ -21,13 +21,13 @@ fn nav_link(href: &str, label: &str, active: bool, extra_class: &str) -> Markup 
     }
 }
 
-/// True for product pages managed by the toolbox (they live under "Apps").
+/// True for product pages managed by the launcher (they live under "Apps").
 fn is_app_page(path: &str) -> bool {
     products::apps().any(|p| p.path() == path)
 }
 
 pub fn render(current_path: &str) -> Markup {
-    let toolbox = products::FERRUM_TOOLBOX.path();
+    let launcher = products::FERRUM_LAUNCHER.path();
     html! {
         header class="site-header" {
             div class="container site-header__inner" {
@@ -50,7 +50,7 @@ pub fn render(current_path: &str) -> Markup {
                     ul class="nav-list" {
                         (nav_link(APPS_HREF, "Apps", is_app_page(current_path), ""))
                         (nav_link(FEATURES_HREF, "Features", current_path == FEATURES_HREF, ""))
-                        (nav_link(&toolbox, "Toolbox", current_path == toolbox, ""))
+                        (nav_link(&launcher, "Launcher", current_path == launcher, ""))
                         (nav_link("/about", "About", current_path == "/about", ""))
                         (nav_link(site::DOWNLOAD_PATH, site::DOWNLOAD_LABEL,
                             current_path == site::DOWNLOAD_PATH, "nav-link--cta"))
@@ -73,10 +73,10 @@ mod tests {
     }
 
     #[test]
-    fn toolbox_and_download_have_their_own_links() {
+    fn launcher_and_download_have_their_own_links() {
         let html = render("/download").into_string();
         assert!(html.contains(r#"href="/download" aria-current="page""#));
-        assert!(html.contains(r#"href="/ferrum-toolbox""#));
+        assert!(html.contains(r#"href="/ferrum-launcher""#));
         assert_eq!(html.matches("aria-current").count(), 1);
     }
 

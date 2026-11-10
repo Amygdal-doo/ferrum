@@ -50,7 +50,7 @@ const CREDITS: &[(&str, &str)] = &[
     ),
     (
         "reqwest & rustls",
-        "HTTP and TLS for FerrumAPI and Ferrum Toolbox.",
+        "HTTP and TLS for FerrumAPI and Ferrum Launcher.",
     ),
     (
         "Axum & maud",
@@ -77,7 +77,7 @@ pub fn render(site_url: &str) -> Markup {
                     p class="lead" {
                         "Ferrum is a family of native developer tools written in Rust: a code \
                          editor, an API client, a Git client, a database IDE and a terminal, \
-                         plus Ferrum Toolbox to install and update them. They are local-first, \
+                         plus Ferrum Launcher to install and update them. They are local-first, \
                          share one GPUI-based interface and run without Electron."
                     }
                 }
@@ -113,7 +113,7 @@ pub fn render(site_url: &str) -> Markup {
                         }
                     }
                     p class="muted" {
-                        "Builds are free public downloads, installed through Ferrum Toolbox. "
+                        "Builds are free public downloads, installed through Ferrum Launcher. "
                         a href=(site::DOWNLOAD_PATH) { "Download it" } "."
                     }
                 }

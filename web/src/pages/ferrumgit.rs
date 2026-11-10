@@ -96,7 +96,7 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Toolbox (free, see Download)"),
+        ("Install", "Ferrum Launcher (free, see Download)"),
         ("Requires", "git 2.32 or newer and OpenSSH on PATH"),
         ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
         ("Built with", "Rust, GPUI, the system git binary, SQLite"),
@@ -106,7 +106,7 @@ const PAGE: ProductPage = ProductPage {
         ),
     ],
     specs_note: "Builds are free public GitHub Releases, installed through Ferrum \
-                 Toolbox.",
+                 Launcher.",
 };
 
 pub fn render(site_url: &str) -> Markup {

@@ -220,7 +220,7 @@
 }
 .term__copied { animation-delay: 1.4s; }
 
-/* ---------- Ferrum Toolbox ---------- */
+/* ---------- Ferrum Launcher ---------- */
 .tb { display: flex; flex-direction: column; padding: 12px; gap: 10px; }
 .tb__banner {
   display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px;

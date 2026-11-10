@@ -11,6 +11,7 @@ use axum::{
     Router,
     extract::State,
     http::{StatusCode, header},
+    response::Redirect,
     routing::get,
 };
 use maud::Markup;
@@ -34,7 +35,7 @@ pub fn app(config: Config) -> Router {
     app_with(config, MacosDownload::github())
 }
 
-/// Like [`app`], with a custom toolbox download resolver (tests inject a fake fetcher).
+/// Like [`app`], with a custom launcher download resolver (tests inject a fake fetcher).
 pub fn app_with(config: Config, macos_download: MacosDownload) -> Router {
     let state = AppState {
         config: Arc::new(config),
@@ -49,7 +50,11 @@ pub fn app_with(config: Config, macos_download: MacosDownload) -> Router {
         .route("/ferrumterm", get(ferrumterm))
         .route("/ferrumkit", get(ferrumkit))
         .route("/ferrumdock", get(ferrumdock))
-        .route("/ferrum-toolbox", get(ferrum_toolbox))
+        .route("/ferrum-launcher", get(ferrum_launcher))
+        .route(
+            "/ferrum-toolbox",
+            get(|| async { Redirect::permanent("/ferrum-launcher") }),
+        )
         .route(pages::features::PATH, get(features))
         .route("/download", get(download))
         .route(site::MACOS_DOWNLOAD_PATH, get(download_macos))
@@ -87,8 +92,8 @@ async fn ferrumkit(State(s): State<AppState>) -> Markup {
 async fn ferrumdock(State(s): State<AppState>) -> Markup {
     pages::ferrumdock::render(s.site_url())
 }
-async fn ferrum_toolbox(State(s): State<AppState>) -> Markup {
-    pages::ferrum_toolbox::render(s.site_url())
+async fn ferrum_launcher(State(s): State<AppState>) -> Markup {
+    pages::ferrum_launcher::render(s.site_url())
 }
 async fn features(State(s): State<AppState>) -> Markup {
     pages::features::render(s.site_url())
@@ -96,7 +101,7 @@ async fn features(State(s): State<AppState>) -> Markup {
 async fn download(State(s): State<AppState>) -> Markup {
     pages::download::render(s.site_url())
 }
-/// 302 to the newest toolbox DMG (or the releases page). Not cached by clients,
+/// 302 to the newest launcher DMG (or the releases page). Not cached by clients,
 /// so a new release is picked up as soon as the server-side cache expires.
 async fn download_macos(
     State(s): State<AppState>,
