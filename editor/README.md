@@ -7,7 +7,7 @@ FerrumIDE fork) and the shared `ferrum-ui` crate. It is **not** FerrumIDE: the t
 (rope), multi-cursor editing, undo, rendering of the editor surface, highlighting and input
 handling are its own; nothing from Zed's editor stack (`editor`, `language`, `project`,
 `workspace`, `text`, `rope`, …) is used. Part of the Ferrum monorepo, sibling of
-[FerrumKit](../kit), [FerrumDock](../dock), [FerrumGIT](../git) and the others.
+[FerrumKit](../kit), [FerrumContainers](../dock), [FerrumGIT](../git) and the others.
 
 > **Status: alpha — first vertical slice.** "Tested" means automated tests: unit tests of
 > `ferrumeditor-core`, plus headless GPUI tests of the desktop app that drive real keystrokes

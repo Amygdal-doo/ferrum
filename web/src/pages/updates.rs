@@ -3,8 +3,13 @@
 
 use maud::{Markup, html};
 
-use crate::components::follow::{self, Size};
+use crate::components::{
+    breadcrumb::{self, Crumb},
+    follow::{self, Size},
+    page_header::PageHeader,
+};
 use crate::layout::{PageMeta, page};
+use crate::seo;
 use crate::updates::{self, FEED_PATH, INDEX_PATH, Post};
 
 const INDEX_DESCRIPTION: &str = "Announcements from the Ferrum team: releases, what changed \
@@ -12,23 +17,26 @@ const INDEX_DESCRIPTION: &str = "Announcements from the Ferrum team: releases, w
 
 pub fn index(site_url: &str) -> Markup {
     let meta = PageMeta::new(
-        Some("Updates"),
+        Some("Updates and announcements"),
         INDEX_DESCRIPTION,
         INDEX_PATH,
         "page-updates",
-    );
+    )
+    .trail(vec![Crumb::new("Updates", INDEX_PATH)]);
     page(
         site_url,
         &meta,
         html! {
-            div class="container post-wrap" {
-                header class="updates-head" {
-                    h1 { "Updates" }
-                    p class="lead" {
-                        "Announcements from the Ferrum team. Follow along with the "
+            (PageHeader::new(&meta.trail, "Updates")
+                .lead(html! {
+                    p {
+                        "Announcements from the Ferrum team. Every release is in the "
+                        a href="/changelog" { "changelog" } "; follow along with the "
                         a href=(FEED_PATH) { "Atom feed" } "."
                     }
-                }
+                })
+                .render())
+            div class="container post-wrap" {
                 ol class="post-index" reversed {
                     @for post in updates::newest_first() {
                         li class="post-index__item" {
@@ -52,7 +60,20 @@ pub fn index(site_url: &str) -> Markup {
 
 pub fn post(site_url: &str, post: &Post) -> Markup {
     let path = post.path();
-    let meta = PageMeta::new(Some(post.title), post.summary, &path, "page-post").article(post.date);
+    let meta = PageMeta::new(Some(post.title), post.summary, &path, "page-post")
+        .article(post.date)
+        .trail(vec![
+            Crumb::new("Updates", INDEX_PATH),
+            Crumb::new(post.title, &path),
+        ])
+        .json_ld(seo::blog_posting(
+            site_url,
+            &path,
+            post.title,
+            post.summary,
+            post.date,
+            post.byline,
+        ));
     page(
         site_url,
         &meta,
@@ -60,7 +81,7 @@ pub fn post(site_url: &str, post: &Post) -> Markup {
             div class="container post-wrap" {
                 article class="post" aria-labelledby="post-title" {
                     header class="post__header" {
-                        p class="post__crumb" { a href=(INDEX_PATH) { "Updates" } }
+                        (breadcrumb::render(&meta.trail))
                         h1 id="post-title" { (post.title) }
                         p class="post__byline" {
                             span { (post.byline) }

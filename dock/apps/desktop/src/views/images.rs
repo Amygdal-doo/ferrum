@@ -1,6 +1,6 @@
 //! Images: list with size and tags, pull, remove, prune dangling.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::commands::resources::image_label;
 use crate::state::{Section, matches_any};
 use crate::views::widgets::{
@@ -19,7 +19,7 @@ const COLUMNS: [(&str, Option<f32>); 6] = [
     ("", Some(116.)),
 ];
 
-pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let now = chrono::Utc::now().timestamp();
     let mut images: Vec<&Image> = app
         .state
@@ -79,10 +79,10 @@ pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
 }
 
 fn image_row(
-    app: &FerrumDock,
+    app: &FerrumContainers,
     image: &Image,
     now: i64,
-    cx: &mut Context<FerrumDock>,
+    cx: &mut Context<FerrumContainers>,
 ) -> AnyElement {
     let busy = app.state.busy.contains(&image.id);
     let extra_tags = image.tags.len().saturating_sub(1);

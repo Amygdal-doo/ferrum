@@ -127,6 +127,26 @@ impl Paths {
             .map(|dir| dir.join(format!("{}.app", info.bundle_name)))
     }
 
+    /// The `.app` copies and Start Menu shortcuts named after the app's
+    /// [former names](AppInfo::former_names), whether they exist or not.
+    #[must_use]
+    pub fn former_integrations(&self, info: &AppInfo) -> Vec<PathBuf> {
+        let mut found = Vec::new();
+        for former in &info.former_names {
+            if let Some(dir) = &self.applications_dir
+                && *former != info.bundle_name
+            {
+                found.push(dir.join(format!("{former}.app")));
+            }
+            if let Some(dir) = &self.start_menu_dir
+                && *former != info.name
+            {
+                found.push(dir.join(format!("{former}.lnk")));
+            }
+        }
+        found
+    }
+
     #[must_use]
     pub fn link_path(&self, info: &AppInfo) -> PathBuf {
         self.bin_dir.join(self.platform.cli_entry(&info.binary))
@@ -630,6 +650,33 @@ impl State {
             .collect()
     }
 
+    /// Apps renamed since their active version was published (FerrumDock
+    /// became FerrumContainers): publishes the active version under the
+    /// current name and removes the `.app` copy or Start Menu shortcut with
+    /// the old one. Runs at every start, so it also tidies up after a
+    /// launcher that didn't know the rename (0.8.1 updated the app into
+    /// `FerrumContainers.app` and left `FerrumDock.app`); it does nothing
+    /// unless an old copy is still there. Returns the apps that failed.
+    pub fn retire_former_names(&self, paths: &Paths) -> Vec<(AppId, LauncherError)> {
+        self.apps
+            .iter()
+            .filter(|(app, _)| **app != AppId::LAUNCHER)
+            .filter_map(|(app, state)| Some((*app, state.active.clone()?)))
+            .filter_map(|(app, version)| {
+                let info = self.info(app);
+                let stale = paths
+                    .former_integrations(&info)
+                    .iter()
+                    .any(|path| path.exists() || path.is_symlink());
+                if !stale {
+                    return None;
+                }
+                tracing::info!(app = %app, name = %info.name, "replacing the copy under the app's former name");
+                link_active(paths, &info, &version).err().map(|e| (app, e))
+            })
+            .collect()
+    }
+
     /// Removes an installed version. The active one can only be removed when
     /// it is the last installed version.
     pub fn uninstall(&mut self, app: AppId, version: &Version, paths: &Paths) -> Result<()> {
@@ -701,7 +748,12 @@ fn link_active(paths: &Paths, info: &AppInfo, version: &Version) -> Result<()> {
             None => remove_if_exists(&application)?,
         }
     }
-    integrate_desktop(paths, info, version)
+    integrate_desktop(paths, info, version)?;
+    // Only once the copy under the current name is in place.
+    for former in paths.former_integrations(info) {
+        remove_if_exists(&former)?;
+    }
+    Ok(())
 }
 
 /// `~/.ferrum/bin/<binary>` for every binary the version ships.
@@ -907,7 +959,11 @@ fn unlink(paths: &Paths, info: &AppInfo) -> Result<()> {
         paths.icon_path(info.id),
         paths.shortcut_path(info),
     ];
-    for path in integrations.into_iter().flatten() {
+    for path in integrations
+        .into_iter()
+        .flatten()
+        .chain(paths.former_integrations(info))
+    {
         remove_if_exists(&path)?;
     }
     Ok(())
@@ -1712,6 +1768,240 @@ mod tests {
                 .version_dir(AppId::DATA, &Version::new(0, 2, 0))
                 .join("ferrumdata")
         );
+    }
+
+    /// A FerrumDock release as published before the rename: its archive
+    /// holds `FerrumDock.app`.
+    fn fake_dock_bundle(state: &mut State, paths: &Paths, version: &str, bundle_name: &str) {
+        let v = Version::parse(version).expect("semver");
+        let macos = paths
+            .version_dir(AppId::DOCK, &v)
+            .join(format!("{bundle_name}.app"))
+            .join("Contents/MacOS");
+        std::fs::create_dir_all(&macos).expect("mkdir");
+        std::fs::write(macos.join("ferrumdock"), version.as_bytes()).expect("write");
+        state.record_install(AppId::DOCK, installed(version));
+    }
+
+    /// What Launcher 0.8.1 makes of the catalog that renames the app: the
+    /// new name and bundle name, and no `former_names` (it doesn't know
+    /// the field).
+    fn dock_as_0_8_1_reads_it() -> AppInfo {
+        AppInfo {
+            former_names: Vec::new(),
+            ..info(AppId::DOCK)
+        }
+    }
+
+    #[test]
+    fn ferrumdock_is_now_ferrumcontainers_with_the_same_id_binary_and_data() {
+        let dock = info(AppId::DOCK);
+        assert_eq!(dock.id.as_str(), "dock");
+        assert_eq!(dock.name, "FerrumContainers");
+        assert_eq!(dock.bundle_name, "FerrumContainers");
+        assert_eq!(dock.binary, "ferrumdock");
+        assert_eq!(dock.former_names, ["FerrumDock"]);
+        let paths = paths(Path::new("/u"));
+        assert_eq!(
+            paths.version_dir(AppId::DOCK, &Version::new(0, 2, 0)),
+            Path::new("/u/data/apps/dock/0.2.0")
+        );
+        assert_eq!(
+            paths.former_integrations(&dock),
+            [PathBuf::from("/u/Applications/Ferrum/FerrumDock.app")]
+        );
+        assert!(paths.former_integrations(&info(AppId::API)).is_empty());
+    }
+
+    #[test]
+    fn renamed_app_moves_to_its_new_bundle_name_and_keeps_its_settings() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        let mut state = State::default();
+        let v2 = Version::new(0, 2, 0);
+        let v3 = Version::new(0, 3, 0);
+        // FerrumDock 0.2.0, activated by a launcher that called it FerrumDock.
+        fake_dock_bundle(&mut state, &paths, "0.2.0", "FerrumDock");
+        let old = AppInfo {
+            name: "FerrumDock".into(),
+            bundle_name: "FerrumDock".into(),
+            former_names: Vec::new(),
+            ..info(AppId::DOCK)
+        };
+        link_active(&paths, &old, &v2).expect("published as FerrumDock");
+        let applications = paths.applications_dir.clone().expect("dir");
+        let old_copy = applications.join("FerrumDock.app");
+        let new_copy = applications.join("FerrumContainers.app");
+        assert!(old_copy.is_dir());
+        state.settings.app_prefs.insert(
+            AppId::DOCK,
+            AppPrefs {
+                command: Some("fec".into()),
+                hide_from_dock: true,
+                hotkey: Some("cmd+alt+c".into()),
+            },
+        );
+        state.save(&paths).expect("save");
+
+        // This launcher starts: the copy moves to the new name.
+        let mut state = State::load(&paths).expect("load");
+        assert!(state.retire_former_names(&paths).is_empty());
+        assert!(!old_copy.exists());
+        assert_eq!(
+            std::fs::read(new_copy.join("Contents/MacOS/ferrumdock")).expect("copy"),
+            b"0.2.0",
+            "the installed version, published under the new name"
+        );
+        assert_eq!(
+            paths.application_path(&state.info(AppId::DOCK)),
+            Some(new_copy.clone())
+        );
+        #[cfg(unix)]
+        assert_eq!(
+            std::fs::read_link(paths.link_path(&info(AppId::DOCK))).expect("cli"),
+            paths
+                .version_dir(AppId::DOCK, &v2)
+                .join("FerrumDock.app/Contents/MacOS/ferrumdock"),
+            "the CLI link (and the shell command running it) keeps working"
+        );
+        // Nothing left to do on the next start.
+        assert!(state.retire_former_names(&paths).is_empty());
+        assert!(new_copy.is_dir());
+
+        // The update ships FerrumContainers.app.
+        fake_dock_bundle(&mut state, &paths, "0.3.0", "FerrumContainers");
+        state.activate(AppId::DOCK, &v3, &paths).expect("update");
+        assert_eq!(
+            std::fs::read(new_copy.join("Contents/MacOS/ferrumdock")).expect("copy"),
+            b"0.3.0"
+        );
+        assert!(!old_copy.exists());
+        let published: Vec<_> = std::fs::read_dir(&applications)
+            .expect("read")
+            .filter_map(|e| e.ok().map(|e| e.file_name()))
+            .collect();
+        assert_eq!(published, ["FerrumContainers.app"]);
+        // Rolling back to the version shipped as FerrumDock.app keeps the
+        // new name.
+        state.activate(AppId::DOCK, &v2, &paths).expect("rollback");
+        assert_eq!(
+            std::fs::read(new_copy.join("Contents/MacOS/ferrumdock")).expect("copy"),
+            b"0.2.0"
+        );
+        assert!(!old_copy.exists());
+
+        // Shell command, Dock icon and shortcut are keyed by the id (and
+        // the Dock choice by the binary), which didn't change.
+        state.save(&paths).expect("save");
+        let state = State::load(&paths).expect("reload");
+        let prefs = &state.settings.app_prefs[&AppId::DOCK];
+        assert_eq!(prefs.command.as_deref(), Some("fec"));
+        assert!(prefs.hide_from_dock);
+        assert_eq!(prefs.hotkey.as_deref(), Some("cmd+alt+c"));
+        assert_eq!(state.info(AppId::DOCK).binary, "ferrumdock");
+    }
+
+    #[test]
+    fn copy_left_by_launcher_0_8_1_is_removed_on_the_next_start() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        let mut state = State::default();
+        fake_dock_bundle(&mut state, &paths, "0.2.0", "FerrumDock");
+        let applications = paths.applications_dir.clone().expect("dir");
+        let old_copy = applications.join("FerrumDock.app");
+        let new_copy = applications.join("FerrumContainers.app");
+        std::fs::create_dir_all(old_copy.join("Contents/MacOS")).expect("old copy");
+
+        // 0.8.1 launches the not-yet-updated app from its install folder:
+        // no FerrumContainers.app yet, so it falls back to the bundle.
+        let info_0_8_1 = dock_as_0_8_1_reads_it();
+        assert!(!new_copy.exists());
+        assert!(
+            paths
+                .bundle_path(AppId::DOCK, &Version::new(0, 2, 0))
+                .is_some_and(|bundle| bundle.ends_with("FerrumDock.app"))
+        );
+        // 0.8.1 updates it: FerrumContainers.app is published, and
+        // FerrumDock.app (the 0.2.0 copy) is left behind.
+        fake_dock_bundle(&mut state, &paths, "0.3.0", "FerrumContainers");
+        state.apps.get_mut(&AppId::DOCK).expect("dock").active = Some(Version::new(0, 3, 0));
+        link_active(&paths, &info_0_8_1, &Version::new(0, 3, 0)).expect("0.8.1 update");
+        assert!(new_copy.is_dir());
+        assert!(old_copy.is_dir(), "0.8.1 doesn't know the former name");
+
+        // This launcher's next start removes it.
+        assert!(state.retire_former_names(&paths).is_empty());
+        assert!(!old_copy.exists());
+        assert_eq!(
+            std::fs::read(new_copy.join("Contents/MacOS/ferrumdock")).expect("copy"),
+            b"0.3.0"
+        );
+
+        // Uninstalling removes either name.
+        std::fs::create_dir_all(&old_copy).expect("old copy again");
+        state
+            .uninstall(AppId::DOCK, &Version::new(0, 2, 0), &paths)
+            .expect("inactive");
+        state
+            .uninstall(AppId::DOCK, &Version::new(0, 3, 0), &paths)
+            .expect("last");
+        assert!(!new_copy.exists());
+        assert!(!old_copy.exists());
+    }
+
+    #[test]
+    fn a_catalog_still_naming_the_app_ferrumdock_removes_nothing() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        let mut state = State::default();
+        // The remote catalog from before the rename.
+        state.record_catalog(
+            Catalog::parse(
+                r#"{"apps":[{"id":"dock","status":"alpha","summary":"S","name":"FerrumDock",
+                    "binary":"ferrumdock","bundle_name":"FerrumDock"}]}"#,
+            )
+            .expect("parse"),
+        );
+        let dock = state.info(AppId::DOCK);
+        assert_eq!(dock.bundle_name, "FerrumDock");
+        assert!(paths.former_integrations(&dock).is_empty());
+        fake_dock_bundle(&mut state, &paths, "0.2.0", "FerrumDock");
+        state
+            .activate(AppId::DOCK, &Version::new(0, 2, 0), &paths)
+            .expect("activate");
+        let copy = paths.application_path(&dock).expect("path");
+        assert!(copy.ends_with("FerrumDock.app") && copy.is_dir());
+        assert!(state.retire_former_names(&paths).is_empty());
+        assert!(copy.is_dir(), "the current name is never removed");
+    }
+
+    #[test]
+    fn windows_shortcut_under_the_former_name_is_replaced() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = Paths {
+            platform: Platform::Windows,
+            applications_dir: None,
+            start_menu_dir: Some(dir.path().join("Start Menu/Ferrum")),
+            ..paths(dir.path())
+        };
+        let mut state = State::default();
+        let version = Version::new(0, 2, 0);
+        let version_dir = paths.version_dir(AppId::DOCK, &version);
+        std::fs::create_dir_all(&version_dir).expect("mkdir");
+        std::fs::write(version_dir.join("ferrumdock.exe"), b"MZ").expect("write");
+        state.record_install(AppId::DOCK, installed("0.2.0"));
+        let start_menu = paths.start_menu_dir.clone().expect("dir");
+        std::fs::create_dir_all(&start_menu).expect("mkdir");
+        let old_shortcut = start_menu.join("FerrumDock.lnk");
+        std::fs::write(&old_shortcut, b"lnk").expect("old shortcut");
+        assert_eq!(
+            paths.shortcut_path(&info(AppId::DOCK)),
+            Some(start_menu.join("FerrumContainers.lnk"))
+        );
+
+        assert!(state.retire_former_names(&paths).is_empty());
+        assert!(!old_shortcut.exists());
+        assert!(paths.bin_dir.join("ferrumdock.cmd").is_file());
     }
 
     #[tokio::test]

@@ -5,15 +5,18 @@
 
 use maud::{Markup, html};
 
-use super::feature_demos;
+use super::{compare, docs, feature_demos};
 use crate::components::{
-    self,
+    badge,
+    breadcrumb::Crumb,
     button::{self, Variant},
-    card,
+    card, feature_grid,
+    page_header::PageHeader,
+    section::Section,
 };
 use crate::layout::{PageMeta, page};
 use crate::products::{self, Product};
-use crate::site;
+use crate::{seo, site};
 
 /// A titled list of short bullet points (e.g. "Not built yet").
 pub struct BulletGroup {
@@ -44,17 +47,33 @@ pub struct ProductPage {
     pub specs_note: &'static str,
 }
 
-/// Render a full product page. `extra` is inserted after the hero
+/// Render a full product page. `extra` is inserted after the preview
 /// (e.g. an upstream credit).
 pub fn render(site_url: &str, p: &ProductPage, extra: Markup) -> Markup {
     let prod = &p.product;
     let path = prod.path();
-    let meta = PageMeta::new(Some(prod.name), p.meta_description, &path, "page-product");
+    let title = format!("{}: {} for macOS", prod.name, prod.kind);
+    let image = format!(
+        "{site_url}{}",
+        crate::routes::assets::url(&prod.og_image_asset())
+    );
+    let meta = PageMeta::new(Some(&title), p.meta_description, &path, "page-product")
+        .trail(vec![Crumb::new(prod.name, &path)])
+        .og_image(
+            &prod.og_image_asset(),
+            &format!("{} logo and name", prod.name),
+        )
+        .json_ld(seo::software_application(
+            site_url,
+            prod,
+            p.meta_description,
+            &image,
+        ));
     page(
         site_url,
         &meta,
         html! {
-            (hero(p))
+            (hero(p, &meta.trail))
             (screenshots(p))
             (extra)
             (features(p))
@@ -65,51 +84,31 @@ pub fn render(site_url: &str, p: &ProductPage, extra: Markup) -> Markup {
     )
 }
 
-fn hero(p: &ProductPage) -> Markup {
+fn hero(p: &ProductPage, trail: &[Crumb]) -> Markup {
     let prod = &p.product;
-    html! {
-        section class="product-hero" style=(prod.accent_style()) aria-labelledby="product-title" {
-            div class="container product-hero__inner" {
-                (card::app_logo(prod, "app-logo--hero", false))
-                div class="product-hero__copy" {
-                    p class="eyebrow" { "Ferrum · " (prod.kind) }
-                    div class="product-hero__title-row" {
-                        h1 id="product-title" { (prod.name) }
-                        (components::badge::status(prod.status))
-                    }
-                    p class="product-hero__tagline" { (prod.tagline) }
-                    p class="lead" { (p.intro) }
-                    div class="product-hero__ctas" {
-                        (button::link(site::DOWNLOAD_LABEL, site::DOWNLOAD_PATH, Variant::Primary))
-                        @if prod.slug != products::FERRUM_LAUNCHER.slug {
-                            (button::link("Install with Ferrum Launcher",
-                                &products::FERRUM_LAUNCHER.path(), Variant::Secondary))
-                        }
-                    }
-                }
+    PageHeader::new(trail, prod.name)
+        .accent(prod.accent_style())
+        .title_suffix(badge::status(prod.status))
+        .media(card::app_logo(prod, "app-logo--hero", false))
+        .lead(html! {
+            p class="page-header__tagline" { (prod.tagline) }
+            p { (p.intro) }
+        })
+        .actions(html! {
+            (button::link(site::DOWNLOAD_LABEL, site::DOWNLOAD_PATH, Variant::Primary))
+            @if prod.slug != products::FERRUM_LAUNCHER.slug {
+                (button::link("Install with Ferrum Launcher",
+                    &products::FERRUM_LAUNCHER.path(), Variant::Secondary))
             }
-        }
-    }
+        })
+        .render()
 }
 
 fn features(p: &ProductPage) -> Markup {
-    html! {
-        section class="section" aria-labelledby="features-title" {
-            div class="container" {
-                p class="eyebrow" { "Features" }
-                h2 id="features-title" { "What " (p.product.name) " does" }
-                p class="lead" { (p.features_lead) }
-                ul class="feature-list" {
-                    @for (title, body) in p.features {
-                        li class="feature" {
-                            h3 class="feature__title" { (title) }
-                            p class="feature__text" { (body) }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    let title = format!("What {} does", p.product.name);
+    Section::new("features", &title)
+        .lead(html! { p { (p.features_lead) } })
+        .render(feature_grid::render(p.features))
 }
 
 /// The app's animated demo window, or screenshot placeholders for an app
@@ -144,61 +143,85 @@ fn screenshots(p: &ProductPage) -> Markup {
 }
 
 fn status(p: &ProductPage) -> Markup {
-    html! {
-        section class="section product-status" aria-labelledby="status-title" {
-            div class="container" {
-                p class="eyebrow" { "Status" }
-                h2 id="status-title" {
-                    "Status: " (p.product.status.label())
-                }
-                p class="lead" { (p.status_summary) }
-                div class="grid grid--2 product-status__groups" {
-                    @for group in p.status_groups {
-                        div class="card" {
-                            h3 { (group.heading) }
-                            ul class="product-list" {
-                                @for item in group.items { li { (item) } }
-                            }
+    let title = format!("Status: {}", p.product.status.label());
+    Section::new("status", &title)
+        .band()
+        .lead(html! { p { (p.status_summary) } })
+        .render(html! {
+            div class="grid grid--2 product-status__groups" {
+                @for group in p.status_groups {
+                    div class="status-group" {
+                        h3 { (group.heading) }
+                        ul class="product-list" {
+                            @for item in group.items { li { (item) } }
                         }
                     }
                 }
             }
-        }
-    }
+        })
 }
 
 fn specs(p: &ProductPage) -> Markup {
-    html! {
-        section class="section" aria-labelledby="specs-title" {
-            div class="container" {
-                p class="eyebrow" { "Requirements" }
-                h2 id="specs-title" { "Requirements & built with" }
-                dl class="spec-sheet" {
-                    @for (label, value) in p.specs {
-                        div class="spec-sheet__row" {
-                            dt class="mono" { (label) }
-                            dd { (value) }
-                        }
-                    }
+    Section::new("specs", "Requirements & built with").render(html! {
+        dl class="spec-sheet" {
+            @for (label, value) in p.specs {
+                div class="spec-sheet__row" {
+                    dt { (label) }
+                    dd { (value) }
                 }
-                p class="muted spec-sheet__note" { (p.specs_note) }
             }
         }
+        p class="muted spec-sheet__note" { (p.specs_note) }
+    })
+}
+
+/// Guides and comparisons that mention this app.
+fn guides(current: &Product) -> Vec<(String, String)> {
+    let mut links = Vec::new();
+    if docs::shortcuts::APPS
+        .iter()
+        .any(|(p, _)| p.slug == current.slug)
+    {
+        links.push((
+            format!("{} keyboard shortcuts", current.name),
+            format!("{}#{}", docs::shortcuts::PATH, current.slug),
+        ));
     }
+    if let Some((cmd, _, _)) = docs::shell_commands::COMMANDS
+        .iter()
+        .find(|(_, p, _)| p.slug == current.slug)
+    {
+        links.push((
+            format!("Open it from a terminal with {cmd}"),
+            docs::shell_commands::PATH.to_owned(),
+        ));
+    }
+    for c in compare::COMPARISONS
+        .iter()
+        .filter(|c| c.product.slug == current.slug)
+    {
+        links.push((c.title.to_owned(), c.path()));
+    }
+    links.push((
+        "Install and update with Ferrum Launcher".to_owned(),
+        docs::install::PATH.to_owned(),
+    ));
+    links
 }
 
 fn related(current: &Product) -> Markup {
-    html! {
-        section class="section product-related" aria-labelledby="related-title" {
-            div class="container" {
-                p class="eyebrow" { "The Ferrum family" }
-                h2 id="related-title" { "Other Ferrum tools" }
-                div class="grid grid--3" {
-                    @for other in products::ALL.iter().filter(|o| o.slug != current.slug) {
-                        (card::product_card(other))
-                    }
+    Section::new("related", "Other Ferrum tools").render(html! {
+        nav class="guide-links" aria-label={ "Guides for " (current.name) } {
+            ul {
+                @for (label, href) in guides(current) {
+                    li { a href=(href) { (label) } }
                 }
             }
         }
-    }
+        div class="grid grid--3" {
+            @for other in products::ALL.iter().filter(|o| o.slug != current.slug) {
+                (card::product_card(other))
+            }
+        }
+    })
 }

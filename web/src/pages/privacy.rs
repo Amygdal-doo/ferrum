@@ -3,36 +3,41 @@
 
 use maud::{Markup, html};
 
+use crate::components::{breadcrumb::Crumb, page_header::PageHeader};
 use crate::layout::{PageMeta, page};
 use crate::site;
 
 pub const PATH: &str = "/privacy";
-const UPDATED: &str = "2026-11-11";
+pub const UPDATED: &str = "2026-11-11";
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
-        Some("Privacy"),
-        "What the Ferrum website stores (nothing about you) and which services it involves.",
+        Some("Privacy policy for this website"),
+        "What the Ferrum website stores about you (nothing: no cookies, no analytics, no \
+         accounts) and which services it involves.",
         PATH,
         "page-privacy",
-    );
+    )
+    .trail(vec![Crumb::new("Privacy", PATH)]);
     page(
         site_url,
         &meta,
         html! {
-            div class="container post-wrap" {
-                article class="post" aria-labelledby="privacy-title" {
-                    header class="post__header" {
-                        h1 id="privacy-title" { "Privacy" }
-                        p class="post__byline" {
-                            "Last updated "
-                            time datetime=(UPDATED) { (crate::updates::display_date(UPDATED)) }
-                        }
+            (PageHeader::new(&meta.trail, "Privacy")
+                .lead(html! {
+                    p {
+                        "Last updated "
+                        time datetime=(UPDATED) { (crate::updates::display_date(UPDATED)) }
                     }
+                })
+                .render())
+            div class="container post-wrap" {
+                article class="post" aria-labelledby="page-title" {
                     div class="post__body" {
                         p class="post__intro" {
                             "This page covers this website. The Ferrum apps themselves keep their \
-                             data on your computer."
+                             data on your computer and contain no telemetry; see "
+                            a href="/security" { "Security" } "."
                         }
                         h2 { "What we store" }
                         p {

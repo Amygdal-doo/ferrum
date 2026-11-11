@@ -61,7 +61,7 @@ pub struct LayersState {
 #[derive(Default)]
 pub struct EnginePicker {
     pub candidates: Vec<Candidate>,
-    /// Docker contexts FerrumDock cannot use (ssh…), listed for clarity.
+    /// Docker contexts FerrumContainers cannot use (ssh…), listed for clarity.
     pub unsupported: Vec<DockerContext>,
     pub loading: bool,
 }

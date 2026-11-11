@@ -1,8 +1,12 @@
-//! Resolves the newest stable Ferrum Launcher DMG in the public releases repo.
+//! Releases of every Ferrum app, from the public releases repo.
 //!
-//! Selection is a pure function over the GitHub API JSON
-//! ([`newest_launcher_dmg`]). [`MacosDownload`] wraps it with an injectable
-//! fetcher and an in-memory cache, and falls back to [`site::RELEASES_URL`].
+//! Two pure functions read the GitHub API JSON: [`newest_launcher_dmg`]
+//! (behind `/download/macos`) and [`changelog`] (behind `/changelog`).
+//! [`Releases`] wraps them with an injectable fetcher and one in-memory
+//! cache: a good response is reused for [`CACHE_TTL`]; after a failed fetch
+//! the last good response (if any) keeps being served, and GitHub is asked
+//! again after [`FAILURE_TTL`]. Tests inject a fetcher, so they never touch
+//! the network.
 
 use std::{
     future::Future,
@@ -39,6 +43,12 @@ struct Release {
     prerelease: bool,
     #[serde(default)]
     assets: Vec<Asset>,
+    #[serde(default)]
+    body: Option<String>,
+    #[serde(default)]
+    published_at: Option<String>,
+    #[serde(default)]
+    html_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -110,20 +120,108 @@ pub fn github_fetcher() -> Fetcher {
     })
 }
 
-/// Cached resolver behind `GET /download/macos`.
-pub struct MacosDownload {
-    fetch: Fetcher,
-    /// `(expires_at, url)` of the last lookup, successful or not.
-    cache: Mutex<Option<(Instant, String)>>,
+/// Release channel, read from the version and GitHub's prerelease flag
+/// (the launcher's rule, see `launcher/README.md`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Channel {
+    Stable,
+    Beta,
+    Alpha,
 }
 
-impl std::fmt::Debug for MacosDownload {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MacosDownload").finish_non_exhaustive()
+impl Channel {
+    pub fn label(self) -> &'static str {
+        match self {
+            Channel::Stable => "Stable",
+            Channel::Beta => "Beta",
+            Channel::Alpha => "Alpha",
+        }
+    }
+
+    fn of(version: &str, prerelease: bool) -> Self {
+        match version.split_once('-') {
+            Some((_, pre)) if pre.starts_with("alpha") => Channel::Alpha,
+            Some(_) => Channel::Beta,
+            None if prerelease => Channel::Beta,
+            None => Channel::Stable,
+        }
     }
 }
 
-impl MacosDownload {
+/// One published release on `/changelog`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChangelogEntry {
+    /// App id from the tag (`api`, `editor`, …); `toolbox` reads as `launcher`.
+    pub app_id: String,
+    pub version: String,
+    pub channel: Channel,
+    /// `YYYY-MM-DD`.
+    pub date: String,
+    /// Release notes as written (Markdown-ish plain text).
+    pub notes: String,
+    /// The release page on GitHub.
+    pub url: String,
+}
+
+/// `api-v0.2.0` -> `("api", "0.2.0")`. The id is 1–32 of `a-z 0-9 _`
+/// starting with a letter; the version starts with a digit.
+fn split_tag(tag: &str) -> Option<(&str, &str)> {
+    let (id, version) = tag.split_once("-v")?;
+    let id_ok = !id.is_empty()
+        && id.len() <= 32
+        && id.starts_with(|c: char| c.is_ascii_lowercase())
+        && id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    let version_ok = version.starts_with(|c: char| c.is_ascii_digit());
+    (id_ok && version_ok).then_some((id, version))
+}
+
+/// Every non-draft `<app>-v<version>` release, newest first. `None` if the
+/// JSON is not a release list.
+pub fn changelog(json: &str) -> Option<Vec<ChangelogEntry>> {
+    let releases: Vec<Release> = serde_json::from_str(json).ok()?;
+    let mut entries: Vec<ChangelogEntry> = releases
+        .into_iter()
+        .filter(|r| !r.draft)
+        .filter_map(|r| {
+            let (id, version) = split_tag(&r.tag_name)?;
+            let app_id = if id == "toolbox" { "launcher" } else { id };
+            let date = r.published_at.as_deref()?.get(..10)?.to_owned();
+            Some(ChangelogEntry {
+                app_id: app_id.to_owned(),
+                version: version.to_owned(),
+                channel: Channel::of(version, r.prerelease),
+                date,
+                notes: r.body.unwrap_or_default().trim().to_owned(),
+                url: r.html_url.unwrap_or_else(|| site::RELEASES_URL.to_owned()),
+            })
+        })
+        .collect();
+    entries.sort_by(|a, b| b.date.cmp(&a.date));
+    Some(entries)
+}
+
+/// The last fetch: when to ask GitHub again, and the newest good body.
+struct Cached {
+    refresh_at: Instant,
+    body: Option<Arc<str>>,
+}
+
+/// Cached view of the releases repo, shared by `/download/macos`,
+/// `/changelog` and the sitemap.
+pub struct Releases {
+    fetch: Fetcher,
+    cache: Mutex<Option<Cached>>,
+}
+
+impl std::fmt::Debug for Releases {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Releases").finish_non_exhaustive()
+    }
+}
+
+impl Releases {
     pub fn new(fetch: Fetcher) -> Self {
         Self {
             fetch,
@@ -131,40 +229,65 @@ impl MacosDownload {
         }
     }
 
-    /// Resolver that queries the public GitHub API.
+    /// Releases from the public GitHub API.
     pub fn github() -> Self {
         Self::new(github_fetcher())
     }
 
-    fn cached(&self) -> Option<String> {
-        let cache = self.cache.lock().unwrap_or_else(|e| e.into_inner());
-        cache
-            .as_ref()
-            .filter(|(expires, _)| Instant::now() < *expires)
-            .map(|(_, url)| url.clone())
+    /// A source that always fails, as if offline (tests, local previews).
+    pub fn offline() -> Self {
+        Self::new(Arc::new(|| Box::pin(async { Err("offline".to_owned()) })))
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, Option<Cached>> {
+        self.cache.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// The releases JSON: cached, freshly fetched, or the last good copy
+    /// after a failure. `None` when GitHub has never answered.
+    async fn body(&self) -> Option<Arc<str>> {
+        let stale = {
+            let cache = self.lock();
+            match cache.as_ref() {
+                Some(c) if Instant::now() < c.refresh_at => return c.body.clone(),
+                Some(c) => c.body.clone(),
+                None => None,
+            }
+        };
+        let (body, ttl) = match (self.fetch)().await {
+            Ok(body) => (Some(Arc::from(body)), CACHE_TTL),
+            Err(err) => {
+                tracing::warn!(%err, "failed to fetch releases");
+                (stale, FAILURE_TTL)
+            }
+        };
+        *self.lock() = Some(Cached {
+            refresh_at: Instant::now() + ttl,
+            body: body.clone(),
+        });
+        body
     }
 
     /// Newest launcher DMG URL, or [`site::RELEASES_URL`] if it can't be resolved.
-    pub async fn url(&self) -> String {
-        if let Some(url) = self.cached() {
-            return url;
-        }
-        let (url, ttl) = match (self.fetch)().await {
-            Ok(body) => match newest_launcher_dmg(&body) {
-                Some(url) => (url, CACHE_TTL),
-                None => {
-                    tracing::warn!("no stable launcher DMG found in releases");
-                    (site::RELEASES_URL.to_owned(), FAILURE_TTL)
-                }
-            },
-            Err(err) => {
-                tracing::warn!(%err, "failed to fetch launcher releases");
-                (site::RELEASES_URL.to_owned(), FAILURE_TTL)
+    pub async fn launcher_dmg_url(&self) -> String {
+        match self.body().await.as_deref().and_then(newest_launcher_dmg) {
+            Some(url) => url,
+            None => {
+                tracing::warn!("no stable launcher DMG found; linking the releases page");
+                site::RELEASES_URL.to_owned()
             }
-        };
-        *self.cache.lock().unwrap_or_else(|e| e.into_inner()) =
-            Some((Instant::now() + ttl, url.clone()));
-        url
+        }
+    }
+
+    /// Every release, newest first; `None` when they can't be loaded.
+    pub async fn changelog(&self) -> Option<Vec<ChangelogEntry>> {
+        changelog(&self.body().await?)
+    }
+
+    /// Date of the newest release already in the cache, without fetching.
+    pub fn newest_cached_date(&self) -> Option<String> {
+        let body = self.lock().as_ref()?.body.clone()?;
+        changelog(&body)?.into_iter().next().map(|e| e.date)
     }
 }
 
@@ -260,21 +383,100 @@ mod tests {
     #[tokio::test]
     async fn resolves_once_then_serves_from_cache() {
         let (fetch, calls) = counting(Ok(SAMPLE));
-        let resolver = MacosDownload::new(fetch);
-        assert_eq!(resolver.url().await, "https://dl.test/0.3.10.dmg");
-        assert_eq!(resolver.url().await, "https://dl.test/0.3.10.dmg");
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let releases = Releases::new(fetch);
+        assert_eq!(
+            releases.launcher_dmg_url().await,
+            "https://dl.test/0.3.10.dmg"
+        );
+        assert_eq!(
+            releases.launcher_dmg_url().await,
+            "https://dl.test/0.3.10.dmg"
+        );
+        assert!(releases.changelog().await.is_some());
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "one fetch serves both");
     }
 
     #[tokio::test]
     async fn falls_back_to_releases_page() {
         let (fetch, calls) = counting(Err("offline"));
-        let resolver = MacosDownload::new(fetch);
-        assert_eq!(resolver.url().await, site::RELEASES_URL);
-        assert_eq!(resolver.url().await, site::RELEASES_URL);
+        let releases = Releases::new(fetch);
+        assert_eq!(releases.launcher_dmg_url().await, site::RELEASES_URL);
+        assert_eq!(releases.launcher_dmg_url().await, site::RELEASES_URL);
         assert_eq!(calls.load(Ordering::SeqCst), 1, "failure is cached briefly");
+        assert_eq!(releases.changelog().await, None);
+        assert_eq!(releases.newest_cached_date(), None);
 
         let (fetch, _) = counting(Ok("[]"));
-        assert_eq!(MacosDownload::new(fetch).url().await, site::RELEASES_URL);
+        assert_eq!(
+            Releases::new(fetch).launcher_dmg_url().await,
+            site::RELEASES_URL
+        );
+    }
+
+    #[tokio::test]
+    async fn keeps_the_last_good_copy_when_github_fails() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let counter = Arc::clone(&calls);
+        let fetch: Fetcher = Arc::new(move || {
+            let n = counter.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async move {
+                if n == 0 {
+                    Ok(CHANGELOG.to_owned())
+                } else {
+                    Err("down".to_owned())
+                }
+            })
+        });
+        let releases = Releases::new(fetch);
+        assert_eq!(releases.changelog().await.map(|c| c.len()), Some(3));
+        // Expire the cache by hand, then fail: the old list is still served.
+        if let Some(c) = releases.lock().as_mut() {
+            c.refresh_at = Instant::now();
+        }
+        assert_eq!(releases.changelog().await.map(|c| c.len()), Some(3));
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_eq!(releases.newest_cached_date().as_deref(), Some("2026-11-10"));
+    }
+
+    const CHANGELOG: &str = r#"[
+      {"tag_name": "api-v0.2.0-alpha.3", "prerelease": true, "published_at": "2026-11-02T09:00:00Z",
+       "body": "Faster sends", "html_url": "https://gh.test/api"},
+      {"tag_name": "toolbox-v0.5.0", "published_at": "2026-10-01T09:00:00Z", "body": ""},
+      {"tag_name": "launcher-v0.6.0", "published_at": "2026-11-10T09:00:00Z", "body": "Renamed"},
+      {"tag_name": "data-v1.0.0", "draft": true, "published_at": "2026-11-11T09:00:00Z"},
+      {"tag_name": "not a tag", "published_at": "2026-11-11T09:00:00Z"},
+      {"tag_name": "git-v0.1.0"}
+    ]"#;
+
+    #[test]
+    fn changelog_lists_published_app_releases_newest_first() {
+        let entries = changelog(CHANGELOG).unwrap_or_default();
+        let tags: Vec<_> = entries
+            .iter()
+            .map(|e| format!("{}@{}", e.app_id, e.version))
+            .collect();
+        assert_eq!(
+            tags,
+            ["launcher@0.6.0", "api@0.2.0-alpha.3", "launcher@0.5.0"]
+        );
+        assert_eq!(entries[1].channel, Channel::Alpha);
+        assert_eq!(entries[1].url, "https://gh.test/api");
+        assert_eq!(entries[0].channel, Channel::Stable);
+        assert_eq!(entries[2].url, site::RELEASES_URL);
+        assert_eq!(changelog("{}"), None);
+    }
+
+    #[test]
+    fn channels_follow_the_launcher_rules() {
+        assert_eq!(Channel::of("1.2.0", false), Channel::Stable);
+        assert_eq!(Channel::of("1.2.0", true), Channel::Beta);
+        assert_eq!(Channel::of("1.3.0-rc.1", false), Channel::Beta);
+        assert_eq!(Channel::of("1.4.0-alpha.2", false), Channel::Alpha);
+        assert_eq!(
+            split_tag("term-v1.0.0-beta.1"),
+            Some(("term", "1.0.0-beta.1"))
+        );
+        assert_eq!(split_tag("Api-v1.0.0"), None);
+        assert_eq!(split_tag("api-vx"), None);
     }
 }

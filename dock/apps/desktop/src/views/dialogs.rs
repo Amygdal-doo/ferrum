@@ -1,6 +1,6 @@
 //! Confirm and pull dialogs; dispatch to the run, tag, history and engine dialogs.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::Dialog;
 use ferrum_ui::Modal;
 use gpui::{AnyElement, Context, Window, div, prelude::*, px, relative};
@@ -11,11 +11,11 @@ use ui::{
 };
 
 pub fn render(
-    app: &FerrumDock,
+    app: &FerrumContainers,
     _window: &mut Window,
-    cx: &mut Context<FerrumDock>,
+    cx: &mut Context<FerrumContainers>,
 ) -> Option<AnyElement> {
-    let close = cx.listener(|app: &mut FerrumDock, _, _, cx| {
+    let close = cx.listener(|app: &mut FerrumContainers, _, _, cx| {
         app.state.dialog = None;
         cx.notify();
     });
@@ -47,7 +47,7 @@ pub fn render(
     }
 }
 
-fn pull(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+fn pull(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let theme = cx.theme().clone();
     let colors = theme.colors();
     let status = theme.status();

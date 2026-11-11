@@ -7,7 +7,7 @@ on top and a table of listeners below it, with a detail pane for the selected ro
 Everything runs locally: FerrumPorts reads the system with `lsof`, `ps` and `ss` and writes
 nothing except the shared recent-projects list (`~/.ferrum/projects.json`, through the
 project strip). Part of the Ferrum monorepo, with the same theme and components as
-[FerrumDock](../dock), [FerrumKit](../kit) and [Ferrum Editor](../editor).
+[FerrumContainers](../dock), [FerrumKit](../kit) and [Ferrum Editor](../editor).
 
 > **Status: alpha, first vertical slice.** "Tested" means automated unit tests of
 > `ferrumports-core` plus headless GPUI tests of the root view (`TestAppContext`, no window).

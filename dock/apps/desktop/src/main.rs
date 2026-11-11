@@ -1,4 +1,4 @@
-//! FerrumDock desktop entry point.
+//! FerrumContainers desktop entry point.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
@@ -17,7 +17,7 @@ fn main() {
     let services = match services::Services::start() {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("FerrumDock failed to start: {e}");
+            eprintln!("FerrumContainers failed to start: {e}");
             std::process::exit(1);
         }
     };
@@ -28,13 +28,13 @@ fn main() {
         .map(std::path::PathBuf::from)
         .filter(|p| p.is_dir())
         .map(|p| std::fs::canonicalize(&p).unwrap_or(p));
-    let config = AppConfig::new("FerrumDock")
+    let config = AppConfig::new("FerrumContainers")
         .size(1440., 880.)
         .min_size(980., 560.);
     ferrum_ui::run(config, move |window, cx| {
         app::bind_keys(cx);
         cx.new(|cx| {
-            let mut app = app::FerrumDock::new(services, docker_cli, window, cx);
+            let mut app = app::FerrumContainers::new(services, docker_cli, window, cx);
             if let Some(path) = open_at {
                 app.open_project(path, cx);
             }

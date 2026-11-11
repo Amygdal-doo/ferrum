@@ -1,6 +1,6 @@
 //! Connecting to the engine, refreshing lists and the live poll loop.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::{EngineStatus, Section};
 use ferrumdock_engine::{EngineError, sample_stats};
 use gpui::{Context, Task};
@@ -12,7 +12,7 @@ const POLL: Duration = Duration::from_secs(2);
 /// While offline, try to reconnect every this many polls.
 const RECONNECT_EVERY: u32 = 3;
 
-impl FerrumDock {
+impl FerrumContainers {
     /// (Re)connects; `quiet` keeps the current screen until it succeeds.
     pub fn connect(&mut self, quiet: bool, cx: &mut Context<Self>) {
         if self.connecting {

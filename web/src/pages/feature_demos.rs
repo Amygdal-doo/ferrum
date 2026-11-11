@@ -18,7 +18,7 @@ pub fn for_slug(slug: &str) -> Option<Markup> {
         s if s == products::FERRUMDATA.slug => data,
         s if s == products::FERRUMTERM.slug => term,
         s if s == products::FERRUMKIT.slug => kit,
-        s if s == products::FERRUMDOCK.slug => dock,
+        s if s == products::FERRUMCONTAINERS.slug => dock,
         s if s == products::FERRUMPORTS.slug => project_demos::ports,
         s if s == products::FERRUMENV.slug => project_demos::env,
         s if s == products::FERRUM_EDITOR.slug => editor,
@@ -296,7 +296,7 @@ pub fn dock() -> Markup {
         ("cache", "redis:7", "6379", 8),
     ];
     window(
-        "FerrumDock — orbstack",
+        "FerrumContainers — orbstack",
         "dock",
         html! {
             ul class="dock__side" {

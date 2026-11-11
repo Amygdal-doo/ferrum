@@ -115,7 +115,7 @@ pub fn candidates(docker_host: Option<&str>, home: Option<&Path>) -> Vec<Candida
 }
 
 /// Adds Docker contexts: the current one right after `DOCKER_HOST` (as the
-/// CLI would use it), the others last. Contexts FerrumDock cannot reach
+/// CLI would use it), the others last. Contexts FerrumContainers cannot reach
 /// (ssh…) are left out; a context on an already listed socket replaces nothing.
 #[must_use]
 pub fn with_contexts(list: Vec<Candidate>, contexts: &[DockerContext]) -> Vec<Candidate> {

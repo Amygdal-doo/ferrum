@@ -98,7 +98,7 @@ ferrumterm-net = { path = "term/crates/net" }
 # Ferrum Launcher
 ferrumlauncher-core = { path = "launcher/crates/core" }
 
-# FerrumDock
+# FerrumContainers
 ferrumdock-engine = { path = "dock/crates/engine" }
 # Docker Engine API client (Unix socket + TCP; no TLS features).
 bollard = { version = "0.21", default-features = false, features = ["http", "pipe"] }

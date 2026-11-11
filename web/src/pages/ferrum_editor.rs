@@ -84,9 +84,9 @@ const NOT_BUILT_YET: &[&str] = &[
 
 const PAGE: ProductPage = ProductPage {
     product: FERRUM_EDITOR,
-    meta_description: "Ferrum Editor is a small, hackable code editor in the spirit of Atom, \
-                       written from scratch in Rust on GPUI, configured in plain TOML, with \
-                       project logs and GitHub Actions built in.",
+    meta_description: "Ferrum Editor is a small, hackable code editor written in Rust and \
+                       configured in plain TOML, with LSP, a debugger, AI sessions and GitHub \
+                       Actions built in.",
     intro: "Tree view, tabs, fuzzy finder and command palette, with config, keymap, theme and \
             snippets in plain files you edit in the editor itself. Lighter than an IDE, and \
             built from scratch rather than forked.",

@@ -106,7 +106,6 @@ pub fn section(page: &EditorPage) -> Markup {
             aria-labelledby=(heading) {
             div class="container feature-app__inner" {
                 div class="feature-app__copy" {
-                    p class="eyebrow" { "Built in" }
                     div class="feature-app__head" {
                         h2 id=(heading) { (page.title) }
                         p class="feature-app__meta" { (page.meta) }

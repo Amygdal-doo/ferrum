@@ -1,12 +1,12 @@
 //! The engine picker: `DOCKER_HOST`, Docker contexts and the known sockets.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::{Dialog, EngineStatus};
 use ferrumdock_engine::{Candidate, context, endpoint};
 use gpui::Context;
 use std::convert::Infallible;
 
-impl FerrumDock {
+impl FerrumContainers {
     /// Opens the picker and lists the engines present on this machine.
     pub fn open_engine_picker(&mut self, cx: &mut Context<Self>) {
         self.state.dialog = Some(Dialog::Engines);

@@ -1,7 +1,7 @@
 //! Stats tab: CPU and memory sparklines (last ~2 minutes) plus network and
 //! block I/O totals and rates.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::views::widgets::muted;
 use ferrumdock_engine::stats::{IoRates, StatsHistory, sparkline};
 use ferrumdock_engine::{Stats, format};
@@ -75,7 +75,7 @@ fn io_row(latest: &Stats, rates: Option<IoRates>) -> AnyElement {
         .into_any_element()
 }
 
-pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let Some(detail) = app.state.detail.as_ref() else {
         return div().into_any_element();
     };

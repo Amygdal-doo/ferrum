@@ -11,7 +11,7 @@ pub struct DockerContext {
     pub name: String,
     /// The raw `Host`, e.g. `unix:///…/docker.sock` or `ssh://me@box`.
     pub host: String,
-    /// `None` when FerrumDock cannot talk to it (ssh, npipe, TLS-only…).
+    /// `None` when FerrumContainers cannot talk to it (ssh, npipe, TLS-only…).
     pub endpoint: Option<Endpoint>,
     pub current: bool,
 }

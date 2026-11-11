@@ -4,8 +4,12 @@
 use maud::{Markup, html};
 
 use crate::components::{
+    breadcrumb::Crumb,
     button::{self, Variant},
-    card,
+    callout::{self, Kind},
+    card, code,
+    page_header::PageHeader,
+    section::Section,
 };
 use crate::layout::{PageMeta, page};
 use crate::{products, site};
@@ -149,83 +153,79 @@ fn use_launcher_steps() -> [(&'static str, Markup); 3] {
 pub fn render(site_url: &str) -> Markup {
     let launcher = products::FERRUM_LAUNCHER;
     let meta = PageMeta::new(
-        Some("Download"),
+        Some("Download Ferrum Launcher for macOS"),
         DESCRIPTION,
         site::DOWNLOAD_PATH,
         "page-download",
-    );
+    )
+    .trail(vec![Crumb::new("Download", site::DOWNLOAD_PATH)]);
     page(
         site_url,
         &meta,
         html! {
-            section class="download-hero" style=(launcher.accent_style()) aria-labelledby="download-title" {
-                div class="container download-hero__inner" {
-                    (card::app_logo(&launcher, "app-logo--hero", false))
-                    div {
-                        p class="eyebrow" { "Download" }
-                        h1 id="download-title" { "Get Ferrum Launcher" }
-                        p class="lead" {
-                            "Install the launcher once, then install, update and roll back every "
-                            "Ferrum app from one window."
-                        }
-                        div class="download-actions" {
-                            (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
-                            (button::disabled("Windows", "Coming soon"))
-                            (button::disabled("Linux", "Coming soon"))
-                        }
-                        p class="muted" { "Apple Silicon · DMG · free, no sign-in" }
-                        div class="callout" role="note" {
-                            p {
-                                strong { "Public builds." }
-                                " Releases are published in the public "
-                                code { (site::REPO_SLUG) } " repository on GitHub. You don't "
-                                "need a GitHub account, and the launcher installs every other app "
-                                "without signing in."
-                            }
-                        }
-                    }
-                }
-            }
-            section class="section" aria-labelledby="get-title" {
-                div class="container" {
-                    p class="eyebrow" { "Step by step" }
-                    h2 id="get-title" { "Install Ferrum Launcher" }
-                    (card::steps(&get_launcher_steps()))
-                }
-            }
-            (gatekeeper_section())
-            section class="section" aria-labelledby="use-title" {
-                div class="container" {
-                    p class="eyebrow" { "Then" }
-                    h2 id="use-title" { "Install the apps" }
-                    (card::steps(&use_launcher_steps()))
-                    ul class="app-strip" {
-                        @for p in products::apps() {
-                            li style=(p.accent_style()) {
-                                a class="app-strip__link" href=(p.path()) {
-                                    (card::app_logo(p, "app-logo--sm", true))
-                                    span { (p.name) }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            section class="section section--tight" aria-labelledby="platforms-title" {
-                div class="container" {
-                    h2 id="platforms-title" { "Launcher installers" }
+            (PageHeader::new(&meta.trail, "Get Ferrum Launcher")
+                .accent(launcher.accent_style())
+                .media(card::app_logo(&launcher, "app-logo--hero", false))
+                .lead(html! {
                     p {
-                        "The launcher is the only thing you download by hand. Ferrum Editor, "
-                        "FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock, "
-                        "FerrumPorts and FerrumEnv have no separate "
-                        "installers: install, update and remove them from the launcher."
+                        "Install the launcher once, then install, update and roll back every \
+                         Ferrum app from one window. Free for Apple Silicon Macs, no sign-in."
                     }
+                })
+                .actions(html! {
+                    (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
+                    (button::disabled("Windows", "Coming soon"))
+                    (button::disabled("Linux", "Coming soon"))
+                })
+                .render())
+            (Section::new("terminal", "Or install from Terminal")
+                .tight()
+                .lead(html! {
+                    p {
+                        "One line downloads the newest launcher, checks its checksum and opens \
+                         it. The "
+                        a href="/docs/install" { "install guide" } " explains every step."
+                    }
+                })
+                .render(html! {
+                    (code::command(site::MACOS_INSTALL_COMMAND))
+                    div class="download-note" {
+                        (callout::render(Kind::Note, Some("Public builds"), html! {
+                            p {
+                                "Releases are published in the public "
+                                code { (site::REPO_SLUG) } " repository on GitHub. You don't \
+                                 need a GitHub account, and the launcher installs every other app \
+                                 without signing in."
+                            }
+                        }))
+                    }
+                }))
+            (Section::new("get", "Install Ferrum Launcher")
+                .render(card::steps(&get_launcher_steps())))
+            (gatekeeper_section())
+            (Section::new("use", "Install the apps")
+                .band()
+                .render(html! {
+                    (card::steps(&use_launcher_steps()))
+                    (card::app_strip(products::apps(), false))
+                }))
+            (Section::new("platforms", "Launcher installers")
+                .tight()
+                .lead(html! {
+                    p {
+                        "The launcher is the only thing you download by hand. Ferrum Editor, \
+                         FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers, \
+                         FerrumPorts and FerrumEnv have no separate installers: install, update \
+                         and remove them from the launcher."
+                    }
+                })
+                .render(html! {
                     dl class="spec-sheet" {
                         @for (os, file, how, published) in INSTALLERS {
                             div class="spec-sheet__row" {
-                                dt class="mono" { (os) }
+                                dt { (os) }
                                 dd {
-                                    @if published { code { (file) } " · " }
+                                    @if published { code { (file) } ": " }
                                     (how)
                                 }
                             }
@@ -233,12 +233,11 @@ pub fn render(site_url: &str) -> Markup {
                     }
                     p class="muted" { "FerrumTerm isn't available on Windows yet." }
                     div class="download-actions" {
-                        (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
                         (button::link("All releases on GitHub", site::RELEASES_URL, Variant::Secondary))
-                        (button::link("About Ferrum Launcher", &launcher.path(), Variant::Secondary))
+                        (button::link("Read the changelog", "/changelog", Variant::Secondary))
+                        (button::link("About Ferrum Launcher", &launcher.path(), Variant::Ghost))
                     }
-                }
-            }
+                }))
         },
     )
 }
@@ -278,10 +277,7 @@ mod tests {
             !site::MACOS_NOTARIZED
         );
         assert_eq!(html.contains("Open Anyway"), !site::MACOS_NOTARIZED);
-        assert_eq!(
-            html.contains("ferrum-releases/main/install.sh | bash"),
-            !site::MACOS_NOTARIZED
-        );
+        assert!(html.contains("ferrum-releases/main/install.sh | bash"));
     }
 
     #[test]
@@ -291,10 +287,7 @@ mod tests {
         assert!(html.contains("FerrumLauncher-&lt;version&gt;-aarch64.dmg"));
         assert!(!html.contains("x86_64.dmg"));
         for os in ["macOS", "Windows", "Linux"] {
-            assert!(
-                html.contains(&format!(r#"<dt class="mono">{os}</dt>"#)),
-                "{os}"
-            );
+            assert!(html.contains(&format!(r#"<dt>{os}</dt>"#)), "{os}");
         }
     }
 

@@ -16,14 +16,18 @@ pub mod services;
 pub mod stats;
 pub mod widgets;
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::{EngineStatus, Section};
 use ferrum_ui::{DraggedSplitter, splitter};
 use gpui::{AnyElement, Axis, Context, DragMoveEvent, Window, div, prelude::*, px};
 use ui::h_flex;
 
 /// Everything between toolbar and status bar.
-pub fn body(app: &mut FerrumDock, window: &mut Window, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn body(
+    app: &mut FerrumContainers,
+    window: &mut Window,
+    cx: &mut Context<FerrumContainers>,
+) -> AnyElement {
     let main = match &app.status {
         EngineStatus::Connecting => chrome::connecting(),
         EngineStatus::Offline(error) => {
@@ -51,7 +55,11 @@ pub fn body(app: &mut FerrumDock, window: &mut Window, cx: &mut Context<FerrumDo
         .into_any_element()
 }
 
-fn section(app: &mut FerrumDock, window: &mut Window, cx: &mut Context<FerrumDock>) -> AnyElement {
+fn section(
+    app: &mut FerrumContainers,
+    window: &mut Window,
+    cx: &mut Context<FerrumContainers>,
+) -> AnyElement {
     match app.state.section {
         Section::Containers => {
             let list = containers::render(app, cx);

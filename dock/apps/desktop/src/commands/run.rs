@@ -1,6 +1,6 @@
 //! "Run container" (create + start), image tag and image history.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::commands::resources::image_label;
 use crate::state::{Dialog, LayersState, RunState, Section};
 use ferrumdock_engine::create::{RestartPolicy, RunForm};
@@ -9,7 +9,7 @@ use ferrumdock_engine::{Image, ops};
 use gpui::Context;
 use std::path::PathBuf;
 
-impl FerrumDock {
+impl FerrumContainers {
     /// Opens the run dialog; `image` pre-fills the image field (from the images list).
     pub fn open_run_dialog(&mut self, image: Option<String>, cx: &mut Context<Self>) {
         if let Some(image) = image {

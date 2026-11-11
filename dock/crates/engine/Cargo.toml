@@ -1,6 +1,6 @@
 [package]
 name = "ferrumdock-engine"
-description = "FerrumDock engine access: Docker Engine API client, models, parsing and formatting (no UI)."
+description = "FerrumContainers engine access: Docker Engine API client, models, parsing and formatting (no UI)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

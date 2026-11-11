@@ -1,6 +1,6 @@
 //! Small building blocks: buttons, table cells, captions.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use gpui::{AnyElement, App, Context, Div, ElementId, Hsla, SharedString, div, prelude::*, px};
 use std::rc::Rc;
 use theme::ActiveTheme;
@@ -14,8 +14,8 @@ pub fn button(
     id: impl Into<ElementId>,
     label: impl Into<SharedString>,
     disabled: bool,
-    cx: &mut Context<FerrumDock>,
-    on_click: impl Fn(&mut FerrumDock, &mut Context<FerrumDock>) + 'static,
+    cx: &mut Context<FerrumContainers>,
+    on_click: impl Fn(&mut FerrumContainers, &mut Context<FerrumContainers>) + 'static,
 ) -> Button {
     Button::new(id, label)
         .style(ButtonStyle::Outlined)
@@ -34,8 +34,8 @@ pub fn icon_button(
     icon: IconName,
     tooltip: &'static str,
     disabled: bool,
-    cx: &mut Context<FerrumDock>,
-    on_click: impl Fn(&mut FerrumDock, &mut Context<FerrumDock>) + 'static,
+    cx: &mut Context<FerrumContainers>,
+    on_click: impl Fn(&mut FerrumContainers, &mut Context<FerrumContainers>) + 'static,
 ) -> IconButton {
     IconButton::new(id, icon)
         .icon_size(IconSize::Small)
@@ -138,8 +138,8 @@ pub fn muted(text: impl Into<SharedString>) -> Label {
 pub fn segmented<T: Copy + 'static>(
     id: &'static str,
     options: &[(&'static str, bool, bool, T)],
-    cx: &mut Context<FerrumDock>,
-    on_pick: impl Fn(&mut FerrumDock, T, &mut Context<FerrumDock>) + 'static,
+    cx: &mut Context<FerrumContainers>,
+    on_pick: impl Fn(&mut FerrumContainers, T, &mut Context<FerrumContainers>) + 'static,
 ) -> Div {
     let on_pick = Rc::new(on_pick);
     h_flex()

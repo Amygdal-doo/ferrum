@@ -1,4 +1,4 @@
-//! FerrumDock engine access: a Docker Engine API client behind the [`Engine`]
+//! FerrumContainers engine access: a Docker Engine API client behind the [`Engine`]
 //! trait (bollard over a Unix socket or TCP), engine-neutral models, socket
 //! detection, formatting, log/ANSI handling, compose grouping and the
 //! `docker compose` / "open shell" launchers. No UI code lives here.

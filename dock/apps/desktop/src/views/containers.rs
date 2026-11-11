@@ -1,6 +1,6 @@
 //! Containers list grouped by compose project, with live CPU / memory.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::{Row, container_rows};
 use crate::views::compose_rows;
 use crate::views::widgets::{
@@ -34,7 +34,7 @@ pub fn state_color(state: ContainerState, cx: &App) -> Hsla {
     }
 }
 
-pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let rows = container_rows(
         &app.state.containers,
         &app.state.filter,
@@ -127,10 +127,10 @@ pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
 }
 
 fn container_row(
-    app: &FerrumDock,
+    app: &FerrumContainers,
     c: &Container,
     grouped: bool,
-    cx: &mut Context<FerrumDock>,
+    cx: &mut Context<FerrumContainers>,
 ) -> AnyElement {
     let selected = app.state.detail.as_ref().is_some_and(|d| d.id == c.id);
     let busy = app.state.busy.contains(&c.id);
@@ -174,7 +174,7 @@ fn container_row(
 }
 
 /// Published ports as clickable `:8080` links (opens the browser), else the exposed ports.
-fn ports_cell(c: &Container, cx: &mut Context<FerrumDock>) -> AnyElement {
+fn ports_cell(c: &Container, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let urls = format::browser_urls(&c.ports);
     if urls.is_empty() {
         return cell(150., format::ports(&c.ports), Color::Muted).into_any_element();
@@ -202,7 +202,7 @@ fn ports_cell(c: &Container, cx: &mut Context<FerrumDock>) -> AnyElement {
         .into_any_element()
 }
 
-fn actions(c: &Container, busy: bool, cx: &mut Context<FerrumDock>) -> AnyElement {
+fn actions(c: &Container, busy: bool, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let mut buttons: Vec<AnyElement> = Vec::new();
     for action in ops::lifecycle_actions(c.state) {
         let (icon, tip) = match action {

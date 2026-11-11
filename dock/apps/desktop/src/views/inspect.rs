@@ -1,12 +1,12 @@
 //! Container detail panel: the Inspect tab (env, mounts, networks, labels).
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::views::widgets::{icon_button, muted};
 use ferrumdock_engine::ContainerDetail;
 use gpui::{AnyElement, App, Context, SharedString, div, prelude::*, px};
 use ui::{Color, IconName, Label, LabelCommon, LabelSize, StyledTypography, h_flex, v_flex};
 
-pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let Some(detail) = app.state.detail.as_ref() else {
         return div().into_any_element();
     };

@@ -1,13 +1,13 @@
 //! Images (pull, remove, prune), volumes and networks; confirm dialog outcomes.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::{Confirm, Dialog, PendingAction, PullState, Section};
 use ferrumdock_engine::compose::ComposeAction;
 use ferrumdock_engine::pull::PullProgress;
 use ferrumdock_engine::{Image, Network, PruneReport, format, ops};
 use gpui::Context;
 
-impl FerrumDock {
+impl FerrumContainers {
     /// Runs the action of the open confirm dialog.
     pub fn accept_confirm(&mut self, cx: &mut Context<Self>) {
         let Some(Dialog::Confirm(confirm)) = self.state.dialog.take() else {

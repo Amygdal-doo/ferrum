@@ -5,15 +5,14 @@ use maud::{Markup, html};
 use super::feature_demos;
 use crate::components::{
     button::{self, Variant},
-    card,
+    card, code,
     follow::{self, Size},
 };
 use crate::layout::{PageMeta, page};
-use crate::{products, site};
+use crate::{products, seo, site};
 
-const DESCRIPTION: &str = "Ferrum is a family of native developer tools written in Rust and \
-     rendered with GPUI: Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, \
-     FerrumDock, FerrumPorts and FerrumEnv, installed and updated by Ferrum Launcher.";
+const DESCRIPTION: &str = "Native developer tools for macOS, written in Rust: a code editor, \
+     API client, Git client, database IDE, terminal and more, installed by one free launcher.";
 
 /// (title, body) pairs for the "native" section.
 const NATIVE: [(&str, &str); 4] = [
@@ -41,7 +40,9 @@ const NATIVE: [(&str, &str); 4] = [
 ];
 
 pub fn render(site_url: &str) -> Markup {
-    let meta = PageMeta::new(None, DESCRIPTION, "/", "page-home");
+    let meta = PageMeta::new(None, DESCRIPTION, "/", "page-home")
+        .json_ld(seo::organization(site_url))
+        .json_ld(seo::website(site_url));
     page(
         site_url,
         &meta,
@@ -55,17 +56,6 @@ pub fn render(site_url: &str) -> Markup {
             }
         },
     )
-}
-
-/// The one-line Terminal install with a copy button (js/site.js).
-pub fn install_command() -> Markup {
-    html! {
-        div class="install-cmd" {
-            code { (site::MACOS_INSTALL_COMMAND) }
-            button class="install-cmd__copy" type="button"
-                data-copy=(site::MACOS_INSTALL_COMMAND) { "Copy" }
-        }
-    }
 }
 
 fn hero() -> Markup {
@@ -89,7 +79,7 @@ fn hero() -> Markup {
                     (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
                     (button::link("See what's new", super::features::PATH, Variant::Secondary))
                 }
-                (install_command())
+                (code::command(site::MACOS_INSTALL_COMMAND))
                 p class="hero__note" {
                     "Free for Apple Silicon Macs. Signed and notarized by Apple."
                 }
@@ -193,7 +183,8 @@ fn install_section() -> Markup {
                 }
                 (card::steps(&steps))
                 div class="install-flow__cta" {
-                    (button::link("Download & install guide", site::DOWNLOAD_PATH, Variant::Secondary))
+                    (button::link("Read the install guide", "/docs/install", Variant::Secondary))
+                    (button::link("Shell commands", "/docs/shell-commands", Variant::Ghost))
                 }
             }
         }
@@ -226,7 +217,9 @@ mod tests {
         assert!(html.contains(site::MACOS_DOWNLOAD_PATH));
         assert!(html.contains(r#"data-copy="curl -fsSL"#));
         assert!(html.contains(r#"class="steps""#));
-        assert!(html.contains(r#"href="/download""#));
+        assert!(html.contains(r#"href="/docs/install""#));
+        assert!(html.contains(r#""@type":"Organization""#));
+        assert!(html.contains(r#""@type":"WebSite""#));
     }
 
     #[test]

@@ -1,7 +1,7 @@
 //! The log view of the detail panel: search (plain or regex), since filter,
 //! follow / timestamps / colours, save to file, and the virtualized lines.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::DetailState;
 use crate::views::widgets::{button, muted, segmented};
 use ferrumdock_engine::LogStream;
@@ -19,7 +19,7 @@ fn checkbox(
     id: &'static str,
     label: &'static str,
     checked: bool,
-    cx: &mut Context<FerrumDock>,
+    cx: &mut Context<FerrumContainers>,
     toggle: impl Fn(&mut DetailState) + 'static,
 ) -> Checkbox {
     Checkbox::new(id, ToggleState::from(checked))
@@ -28,7 +28,11 @@ fn checkbox(
         .on_click(cx.listener(move |app, _: &ToggleState, _, cx| app.update_detail(&toggle, cx)))
 }
 
-pub fn render(app: &FerrumDock, _window: &mut Window, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn render(
+    app: &FerrumContainers,
+    _window: &mut Window,
+    cx: &mut Context<FerrumContainers>,
+) -> AnyElement {
     let Some(detail) = app.state.detail.as_ref() else {
         return div().into_any_element();
     };

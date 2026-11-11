@@ -17,7 +17,7 @@ pub async fn get(
     timeout: Duration,
 ) -> EngineResult<(u16, Vec<u8>)> {
     let request =
-        format!("GET {path} HTTP/1.0\r\nHost: localhost\r\nUser-Agent: FerrumDock\r\n\r\n");
+        format!("GET {path} HTTP/1.0\r\nHost: localhost\r\nUser-Agent: FerrumContainers\r\n\r\n");
     let exchange = async {
         let response = match endpoint {
             #[cfg(unix)]

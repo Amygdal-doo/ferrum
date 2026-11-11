@@ -10,26 +10,27 @@ use std::sync::Arc;
 
 use axum::{
     Router,
-    extract::State,
+    extract::{Path, State},
     http::{StatusCode, header},
-    response::Redirect,
+    response::{IntoResponse, Redirect, Response},
     routing::get,
 };
 use maud::Markup;
 
-use crate::{Config, pages, releases::MacosDownload, site};
+use crate::{Config, pages, products, releases::Releases, site};
 
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
-    pub macos_download: Arc<MacosDownload>,
+    /// Releases of every app (launcher download, changelog, sitemap).
+    pub releases: Arc<Releases>,
 }
 
 impl AppState {
-    pub fn new(config: Config, macos_download: MacosDownload) -> Self {
+    pub fn new(config: Config, releases: Releases) -> Self {
         Self {
             config: Arc::new(config),
-            macos_download: Arc::new(macos_download),
+            releases: Arc::new(releases),
         }
     }
 
@@ -38,14 +39,15 @@ impl AppState {
     }
 }
 
-/// Build the full application router (used by `main` and integration tests).
+/// Build the full application router, reading releases from GitHub.
 pub fn app(config: Config) -> Router {
-    app_with(config, MacosDownload::github())
+    app_with(config, Releases::github())
 }
 
-/// Like [`app`], with a custom launcher download resolver (tests inject a fake fetcher).
-pub fn app_with(config: Config, macos_download: MacosDownload) -> Router {
-    router(AppState::new(config, macos_download))
+/// Like [`app`], with another releases source (tests inject a fake fetcher,
+/// so they never touch the network).
+pub fn app_with(config: Config, releases: Releases) -> Router {
+    router(AppState::new(config, releases))
 }
 
 /// The router for an existing state.
@@ -57,7 +59,12 @@ pub fn router(state: AppState) -> Router {
         .route("/ferrumgit", get(ferrumgit))
         .route("/ferrumterm", get(ferrumterm))
         .route("/ferrumkit", get(ferrumkit))
-        .route("/ferrumdock", get(ferrumdock))
+        .route("/ferrumcontainers", get(ferrumcontainers))
+        // FerrumDock was renamed FerrumContainers.
+        .route(
+            "/ferrumdock",
+            get(|| async { Redirect::permanent(&products::FERRUMCONTAINERS.path()) }),
+        )
         .route("/ferrumports", get(ferrumports))
         .route("/ferrumenv", get(ferrumenv))
         .route("/ferrum-editor", get(ferrum_editor))
@@ -84,12 +91,26 @@ pub fn router(state: AppState) -> Router {
         .route("/download", get(download))
         .route(site::MACOS_DOWNLOAD_PATH, get(download_macos))
         .route("/about", get(about))
+        .route(pages::docs::PATH, get(docs))
+        .route(pages::docs::install::PATH, get(docs_install))
+        .route(pages::docs::shell_commands::PATH, get(docs_shell_commands))
+        .route(pages::docs::project_bar::PATH, get(docs_project_bar))
+        .route(pages::docs::shortcuts::PATH, get(docs_shortcuts))
+        .route(pages::changelog::PATH, get(changelog))
+        .route(pages::faq::PATH, get(faq))
+        .route(pages::security::PATH, get(security))
+        .route(pages::compare::PATH, get(compare_index))
+        .route("/compare/{slug}", get(compare))
         .route(crate::updates::INDEX_PATH, get(updates::index))
         .route(crate::updates::FEED_PATH, get(updates::feed))
         .route("/updates/{slug}", get(updates::post))
         .route(pages::privacy::PATH, get(privacy))
         .route("/healthz", get(health::healthz))
         .route("/robots.txt", get(seo::robots))
+        .route(
+            "/favicon.ico",
+            get(|| async { Redirect::permanent(&assets::url("img/favicon-32.png")) }),
+        )
         .route("/sitemap.xml", get(seo::sitemap))
         .route("/assets/{*path}", get(assets::serve))
         .fallback(not_found)
@@ -118,8 +139,8 @@ async fn ferrumterm(State(s): State<AppState>) -> Markup {
 async fn ferrumkit(State(s): State<AppState>) -> Markup {
     pages::ferrumkit::render(s.site_url())
 }
-async fn ferrumdock(State(s): State<AppState>) -> Markup {
-    pages::ferrumdock::render(s.site_url())
+async fn ferrumcontainers(State(s): State<AppState>) -> Markup {
+    pages::ferrumcontainers::render(s.site_url())
 }
 async fn ferrumports(State(s): State<AppState>) -> Markup {
     pages::ferrumports::render(s.site_url())
@@ -147,13 +168,47 @@ async fn download_macos(
     (
         StatusCode::FOUND,
         [
-            (header::LOCATION, s.macos_download.url().await),
+            (header::LOCATION, s.releases.launcher_dmg_url().await),
             (header::CACHE_CONTROL, "no-store".to_owned()),
         ],
     )
 }
 async fn about(State(s): State<AppState>) -> Markup {
     pages::about::render(s.site_url())
+}
+async fn docs(State(s): State<AppState>) -> Markup {
+    pages::docs::render(s.site_url())
+}
+async fn docs_install(State(s): State<AppState>) -> Markup {
+    pages::docs::install::render(s.site_url())
+}
+async fn docs_shell_commands(State(s): State<AppState>) -> Markup {
+    pages::docs::shell_commands::render(s.site_url())
+}
+async fn docs_project_bar(State(s): State<AppState>) -> Markup {
+    pages::docs::project_bar::render(s.site_url())
+}
+async fn docs_shortcuts(State(s): State<AppState>) -> Markup {
+    pages::docs::shortcuts::render(s.site_url())
+}
+async fn changelog(State(s): State<AppState>) -> Markup {
+    let entries = s.releases.changelog().await;
+    pages::changelog::render(s.site_url(), entries.as_deref())
+}
+async fn faq(State(s): State<AppState>) -> Markup {
+    pages::faq::render(s.site_url())
+}
+async fn security(State(s): State<AppState>) -> Markup {
+    pages::security::render(s.site_url())
+}
+async fn compare_index(State(s): State<AppState>) -> Markup {
+    pages::compare::index(s.site_url())
+}
+async fn compare(State(s): State<AppState>, Path(slug): Path<String>) -> Response {
+    match pages::compare::find(&slug) {
+        Some(c) => pages::compare::render(s.site_url(), c).into_response(),
+        None => not_found(State(s)).await.into_response(),
+    }
 }
 pub(crate) async fn not_found(
     State(s): State<AppState>,

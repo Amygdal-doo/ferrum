@@ -7,6 +7,7 @@ use crate::components::{
     button::{self, Variant},
     ferrum_mark,
 };
+use crate::pages::docs;
 use crate::{products, site, updates};
 
 pub fn render() -> Markup {
@@ -37,11 +38,24 @@ pub fn render() -> Markup {
                             }
                         }
                     }
+                    nav class="footer-col" aria-labelledby="footer-docs" {
+                        h2 class="footer-col__title" id="footer-docs" { "Docs" }
+                        ul {
+                            li { a href=(docs::PATH) { "All guides" } }
+                            @for d in &docs::DOCS {
+                                li { a href=(d.path) { (d.title) } }
+                            }
+                            li { a href="/faq" { "FAQ" } }
+                            li { a href="/security" { "Security" } }
+                            li { a href="/compare" { "Compare" } }
+                        }
+                    }
                     nav class="footer-col" aria-labelledby="footer-project" {
                         h2 class="footer-col__title" id="footer-project" { "Ferrum" }
                         ul {
-                            li { a href=(site::DOWNLOAD_PATH) { "Download & install" } }
+                            li { a href=(site::DOWNLOAD_PATH) { "Download" } }
                             li { a href="/features" { "Features" } }
+                            li { a href="/changelog" { "Changelog" } }
                             li { a href=(updates::INDEX_PATH) { "Updates" } }
                             li { a href=(updates::FEED_PATH) { "Atom feed" } }
                             li { a href="/about" { "About" } }
@@ -57,7 +71,9 @@ pub fn render() -> Markup {
                         a href=(site::ZED_UPSTREAM_URL) rel="noopener" { "Zed editor" }
                         "."
                     }
-                    p class="footer-copy" { "© 2026 Ferrum" }
+                    p class="footer-copy" {
+                        "© 2026 Ferrum, by " (site::ORGANIZATION_LEGAL_NAME) ", " (site::ORGANIZATION_CITY)
+                    }
                 }
             }
         }
@@ -78,6 +94,16 @@ mod tests {
         assert!(html.contains("for the Rust community"));
         assert!(html.contains(r#"href="/privacy""#));
         assert!(html.contains(r#"href="/updates""#));
+        for path in [
+            "/docs",
+            "/docs/install",
+            "/changelog",
+            "/faq",
+            "/security",
+            "/compare",
+        ] {
+            assert!(html.contains(&format!(r#"href="{path}""#)), "{path}");
+        }
         for p in products::ALL {
             assert!(html.contains(&format!(r#"href="{}""#, p.path())));
         }

@@ -1,15 +1,21 @@
-# FerrumDock
+# FerrumContainers
 
 A fast, native container manager written in Rust, meant as a lighter alternative to
 Docker Desktop's dashboard. It is a GPUI desktop app (the UI framework of Zed, from the
-`ide/` submodule) built on the shared `ferrum-ui` crate. FerrumDock **does not ship an
+`ide/` submodule) built on the shared `ferrum-ui` crate. FerrumContainers **does not ship an
 engine**. It talks to the Docker-compatible engine you already run (Docker Desktop, OrbStack,
 Colima, or Podman with the Docker API) over the Docker Engine API. It is part of the Ferrum
 monorepo, alongside [FerrumAPI](../api), [FerrumGIT](../git), [FerrumData](../data) and
 [FerrumTerm](../term), and uses the same theme and components.
 
-> **Status: alpha.** FerrumDock is also Ferrum's container tool for projects: the planned
-> separate "FerrumContainers" app was folded into it. The "What works" table is the whole
+> **Formerly FerrumDock.** Only the name people see changed (app, window, `FerrumContainers.app`,
+> menus, catalog). The launcher id `dock`, the crates `ferrumdock-*`, the binary `ferrumdock`,
+> the release tags `dock-v*` and the brand files (`brand/*/dock.*`) keep the old name, so
+> FerrumDock installs update in place: Ferrum Launcher publishes the update as
+> `FerrumContainers.app` and removes the old `FerrumDock.app` copy (see `former_names` in
+> `launcher/crates/core/src/catalog.rs`). The suggested shell command is `fec`.
+
+> **Status: alpha.** FerrumContainers is also Ferrum's container tool for projects. The "What works" table is the whole
 > feature list. Assume nothing outside it works. "Tested" means automated tests. Engine-side
 > logic is unit-tested against an in-memory fake engine. Read-only calls (version, Docker
 > contexts, containers, stats, inspect, logs, images, image history, volumes with sizes,
@@ -54,7 +60,7 @@ The shell is the one picked in the detail panel (auto when the shell is opened f
 FerrumTerm counts as installed when its GUI bundle
 (`~/Applications/Ferrum/FerrumTerm.app`, `/Applications/Ferrum/FerrumTerm.app` or
 `/Applications/FerrumTerm.app`) **and** `~/.ferrum/bin/fterm` must both exist. In that case
-FerrumDock runs:
+FerrumContainers runs:
 
 ```bash
 ~/.ferrum/bin/fterm window --name <container> --cwd ~ -- <docker> -H <endpoint> exec -it <id> sh -c '<shell choice, falling back to sh>' 
@@ -63,9 +69,9 @@ open -a <FerrumTerm.app>
 
 `fterm window` opens a new window (tab) in the FerrumTerm server and starts the server if
 it is not running. `open -a` then brings the GUI to the front. Without FerrumTerm,
-FerrumDock runs `osascript` to send `tell application "Terminal" to do script "<quoted command>"`
+FerrumContainers runs `osascript` to send `tell application "Terminal" to do script "<quoted command>"`
 on macOS, and starts the first terminal emulator found on `PATH` on Linux.
-Both paths need the `docker` CLI. FerrumDock looks for it on `PATH`, then in
+Both paths need the `docker` CLI. FerrumContainers looks for it on `PATH`, then in
 `/usr/local/bin`, `/opt/homebrew/bin`, `~/.orbstack/bin`, `~/.docker/bin`, `~/.rd/bin` and the
 Docker.app and OrbStack.app bundles. If it finds none, compose and shell actions explain what
 is missing.
@@ -73,7 +79,7 @@ is missing.
 ## Not built yet
 TLS (`DOCKER_CERT_PATH`) and `ssh://` engines, so `ssh://` and TLS Docker contexts are listed
 but cannot be used. Switching the CLI's current context (`docker context use`): the picker
-only changes what FerrumDock connects to, and is not remembered across launches. Run
+only changes what FerrumContainers connects to, and is not remembered across launches. Run
 options beyond the dialog (networks, labels, user, entrypoint, resource limits, `--rm`,
 interactive `-it` attach), editing or renaming containers, `docker cp`, file browser, port
 forwarding UI. Compose: profiles, `.env` selection, per-service actions, `pull`/`build`, and
@@ -82,7 +88,7 @@ beyond ~2 minutes or while another section is shown. Image push, build and regis
 (pulls are anonymous, so private registries fail). Volume browsing, and volume
 backup/export. Network create and connect/disconnect. Dangling-only vs all-unused choice for
 image prune. A light theme. Persisted settings (window size, detail width, collapsed groups,
-picked engine, project scope). FerrumDock is not in the project bar's "open in" buttons of the
+picked engine, project scope). FerrumContainers is not in the project bar's "open in" buttons of the
 other apps (the shared `FerrumApp` list has Editor, Git and Term only). Packaging and signing.
 
 Volume prune sends `all=true`, which needs API ≥ 1.42 (Docker 23+). On older engines only
@@ -136,6 +142,6 @@ call goes around it. bollard serializes `/system/df?type=…` incorrectly, and a
 fails on some engines, so volume sizes come from a small HTTP/1.0 GET in `rawhttp.rs`.
 
 ## Local data
-FerrumDock's own settings are not stored yet. Opening a project adds it to the shared Ferrum
+FerrumContainers's own settings are not stored yet. Opening a project adds it to the shared Ferrum
 recent-projects list, `~/.ferrum/projects.json` (written by `ferrum-ui`'s project bar, like the
 other apps). "Save…" in the log view writes only where you choose.

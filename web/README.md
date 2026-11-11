@@ -1,15 +1,15 @@
 # web-ferrum
 
 Server-rendered marketing site for the **Ferrum** family of Rust developer tools
-(Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock,
+(Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers,
 FerrumPorts, FerrumEnv and Ferrum Launcher). Project logs and GitHub Actions live
 in Ferrum Editor's Logs and CI pages, presented as sections of `/ferrum-editor`.
 It is a single Rust binary built with
 Axum 0.8, maud templates and tower-http. All CSS, JS and images are embedded in
 the binary with rust-embed, so there is nothing to upload besides the binary.
 
-> **Status: not deployed yet.** The Railway configuration below has been
-> tested locally with Docker only. Nothing has been pushed to Railway.
+> **Deployed on Railway** at <https://ferrum-web-production.up.railway.app>
+> (`SITE_URL` is set there).
 
 ## Local development
 
@@ -44,13 +44,19 @@ There is no mailing list: news goes on `/updates` and its Atom feed.
 
 | Path | Notes |
 |------|-------|
-| `/`, `/features`, `/ferrum-editor`, `/ferrumapi`, `/ferrumgit`, `/ferrumdata`, `/ferrumterm`, `/ferrumkit`, `/ferrumdock`, `/ferrumports`, `/ferrumenv`, `/ferrum-launcher`, `/download`, `/about` | HTML pages, `Cache-Control: public, max-age=300` |
+| `/`, `/features`, `/ferrum-editor`, `/ferrumapi`, `/ferrumgit`, `/ferrumdata`, `/ferrumterm`, `/ferrumkit`, `/ferrumcontainers`, `/ferrumports`, `/ferrumenv`, `/ferrum-launcher`, `/download`, `/about` | HTML pages, `Cache-Control: public, max-age=300` |
+| `/docs`, `/docs/install`, `/docs/shell-commands`, `/docs/project-bar`, `/docs/shortcuts` | Guides (`src/pages/docs/`), with a shared index rail. Shortcuts and shell commands are taken from the apps' code (`shell.rs`, each app's key bindings) |
+| `/changelog` | Every release of every app, newest first, from the same cached GitHub releases list as `/download/macos`. If GitHub fails, the last good list is still served. If GitHub has never answered, the page says so and links the releases page |
+| `/faq`, `/security` | FAQ (with `FAQPage` JSON-LD) and the security model (signing, checksums, the FerrumEnv vault and its limits) |
+| `/compare`, `/compare/{slug}` | `ferrumcontainers-vs-docker-desktop`, `ferrumapi-vs-postman`. Ferrum's column comes from the READMEs. The other column uses general terms only, with a note that its details can change |
+| `/ferrumdock` | `308` to `/ferrumcontainers` (FerrumDock was renamed) |
+| `/favicon.ico` | `308` to the 32px PNG favicon |
 | `/ferrum-toolbox`, `/ferrum-ide`, `/ferrumlogs`, `/ferrumci` | `308` to `/ferrum-launcher` (the launcher's former name), `/ferrum-editor` (Ferrum IDE was dropped; Ferrum Editor is the suite's code editor), `/ferrum-editor#logs` and `/ferrum-editor#ci` (FerrumLogs and FerrumCI became the editor's Logs and CI pages) |
-| `/download/macos` | `302` to the newest stable `launcher-v*` (or older `toolbox-v*`) `*-aarch64.dmg` in the public `Amygdal-doo/ferrum-releases` repo, resolved via the GitHub API (anonymous) and cached in memory for 10 min. Falls back to the releases page (cached 1 min) when the lookup fails. `no-store` |
+| `/download/macos` | `302` to the newest stable `launcher-v*` (or older `toolbox-v*`) `*-aarch64.dmg` in the public `Amygdal-doo/ferrum-releases` repo. The release list comes from the GitHub API (anonymous) and is cached in memory for 10 min (`releases::Releases`, shared with `/changelog`). After a failed fetch, GitHub is asked again after 1 min. Without a list, it links the releases page. `no-store`. Disallowed in robots.txt |
 | `/updates`, `/updates/{slug}`, `/privacy` | HTML pages. Posts are Rust data in `src/updates.rs` with bodies in `src/pages/posts/`. The updates pages end with a block at `#follow` that points to the Atom feed |
 | `/updates/feed.xml` | Atom feed of every post, full HTML content with absolute links. Linked from every page's `<head>` |
 | `/healthz` | `200 ok`, `text/plain`, `no-store`, used by the Railway health check |
-| `/robots.txt`, `/sitemap.xml` | The sitemap is built from `products::ALL`, the static pages and every post |
+| `/robots.txt`, `/sitemap.xml` | The sitemap lists every page with a `lastmod`: `site::CONTENT_UPDATED` for static copy, post dates for posts, and the newest cached release for `/changelog` |
 | `/assets/*` | Embedded files. URLs from `assets::url()` carry `?v=<sha256 prefix>` and are served `immutable` for one year. Every asset has a strong ETag (`304` on `If-None-Match`) |
 | anything else | HTML 404, `no-cache` |
 
@@ -68,14 +74,20 @@ src/
   config.rs        env parsing (pure `Config::from_vars`, unit-tested)
   site.rs          site-wide constants and links (download, releases, upstream credits)
   products.rs      product catalogue (drives nav, cards, sitemap)
-  releases.rs      newest launcher DMG lookup (pure JSON selection + cache) for /download/macos
+  releases.rs      cached GitHub releases list: launcher DMG for /download/macos and /changelog entries
+  seo.rs           JSON-LD builders (Organization, WebSite, BreadcrumbList, SoftwareApplication, FAQPage, BlogPosting)
   updates.rs       posts on /updates (slug, title, date, byline, summary, body fn)
-  layout.rs        HTML shell (head, meta, nav, footer)
-  components/      reusable maud components (nav, footer, card, badge, ...)
+  layout.rs        HTML shell: head with title, description, canonical, Open Graph, Twitter,
+                   theme-color, icons, JSON-LD; nav and footer
+  components/      the design system's maud components (see DESIGN.md)
   pages/           one module per page, each with `render(site_url)`; posts/ holds post bodies
   routes/          router (mod.rs), assets, health, seo, middleware, updates
 assets/            css/, js/, img/ (embedded at compile time)
-tests/http.rs      end-to-end HTTP tests via tower::ServiceExt::oneshot (pages, redirects, feed)
+tests/http.rs      end-to-end HTTP tests via tower::ServiceExt::oneshot (pages, redirects, feed,
+                   SEO metadata and parsed JSON-LD, sitemap). Releases come from fake fetchers:
+                   no test touches the network
+tools/og/          social image template + render.sh (headless Chrome) -> assets/img/og/<slug>.png
+DESIGN.md          the design system: tokens, components, rules
 Dockerfile         cargo-chef multi-stage build -> debian:bookworm-slim, uid 10001
 railway.toml       Railway build + deploy config
 ```
@@ -91,8 +103,28 @@ links.
 
 Logos in `assets/img/brand/` are copies of `../brand/svg/` (the Docker build
 context is `web/`, so they must live here). After regenerating the brand,
-copy them again. `assets/img/og.png` (1200×630) is rendered from
+copy them again. `assets/img/og.png` (1200×630, the default social image) is rendered from
 `assets/img/og.svg`, e.g. `sips -s format png assets/img/og.svg --out assets/img/og.png`.
+Each app has its own social image, `assets/img/og/<slug>.png`. To render them all
+again, run `tools/og/render.sh`, which needs Google Chrome. Keep its rows in sync with
+`src/products.rs`; a unit test checks that every product has one.
+
+## SEO
+
+- Every page has a unique `<title>` and meta description (the HTTP tests check
+  uniqueness and length), a canonical URL from `SITE_URL`, Open Graph and Twitter cards,
+  and exactly one `<h1>`.
+- JSON-LD: `Organization` (AMYGDAL d.o.o., Sarajevo) and `WebSite` on the home page.
+  `BreadcrumbList` on every page with a trail. `SoftwareApplication` on app pages (macOS,
+  `DeveloperApplication`, `price: 0`, because the site says every build is free).
+  `FAQPage` on `/faq` and `BlogPosting` on posts.
+- The 404 page is `noindex` and has no canonical URL.
+- `<html lang="en">`, light and dark `theme-color`, an SVG and a 32px PNG favicon, the
+  apple-touch-icon, `site.webmanifest`.
+
+## Design system
+
+See [DESIGN.md](DESIGN.md).
 
 ## Docker
 
@@ -107,7 +139,7 @@ When you bump the toolchain, update `ARG RUST_VERSION` in the `Dockerfile` as we
 The runtime image runs as a non-root user (uid 10001), and the binary is at
 `/usr/local/bin/web-ferrum`.
 
-## Deploying to Railway (not done yet)
+## Deploying to Railway
 
 `railway.toml` tells Railway to build with the `Dockerfile` and to health-check
 `/healthz`, with a 100 s timeout and restart-on-failure (up to 10 retries).

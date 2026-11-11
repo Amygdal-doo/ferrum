@@ -1,9 +1,9 @@
 //! Ferrum Launcher product page. Claims follow the launcher README.
 
-use maud::{Markup, html};
+use maud::Markup;
 
 use super::product_sections::{self as sections, BulletGroup, ProductPage};
-use crate::components::card;
+use crate::components::{card, section::Section};
 use crate::products::{self, FERRUM_LAUNCHER};
 
 const FEATURES: &[(&str, &str)] = &[
@@ -40,7 +40,7 @@ const FEATURES: &[(&str, &str)] = &[
 ];
 
 const MANAGES: &[&str] = &[
-    "Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock, \
+    "Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers, \
      FerrumPorts and FerrumEnv",
     "Itself: new launcher versions install in place and restart the app",
     "Keeps the last 3 versions of each app by default",
@@ -92,25 +92,11 @@ const PAGE: ProductPage = ProductPage {
                  opens without a Gatekeeper warning.",
 };
 
-/// The managed apps, shown right after the hero.
+/// The managed apps, shown right after the preview.
 fn managed_apps() -> Markup {
-    html! {
-        section class="section section--tight" aria-labelledby="managed-title" {
-            div class="container" {
-                h2 id="managed-title" { "Apps it installs" }
-                ul class="app-strip" {
-                    @for p in products::apps() {
-                        li style=(p.accent_style()) {
-                            a class="app-strip__link" href=(p.path()) {
-                                (card::app_logo(p, "app-logo--sm", true))
-                                span { (p.name) }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    Section::new("managed", "Apps it installs")
+        .tight()
+        .render(card::app_strip(products::apps(), true))
 }
 
 pub fn render(site_url: &str) -> Markup {

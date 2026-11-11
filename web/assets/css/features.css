@@ -258,7 +258,7 @@
 .kit__exp { margin-top: 8px !important; color: var(--text-faint); }
 .kit__exp b { margin-left: 4px; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--bronze) 30%, transparent); color: var(--text); font-weight: 600; }
 
-/* ---------- FerrumDock ---------- */
+/* ---------- FerrumContainers ---------- */
 .dock { display: grid; grid-template-columns: 120px minmax(0, 1fr); }
 .dock__side { padding: 10px !important; border-right: 1px solid var(--border); background: var(--bg-elev); }
 .dock__side li { display: flex; justify-content: space-between; padding: 3px 6px; border-radius: 3px; color: var(--text); }

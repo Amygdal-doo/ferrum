@@ -1,4 +1,4 @@
-//! bollard (OpenAPI) models → FerrumDock models. Missing fields become
+//! bollard (OpenAPI) models → FerrumContainers models. Missing fields become
 //! empty values instead of errors: engines differ in what they fill in.
 
 use crate::model::{

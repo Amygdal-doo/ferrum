@@ -1,7 +1,7 @@
 //! "Run container" dialog: image, name, ports, env, volumes, command,
 //! restart policy and detached.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::views::widgets::segmented;
 use ferrum_ui::{Modal, TextInput};
 use ferrumdock_engine::create::RestartPolicy;
@@ -15,7 +15,7 @@ use ui::{
 fn field(
     title: &'static str,
     input: &Entity<TextInput>,
-    cx: &mut Context<FerrumDock>,
+    cx: &mut Context<FerrumContainers>,
 ) -> AnyElement {
     let colors = cx.theme().colors();
     v_flex()
@@ -34,7 +34,7 @@ fn field(
         .into_any_element()
 }
 
-pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let run = &app.state.run;
     let inputs = &app.inputs.run;
     let restart = RestartPolicy::ALL.map(|r| (r.label(), run.restart == r, false, r));

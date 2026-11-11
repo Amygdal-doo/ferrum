@@ -71,7 +71,7 @@ crates/core/             ferrumlogs-core (no UI)
   runner.rs, tail.rs     command / docker processes and file tails on threads → events
   glob.rs                path + glob resolution (*, ?, **)
   line.rs, level.rs,     one parsed line: ANSI spans, level, timestamp, JSON message/fields
-  ansi.rs                (ansi.rs copied from FerrumDock)
+  ansi.rs                (ansi.rs copied from FerrumContainers)
   buffer.rs              200k-line ring buffer, byte → line splitter
   filter.rs              levels / sources / text / regex, incremental filtered view
   session.rs             a project's sources, runs, counters, history and view

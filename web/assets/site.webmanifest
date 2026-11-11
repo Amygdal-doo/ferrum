@@ -1,0 +1,13 @@
+{
+  "name": "Ferrum",
+  "short_name": "Ferrum",
+  "description": "Native developer tools for macOS, built in Rust.",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#0d1520",
+  "theme_color": "#0d1520",
+  "icons": [
+    { "src": "/assets/img/favicon.svg", "type": "image/svg+xml", "sizes": "any" },
+    { "src": "/assets/img/apple-touch-icon.png", "type": "image/png", "sizes": "256x256" }
+  ]
+}

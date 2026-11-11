@@ -20,15 +20,21 @@ macro_rules! logo_bytes {
             include_bytes!(concat!("../../../../../brand/png/term-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/kit-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/dock-", $size, ".png")).as_slice(),
+            include_bytes!(concat!("../../../../../brand/png/ports-", $size, ".png")).as_slice(),
+            include_bytes!(concat!("../../../../../brand/png/env-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/launcher-", $size, ".png")).as_slice(),
         ]
     };
 }
 
-const SMALL: [&[u8]; 8] = logo_bytes!("64");
-const LARGE: [&[u8]; 8] = logo_bytes!("128");
+const LOGOS: usize = AppId::BUILTIN.len();
+const SMALL: [&[u8]; LOGOS] = logo_bytes!("64");
+const LARGE: [&[u8]; LOGOS] = logo_bytes!("128");
 
-fn images(cache: &'static OnceLock<Vec<Arc<Image>>>, bytes: &[&[u8]; 8]) -> &'static [Arc<Image>] {
+fn images(
+    cache: &'static OnceLock<Vec<Arc<Image>>>,
+    bytes: &[&[u8]; LOGOS],
+) -> &'static [Arc<Image>] {
     cache.get_or_init(|| {
         bytes
             .iter()

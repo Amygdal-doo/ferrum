@@ -1,6 +1,6 @@
 //! Toolbar, sidebar, status bar, notices and the connecting / offline screens.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::{EngineStatus, Section};
 use crate::views::widgets::{button, muted};
 use ferrum_ui::{Notice, badge, render_notice, section_header};
@@ -8,7 +8,7 @@ use gpui::{AnyElement, Context, div, prelude::*, px};
 use theme::ActiveTheme;
 use ui::{Color, Icon, IconName, IconSize, Label, LabelCommon, LabelSize, h_flex, v_flex};
 
-pub fn toolbar(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn toolbar(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let theme = cx.theme().clone();
     let status = theme.status();
     let engine_badge = match &app.status {
@@ -39,7 +39,7 @@ pub fn toolbar(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
                 .size(IconSize::Small)
                 .color(Color::Accent),
         )
-        .child(Label::new("FerrumDock").weight(gpui::FontWeight::SEMIBOLD))
+        .child(Label::new("FerrumContainers").weight(gpui::FontWeight::SEMIBOLD))
         .child(engine_badge)
         .when_some(context, |bar, name| {
             bar.child(muted(format!("context {name}")))
@@ -68,7 +68,7 @@ pub fn toolbar(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
         .into_any_element()
 }
 
-pub fn sidebar(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn sidebar(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let theme = cx.theme().clone();
     let colors = theme.colors();
     let (hover, selected_bg) = (colors.element_hover, colors.element_selected);
@@ -111,7 +111,7 @@ pub fn sidebar(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
         .into_any_element()
 }
 
-pub fn status_bar(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn status_bar(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let left = match &app.status {
         EngineStatus::Connected(c) => format!(
             "{} · API {} · {}/{}",
@@ -141,7 +141,7 @@ pub fn status_bar(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement 
         .into_any_element()
 }
 
-pub fn notice(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> Option<AnyElement> {
+pub fn notice(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> Option<AnyElement> {
     let n = app.state.notice.as_ref()?;
     let notice = if n.error {
         Notice::error(n.message.clone())
@@ -167,7 +167,7 @@ pub fn connecting() -> AnyElement {
 }
 
 /// Shown when no engine answers: what to do, the error, and Retry.
-pub fn offline(error: &str, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn offline(error: &str, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let detail = if error == "no container engine found" {
         "No Docker socket was found (DOCKER_HOST, ~/.docker/run, ~/.orbstack/run, ~/.colima/default, /var/run).".to_owned()
     } else {
@@ -194,7 +194,7 @@ pub fn offline(error: &str, cx: &mut Context<FerrumDock>) -> AnyElement {
             app.connect(false, cx)
         }))
         .child(
-            muted("FerrumDock also retries on its own every few seconds.")
+            muted("FerrumContainers also retries on its own every few seconds.")
                 .color(Color::Placeholder),
         )
         .into_any_element()

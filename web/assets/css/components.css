@@ -1,14 +1,11 @@
-/* Shared components (owned by the components area). Tokens only: no raw colours.
+/* Shared components, one block per maud component in src/components/.
+ * Tokens only: no raw colours. See web/DESIGN.md.
  *
- * Reusable classes:
- *   .btn .btn--primary | .btn--secondary | .btn--ghost | .btn--disabled (.btn__note)
- *   .badge .badge--alpha
- *   .card .card--product (.card__top/__title/__kind/__body/__link)
- *   .element-tile (.element-tile--lg, --brand; __num/__sym/__cap)
- *   .feature-list > .feature (.feature__icon, __title, __text)
- *   .screenshot-placeholder, .callout (.callout--warn), .section-header
- *   .steps > .step, .code-block, .install-cmd, .app-strip, .app-logo
- *   Chrome: .site-header .brand .site-nav .nav-list .icon-btn .theme-toggle .nav-toggle .site-footer
+ *   Structure: .page-header .breadcrumb .section(--tight, --band) .section-header .cta
+ *   Actions:   .btn(--primary, --secondary, --ghost, --disabled) .badge .chip
+ *   Content:   .card--product .app-strip .app-logo .feature-list .steps .callout
+ *              .code-block .install-cmd .keys .data-table .spec-sheet .prose
+ *   Chrome:    .site-header .brand .site-nav .nav-list .icon-btn .site-footer
  */
 
 /* ---------- Buttons ---------- */
@@ -40,21 +37,6 @@
 .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .badge--alpha { color: var(--straw); border-color: color-mix(in srgb, var(--straw) 45%, transparent); }
 :root[data-theme="light"] .badge--alpha { color: var(--link); border-color: color-mix(in srgb, var(--link) 40%, transparent); }
-
-/* ---------- Element tile (404 page) ---------- */
-.element-tile {
-  position: relative; display: inline-grid; grid-template-rows: auto 1fr auto;
-  width: 4.5rem; aspect-ratio: 1; padding: 6px 8px; flex: none;
-  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-  background: linear-gradient(160deg, var(--surface-2), var(--surface));
-  font-family: var(--font-mono); color: var(--text);
-}
-.element-tile__num { font-size: 0.625rem; color: var(--text-faint); line-height: 1; }
-.element-tile__sym { font: 800 1.8rem/1 var(--font-display); align-self: center; }
-.element-tile__cap { font-size: 0.5625rem; line-height: 1.1; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.element-tile--lg { width: 9rem; padding: var(--sp-3) var(--sp-4); }
-.element-tile--lg .element-tile__sym { font-size: 4rem; }
-.element-tile--brand { border-color: var(--straw); color: var(--on-color); background: var(--temper); }
 
 /* ---------- Product cards: flat steel plates with a temper edge ---------- */
 .card {
@@ -97,15 +79,19 @@
   color: var(--text-muted); font-size: var(--fs-sm); background: var(--bg-elev);
 }
 
-/* ---------- Callout ---------- */
+/* ---------- Callout (components/callout.rs) ---------- */
 .callout {
-  padding: var(--sp-4) var(--sp-6); border-radius: var(--radius);
-  border: 1px solid var(--border); border-left: 3px solid var(--ok);
-  background: var(--bg-elev); color: var(--text-muted);
+  --callout-color: var(--info);
+  margin-block: var(--sp-6); padding: var(--sp-4) var(--sp-6); border-radius: var(--radius);
+  border: var(--rule); border-left: 3px solid var(--callout-color);
+  background: color-mix(in srgb, var(--callout-color) 6%, var(--bg-elev)); color: var(--text-muted);
 }
 .callout > :last-child { margin-bottom: 0; }
-.callout strong { color: var(--text); }
-.callout--warn { border-left-color: var(--bronze); }
+.callout strong, .callout code { color: var(--text); }
+.callout__title { margin-bottom: var(--sp-2); font-weight: 600; color: var(--text); }
+.callout--warn { --callout-color: var(--warn); }
+.callout--security { --callout-color: var(--security); }
+.callout .prose-list { margin-bottom: 0; }
 
 /* ---------- Misc ---------- */
 .section-header { max-width: 62ch; margin-bottom: var(--sp-12); }
@@ -155,7 +141,7 @@
 /* Without JS the toggles do nothing, so hide them; links stay visible. */
 html:not(.js) .theme-toggle, html:not(.js) .nav-toggle { display: none; }
 
-@media (max-width: 759px) {
+@media (max-width: 899px) {
   .site-header__inner { flex-wrap: wrap; }
   html:not(.js) .site-nav { order: 4; width: 100%; padding-bottom: var(--sp-2); }
   html.js .nav-toggle { display: inline-grid; }
@@ -263,3 +249,136 @@ html:not(.js) .install-cmd__copy { display: none; }
   transition: border-color 0.2s var(--ease);
 }
 .app-strip__link:hover { color: var(--text); border-color: var(--app-accent); }
+
+/* ---------- Page header (components/page_header.rs) ----------
+   The system's signature: a stamped display title over the temper rule.
+   App pages tint the corner with the app's colour and show its logo. */
+.page-header {
+  position: relative; padding-block: var(--sp-12) var(--sp-16);
+  border-bottom: var(--rule);
+}
+.page-header::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px;
+  background: var(--temper);
+}
+.page-header--app {
+  background: radial-gradient(50% 90% at 100% 0%, color-mix(in srgb, var(--app-accent) 16%, transparent), transparent 70%);
+}
+.page-header--app::after { background: linear-gradient(90deg, var(--app-accent), color-mix(in srgb, var(--app-accent) 10%, transparent) 70%); }
+.page-header__inner { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-8); align-items: center; }
+@media (min-width: 820px) {
+  .page-header__inner:has(.page-header__media) { grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-12); }
+}
+.page-header__copy { min-width: 0; }
+.page-header__title-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-6); }
+.page-header__title { margin: 0; font-size: var(--fs-3xl); max-width: 18ch; }
+/* Only app pages (which show the logo) get the hero-size title. */
+.page-header__inner:has(.page-header__media) .page-header__copy { container-type: inline-size; }
+/* Scales with its column so long names (FerrumContainers) never hit the logo. */
+.page-header__inner:has(.page-header__media) .page-header__title { font-size: min(var(--fs-hero), 14cqi); line-height: 0.9; max-width: none; }
+.page-header__lead { max-width: 62ch; font-size: var(--fs-lg); color: var(--text-muted); }
+.page-header__lead > :last-child { margin-bottom: 0; }
+.page-header__lead a { color: var(--text); }
+.page-header__tagline { font-size: var(--fs-xl); font-weight: 500; color: var(--text); line-height: var(--lh-snug); max-width: 36ch; }
+.page-header__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); margin-top: var(--sp-8); }
+.page-header__media { justify-self: start; }
+@media (max-width: 819px) {
+  .page-header__media { order: -1; }
+  .page-header__media .app-logo--hero { width: 5.5rem; }
+}
+
+/* ---------- Breadcrumb (components/breadcrumb.rs) ---------- */
+.breadcrumb { margin-bottom: var(--sp-6); font-size: var(--fs-sm); }
+.breadcrumb__list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-2); }
+.breadcrumb__list li { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.breadcrumb__list li + li::before { content: "/"; color: var(--text-faint); }
+.breadcrumb a { color: var(--text-muted); text-decoration: none; }
+.breadcrumb a:hover { color: var(--text); text-decoration: underline; }
+.breadcrumb a[aria-current="page"] { color: var(--text); font-weight: 600; }
+
+/* ---------- Sections (components/section.rs) ---------- */
+.section--band { background: var(--bg-elev); border-block: var(--rule); }
+.section-header .lead > :last-child { margin-bottom: 0; }
+
+/* ---------- Chips: small status labels ---------- */
+.chip {
+  display: inline-block; padding: 0 var(--sp-2); border-radius: var(--radius-sm);
+  border: 1px solid currentColor; font: 600 var(--fs-xs)/1.6 var(--font-sans); white-space: nowrap;
+}
+.chip--stable { color: var(--ok); }
+.chip--beta { color: var(--info); }
+.chip--alpha { color: var(--link); }
+
+/* ---------- Keys (components/code.rs) ---------- */
+kbd { font-family: var(--font-mono); font-size: 0.85em; }
+.keys { display: inline-flex; align-items: center; gap: 0; white-space: nowrap; font-size: inherit; }
+.keys kbd, .prose kbd:not(.keys), .shortcut-table kbd:not(.keys) {
+  display: inline-block; min-width: 1.6em; margin-right: 2px; padding: 0 0.35em;
+  border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: var(--radius-xs);
+  background: var(--surface); color: var(--text); text-align: center; line-height: 1.5;
+}
+.keys__then { display: inline-block; width: 0.4em; }
+.keys-or { color: var(--text-faint); font-size: var(--fs-sm); }
+
+/* ---------- Tables (shortcuts, shell commands, comparisons) ---------- */
+.table-wrap { overflow-x: auto; margin-block: var(--sp-4) var(--sp-8); border: var(--rule); border-radius: var(--radius); }
+.data-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+.data-table th, .data-table td { padding: var(--sp-3) var(--sp-4); text-align: left; vertical-align: top; border-bottom: var(--rule); }
+.data-table tbody tr:last-child > * { border-bottom: 0; }
+.data-table thead th { background: var(--bg-elev); color: var(--text-muted); font-weight: 600; }
+.data-table tbody th { font-weight: 600; color: var(--text); }
+.data-table td { color: var(--text-muted); }
+.data-table code { color: var(--text); }
+
+/* A coloured dot before an app name, from --app-accent. */
+.app-dot { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.app-dot::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--app-accent); flex: none; }
+
+/* ---------- Prose: long-form text in docs and info pages ---------- */
+.prose { max-width: var(--measure); }
+.prose h2 { margin: var(--sp-16) 0 var(--sp-4); font-size: clamp(1.9rem, 1.5rem + 1.4vw, 2.5rem); line-height: 1; scroll-margin-top: calc(var(--header-h) + var(--sp-4)); }
+.prose > h2:first-child { margin-top: 0; }
+.prose h3 { margin: var(--sp-8) 0 var(--sp-3); }
+.prose p, .prose li { color: var(--text-muted); }
+.prose strong, .prose code { color: var(--text); }
+.prose .install-cmd { margin-block: var(--sp-4); }
+.prose-list, .prose-steps { margin: 0 0 var(--sp-6); padding: 0; list-style: none; }
+.prose-list li, .prose-steps li { position: relative; padding-left: var(--sp-8); margin-bottom: var(--sp-3); }
+.prose-list li::before {
+  content: ""; position: absolute; left: var(--sp-2); top: 0.75em; width: 10px; height: 2px; background: var(--app-accent);
+}
+.prose-steps { counter-reset: prose-step; }
+.prose-steps li { counter-increment: prose-step; }
+.prose-steps li::before {
+  content: counter(prose-step); position: absolute; left: 0; top: 0.1em;
+  display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%;
+  border: 1px solid var(--border-strong); color: var(--text); font: 600 var(--fs-xs)/1 var(--font-sans);
+}
+
+/* ---------- App strip variants and guide links ---------- */
+.app-strip__link .app-logo { flex: none; }
+.app-strip--rows .app-strip__link { display: grid; grid-template-columns: auto 1fr; column-gap: var(--sp-3); }
+.app-strip--rows .app-strip__link .app-logo { grid-row: span 2; }
+.app-strip__kind { font-size: var(--fs-sm); font-weight: 400; color: var(--text-muted); }
+.guide-links { margin-bottom: var(--sp-8); }
+.guide-links ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-6); }
+.guide-links a { font-weight: 600; }
+
+/* ---------- Status lists on app pages ---------- */
+.status-group { padding-top: var(--sp-4); border-top: var(--rule-strong); }
+
+/* ---------- Closing call to action (components/cta.rs) ---------- */
+.cta { margin-top: var(--sp-16); }
+.cta__inner {
+  position: relative; display: grid; gap: var(--sp-6) var(--sp-12); align-items: end;
+  padding-block: var(--sp-12);
+}
+.cta__inner::after { content: ""; position: absolute; left: var(--gutter); right: var(--gutter); top: 0; border-top: var(--rule-strong); }
+.cta__inner::before { content: ""; position: absolute; z-index: 1; left: var(--gutter); top: -1px; width: 6rem; height: 3px; background: var(--temper); }
+@media (min-width: 900px) { .cta__inner { grid-template-columns: minmax(0, 1fr) auto; } }
+.cta__title { font-size: var(--fs-2xl); margin-bottom: var(--sp-3); }
+.cta__copy p { margin: 0; color: var(--text-muted); max-width: 52ch; }
+.cta__actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+main:has(> .cta:last-child) + .site-footer { margin-top: 0; }
+/* The page already closed with a download CTA: don't repeat the button. */
+main:has(> .cta:last-child) + .site-footer .footer-credit .btn { display: none; }

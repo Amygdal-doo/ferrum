@@ -5,6 +5,7 @@
 use maud::{Markup, html};
 
 use super::{feature_demos, project_demos};
+use crate::components::{breadcrumb::Crumb, page_header::PageHeader};
 use crate::layout::{PageMeta, page};
 use crate::products::{self, Product};
 use crate::site;
@@ -216,7 +217,7 @@ const APPS: [AppFeatures; 9] = [
                      is marked expired",
     },
     AppFeatures {
-        product: products::FERRUMDOCK,
+        product: products::FERRUMCONTAINERS,
         version: "0.1.0-alpha.1",
         summary: "New: a fast native window on Docker Desktop, OrbStack or Colima, and Podman \
                   through DOCKER_HOST.",
@@ -240,7 +241,7 @@ const APPS: [AppFeatures; 9] = [
             ),
         ],
         demo: feature_demos::dock,
-        demo_label: "FerrumDock listing a Compose project's running containers with live CPU \
+        demo_label: "FerrumContainers listing a Compose project's running containers with live CPU \
                      bars and their logs",
     },
     AppFeatures {
@@ -308,17 +309,18 @@ const APPS: [AppFeatures; 9] = [
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
-        Some("Features"),
+        Some("Features of every Ferrum app"),
         "What every Ferrum app can do in the current alpha: Ferrum Editor, FerrumAPI, \
-         FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock, FerrumPorts and FerrumEnv.",
+         FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumEnv.",
         PATH,
         "page-features",
-    );
+    )
+    .trail(vec![Crumb::new("Features", PATH)]);
     page(
         site_url,
         &meta,
         html! {
-            (hero())
+            (hero(&meta.trail))
             @for app in &APPS {
                 (app_section(app))
             }
@@ -326,38 +328,35 @@ pub fn render(site_url: &str) -> Markup {
     )
 }
 
-fn hero() -> Markup {
-    html! {
-        section class="features-hero" aria-labelledby="features-title" {
-            div class="container" {
-                p class="eyebrow" { "Every app is in alpha" }
-                h1 id="features-title" { "What's new across Ferrum" }
-                p class="lead" {
-                    "Nine native developer apps, written in Rust and rendered with GPUI. This \
-                     is what each one can do in the current alpha. "
-                    a href=(site::DOWNLOAD_PATH) { "Ferrum Launcher" }
-                    " installs them and keeps them up to date."
-                }
-                p {
-                    "Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumPorts \
-                     and FerrumEnv share a project strip at the top: the \
-                     project's name, path and branch, ⌥⌘O to switch between recent projects, \
-                     and buttons to open it in Ferrum Editor, FerrumGIT or FerrumTerm."
-                }
-                nav aria-label="Apps on this page" {
-                    ul class="feature-index" {
-                        @for app in &APPS {
-                            li {
-                                a href={ "#" (app.product.slug) } style=(app.product.accent_style()) {
-                                    (app.product.name)
-                                }
+fn hero(trail: &[Crumb]) -> Markup {
+    PageHeader::new(trail, "What's new across Ferrum")
+        .lead(html! {
+            p {
+                "Nine native developer apps, written in Rust and rendered with GPUI. This \
+                 is what each one can do in the current alpha. "
+                a href=(site::DOWNLOAD_PATH) { "Ferrum Launcher" }
+                " installs them and keeps them up to date."
+            }
+            p {
+                "Most of them share a project strip at the top: the project's name, path and \
+                 branch, and buttons to open it in Ferrum Editor, FerrumGIT or FerrumTerm. See "
+                a href=(super::docs::project_bar::PATH) { "the project bar" } "."
+            }
+        })
+        .actions(html! {
+            nav aria-label="Apps on this page" {
+                ul class="feature-index" {
+                    @for app in &APPS {
+                        li {
+                            a href={ "#" (app.product.slug) } style=(app.product.accent_style()) {
+                                (app.product.name)
                             }
                         }
                     }
                 }
             }
-        }
-    }
+        })
+        .render()
 }
 
 fn app_section(app: &AppFeatures) -> Markup {

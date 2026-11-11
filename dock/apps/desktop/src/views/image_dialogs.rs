@@ -1,6 +1,6 @@
 //! Image tag and image history (layers) dialogs.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::commands::resources::image_label;
 use crate::views::widgets::muted;
 use ferrum_ui::Modal;
@@ -13,7 +13,7 @@ use ui::{
 };
 
 fn close(
-    cx: &mut Context<FerrumDock>,
+    cx: &mut Context<FerrumContainers>,
 ) -> impl Fn(&gpui::ClickEvent, &mut gpui::Window, &mut gpui::App) + 'static {
     cx.listener(|app, _, _, cx| {
         app.state.dialog = None;
@@ -21,7 +21,11 @@ fn close(
     })
 }
 
-pub fn tag(app: &FerrumDock, image: &Image, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn tag(
+    app: &FerrumContainers,
+    image: &Image,
+    cx: &mut Context<FerrumContainers>,
+) -> AnyElement {
     let theme = cx.theme().clone();
     let colors = theme.colors();
     Modal::new(format!("Tag {}", image_label(image)))
@@ -54,7 +58,7 @@ pub fn tag(app: &FerrumDock, image: &Image, cx: &mut Context<FerrumDock>) -> Any
         .into_any_element()
 }
 
-pub fn history(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn history(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let theme = cx.theme().clone();
     let colors = theme.colors();
     let now = chrono::Utc::now().timestamp();

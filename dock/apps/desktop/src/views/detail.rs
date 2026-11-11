@@ -1,7 +1,7 @@
 //! Detail panel: one container (logs, inspect, stats) or a compose project
 //! (combined logs, `compose ps`).
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::DetailTab;
 use crate::views::containers::state_color;
 use crate::views::widgets::{icon_button, muted, segmented, state_dot};
@@ -12,9 +12,9 @@ use theme::ActiveTheme;
 use ui::{IconName, Label, LabelCommon, LabelSize, Tab, TabBar, Toggleable, h_flex, v_flex};
 
 pub fn render(
-    app: &mut FerrumDock,
+    app: &mut FerrumContainers,
     window: &mut Window,
-    cx: &mut Context<FerrumDock>,
+    cx: &mut Context<FerrumContainers>,
 ) -> AnyElement {
     let Some(detail) = app.state.detail.as_ref() else {
         return div().into_any_element();
@@ -130,7 +130,7 @@ fn tab_button(
     label: &'static str,
     tab: DetailTab,
     current: DetailTab,
-    cx: &mut Context<FerrumDock>,
+    cx: &mut Context<FerrumContainers>,
 ) -> Tab {
     Tab::new(label)
         .toggle_state(tab == current)

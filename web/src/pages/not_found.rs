@@ -27,7 +27,6 @@ pub fn render(site_url: &str) -> Markup {
                         span class="notfound__formula mono" { "Fe" sub { "2" } "O" sub { "3" } }
                     }
                     div class="notfound__copy" {
-                        p class="eyebrow" { "Error 404 · oxidation detected" }
                         h1 id="notfound-title" { "This page has rusted away" }
                         p class="lead" {
                             "Whatever used to be here has oxidised into a fine orange dust. \
@@ -44,15 +43,10 @@ pub fn render(site_url: &str) -> Markup {
                     h2 id="notfound-products" class="notfound__subhead" {
                         "Still solid metal"
                     }
-                    ul class="notfound__links" {
-                        @for p in products::ALL {
-                            li {
-                                a class="notfound__link" href=(p.path()) {
-                                    (crate::components::card::app_logo(&p, "app-logo--xs", true))
-                                    span { (p.name) span class="muted" { " · " (p.kind) } }
-                                }
-                            }
-                        }
+                    (crate::components::card::app_strip(products::ALL.iter(), true))
+                    p class="notfound__more" {
+                        "Or try the " a href="/docs" { "docs" } ", the "
+                        a href="/changelog" { "changelog" } " or the " a href="/faq" { "FAQ" } "."
                     }
                 }
             }

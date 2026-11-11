@@ -9,14 +9,14 @@ pub mod project;
 pub mod resources;
 pub mod run;
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::{EngineStatus, Notice};
 use ferrumdock_engine::{EngineError, SharedEngine};
 use gpui::Context;
 use std::future::Future;
 use std::time::Duration;
 
-impl FerrumDock {
+impl FerrumContainers {
     pub fn engine(&self) -> Option<SharedEngine> {
         match &self.status {
             EngineStatus::Connected(c) => Some(c.engine.clone()),

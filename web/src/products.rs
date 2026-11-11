@@ -24,8 +24,6 @@ impl Status {
 pub struct Product {
     pub slug: &'static str,
     pub name: &'static str,
-    /// Element-style symbol from the logo, e.g. "Fd".
-    pub symbol: &'static str,
     /// Logo file under `assets/img/brand/`, without extension (`data` → `data.svg`).
     pub logo: &'static str,
     /// CSS custom property holding the app's accent colour (defined in tokens.css).
@@ -45,6 +43,11 @@ impl Product {
         format!("img/brand/{}.svg", self.logo)
     }
 
+    /// Embedded 1200×630 social image (`assets/img/og/<slug>.png`).
+    pub fn og_image_asset(&self) -> String {
+        format!("img/og/{}.png", self.slug)
+    }
+
     /// Inline style that exposes the accent as `--app-accent` to the component CSS.
     pub fn accent_style(&self) -> String {
         format!("--app-accent: var({})", self.accent_var)
@@ -54,7 +57,6 @@ impl Product {
 pub const FERRUMAPI: Product = Product {
     slug: "ferrumapi",
     name: "FerrumAPI",
-    symbol: "Fa",
     logo: "api",
     accent_var: "--app-api",
     kind: "API client",
@@ -65,7 +67,6 @@ pub const FERRUMAPI: Product = Product {
 pub const FERRUMGIT: Product = Product {
     slug: "ferrumgit",
     name: "FerrumGIT",
-    symbol: "Fg",
     logo: "git",
     accent_var: "--app-git",
     kind: "Git client",
@@ -76,7 +77,6 @@ pub const FERRUMGIT: Product = Product {
 pub const FERRUMDATA: Product = Product {
     slug: "ferrumdata",
     name: "FerrumData",
-    symbol: "Fd",
     logo: "data",
     accent_var: "--app-data",
     kind: "Database IDE",
@@ -87,7 +87,6 @@ pub const FERRUMDATA: Product = Product {
 pub const FERRUMTERM: Product = Product {
     slug: "ferrumterm",
     name: "FerrumTerm",
-    symbol: "Ft",
     logo: "term",
     accent_var: "--app-term",
     kind: "Terminal",
@@ -98,7 +97,6 @@ pub const FERRUMTERM: Product = Product {
 pub const FERRUMKIT: Product = Product {
     slug: "ferrumkit",
     name: "FerrumKit",
-    symbol: "Fk",
     logo: "kit",
     accent_var: "--app-kit",
     kind: "Developer utilities",
@@ -106,10 +104,9 @@ pub const FERRUMKIT: Product = Product {
     status: Status::Alpha,
 };
 
-pub const FERRUMDOCK: Product = Product {
-    slug: "ferrumdock",
-    name: "FerrumDock",
-    symbol: "Fc",
+pub const FERRUMCONTAINERS: Product = Product {
+    slug: "ferrumcontainers",
+    name: "FerrumContainers",
     logo: "dock",
     accent_var: "--app-dock",
     kind: "Container manager",
@@ -120,7 +117,6 @@ pub const FERRUMDOCK: Product = Product {
 pub const FERRUMPORTS: Product = Product {
     slug: "ferrumports",
     name: "FerrumPorts",
-    symbol: "Fp",
     logo: "ports",
     accent_var: "--app-ports",
     kind: "Port inspector",
@@ -131,7 +127,6 @@ pub const FERRUMPORTS: Product = Product {
 pub const FERRUMENV: Product = Product {
     slug: "ferrumenv",
     name: "FerrumEnv",
-    symbol: "Fv",
     logo: "env",
     accent_var: "--app-env",
     kind: "Environment vault",
@@ -143,7 +138,6 @@ pub const FERRUMENV: Product = Product {
 pub const FERRUM_EDITOR: Product = Product {
     slug: "ferrum-editor",
     name: "Ferrum Editor",
-    symbol: "Fe",
     logo: "editor",
     accent_var: "--app-editor",
     kind: "Code editor",
@@ -155,7 +149,6 @@ pub const FERRUM_EDITOR: Product = Product {
 pub const FERRUM_LAUNCHER: Product = Product {
     slug: "ferrum-launcher",
     name: "Ferrum Launcher",
-    symbol: "Fx",
     logo: "launcher",
     accent_var: "--app-launcher",
     kind: "App manager",
@@ -171,11 +164,17 @@ pub const ALL: [Product; 10] = [
     FERRUMDATA,
     FERRUMTERM,
     FERRUMKIT,
-    FERRUMDOCK,
+    FERRUMCONTAINERS,
     FERRUMPORTS,
     FERRUMENV,
     FERRUM_LAUNCHER,
 ];
+
+/// The product whose release tags start with `id` (`api-v…`). Release ids
+/// are the logo names (`editor`, `api`, …, `launcher`).
+pub fn by_release_id(id: &str) -> Option<&'static Product> {
+    ALL.iter().find(|p| p.logo == id)
+}
 
 /// The apps Ferrum Launcher manages, i.e. everything except the launcher itself.
 pub fn apps() -> impl Iterator<Item = &'static Product> {
@@ -192,7 +191,6 @@ mod tests {
             for b in &ALL[i + 1..] {
                 assert_ne!(a.slug, b.slug);
                 assert_ne!(a.logo, b.logo);
-                assert_ne!(a.symbol, b.symbol);
             }
         }
     }
@@ -205,7 +203,22 @@ mod tests {
                 "missing {}",
                 p.logo_asset()
             );
+            assert!(
+                crate::routes::assets::version(&p.og_image_asset()).is_some(),
+                "missing {}",
+                p.og_image_asset()
+            );
         }
+    }
+
+    #[test]
+    fn release_ids_find_products() {
+        assert_eq!(by_release_id("api").map(|p| p.slug), Some("ferrumapi"));
+        assert_eq!(
+            by_release_id("launcher").map(|p| p.slug),
+            Some("ferrum-launcher")
+        );
+        assert!(by_release_id("ide").is_none());
     }
 
     #[test]

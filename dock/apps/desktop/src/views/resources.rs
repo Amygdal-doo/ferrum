@@ -1,6 +1,6 @@
 //! Volumes and networks: list, remove, prune unused.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::{Section, matches_any};
 use crate::views::widgets::{
     button, cell, grow_cell, header_row, icon_button, muted, row, section_bar,
@@ -29,8 +29,8 @@ fn trash(
     id: String,
     tooltip: &'static str,
     disabled: bool,
-    cx: &mut Context<FerrumDock>,
-    on_click: impl Fn(&mut FerrumDock, &mut Context<FerrumDock>) + 'static,
+    cx: &mut Context<FerrumContainers>,
+    on_click: impl Fn(&mut FerrumContainers, &mut Context<FerrumContainers>) + 'static,
 ) -> AnyElement {
     h_flex()
         .flex_none()
@@ -47,7 +47,7 @@ fn trash(
         .into_any_element()
 }
 
-pub fn volumes(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn volumes(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     const COLUMNS: [(&str, Option<f32>); 6] = [
         ("NAME", None),
         ("PROJECT", Some(140.)),
@@ -131,7 +131,7 @@ pub fn volumes(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
         .into_any_element()
 }
 
-pub fn networks(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn networks(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     const COLUMNS: [(&str, Option<f32>); 6] = [
         ("NAME", None),
         ("PROJECT", Some(140.)),

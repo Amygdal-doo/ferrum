@@ -3,7 +3,9 @@
 
 use maud::{Markup, html};
 
-use crate::components::{badge, card};
+use crate::components::{
+    badge, breadcrumb::Crumb, card, page_header::PageHeader, section::Section,
+};
 use crate::layout::{PageMeta, page};
 use crate::{products, site};
 
@@ -61,46 +63,42 @@ const CREDITS: &[(&str, &str)] = &[
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
-        Some("About"),
+        Some("About Ferrum and Amygdal"),
         "Ferrum is a family of native, local-first developer tools written in Rust, without \
          Electron. Our principles, the status of each tool and credits.",
         "/about",
         "page-about",
-    );
+    )
+    .trail(vec![Crumb::new("About", "/about")]);
     page(
         site_url,
         &meta,
         html! {
-            section class="about-hero" aria-labelledby="about-title" {
-                div class="container" {
-                    p class="eyebrow" { "About Ferrum" }
-                    h1 id="about-title" { "Developer tools, forged in Rust" }
-                    p class="lead" {
+            (PageHeader::new(&meta.trail, "Developer tools, forged in Rust")
+                .lead(html! {
+                    p {
                         "Ferrum is a family of native developer tools written in Rust: a code \
                          editor with CI and logs built in, an API client, a Git client, a \
                          database IDE, a terminal, a container manager, developer utilities, and \
-                         tools for ports and environment variables, plus Ferrum Launcher to install and update them. They are local-first, \
-                         share one GPUI-based interface and run without Electron."
+                         tools for ports and environment variables, plus Ferrum Launcher to \
+                         install and update them. They are local-first, share one GPUI-based \
+                         interface and run without Electron. "
+                        (site::ORGANIZATION_LEGAL_NAME) " builds them in " (site::ORGANIZATION_CITY) "."
                     }
-                }
-            }
-            section class="section" aria-labelledby="principles-title" {
-                div class="container" {
-                    p class="eyebrow" { "Principles" }
-                    h2 id="principles-title" { "What we hold to" }
-                    ol class="about-principles grid grid--2" {
-                        @for (title, body) in PRINCIPLES {
-                            li class="card" {
-                                h3 { (title) }
-                                p class="muted" { (body) }
-                            }
+                })
+                .render())
+            (Section::new("principles", "What we hold to").render(html! {
+                ul class="about-principles grid grid--2" {
+                    @for (title, body) in PRINCIPLES {
+                        li {
+                            h3 { (title) }
+                            p class="muted" { (body) }
                         }
                     }
                 }
-            }
+            }))
             section class="section" aria-labelledby="status-title" {
                 div class="container" {
-                    p class="eyebrow" { "Status" }
                     h2 id="status-title" { "Where each tool stands" }
                     ul class="about-status" {
                         @for p in products::ALL {
@@ -122,12 +120,11 @@ pub fn render(site_url: &str) -> Markup {
             }
             section class="section" aria-labelledby="credits-title" {
                 div class="container" {
-                    p class="eyebrow" { "Credits" }
                     h2 id="credits-title" { "Built on the shoulders of" }
                     dl class="spec-sheet" {
                         @for (name, what) in CREDITS {
                             div class="spec-sheet__row" {
-                                dt class="mono" { (name) }
+                                dt { (name) }
                                 dd { (what) }
                             }
                         }
@@ -144,7 +141,10 @@ pub fn render(site_url: &str) -> Markup {
                     h2 id="contact-title" { "Contact" }
                     @match site::CONTACT_EMAIL {
                         Some(email) => p { a href={ "mailto:" (email) } { (email) } },
-                        None => p class="muted" { "Contact details coming soon." },
+                        None => p class="muted" {
+                            "Contact details coming soon. Until then, reach the team through "
+                            a href=(site::AMYGDAL_URL) rel="noopener" { "amygdal.com" } "."
+                        },
                     }
                 }
             }

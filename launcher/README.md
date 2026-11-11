@@ -1,7 +1,7 @@
 # Ferrum Launcher
 
 Installs, updates, switches between and launches the Ferrum apps (Ferrum
-Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock,
+Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers,
 any app added to the catalog later, and itself), in the style of JetBrains
 Toolbox.
 GPUI desktop app built on `ferrum-ui`. Up to 0.5.0 it was called **Ferrum
@@ -19,7 +19,7 @@ Each app's page has three choices, all off by default:
 
 | Choice | What it does |
 | --- | --- |
-| **Shell command** | Writes a small script in `~/.ferrum/bin` named as typed (suggested: `fee` Ferrum Editor, `fea` FerrumAPI, `feg` FerrumGIT, `fed` FerrumData, `fet` FerrumTerm, `fek` FerrumKit, `fec` FerrumDock, `fel` the launcher). `fee .` opens Ferrum Editor on the current folder (like `zed .`), `feg .` FerrumGIT on that repository, `fet` FerrumTerm in a session in the current folder. The first command turned on also adds `~/.ferrum/bin` to PATH in `~/.zprofile` (`~/.bash_profile` for bash, `conf.d/ferrum.fish` for fish) with one marked line; FerrumTerm and Ferrum Editor's terminal have it on PATH anyway. Scripts not written by the launcher are never replaced or removed. Enter in the name field renames an enabled command. |
+| **Shell command** | Writes a small script in `~/.ferrum/bin` named as typed (suggested: `fee` Ferrum Editor, `fea` FerrumAPI, `feg` FerrumGIT, `fed` FerrumData, `fet` FerrumTerm, `fek` FerrumKit, `fec` FerrumContainers, `fep` FerrumPorts, `fev` FerrumEnv, `fel` the launcher). `fee .` opens Ferrum Editor on the current folder (like `zed .`), `feg .` FerrumGIT on that repository, `fet` FerrumTerm in a session in the current folder. The first command turned on also adds `~/.ferrum/bin` to PATH in `~/.zprofile` (`~/.bash_profile` for bash, `conf.d/ferrum.fish` for fish) with one marked line; FerrumTerm and Ferrum Editor's terminal have it on PATH anyway. Scripts not written by the launcher are never replaced or removed. Enter in the name field renames an enabled command. |
 | **Hide from Dock** (macOS) | Listed in `~/.ferrum/preferences.json`, which every Ferrum app reads when it starts (`ferrum_ui::dock`); the app then runs as an accessory app (no Dock icon, not in ⌘-Tab). The launcher switches at once and moves to the menu bar. |
 | **Shortcut** (macOS) | A global shortcut (⌘, ⌃ or ⌥ plus a letter, digit, F-key or space) that opens or brings forward the app from anywhere, while the launcher runs. |
 
@@ -116,6 +116,7 @@ next check; no launcher release is needed.
 | `binary` | for new apps | main executable at the archive root or in `<bundle_name>.app/Contents/MacOS/` |
 | `extra_binaries` | no | more executables that get `~/.ferrum/bin` links (`fterm`) |
 | `bundle_name` | for new apps | macOS bundle name without `.app`, published as `~/Applications/Ferrum/<bundle_name>.app` |
+| `former_names` | no | names the app was published under before a rename (`["FerrumDock"]` for FerrumContainers): a `<name>.app` copy in `~/Applications/Ferrum` or a `<name>.lnk` Start Menu shortcut with one is replaced by the current name's, at activation and at every start. Added to the built-in list; Launcher 0.8.1 and older ignore it |
 | `icon` | no | a `ui` crate `IconName` (`ToolHammer` or `tool_hammer`); unknown names show a generic icon |
 | `logo` | no | `https://` URL of a PNG (≤ 1 MiB), downloaded once and cached; falls back to the built-in logo, then the icon |
 | `order` | no | position on the overview, ascending (built-ins use 10–70; default 1000) |
@@ -127,6 +128,16 @@ or with an invalid id, unknown status or unsafe file name, are skipped with a
 log line. Unknown fields and malformed optional fields are ignored, so neither
 an older nor a newer catalog breaks a launcher. Ferrum Toolbox 0.5.0 also
 reads this file; it skips the `launcher` entry and ignores the new fields.
+
+**Renaming an app** (FerrumDock → FerrumContainers): change `name` and
+`bundle_name`, list the old bundle name in `former_names`, and keep `id`,
+`binary`, the tags and the data directories, so installs update in place and
+shell commands, Hide from Dock (keyed by binary) and shortcuts (keyed by id)
+carry over. Launcher 0.8.1 reads such a catalog fine: it shows the new name,
+launches the installed version from its install folder until it's updated,
+and publishes the update as `<new>.app`, but leaves the `<old>.app` copy (and
+on Windows the old `.lnk`) behind; later launchers remove it on their first
+start.
 
 **New apps:** the launcher remembers which apps the user has seen
 (`settings.seen_apps` in `state.json`). An app that appears for the first
@@ -240,7 +251,7 @@ On every start (each step is a no-op once done):
 - **State:** `toolbox` keys, releases and catalog entries read as `launcher`;
   settings, installed and active versions, channels and `channels_revision`
   are kept. A state file without the launcher's `format` marker came from the
-  toolbox: FerrumKit, FerrumDock and Ferrum Editor, added after 0.5.0, are
+  toolbox: FerrumKit, FerrumContainers and Ferrum Editor, added after 0.5.0, are
   announced as new.
 - **Token:** once, the GitHub token under keychain service `FerrumToolbox` is
   copied to `FerrumLauncher` unless that already has one; the old entry is
@@ -342,8 +353,9 @@ Start Menu shortcut under **Ferrum**. `state.json` is written atomically
 
 ## Limitations
 
-- Bundles and the DMG are ad-hoc signed, not notarized: a browser-downloaded
-  DMG needs right-click → Open once. Apps the launcher downloads aren't
+- Released bundles and the DMG are signed with the Developer ID and
+  notarized. Local builds without `FERRUM_SIGN_IDENTITY` are ad-hoc signed and
+  need right-click → Open once. Apps the launcher downloads aren't
   quarantined.
 - Self-update (**Update Launcher to vX** in the toolbar) only works for a
   macOS `.app` in a folder the user can write to (an admin's

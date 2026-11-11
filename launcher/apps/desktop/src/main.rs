@@ -48,6 +48,11 @@ fn main() {
             tracing::warn!(error = %e, "could not save the migrated state");
         }
     }
+    // A renamed app (FerrumDock → FerrumContainers) gets its copy in
+    // ~/Applications/Ferrum (or Start Menu shortcut) under the new name.
+    for (app, e) in state.retire_former_names(&paths) {
+        tracing::warn!(%app, error = %e, "could not replace the copy under the app's former name");
+    }
     // Dev builds run outside a bundle and have no release version; they show
     // the launcher as not installed, which is what the store records anyway.
     state.running_launcher = ferrumlauncher_core::platform::running_version();

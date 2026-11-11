@@ -7,8 +7,9 @@ DARK = "#16130f"
 APPS = {
     # name: (symbol letter after "Fe", accent, glyph). The core mark is plain "Fe";
     # every app is "Fe" + a capital in its accent: FeA, FeG, FeD, FeT, FeL,
-    # FeK (Kit), FeC (Dock: containers), FeE (Editor), FeP (Ports) and
-    # FeV (Env: the vault).
+    # FeK (Kit), FeC (FerrumContainers), FeE (Editor), FeP (Ports) and
+    # FeE (Env: the vault; same letter as the Editor, told apart by the
+    # vermilion accent and the padlock badge).
     "ferrum":  ("e", "#E8743B", None),
     "api":     ("A", "#3FB8A0", "arrows"),
     "git":     ("G", "#F0B43C", "branch"),
@@ -19,7 +20,7 @@ APPS = {
     "dock":    ("C", "#38BDF8", "containers"),
     "editor":  ("E", "#C5DC3A", "caret"),
     "ports":   ("P", "#5B8DEF", "plug"),
-    "env":     ("V", "#F2665A", "lock"),
+    "env":     ("E", "#F2665A", "lock"),
 }
 SW = 62  # letter stroke width
 

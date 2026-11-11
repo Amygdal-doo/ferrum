@@ -12,7 +12,7 @@ one look through `shared/ui`.
 | `data/` | FerrumData: database IDE | GPUI + `ferrum-ui` |
 | `term/` | FerrumTerm: terminal server, GUI and CLI | GPUI GUI, crossterm CLI |
 | `kit/` | FerrumKit: developer utilities | GPUI + `ferrum-ui` |
-| `dock/` | FerrumDock: container manager | GPUI + `ferrum-ui` |
+| `dock/` | FerrumContainers: container manager | GPUI + `ferrum-ui` |
 | `ports/` | FerrumPorts: listening ports and their processes | GPUI + `ferrum-ui` |
 | `env/` | FerrumEnv: password-locked, shareable vault for project env variables | GPUI + `ferrum-ui` |
 | `logs/` | Library only: `ferrumlogs-core` (log sources, parsing, filtering) behind Ferrum Editor's Logs page | Rust (no UI) |
@@ -67,7 +67,7 @@ cargo desktop    # FerrumData
 cargo term       # FerrumTerm GUI
 cargo fterm      # FerrumTerm CLI
 cargo kit        # FerrumKit
-cargo dock       # FerrumDock
+cargo dock       # FerrumContainers
 cargo editor     # Ferrum Editor
 cargo ports      # FerrumPorts
 cargo env-ui     # FerrumEnv

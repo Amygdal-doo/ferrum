@@ -18,7 +18,7 @@ actions!(ferrumdock, [Refresh, FocusFilter]);
 /// The executable name recorded in `~/.ferrum/projects.json`.
 pub const APP_BINARY: &str = "ferrumdock";
 
-const KEY_CONTEXT: &str = "FerrumDock";
+const KEY_CONTEXT: &str = "FerrumContainers";
 
 pub fn bind_keys(cx: &mut App) {
     let context = Some(KEY_CONTEXT);
@@ -51,7 +51,7 @@ pub struct RunInputs {
 }
 
 impl RunInputs {
-    fn new(window: &mut Window, cx: &mut Context<FerrumDock>) -> Self {
+    fn new(window: &mut Window, cx: &mut Context<FerrumContainers>) -> Self {
         let mut field = |placeholder: &'static str, lines: usize| {
             cx.new(|cx| {
                 let input = TextInput::new(window, cx)
@@ -75,7 +75,7 @@ impl RunInputs {
     }
 }
 
-pub struct FerrumDock {
+pub struct FerrumContainers {
     pub state: AppState,
     pub status: EngineStatus,
     pub services: Services,
@@ -96,7 +96,7 @@ pub struct FerrumDock {
     _subscriptions: Vec<Subscription>,
 }
 
-impl FerrumDock {
+impl FerrumContainers {
     pub fn new(
         services: Services,
         docker_cli: Option<DockerCli>,
@@ -209,7 +209,7 @@ impl FerrumDock {
     }
 }
 
-impl Render for FerrumDock {
+impl Render for FerrumContainers {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
         let (background, text) = (colors.background, colors.text);
@@ -243,7 +243,7 @@ impl Render for FerrumDock {
     }
 }
 
-impl gpui::Focusable for FerrumDock {
+impl gpui::Focusable for FerrumContainers {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
     }

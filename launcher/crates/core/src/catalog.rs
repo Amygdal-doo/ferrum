@@ -171,6 +171,11 @@ pub struct AppInfo {
     pub extra_binaries: Vec<String>,
     /// macOS bundle name without `.app`.
     pub bundle_name: String,
+    /// Names the app was published under before a rename (FerrumDock for
+    /// FerrumContainers). A copy published as `<former>.app` in the
+    /// Applications folder, or a `<former>.lnk` Start Menu shortcut, is
+    /// replaced by the current name's (see `State::retire_former_names`).
+    pub former_names: Vec<String>,
     /// Name of a `ui` crate `IconName` variant (e.g. `ToolHammer`); the UI falls
     /// back to a generic icon for names it doesn't know.
     pub icon: String,
@@ -211,6 +216,7 @@ impl AppInfo {
             binary: app.to_string(),
             extra_binaries: Vec::new(),
             bundle_name: app.to_string(),
+            former_names: Vec::new(),
             icon: String::new(),
             logo: None,
             order: DEFAULT_ORDER,
@@ -228,6 +234,7 @@ struct Builtin {
     binary: &'static str,
     extra_binaries: &'static [&'static str],
     bundle_name: &'static str,
+    former_names: &'static [&'static str],
     icon: &'static str,
     order: i32,
 }
@@ -241,6 +248,7 @@ impl Builtin {
             binary: self.binary.into(),
             extra_binaries: self.extra_binaries.iter().map(|s| (*s).into()).collect(),
             bundle_name: self.bundle_name.into(),
+            former_names: self.former_names.iter().map(|s| (*s).into()).collect(),
             icon: self.icon.into(),
             logo: None,
             order: self.order,
@@ -257,6 +265,7 @@ static RETIRED: [Builtin; 1] = [Builtin {
     binary: "zed",
     extra_binaries: &[],
     bundle_name: "Ferrum IDE",
+    former_names: &[],
     icon: "Code",
     order: 10,
 }];
@@ -269,6 +278,7 @@ static BUILTIN: [Builtin; 10] = [
         binary: "ferrumeditor",
         extra_binaries: &[],
         bundle_name: "Ferrum Editor",
+        former_names: &[],
         icon: "CursorIBeam",
         order: 10,
     },
@@ -279,6 +289,7 @@ static BUILTIN: [Builtin; 10] = [
         binary: "ferrumapi",
         extra_binaries: &[],
         bundle_name: "FerrumAPI",
+        former_names: &[],
         icon: "Public",
         order: 20,
     },
@@ -289,6 +300,7 @@ static BUILTIN: [Builtin; 10] = [
         binary: "ferrumgit",
         extra_binaries: &[],
         bundle_name: "FerrumGIT",
+        former_names: &[],
         icon: "GitBranch",
         order: 30,
     },
@@ -299,6 +311,7 @@ static BUILTIN: [Builtin; 10] = [
         binary: "ferrumdata",
         extra_binaries: &[],
         bundle_name: "FerrumData",
+        former_names: &[],
         icon: "DatabaseZap",
         order: 40,
     },
@@ -309,6 +322,7 @@ static BUILTIN: [Builtin; 10] = [
         binary: "ferrumterm",
         extra_binaries: &["fterm"],
         bundle_name: "FerrumTerm",
+        former_names: &[],
         icon: "Terminal",
         order: 50,
     },
@@ -319,16 +333,20 @@ static BUILTIN: [Builtin; 10] = [
         binary: "ferrumkit",
         extra_binaries: &[],
         bundle_name: "FerrumKit",
+        former_names: &[],
         icon: "ToolHammer",
         order: 60,
     },
     Builtin {
         id: AppId::DOCK,
-        name: "FerrumDock",
+        name: "FerrumContainers",
         description: "Container manager for Docker, OrbStack, Colima and Podman engines.",
+        // The binary, the id and the data stay `dock`/`ferrumdock`, so
+        // FerrumDock installs update in place.
         binary: "ferrumdock",
         extra_binaries: &[],
-        bundle_name: "FerrumDock",
+        bundle_name: "FerrumContainers",
+        former_names: &["FerrumDock"],
         icon: "Blocks",
         order: 70,
     },
@@ -339,6 +357,7 @@ static BUILTIN: [Builtin; 10] = [
         binary: "ferrumports",
         extra_binaries: &[],
         bundle_name: "FerrumPorts",
+        former_names: &[],
         icon: "Server",
         order: 80,
     },
@@ -349,6 +368,7 @@ static BUILTIN: [Builtin; 10] = [
         binary: "ferrumenv",
         extra_binaries: &[],
         bundle_name: "FerrumEnv",
+        former_names: &[],
         icon: "Lock",
         order: 90,
     },
@@ -359,6 +379,7 @@ static BUILTIN: [Builtin; 10] = [
         binary: "ferrum-launcher",
         extra_binaries: &[],
         bundle_name: "Ferrum Launcher",
+        former_names: &[],
         icon: "Box",
         order: 1100,
     },
@@ -412,6 +433,9 @@ pub struct CatalogEntry {
     pub extra_binaries: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bundle_name: Option<String>,
+    /// Ignored by Launcher 0.8.1 and older (they leave the old copy in place).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub former_names: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -465,6 +489,13 @@ impl CatalogEntry {
             bundle_name: field("bundle_name")
                 .and_then(|s| as_string(id, "bundle_name", s))
                 .filter(|s| validated(id, "bundle_name", is_safe_file_name(s))),
+            former_names: string_list(id, value, "former_names").filter(|list| {
+                validated(
+                    id,
+                    "former_names",
+                    list.iter().all(|s| is_safe_file_name(s)),
+                )
+            }),
             icon: field("icon")
                 .and_then(|s| as_string(id, "icon", s))
                 .filter(|s| {
@@ -658,6 +689,13 @@ impl Catalog {
             if let Some(extra) = &entry.extra_binaries {
                 info.extra_binaries.clone_from(extra);
             }
+            // Added to the built-in list, so a catalog can't make this
+            // launcher forget a rename it knows about.
+            for former in entry.former_names.iter().flatten() {
+                if !info.former_names.contains(former) {
+                    info.former_names.push(former.clone());
+                }
+            }
             if entry.logo.is_some() {
                 info.logo.clone_from(&entry.logo);
             }
@@ -708,6 +746,7 @@ mod tests {
             assert_eq!(merged.bundle_name, builtin.bundle_name, "{app}");
             assert_eq!(merged.extra_binaries, builtin.extra_binaries, "{app}");
             assert_eq!(merged.name, builtin.name, "{app}");
+            assert_eq!(merged.former_names, builtin.former_names, "{app}");
         }
         assert!(
             catalog
@@ -797,6 +836,62 @@ mod tests {
         )
         .expect("parse");
         assert!(bad.apps.is_empty());
+    }
+
+    #[test]
+    fn former_names_are_read_validated_and_added_to_the_builtin_ones() {
+        // The catalog that renames FerrumDock, as every launcher reads it.
+        let renamed = Catalog::parse(
+            r#"{"apps":[{"id":"dock","status":"alpha","summary":"S","name":"FerrumContainers",
+                "binary":"ferrumdock","bundle_name":"FerrumContainers","former_names":["FerrumDock"]}]}"#,
+        )
+        .expect("parse");
+        let dock = renamed.info(AppId::DOCK).expect("dock");
+        assert_eq!(dock.name, "FerrumContainers");
+        assert_eq!(dock.bundle_name, "FerrumContainers");
+        assert_eq!(dock.binary, "ferrumdock");
+        assert_eq!(dock.former_names, ["FerrumDock"], "not listed twice");
+        // A catalog may add names; unsafe ones drop the whole list.
+        let catalog = Catalog::parse(
+            r#"{"apps":[
+              {"id":"kit","status":"alpha","summary":"S","bundle_name":"FerrumTools","former_names":["FerrumKit"]},
+              {"id":"api","status":"alpha","summary":"S","former_names":["../Evil", "FerrumHTTP"]},
+              {"id":"git","status":"alpha","summary":"S","former_names":"FerrumGit"}
+            ]}"#,
+        )
+        .expect("parse");
+        assert_eq!(
+            catalog.info(AppId::KIT).expect("kit").former_names,
+            ["FerrumKit"]
+        );
+        assert!(
+            catalog
+                .info(AppId::API)
+                .expect("api")
+                .former_names
+                .is_empty()
+        );
+        assert!(
+            catalog
+                .info(AppId::GIT)
+                .expect("git")
+                .former_names
+                .is_empty()
+        );
+        // A catalog without the field (the one Launcher 0.8.1 shipped with)
+        // keeps the built-in rename.
+        let old = Catalog::parse(
+            r#"{"apps":[{"id":"dock","status":"alpha","summary":"S","name":"FerrumDock","bundle_name":"FerrumDock"}]}"#,
+        )
+        .expect("parse");
+        let dock = old.info(AppId::DOCK).expect("dock");
+        assert_eq!(dock.bundle_name, "FerrumDock");
+        assert_eq!(dock.former_names, ["FerrumDock"]);
+        // Round-trips through the cache in state.json.
+        let json = serde_json::to_string(&renamed).expect("serialize");
+        assert!(json.contains(r#""former_names":["FerrumDock"]"#), "{json}");
+        let back: Catalog = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back, renamed);
     }
 
     #[test]

@@ -2,7 +2,7 @@
 
 You install **Ferrum Launcher** once. It then installs, updates and rolls back
 every other Ferrum app (Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData,
-FerrumTerm, FerrumKit, FerrumDock, and apps published later).
+FerrumTerm, FerrumKit, FerrumContainers, and apps published later).
 Only the launcher has an installer (`.dmg`, `.exe`, `.deb`); the other apps are
 installed through it and have no separate download.
 
@@ -136,7 +136,7 @@ Toolbox to v0.6.0** as usual. Then, on the first start, the launcher
   `FerrumLauncher` (macOS may ask once whether Ferrum Launcher may read it);
 - points `~/.ferrum/bin/ferrum-launcher` at itself and keeps
   `ferrum-toolbox` as a link for this release;
-- shows FerrumKit, FerrumDock and Ferrum Editor, added after 0.5.0, as **New**.
+- shows FerrumKit, FerrumContainers and Ferrum Editor, added after 0.5.0, as **New**.
 
 Installed apps, `~/Applications/Ferrum` and the other `~/.ferrum/bin` links
 keep working throughout. The `install.sh` one-liner installs the launcher
@@ -144,14 +144,13 @@ and moves an old `Ferrum Toolbox.app` to the Trash.
 
 ## First launch and platforms
 
-**First launch: nothing is code-signed yet.**
+**First launch.**
 
-- **macOS:** the apps are ad-hoc signed, not notarized, so Gatekeeper blocks a
-  downloaded copy with a "could not verify … is free of malware" message. Use
-  **System Settings → Privacy & Security → Open Anyway** once (macOS 15+), or
-  **right-click → Open** on older macOS, or run
-  `xattr -dr com.apple.quarantine "/Applications/Ferrum Launcher.app"`. Apps
-  installed through the launcher skip this.
+- **macOS:** released builds are signed with the AMYGDAL d.o.o. Sarajevo
+  Developer ID and notarized by Apple, so they open without a warning. A build
+  you make yourself without `FERRUM_SIGN_IDENTITY` is only ad-hoc signed; open
+  it once with **System Settings → Privacy & Security → Open Anyway**, or run
+  `xattr -dr com.apple.quarantine "/Applications/Ferrum Launcher.app"`.
 - **Windows:** SmartScreen shows "Windows protected your PC" for the setup
   file. Click **More info → Run anyway**.
 - **Linux:** no prompt. GPUI needs a Vulkan driver (`mesa-vulkan-drivers` is
@@ -234,9 +233,7 @@ provides GPUI). See [launcher/README.md](launcher/README.md).
 
 ## Known limitations
 
-- **Signing:** until the Developer ID setup below is in place, builds are
-  ad-hoc signed, so a downloaded DMG needs **Open Anyway** the first time.
-  With it, every app is signed with the AMYGDAL d.o.o. Sarajevo Developer ID
+- **Signing:** released macOS builds are signed with the AMYGDAL d.o.o. Sarajevo Developer ID
   (hardened runtime, `packaging/macos/ferrum.entitlements`) and notarized by
   Apple, and opens without a warning.
   - Local releases: set `FERRUM_SIGN_IDENTITY="Developer ID Application: AMYGDAL

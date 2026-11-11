@@ -1,7 +1,7 @@
 //! Containers list headers: compose project groups (Logs, ps, Up, Restart,
 //! Down) and compose files of the open project that have no containers yet.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::DetailTab;
 use crate::views::widgets::{button, muted};
 use ferrumdock_engine::compose::{ComposeAction, ComposeProject};
@@ -11,13 +11,13 @@ use theme::ActiveTheme;
 use ui::{Color, Icon, IconName, IconSize, Label, LabelCommon, h_flex};
 
 pub fn group_row(
-    app: &FerrumDock,
+    app: &FerrumContainers,
     project: &str,
     running: usize,
     total: usize,
     collapsed: bool,
     compose: Option<ComposeProject>,
-    cx: &mut Context<FerrumDock>,
+    cx: &mut Context<FerrumContainers>,
 ) -> AnyElement {
     let theme = cx.theme().clone();
     let colors = theme.colors();
@@ -92,7 +92,11 @@ pub fn group_row(
 }
 
 /// A compose file of the open project that has no containers: Up creates them.
-pub fn file_row(app: &FerrumDock, file: &ComposeFile, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn file_row(
+    app: &FerrumContainers,
+    file: &ComposeFile,
+    cx: &mut Context<FerrumContainers>,
+) -> AnyElement {
     let theme = cx.theme().clone();
     let colors = theme.colors();
     let busy = app

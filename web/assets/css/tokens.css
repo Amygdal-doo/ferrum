@@ -1,60 +1,52 @@
-/* Design tokens: "tempered steel". Dark blued steel is the default; the accents
-   are the temper colours steel takes on as it heats (straw, bronze, violet,
-   blue). Only this file defines raw colour values; everything else uses var(--*). */
+/* Design tokens: "tempered steel". See web/DESIGN.md for the rules.
+ *
+ * Dark blued steel is the default theme. The accents are the temper colours
+ * steel takes on as it heats: straw, bronze, violet, blue. Each app keeps its
+ * brand colour (--app-*). This is the only file with raw colour values; all
+ * other CSS reads var(--*).
+ *
+ * Sections: 1 colour (theme) · 2 colour (brand, fixed) · 3 type · 4 space ·
+ * 5 shape · 6 motion · 7 layout.
+ */
+
+/* ---------- 1. Colour: semantic roles per theme ---------- */
 :root,
 :root[data-theme="dark"] {
   color-scheme: dark;
-  /* Steel */
-  --bg: #0d1520;
-  --bg-elev: #111b28;
-  --surface: #142030;
-  --surface-2: #1b2a3d;
-  --border: #22324a;
-  --border-strong: #33496a;
-  /* Text */
+  /* Surfaces, darkest to lightest. */
+  --bg: #0d1520;          /* page */
+  --bg-elev: #111b28;     /* bands, footer, code */
+  --surface: #142030;     /* cards, controls */
+  --surface-2: #1b2a3d;   /* raised on a surface */
+  --border: #22324a;      /* hairlines */
+  --border-strong: #33496a; /* rules that structure content */
+  /* Text: 16:1, 8.2:1 and 6.1:1 on --bg (light theme: 16:1, 6.6:1, 5:1). */
   --text: #eaf0f5;
   --text-muted: #9db0c3;
   --text-faint: #8597ad;
-  /* Temper colours */
-  --straw: #e9c46a;
-  --straw-soft: #f3dc9c;
-  --bronze: #c97b3b;
-  --violet: #8257c9;
-  --blue: #3e73d9;
-  --ok: #6cc3a0;
+  /* Action colour: straw. --accent-text sits on --accent. */
   --accent: var(--straw);
   --accent-hover: var(--straw-soft);
   --accent-text: #1a1305;
-  /* Dark text for labels sitting on a bright app or temper colour. */
-  --on-color: #0d1520;
-  /* How much of an app accent survives when it is used as text colour
-     (the rest is --text); bright accents need darkening on light backgrounds. */
-  --ink-mix: 100%;
   --link: var(--straw);
   --focus: var(--straw);
-  --temper: linear-gradient(90deg, var(--straw), var(--bronze) 38%, var(--violet) 70%, var(--blue));
+  /* Status: callouts, chips. */
+  --ok: #6cc3a0;
+  --info: #7aa2f0;
+  --warn: var(--bronze);
+  --security: #a98be6;
+  /* Dark text for labels on a bright app or temper colour. */
+  --on-color: #0d1520;
+  /* Share of an app accent kept when it tints text (rest is --text). */
+  --ink-mix: 100%;
   --glow: 0 0 0 1px color-mix(in srgb, var(--straw) 40%, transparent), 0 10px 40px -14px color-mix(in srgb, var(--straw) 55%, transparent);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 18px 40px -22px rgba(0, 0, 0, 0.75);
-  /* Filings canvas (read by js/filings.js): weak field to strong. */
+  /* Iron-filings canvas (js/filings.js): weak field to strong. */
   --filing: #4b6079;
   --heat-1: var(--blue);
   --heat-2: var(--violet);
   --heat-3: var(--bronze);
   --heat-4: var(--straw);
-  /* Brand accents, one per app (see brand/README.md). Used for logos, borders
-     and glows; never as body-text colour, so contrast holds in both themes. */
-  --app-ferrum: #e8743b;
-  --app-api: #3fb8a0;
-  --app-git: #f0b43c;
-  --app-data: #a07cf0;
-  --app-term: #7cc85a;
-  --app-launcher: #e85a7e;
-  --app-kit: #d46be0;
-  --app-dock: #38bdf8;
-  --app-ports: #5b8def;
-  --app-env: #f2665a;
-  --app-editor: #c5dc3a;
-  --app-accent: var(--straw);
   /* Syntax colours in the animated app windows. */
   --syn-kw: var(--straw);
   --syn-fn: #5b8def;
@@ -81,6 +73,9 @@
   --link: #8a5a14;
   --focus: #3e73d9;
   --ok: #1b6b4d;
+  --info: #2456b8;
+  --warn: #9a4f17;
+  --security: #6a40b5;
   --ink-mix: 45%;
   --syn-kw: #9a4f17;
   --syn-fn: #2456b8;
@@ -96,22 +91,57 @@
   --heat-4: #a87a12;
 }
 
+/* ---------- 2. Colour: brand (same in both themes) ---------- */
 :root {
-  /* Typography: condensed industrial display, humanist grotesk body. */
+  /* Temper colours. */
+  --straw: #e9c46a;
+  --straw-soft: #f3dc9c;
+  --bronze: #c97b3b;
+  --violet: #8257c9;
+  --blue: #3e73d9;
+  /* The temper rule: straw to blue, the way steel colours as it heats. */
+  --temper: linear-gradient(90deg, var(--straw), var(--bronze) 38%, var(--violet) 70%, var(--blue));
+  /* One accent per app (brand/README.md). For logos, rules, dots and glows,
+     never body text, so contrast holds in both themes. Components read the
+     current app's colour from --app-accent (set inline per element). */
+  --app-ferrum: #e8743b;
+  --app-api: #3fb8a0;
+  --app-git: #f0b43c;
+  --app-data: #a07cf0;
+  --app-term: #7cc85a;
+  --app-launcher: #e85a7e;
+  --app-kit: #d46be0;
+  --app-dock: #38bdf8;
+  --app-ports: #5b8def;
+  --app-env: #f2665a;
+  --app-editor: #c5dc3a;
+  --app-accent: var(--straw);
+}
+
+/* ---------- 3. Type ---------- */
+:root {
+  /* Display: condensed, stamped-metal capitals of Big Shoulders. Body: Hanken
+     Grotesk. Mono only for code, commands and keys. */
   --font-display: "Big Shoulders Display", "Arial Narrow", ui-sans-serif, sans-serif;
   --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --fs-xs: 0.75rem;
-  --fs-sm: 0.875rem;
-  --fs-base: 1.0625rem;
-  --fs-lg: 1.1875rem;
-  --fs-xl: 1.5rem;
-  --fs-2xl: clamp(2.2rem, 1.6rem + 2.4vw, 3.4rem);
-  --fs-3xl: clamp(2.8rem, 1.8rem + 4vw, 4.8rem);
-  --fs-hero: clamp(2.9rem, 1.2rem + 8.5vw, 9rem);
-  --lh-tight: 0.95;
+  /* Scale on a 17px body. Display steps are fluid. */
+  --fs-xs: 0.75rem;     /* 12: chips, captions */
+  --fs-sm: 0.875rem;    /* 14: meta, tables, secondary */
+  --fs-base: 1.0625rem; /* 17: body */
+  --fs-lg: 1.1875rem;   /* 19: leads, h3 */
+  --fs-xl: 1.5rem;      /* 24: small display */
+  --fs-2xl: clamp(2.2rem, 1.6rem + 2.4vw, 3.4rem);  /* h2 */
+  --fs-3xl: clamp(2.8rem, 1.8rem + 4vw, 4.8rem);    /* h1 */
+  --fs-hero: clamp(2.9rem, 1.2rem + 8.5vw, 9rem);   /* home and app titles */
+  --lh-tight: 0.95; /* display */
+  --lh-snug: 1.3;   /* h3, UI */
   --lh-body: 1.6;
-  /* Spacing (4px scale) */
+  --measure: 68ch;  /* reading width */
+}
+
+/* ---------- 4. Space (4px steps) ---------- */
+:root {
   --sp-1: 0.25rem;
   --sp-2: 0.5rem;
   --sp-3: 0.75rem;
@@ -122,14 +152,38 @@
   --sp-16: 4rem;
   --sp-24: 6rem;
   --sp-32: 8rem;
-  /* Shape & layout: tight radii for controls, larger for windows. */
-  --radius-sm: 3px;
-  --radius: 6px;
-  --radius-lg: 12px;
+}
+
+/* ---------- 5. Shape ---------- */
+:root {
+  /* Radius grows with the size of the thing: keys < controls < panels < windows. */
+  --radius-xs: 2px;  /* key caps, chips' corners */
+  --radius-sm: 3px;  /* tags, focus ring */
+  --radius: 6px;     /* buttons, cards, callouts */
+  --radius-lg: 12px; /* app windows, large panels */
+  --radius-pill: 999px;
+  --rule: 1px solid var(--border);
+  --rule-strong: 1px solid var(--border-strong);
+}
+
+/* ---------- 6. Motion ---------- */
+:root {
+  /* Motion answers an action. The home hero is the only orchestrated entrance.
+     base.css turns all of it off under prefers-reduced-motion. */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 0.15s;
+  --dur: 0.25s;
+  --dur-slow: 0.45s;
+}
+
+/* ---------- 7. Layout ---------- */
+:root {
   --container: 1240px;
+  --container-narrow: 46rem;
   --gutter: 20px;
   --header-h: 64px;
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --z-header: 50;
+  --z-skip: 100;
 }
 
 @media (min-width: 720px) {

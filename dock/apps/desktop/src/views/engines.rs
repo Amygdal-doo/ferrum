@@ -1,7 +1,7 @@
 //! Engine picker: every engine present on this machine (DOCKER_HOST,
 //! Docker contexts, Docker Desktop / OrbStack / Colima sockets).
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::EngineStatus;
 use crate::views::widgets::muted;
 use ferrum_ui::Modal;
@@ -12,7 +12,7 @@ use ui::{
     v_flex,
 };
 
-pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let colors = cx.theme().colors();
     let current = match &app.status {
         EngineStatus::Connected(c) => Some(c.candidate.endpoint.clone()),

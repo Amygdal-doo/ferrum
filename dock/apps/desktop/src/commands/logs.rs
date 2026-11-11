@@ -1,7 +1,7 @@
 //! The detail panel: live log streaming (one container or a whole compose
 //! project), the since / regex / save controls, and inspect.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::{DetailState, DetailTab, LOG_CAPACITY};
 use ferrumdock_engine::logs::{LogBuffer, Since, export_file_name};
 use ferrumdock_engine::{LogChunk, LogOptions, logmux};
@@ -14,7 +14,7 @@ const INITIAL_TAIL: u32 = 2_000;
 /// Coalesces log updates into at most ~20 renders per second.
 const BATCH_DELAY: Duration = Duration::from_millis(50);
 
-impl FerrumDock {
+impl FerrumContainers {
     pub fn select_container(&mut self, id: &str, cx: &mut Context<Self>) {
         if self.state.detail.as_ref().is_some_and(|d| d.id == id) {
             return;

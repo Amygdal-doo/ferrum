@@ -91,9 +91,9 @@ const LIMITS: &[&str] = &[
 
 const PAGE: ProductPage = ProductPage {
     product: FERRUMENV,
-    meta_description: "FerrumEnv is a native Rust vault for project environment variables: \
-                       locked by a master password, with encrypted bundles to share them and \
-                       .env import and export.",
+    meta_description: "FerrumEnv is a native vault for project environment variables: \
+                       locked by a master password, shared as encrypted bundles, with .env \
+                       import and export.",
     intro: "Your projects' environment variables in one encrypted file instead of loose .env \
             files. Share them with a teammate as an encrypted bundle, sealed with a key you \
             exchange once.",
@@ -137,11 +137,12 @@ fn security() -> Markup {
     html! {
         section class="section" aria-labelledby="security-title" {
             div class="container" {
-                p class="eyebrow" { "Security" }
                 h2 id="security-title" { "Security model" }
                 p class="lead" {
                     "What the encryption protects, and what it can't. Both lists come from \
-                     FerrumEnv's own documentation."
+                     FerrumEnv's own documentation. The "
+                    a href="/security#vault" { "security page" }
+                    " has the details."
                 }
                 div class="grid grid--2" {
                     div class="card" {

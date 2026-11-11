@@ -24,7 +24,7 @@ $apps = @{
     git     = @{ Name = "FerrumGIT";      Binaries = @("ferrumgit") }
     data    = @{ Name = "FerrumData";     Binaries = @("ferrumdata") }
     kit     = @{ Name = "FerrumKit";      Binaries = @("ferrumkit") }
-    dock    = @{ Name = "FerrumDock";     Binaries = @("ferrumdock") }
+    dock    = @{ Name = "FerrumContainers"; Binaries = @("ferrumdock") }
     editor  = @{ Name = "Ferrum Editor";  Binaries = @("ferrumeditor") }
     ports   = @{ Name = "FerrumPorts";    Binaries = @("ferrumports") }
     env     = @{ Name = "FerrumEnv";      Binaries = @("ferrumenv") }

@@ -1,6 +1,6 @@
 [package]
 name = "ferrumdock-desktop"
-description = "FerrumDock container manager — GPUI desktop shell."
+description = "FerrumContainers container manager — GPUI desktop shell."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -1,15 +1,19 @@
 //! One module per page. Each exposes `pub fn render(site_url: &str) -> Markup`.
 
 pub mod about;
+pub mod changelog;
+pub mod compare;
+pub mod docs;
 pub mod download;
 pub mod editor_pages;
+pub mod faq;
 pub mod feature_demos;
 pub mod features;
 pub mod ferrum_editor;
 pub mod ferrum_launcher;
 pub mod ferrumapi;
+pub mod ferrumcontainers;
 pub mod ferrumdata;
-pub mod ferrumdock;
 pub mod ferrumenv;
 pub mod ferrumgit;
 pub mod ferrumkit;
@@ -21,4 +25,5 @@ pub mod posts;
 pub mod privacy;
 pub mod product_sections;
 pub mod project_demos;
+pub mod security;
 pub mod updates;

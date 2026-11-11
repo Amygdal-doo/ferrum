@@ -3,6 +3,8 @@
 
 pub const SITE_NAME: &str = "Ferrum";
 pub const SITE_TAGLINE: &str = "One launcher, every tool.";
+/// Home page `<title>` after "Ferrum: ".
+pub const SITE_TITLE: &str = "native developer tools for macOS, built in Rust";
 pub const SITE_DESCRIPTION: &str = "Ferrum is a family of native developer tools written in Rust and \
      rendered with GPUI: a code editor, an API client, a Git client, a database IDE, a terminal, a \
      container manager and developer utilities, installed and updated by Ferrum Launcher.";
@@ -42,3 +44,18 @@ pub const ZED_UPSTREAM_URL: &str = "https://github.com/zed-industries/zed";
 pub const AMYGDAL_URL: &str = "https://amygdal.com";
 /// GPUI, the UI framework every Ferrum desktop app is built on.
 pub const GPUI_URL: &str = "https://gpui.rs";
+
+/// The company that publishes Ferrum (JSON-LD `Organization`, signing identity).
+pub const ORGANIZATION_LEGAL_NAME: &str = "AMYGDAL d.o.o.";
+pub const ORGANIZATION_NAME: &str = "Amygdal";
+pub const ORGANIZATION_CITY: &str = "Sarajevo";
+/// ISO 3166-1 alpha-2: Bosnia and Herzegovina.
+pub const ORGANIZATION_COUNTRY: &str = "BA";
+
+/// Date the static page copy was last revised (`YYYY-MM-DD`): the sitemap's
+/// `lastmod` for pages without a date of their own. Bump it with content edits.
+pub const CONTENT_UPDATED: &str = "2026-11-11";
+
+/// Raw `install.sh` used by [`MACOS_INSTALL_COMMAND`].
+pub const INSTALL_SCRIPT_URL: &str =
+    "https://raw.githubusercontent.com/Amygdal-doo/ferrum-releases/main/install.sh";

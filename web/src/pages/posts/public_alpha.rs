@@ -4,7 +4,7 @@
 use maud::{Markup, html};
 
 use super::product_row;
-use crate::pages::{feature_demos, home};
+use crate::pages::feature_demos;
 use crate::products::{self, FERRUM_LAUNCHER};
 use crate::site;
 use crate::updates::Post;
@@ -41,7 +41,7 @@ const NOT_BUILT_YET: [(&str, &str); 9] = [
     ("FerrumTerm", "a config file, themes and search"),
     ("FerrumKit", "saved inputs between launches"),
     (
-        "FerrumDock",
+        "FerrumContainers",
         "building images and pulling from private registries",
     ),
     (
@@ -103,7 +103,7 @@ fn body() -> Markup {
              keeps the last three versions of each app so you can switch back. Releases come \
              from a public GitHub repository, so there is nothing to sign in to."
         }
-        (home::install_command())
+        (crate::components::code::command(crate::site::MACOS_INSTALL_COMMAND))
         p class="post__aside" {
             "Or " a href=(site::DOWNLOAD_PATH) { "download the DMG" } " and drag it to Applications."
         }

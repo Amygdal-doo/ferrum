@@ -1,6 +1,6 @@
 //! Services tab of a compose project: `docker compose ps --all`.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::views::containers::state_color;
 use crate::views::widgets::{button, cell, grow_cell, header_row, muted, row, state_dot};
 use gpui::{AnyElement, Context, SharedString, div, prelude::*};
@@ -13,7 +13,7 @@ const COLUMNS: [(&str, Option<f32>); 4] = [
     ("IMAGE", Some(140.)),
 ];
 
-pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
+pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let Some(detail) = app.state.detail.as_ref() else {
         return div().into_any_element();
     };

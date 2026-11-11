@@ -15,7 +15,9 @@ iron. The tile has these parts:
 - **Symbol:** monoline, geometric letters. The core mark is `Fe` (iron) with
   a light "ingot" `F` (`#f1e9df`) and an accent `e`. Each app is `Fe` in ingot
   ink plus a capital in its accent colour: `FeA`, `FeG`, `FeD`, `FeT`,
-  `FeL`, `FeK`, `FeC`, `FeE`, `FeP`, `FeV`.
+  `FeL`, `FeK`, `FeC`, `FeE`, `FeP`, `FeE`. Letters may repeat: Ferrum Editor and
+  FerrumEnv are both `FeE`, told apart by the accent (citron / vermilion) and the badge
+  (caret / padlock).
 - **Job badge** (app variants only): a circle in the accent colour that
   overlaps the top-right of the ring and shows the app's job in dark ink. The
   core mark has no badge.
@@ -38,7 +40,7 @@ own dark ground.
 | Term: phosphor | `#7CC85A` |
 | Launcher: ember rose | `#E85A7E` |
 | Kit: orchid | `#D46BE0` |
-| Dock: glacier | `#38BDF8` |
+| Containers: glacier | `#38BDF8` |
 | Editor: citron | `#C5DC3A` |
 | Ports: cobalt | `#5B8DEF` |
 | Env: vermilion | `#F2665A` |
@@ -56,10 +58,10 @@ The rust and patina colours match the website tokens (`web/assets/css/tokens.css
 | `term.svg` | FeT | prompt `>_` |
 | `launcher.svg` | FeL | 2×2 app grid |
 | `kit.svg` | FeK | two sliders |
-| `dock.svg` | FeC | stacked containers |
+| `dock.svg` | FeC (FerrumContainers; the file keeps the app id `dock`) | stacked containers |
 | `editor.svg` | FeE | lines of text and an I-beam cursor |
 | `ports.svg` | FeP | plug |
-| `env.svg` | FeV | padlock |
+| `env.svg` | FeE | padlock |
 | `ferrum-wordmark.svg` | Fe + "Ferrum" | light lettering, for dark backgrounds |
 | `ferrum-wordmark-light.svg` | Fe + "Ferrum" | dark lettering, for light backgrounds |
 

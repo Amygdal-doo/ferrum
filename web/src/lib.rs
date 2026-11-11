@@ -7,6 +7,7 @@ pub mod pages;
 pub mod products;
 pub mod releases;
 pub mod routes;
+pub mod seo;
 pub mod site;
 pub mod updates;
 

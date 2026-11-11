@@ -1,4 +1,5 @@
-//! End-to-end HTTP tests against the full router (no network).
+//! End-to-end HTTP tests against the full router. Releases come from fake
+//! fetchers, so no test touches the network.
 #![allow(clippy::unwrap_used)]
 
 use axum::{
@@ -11,7 +12,7 @@ use http_body_util::BodyExt;
 use tower::ServiceExt;
 use web_ferrum::{
     Config, app,
-    releases::MacosDownload,
+    releases::Releases,
     routes::{app_with, assets},
 };
 
@@ -34,7 +35,14 @@ impl Res {
 }
 
 async fn send(req: Request<Body>) -> Res {
-    let res = app(Config::default()).oneshot(req).await.unwrap();
+    send_with(Releases::offline(), req).await
+}
+
+async fn send_with(releases: Releases, req: Request<Body>) -> Res {
+    let res = app_with(Config::default(), releases)
+        .oneshot(req)
+        .await
+        .unwrap();
     let status = res.status();
     let headers = res.headers().clone();
     let body = res.into_body().collect().await.unwrap().to_bytes().to_vec();
@@ -45,7 +53,7 @@ async fn send(req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 17] = [
+const PAGES: [&str; 28] = [
     "/",
     "/features",
     "/ferrumapi",
@@ -53,12 +61,23 @@ const PAGES: [&str; 17] = [
     "/ferrumdata",
     "/ferrumterm",
     "/ferrumkit",
-    "/ferrumdock",
+    "/ferrumcontainers",
     "/ferrumports",
     "/ferrumenv",
     "/ferrum-editor",
     "/ferrum-launcher",
     "/download",
+    "/docs",
+    "/docs/install",
+    "/docs/shell-commands",
+    "/docs/project-bar",
+    "/docs/shortcuts",
+    "/changelog",
+    "/faq",
+    "/security",
+    "/compare",
+    "/compare/ferrumcontainers-vs-docker-desktop",
+    "/compare/ferrumapi-vs-postman",
     "/updates",
     "/updates/ferrum-public-alpha",
     "/about",
@@ -98,23 +117,14 @@ async fn download_page_offers_public_macos_download() {
     assert!(!html.contains("gh auth login"));
 }
 
-fn fake_releases(result: Result<&'static str, &'static str>) -> MacosDownload {
-    MacosDownload::new(Arc::new(move || {
+fn fake_releases(result: Result<&'static str, &'static str>) -> Releases {
+    Releases::new(Arc::new(move || {
         Box::pin(async move { result.map(str::to_owned).map_err(str::to_owned) })
     }))
 }
 
-async fn get_with(resolver: MacosDownload, uri: &str) -> Res {
-    let req = Request::get(uri).body(Body::empty()).unwrap();
-    let res = app_with(Config::default(), resolver)
-        .oneshot(req)
-        .await
-        .unwrap();
-    Res {
-        status: res.status(),
-        headers: res.headers().clone(),
-        body: Vec::new(),
-    }
+async fn get_with(releases: Releases, uri: &str) -> Res {
+    send_with(releases, Request::get(uri).body(Body::empty()).unwrap()).await
 }
 
 #[tokio::test]
@@ -188,10 +198,16 @@ async fn new_app_pages_show_their_logo_demo_and_status() {
 
 #[tokio::test]
 async fn unknown_page_is_html_404() {
-    let res = get("/does-not-exist").await;
-    assert_eq!(res.status, StatusCode::NOT_FOUND);
-    assert!(res.header(header::CONTENT_TYPE).starts_with("text/html"));
-    assert_eq!(res.header(header::CACHE_CONTROL), "no-cache");
+    for path in ["/does-not-exist", "/compare/nope", "/docs/nope"] {
+        let res = get(path).await;
+        assert_eq!(res.status, StatusCode::NOT_FOUND, "{path}");
+        assert!(res.header(header::CONTENT_TYPE).starts_with("text/html"));
+        assert_eq!(res.header(header::CACHE_CONTROL), "no-cache");
+        let html = res.text();
+        assert!(html.contains(r#"<meta name="robots" content="noindex">"#));
+        assert!(!html.contains(r#"rel="canonical""#));
+        assert_eq!(html.matches("<h1").count(), 1);
+    }
 }
 
 #[tokio::test]
@@ -224,6 +240,7 @@ async fn robots_points_to_sitemap() {
         res.text()
             .contains("Sitemap: http://localhost:8080/sitemap.xml")
     );
+    assert!(res.text().contains("Disallow: /download/macos"));
 }
 
 #[tokio::test]
@@ -240,6 +257,23 @@ async fn sitemap_lists_all_pages() {
         assert!(xml.contains(&loc), "missing {loc}");
     }
     assert_eq!(xml.matches("<url>").count(), PAGES.len());
+    let doc = roxmltree::Document::parse(&xml).unwrap();
+    let urls: Vec<_> = doc
+        .root_element()
+        .children()
+        .filter(|n| n.has_tag_name("url"))
+        .collect();
+    assert_eq!(urls.len(), PAGES.len());
+    for url in urls {
+        let lastmod = url
+            .children()
+            .find(|n| n.has_tag_name("lastmod"))
+            .and_then(|n| n.text())
+            .unwrap_or_default();
+        assert_eq!(lastmod.len(), 10, "lastmod {lastmod:?}");
+        assert_eq!(lastmod.matches('-').count(), 2);
+    }
+    assert!(!xml.contains("/download/macos"));
 }
 
 #[tokio::test]
@@ -331,6 +365,29 @@ async fn old_toolbox_page_redirects_to_launcher() {
     let res = get("/ferrum-toolbox").await;
     assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT);
     assert_eq!(res.header(header::LOCATION), "/ferrum-launcher");
+}
+
+#[tokio::test]
+async fn ferrumdock_was_renamed_ferrumcontainers() {
+    let res = get("/ferrumdock").await;
+    assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.header(header::LOCATION), "/ferrumcontainers");
+    let html = get("/ferrumcontainers").await.text();
+    assert!(html.contains(">FerrumContainers</h1>"));
+    assert!(
+        html.contains("/assets/img/brand/dock.svg?v="),
+        "logo file keeps its name"
+    );
+    for path in [
+        "/",
+        "/features",
+        "/docs/shortcuts",
+        "/docs/shell-commands",
+        "/changelog",
+    ] {
+        assert!(!get(path).await.text().contains("FerrumDock"), "{path}");
+    }
+    assert!(!get("/sitemap.xml").await.text().contains("/ferrumdock"));
 }
 
 #[tokio::test]
@@ -489,4 +546,241 @@ async fn feed_is_valid_atom() {
     );
     assert_eq!(text("published"), "2026-11-11T00:00:00Z");
     assert!(text("content").contains("href=\"https://ferrum.test/ferrumapi\""));
+}
+
+/// Every `<script type="application/ld+json">` body on a page, parsed.
+fn json_ld(html: &str) -> Vec<serde_json::Value> {
+    const OPEN: &str = r#"<script type="application/ld+json">"#;
+    html.split(OPEN)
+        .skip(1)
+        .map(|rest| {
+            let body = &rest[..rest.find("</script>").unwrap()];
+            serde_json::from_str(body).unwrap_or_else(|e| panic!("bad JSON-LD {e}: {body}"))
+        })
+        .collect()
+}
+
+fn ld_types(values: &[serde_json::Value]) -> Vec<String> {
+    values
+        .iter()
+        .map(|v| v["@type"].as_str().unwrap_or_default().to_owned())
+        .collect()
+}
+
+fn meta_content(html: &str, attr: &str, name: &str) -> Option<String> {
+    let needle = format!(r#"<meta {attr}="{name}" content=""#);
+    let start = html.find(&needle)? + needle.len();
+    Some(html[start..start + html[start..].find('"')?].to_owned())
+}
+
+#[tokio::test]
+async fn every_page_has_unique_seo_metadata() {
+    let site = Config::from_vars(|k| (k == "SITE_URL").then(|| "https://ferrum.test".to_owned()));
+    let mut titles = std::collections::HashSet::new();
+    let mut descriptions = std::collections::HashSet::new();
+    for path in PAGES {
+        let req = Request::get(path).body(Body::empty()).unwrap();
+        let res = app_with(site.clone(), Releases::offline())
+            .oneshot(req)
+            .await
+            .unwrap();
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        let html = String::from_utf8_lossy(&body).into_owned();
+
+        assert!(
+            html.starts_with("<!DOCTYPE html><html lang=\"en\""),
+            "{path}"
+        );
+        assert_eq!(html.matches("<h1").count(), 1, "{path}: one h1");
+        let title = html
+            .split("<title>")
+            .nth(1)
+            .and_then(|t| t.split("</title>").next());
+        let title = title.unwrap_or_default().to_owned();
+        assert!(
+            title.len() >= 10 && title.len() <= 75,
+            "{path}: title {title:?}"
+        );
+        assert!(titles.insert(title), "{path}: duplicate title");
+        let description = meta_content(&html, "name", "description").unwrap_or_default();
+        assert!(
+            (50..=200).contains(&description.chars().count()),
+            "{path}: description length {}",
+            description.chars().count()
+        );
+        assert!(
+            descriptions.insert(description),
+            "{path}: duplicate description"
+        );
+
+        let canonical = format!(r#"<link rel="canonical" href="https://ferrum.test{path}">"#);
+        assert!(html.contains(&canonical), "{path}: canonical");
+        assert_eq!(
+            meta_content(&html, "property", "og:url").as_deref(),
+            Some(format!("https://ferrum.test{path}").as_str()),
+            "{path}"
+        );
+        let og_image = meta_content(&html, "property", "og:image").unwrap_or_default();
+        assert!(
+            og_image.starts_with("https://ferrum.test/assets/img/"),
+            "{path}"
+        );
+        assert_eq!(meta_content(&html, "name", "twitter:image"), Some(og_image));
+        assert!(
+            meta_content(&html, "name", "twitter:card").is_some(),
+            "{path}"
+        );
+        assert!(html.contains(r#"<meta name="theme-color""#), "{path}");
+        assert!(html.contains(r#"rel="icon""#), "{path}");
+
+        let ld = json_ld(&html);
+        let types = ld_types(&ld);
+        if path == "/" {
+            assert!(types.contains(&"Organization".to_owned()));
+            assert!(types.contains(&"WebSite".to_owned()));
+        } else {
+            assert!(
+                types.contains(&"BreadcrumbList".to_owned()),
+                "{path}: {types:?}"
+            );
+        }
+        for v in &ld {
+            assert_eq!(v["@context"], "https://schema.org", "{path}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn app_pages_describe_a_free_macos_application() {
+    for p in web_ferrum::products::ALL {
+        let html = get(&p.path()).await.text();
+        let ld = json_ld(&html);
+        let app = ld
+            .iter()
+            .find(|v| v["@type"] == "SoftwareApplication")
+            .unwrap_or_else(|| panic!("{}: no SoftwareApplication", p.slug));
+        assert_eq!(app["name"], p.name);
+        assert_eq!(app["operatingSystem"], "macOS");
+        assert_eq!(app["applicationCategory"], "DeveloperApplication");
+        assert_eq!(app["offers"]["price"], "0");
+        assert_eq!(app["url"], format!("http://localhost:8080{}", p.path()));
+        let crumbs = ld.iter().find(|v| v["@type"] == "BreadcrumbList").unwrap();
+        assert_eq!(crumbs["itemListElement"][1]["name"], p.name);
+        // Per-app social image, and it is served.
+        let image = format!("/assets/img/og/{}.png", p.slug);
+        assert!(
+            html.contains(&format!("http://localhost:8080{image}?v=")),
+            "{}",
+            p.slug
+        );
+        let res = get(&image).await;
+        assert_eq!(res.status, StatusCode::OK, "{image}");
+        assert_eq!(res.header(header::CONTENT_TYPE), "image/png");
+    }
+}
+
+#[tokio::test]
+async fn faq_has_valid_faq_page_markup() {
+    let html = get("/faq").await.text();
+    let ld = json_ld(&html);
+    let faq = ld.iter().find(|v| v["@type"] == "FAQPage").unwrap();
+    let questions = faq["mainEntity"].as_array().unwrap();
+    assert!(questions.len() >= 8);
+    for q in questions {
+        assert_eq!(q["@type"], "Question");
+        let name = q["name"].as_str().unwrap();
+        assert!(html.contains(&format!(">{name}</dt>")), "{name}");
+        assert!(!q["acceptedAnswer"]["text"].as_str().unwrap().is_empty());
+    }
+}
+
+#[tokio::test]
+async fn posts_are_blog_postings() {
+    let html = get("/updates/ferrum-public-alpha").await.text();
+    let ld = json_ld(&html);
+    let post = ld.iter().find(|v| v["@type"] == "BlogPosting").unwrap();
+    assert_eq!(post["datePublished"], "2026-11-11");
+    assert_eq!(post["headline"], "Ferrum is in public alpha");
+}
+
+#[tokio::test]
+async fn docs_cover_install_commands_bar_and_shortcuts() {
+    let install = get("/docs/install").await.text();
+    assert!(install.contains("install.sh | bash"));
+    assert!(install.contains(r#"href="/docs" aria-current="page""#));
+    let shell = get("/docs/shell-commands").await.text();
+    for cmd in [
+        "fee", "fea", "feg", "fed", "fet", "fek", "fec", "fep", "fev", "fel",
+    ] {
+        assert!(shell.contains(&format!("<code>{cmd}</code>")), "{cmd}");
+    }
+    let bar = get("/docs/project-bar").await.text();
+    assert!(bar.contains("~/.ferrum/projects.json"));
+    assert!(bar.contains("Option Command O"));
+    let keys = get("/docs/shortcuts").await.text();
+    assert!(keys.contains("Shift Command P"));
+    assert!(keys.contains(r##"href="#ferrumcontainers""##));
+}
+
+#[tokio::test]
+async fn changelog_lists_releases_from_github() {
+    let json = r#"[
+      {"tag_name": "launcher-v0.6.0", "published_at": "2026-11-10T09:00:00Z",
+       "body": "- Renamed from Ferrum Toolbox", "html_url": "https://github.com/x/launcher-v0.6.0",
+       "assets": [{"name": "FerrumLauncher-0.6.0-aarch64.dmg",
+                   "browser_download_url": "https://dl.test/0.6.0.dmg"}]},
+      {"tag_name": "api-v0.2.0-alpha.1", "prerelease": true,
+       "published_at": "2026-10-02T09:00:00Z", "body": "First alpha"}
+    ]"#;
+    let res = get_with(fake_releases(Ok(json)), "/changelog").await;
+    assert_eq!(res.status, StatusCode::OK);
+    let html = res.text();
+    assert!(html.contains("Ferrum Launcher</a> 0.6.0"));
+    assert!(html.contains("FerrumAPI</a> 0.2.0-alpha.1"));
+    assert!(html.contains("<li>Renamed from Ferrum Toolbox</li>"));
+    assert!(html.contains(">November 2026</h2>"));
+    assert!(html.contains("https://github.com/x/launcher-v0.6.0"));
+    assert!(!html.contains("can't be loaded"));
+}
+
+#[tokio::test]
+async fn changelog_degrades_gracefully_offline() {
+    let res = get("/changelog").await;
+    assert_eq!(res.status, StatusCode::OK);
+    let html = res.text();
+    assert!(html.contains("can't be loaded"));
+    assert!(html.contains("https://github.com/Amygdal-doo/ferrum-releases/releases"));
+}
+
+#[tokio::test]
+async fn favicon_ico_points_to_the_png() {
+    let res = get("/favicon.ico").await;
+    assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT);
+    assert!(
+        res.header(header::LOCATION)
+            .starts_with("/assets/img/favicon-32.png?v=")
+    );
+    let manifest = get("/assets/site.webmanifest").await;
+    assert_eq!(manifest.status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn new_pages_are_linked_from_every_page() {
+    let html = get("/").await.text();
+    for path in [
+        "/docs",
+        "/changelog",
+        "/faq",
+        "/security",
+        "/compare",
+        "/docs/shortcuts",
+    ] {
+        assert!(html.contains(&format!(r#"href="{path}""#)), "{path}");
+    }
+}
+
+#[test]
+fn app_constructor_is_still_available() {
+    // `app` reads from GitHub when used; building it doesn't fetch anything.
+    let _ = app(Config::default());
 }

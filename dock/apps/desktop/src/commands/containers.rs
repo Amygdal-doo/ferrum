@@ -1,6 +1,6 @@
 //! Container lifecycle, compose projects, "open shell" and published ports.
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::state::{Confirm, Dialog, EngineStatus, PendingAction, Section};
 use ferrumdock_engine::compose::{self, ComposeAction, ComposeProject};
 use ferrumdock_engine::shell::Shell;
@@ -8,7 +8,7 @@ use ferrumdock_engine::{Container, ContainerAction, DockerCli, ops, shell};
 use gpui::Context;
 use std::path::PathBuf;
 
-impl FerrumDock {
+impl FerrumContainers {
     pub fn container_action(
         &mut self,
         container: &Container,

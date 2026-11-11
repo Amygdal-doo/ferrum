@@ -21,7 +21,9 @@ pub const MARKER: &str = "# Ferrum Launcher shell command";
 /// Line added to shell startup files (with [`RC_COMMENT`] above it).
 const RC_COMMENT: &str = "# Added by Ferrum Launcher: shell commands for Ferrum apps (fee, feg, …)";
 
-/// The suggested command for an app: "Fe" plus its letter, lowercase.
+/// The suggested command for an app: "Fe" plus its logo letter, lowercase.
+/// The letters aren't unique (Ferrum Editor and FerrumEnv are both FeE), so
+/// FerrumEnv keeps `fev` and Ferrum Editor `fee`.
 #[must_use]
 pub fn default_command(app: AppId) -> Option<&'static str> {
     Some(match app.as_str() {
@@ -241,8 +243,21 @@ mod tests {
         assert_eq!(default_command(AppId::GIT), Some("feg"));
         assert_eq!(default_command(AppId::TERM), Some("fet"));
         assert_eq!(default_command(AppId::API), Some("fea"));
+        assert_eq!(
+            default_command(AppId::DOCK),
+            Some("fec"),
+            "FerrumContainers"
+        );
+        assert_eq!(
+            default_command(AppId::ENV),
+            Some("fev"),
+            "fee is the Editor's"
+        );
+        let mut seen = std::collections::HashSet::new();
         for app in AppId::BUILTIN {
-            validate(default_command(app).expect("default")).expect("valid");
+            let command = default_command(app).expect("default");
+            validate(command).expect("valid");
+            assert!(seen.insert(command), "{command} suggested twice");
         }
         assert!(validate("Fee").is_err());
         assert!(validate("1x").is_err());

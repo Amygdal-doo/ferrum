@@ -10,6 +10,7 @@ use crate::{products, site, updates};
 
 const APPS_HREF: &str = "/#apps";
 const FEATURES_HREF: &str = crate::pages::features::PATH;
+const DOCS_HREF: &str = crate::pages::docs::PATH;
 
 fn nav_link(href: &str, label: &str, active: bool, extra_class: &str) -> Markup {
     html! {
@@ -49,6 +50,8 @@ pub fn render(current_path: &str) -> Markup {
                     ul class="nav-list" {
                         (nav_link(APPS_HREF, "Apps", is_app_page(current_path), ""))
                         (nav_link(FEATURES_HREF, "Features", current_path == FEATURES_HREF, ""))
+                        (nav_link(DOCS_HREF, "Docs",
+                            current_path == DOCS_HREF || current_path.starts_with("/docs/"), ""))
                         (nav_link(updates::INDEX_PATH, "Updates",
                             current_path == updates::INDEX_PATH
                                 || current_path.starts_with("/updates/"), ""))
@@ -94,6 +97,13 @@ mod tests {
         assert!(html.contains(r#"aria-controls="site-nav""#));
         assert!(html.contains("data-theme-toggle"));
         assert!(html.contains(r#"href="/about""#));
+    }
+
+    #[test]
+    fn docs_link_is_active_on_guides() {
+        let html = render("/docs/shortcuts").into_string();
+        assert!(html.contains(r#"href="/docs" aria-current="page""#));
+        assert_eq!(html.matches("aria-current").count(), 1);
     }
 
     #[test]

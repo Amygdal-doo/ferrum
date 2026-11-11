@@ -1,7 +1,7 @@
 //! The project bar's folder: opening it, its compose files ("Up" from a file
 //! without containers) and a compose project's combined panel (logs + ps).
 
-use crate::app::FerrumDock;
+use crate::app::FerrumContainers;
 use crate::project::ProjectState;
 use crate::state::{DetailState, DetailTab, EngineStatus, Section};
 use ferrumdock_engine::compose::{ComposeAction, ComposeProject};
@@ -10,7 +10,7 @@ use ferrumdock_engine::project::ComposeFile;
 use gpui::Context;
 use std::path::PathBuf;
 
-impl FerrumDock {
+impl FerrumContainers {
     /// Opens `root` as the project: shown in the bar (and recorded in the
     /// recent projects), its compose files read, the list scoped to it.
     pub fn open_project(&mut self, root: PathBuf, cx: &mut Context<Self>) {

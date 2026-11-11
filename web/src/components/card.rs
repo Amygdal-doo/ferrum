@@ -1,26 +1,13 @@
-//! Product card, app logos, the periodic-table "element tile" motif and
-//! numbered steps.
+//! The app card, app logos, the compact app strip and numbered steps.
 //!
-//! Classes: `.card`, `.card--product`, `.app-logo`, `.element-tile` (+ `--lg`,
-//! `--brand`), `.feature-list`, `.feature`, `.steps`, `.step`.
+//! Classes: `.card`, `.card--product`, `.app-logo` (`--hero`, `--sm`, `--xs`),
+//! `.app-strip`, `.steps`, `.step`.
 
 use maud::{Markup, html};
 
 use crate::components::{badge, icons};
 use crate::products::Product;
 use crate::routes::assets;
-
-/// Periodic-table style tile, e.g. `element_tile("Fe", 26, "Ferrum", "")`.
-/// `number` is shown top-left like an atomic number; decorative only.
-pub fn element_tile(symbol: &str, number: u8, caption: &str, extra_class: &str) -> Markup {
-    html! {
-        span class={ "element-tile " (extra_class) } aria-hidden="true" {
-            span class="element-tile__num" { (number) }
-            span class="element-tile__sym" { (symbol) }
-            span class="element-tile__cap" { (caption) }
-        }
-    }
-}
 
 /// The app's logo as an `<img>`. Alt text names the app unless the logo sits
 /// next to the app's name already (pass `decorative = true`).
@@ -46,7 +33,7 @@ pub fn product_card(p: &Product) -> Markup {
                 (badge::status(p.status))
             }
             h3 class="card__title" id=(heading_id) { (p.name) }
-            p class="card__kind" { (p.symbol) " · " (p.kind) }
+            p class="card__kind" { (p.kind) }
             p class="card__body" { (p.tagline) }
             a class="card__link" href=(p.path()) {
                 "Learn more" span class="visually-hidden" { " about " (p.name) }
@@ -56,13 +43,25 @@ pub fn product_card(p: &Product) -> Markup {
     }
 }
 
-/// One feature tile: icon + title + text. Wrap several in `ul.feature-list`.
-pub fn feature(icon: Markup, title: &str, text: &str) -> Markup {
+/// Compact links to apps: logo and name, optionally the kind. Class
+/// `.app-strip` (`--rows` stacks them with the kind shown).
+pub fn app_strip<'a>(apps: impl IntoIterator<Item = &'a Product>, with_kind: bool) -> Markup {
+    let class = if with_kind {
+        "app-strip app-strip--rows"
+    } else {
+        "app-strip"
+    };
     html! {
-        li class="feature" {
-            span class="feature__icon" { (icon) }
-            h3 class="feature__title" { (title) }
-            p class="feature__text" { (text) }
+        ul class=(class) {
+            @for p in apps {
+                li style=(p.accent_style()) {
+                    a class="app-strip__link" href=(p.path()) {
+                        (app_logo(p, "app-logo--xs", true))
+                        span class="app-strip__name" { (p.name) }
+                        @if with_kind { span class="app-strip__kind" { (p.kind) } }
+                    }
+                }
+            }
         }
     }
 }
@@ -102,6 +101,17 @@ mod tests {
         assert!(named.contains(r#"alt="FerrumGIT logo""#));
         let decorative = app_logo(&products::FERRUMGIT, "", true).into_string();
         assert!(decorative.contains(r#"alt="""#));
+    }
+
+    #[test]
+    fn app_strip_links_each_app() {
+        let html = app_strip(products::apps(), true).into_string();
+        assert_eq!(
+            html.matches("app-strip__link").count(),
+            products::apps().count()
+        );
+        assert!(html.contains("app-strip--rows"));
+        assert!(html.contains("Container manager"));
     }
 
     #[test]
