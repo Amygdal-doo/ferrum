@@ -5,6 +5,7 @@ mod actions;
 mod editor;
 mod file_icons;
 mod find_bar;
+mod git;
 mod lsp_store;
 mod markdown_preview;
 mod picker;
@@ -18,6 +19,8 @@ mod workspace;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_git;
 #[cfg(test)]
 mod tests_lsp;
 #[cfg(test)]

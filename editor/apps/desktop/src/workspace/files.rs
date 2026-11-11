@@ -49,6 +49,8 @@ impl Workspace {
         self.tree = Some(tree);
         self.tree_visible = true;
         self.root = Some(root.clone());
+        let git_root = Some(root.clone());
+        self.git.update(cx, |g, cx| g.set_root(git_root, cx));
         if let Some(store) = crate::lsp_store::LspStore::global(cx) {
             let project = Some(root.clone());
             store.update(cx, |store, _| store.set_project(project));

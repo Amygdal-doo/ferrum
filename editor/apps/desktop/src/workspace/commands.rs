@@ -118,6 +118,36 @@ pub(super) fn builtin_registry() -> CommandRegistry {
     r.register("markdown-preview:toggle", |w, window, cx| {
         w.toggle_markdown_preview(window, cx)
     });
+    r.register("git:toggle-view", |w, window, cx| {
+        w.toggle_git_view(window, cx)
+    });
+    r.register("git:show-panel", |w, window, cx| {
+        w.toggle_git_panel(window, cx)
+    });
+    r.register("git:refresh", |w, _, cx| {
+        w.git.update(cx, |g, cx| g.refresh(false, cx))
+    });
+    r.register("git:commit", |w, _, cx| {
+        w.git.update(cx, |g, cx| g.commit(cx))
+    });
+    r.register("git:stage-all", |w, _, cx| {
+        w.git.update(cx, |g, cx| g.stage_all(cx))
+    });
+    r.register("git:fetch", |w, _, cx| {
+        w.git.update(cx, |g, cx| g.fetch(cx))
+    });
+    r.register("git:pull", |w, _, cx| w.git.update(cx, |g, cx| g.pull(cx)));
+    r.register("git:push", |w, _, cx| w.git.update(cx, |g, cx| g.push(cx)));
+    r.register("git:open-in-ferrumgit", |w, _, cx| {
+        let Some(root) = w.root.clone() else {
+            w.info("Open a folder first", cx);
+            return;
+        };
+        match crate::git::open_in_ferrumgit(&root) {
+            Ok(()) => w.info("Opened in FerrumGIT", cx),
+            Err(error) => w.error(error, cx),
+        }
+    });
     r.register("tasks:build", |w, window, cx| w.run_build_task(window, cx));
     r.register("tasks:run", |w, window, cx| {
         w.toggle_picker(PickerKind::Tasks, window, cx)

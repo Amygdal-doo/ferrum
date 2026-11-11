@@ -26,6 +26,10 @@ ferrumterm-protocol.workspace = true
 portable-pty.workspace = true
 futures.workspace = true
 serde_json.workspace = true
+# Git panel and view: FerrumGIT's git layer (runs on a small tokio runtime).
+ferrumgit-git.workspace = true
+ferrumgit-domain.workspace = true
+tokio.workspace = true
 unicode-width.workspace = true
 
 

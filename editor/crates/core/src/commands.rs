@@ -124,6 +124,16 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("find-and-replace:use-selection-as-find", E, &["cmd-e"]),
     ("find-in-files:show", W, &["cmd-shift-f"]),
     ("markdown-preview:toggle", W, &["cmd-shift-m"]),
+    // Git (FerrumGIT's git layer; the rest opens FerrumGIT)
+    ("git:toggle-view", W, &["cmd-alt-g"]),
+    ("git:show-panel", W, &["ctrl-shift-g"]),
+    ("git:refresh", W, &[]),
+    ("git:commit", W, &[]),
+    ("git:stage-all", W, &[]),
+    ("git:fetch", W, &[]),
+    ("git:pull", W, &[]),
+    ("git:push", W, &[]),
+    ("git:open-in-ferrumgit", W, &[]),
     // Tasks (build, test, run) in the terminal
     ("tasks:build", W, &["cmd-b"]),
     ("tasks:run", W, &["cmd-shift-b"]),

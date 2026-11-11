@@ -46,6 +46,7 @@ handling are its own; nothing from Zed's editor stack (`editor`, `language`, `pr
 | Problems: wavy underlines and gutter dots coloured by severity, hover (or Cmd+K Cmd+I) for the message and the server's type / docs, F8 / Shift+F8 to step through, error / warning counts in the status bar, Ctrl+Shift+M lists every problem in the project | ✅ mapping and list headless-tested; drawing not hand-tested |
 | Go to definition: F12 or Cmd+click; several results open a picker; Ctrl+- / Ctrl+Shift+- go back / forward | ✅ headless-tested |
 | Tasks: build / test / run / lint tasks found from `Cargo.toml`, `go.mod`, package.json scripts (pnpm / yarn / bun / npm from the lock file; `tsc --noEmit` for TypeScript without a build script), Makefile targets and `.vscode/tasks.json`; ⌘B runs the default build, ⇧⌘B picks one; each runs in its own terminal tab (rerun replaces it) after saving edited files; errors and warnings from cargo/rustc, tsc, Go and `file:line:col` compilers become problems | ✅ detection and output parsing unit-tested; ⌘B → tab → problems headless-tested; real PTY task unit-tested |
+| Git (FerrumGIT's git layer, not its UI): Files / Git tabs in the sidebar (⌃⇧G) with branch ↑↓, fetch / pull / push, commit message (⌘↵; Commit All when nothing is staged), staged and unstaged files with stage / unstage / discard (confirmed); an Editor \| Git switch at the top right (⌥⌘G) for the changes, recent history and the diff of a file or commit; refreshes after saves and when the window comes back; everything else opens FerrumGIT | ✅ headless-tested on a real repository; drawing not hand-tested |
 | CLI: `ferrumeditor [path[:line[:col]]...]`, `--help`, `--version` | ✅ tested |
 
 ## Not built yet
@@ -148,6 +149,11 @@ Ctrl+Shift off macOS) — Ctrl+G, Ctrl+Tab, Alt+Z, Escape… — go to the shell
 | `find-and-replace:use-selection-as-find` | `cmd-e` | editor |
 | `find-in-files:show` | `cmd-shift-f` | window |
 | `markdown-preview:toggle` | `cmd-shift-m` | window |
+| `git:toggle-view` | `cmd-alt-g` | window |
+| `git:show-panel` | `ctrl-shift-g` | window |
+| `git:refresh` / `git:commit` / `git:stage-all` | — | window |
+| `git:fetch` / `git:pull` / `git:push` | — | window |
+| `git:open-in-ferrumgit` | — | window |
 | `tasks:build` | `cmd-b` | window |
 | `tasks:run` | `cmd-shift-b` | window |
 | `tasks:test` | — | window |
@@ -285,6 +291,19 @@ check = { command = "clippy" }
 [lsp.yaml]
 enabled = false
 ```
+
+## Git
+The sidebar has two tabs, Files and Git (⌃⇧G). The Git tab shows the branch (with commits
+ahead ↑ and behind ↓), fetch / pull (fast-forward only) / push, a commit message box (⌘↵
+commits; with nothing staged it commits every change), and the staged and changed files:
+`+` stages, `−` unstages, `↺` discards after asking. Clicking a file opens it; its gutter marks
+the changed lines.
+
+The **Editor | Git** switch at the top right (⌥⌘G) fills the window with the same changes,
+the last 200 commits and the diff of the selected file or commit. Ferrum Editor uses
+FerrumGIT's git layer for all of this and stops there: history graph, branches, rebase and
+conflicts, stashes, tags, pull requests and SSH profiles are in FerrumGIT (the ↗ button).
+Push and pull use your normal git setup (SSH agent, credential helper).
 
 ## Tasks
 ⌘B runs the project's build task and ⇧⌘B lists every task. Tasks come from the open folder:

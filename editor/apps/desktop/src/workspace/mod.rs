@@ -6,6 +6,7 @@
 mod commands;
 mod dialogs;
 mod files;
+mod git;
 mod lsp;
 mod overlays;
 mod panes;
@@ -34,6 +35,7 @@ use crate::terminal::TerminalPanel;
 use crate::tree_view::TreeView;
 
 pub use dialogs::Dialog;
+pub(crate) use terminal::find_on_path;
 
 pub struct Workspace {
     focus_handle: FocusHandle,
@@ -71,6 +73,11 @@ pub struct Workspace {
     location_items: Vec<crate::picker::PickerItem>,
     /// For tasks:rerun-last.
     last_task: Option<ferrumeditor_core::tasks::Task>,
+    git: Entity<crate::git::GitState>,
+    git_panel: Entity<crate::git::GitPanel>,
+    git_view: Entity<crate::git::GitView>,
+    mode: git::ViewMode,
+    sidebar: git::SidebarTab,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -79,6 +86,10 @@ impl Workspace {
         let find_bar = cx.new(|cx| FindBar::new(window, cx));
         let project_find = cx.new(|cx| ProjectFind::new(window, cx));
         let terminal = cx.new(|_| TerminalPanel::new());
+        let git_state = cx.new(|cx| crate::git::GitState::new(window, cx));
+        let git_panel = cx.new(|cx| crate::git::GitPanel::new(git_state.clone(), cx));
+        let git_view =
+            cx.new(|cx| crate::git::GitView::new(git_state.clone(), git_panel.clone(), cx));
         let mut subscriptions = vec![
             cx.subscribe_in(&find_bar, window, Self::on_find_bar_event),
             cx.subscribe_in(&project_find, window, Self::on_project_find_event),
@@ -87,8 +98,14 @@ impl Workspace {
             cx.observe_window_activation(window, |this, window, cx| {
                 if window.is_window_active() {
                     this.check_disk_changes(window, cx);
+                    this.refresh_git(cx);
                 }
             }),
+            cx.subscribe(&git_state, Self::on_git_event),
+            cx.subscribe_in(&git_panel, window, |this, _, event, window, cx| {
+                this.on_git_panel_event(event, window, cx)
+            }),
+            cx.observe(&git_state, |_, _, cx| cx.notify()),
         ];
         // Problem counts and server state live in the status bar.
         if let Some(store) = crate::lsp_store::LspStore::global(cx) {
@@ -127,6 +144,11 @@ impl Workspace {
             nav_forward: Vec::new(),
             location_items: Vec::new(),
             last_task: None,
+            git: git_state,
+            git_panel,
+            git_view,
+            mode: git::ViewMode::Editor,
+            sidebar: git::SidebarTab::Files,
             _subscriptions: subscriptions,
         };
         this.start_watcher(window, cx);
@@ -291,22 +313,31 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.update_window_title(window, cx);
         let colors = cx.theme().colors().clone();
-        let tree = self.tree.clone().filter(|_| self.tree_visible);
+        let git_mode = self.mode == git::ViewMode::Git;
+        let sidebar = if git_mode {
+            None
+        } else {
+            self.render_sidebar(cx)
+        };
         let (terminal_open, terminal_height) = {
             let panel = self.terminal.read(cx);
             (panel.is_open(), panel.state.height)
+        };
+        let content: AnyElement = if git_mode {
+            self.git_view.clone().into_any_element()
+        } else {
+            self.render_layout(&self.layout.clone(), window, cx)
+                .into_any_element()
         };
         let center = v_flex()
             .flex_1()
             .min_w_0()
             .h_full()
-            .child(div().flex_1().min_h_0().child(self.render_layout(
-                &self.layout.clone(),
-                window,
-                cx,
-            )))
-            .when(self.find_visible, |this| this.child(self.find_bar.clone()))
-            .when(self.project_find_visible, |this| {
+            .child(div().flex_1().min_h_0().child(content))
+            .when(self.find_visible && !git_mode, |this| {
+                this.child(self.find_bar.clone())
+            })
+            .when(self.project_find_visible && !git_mode, |this| {
                 this.child(splitter("project-find-splitter", Axis::Vertical, cx))
                     .child(
                         div()
@@ -333,12 +364,13 @@ impl Render for Workspace {
             .key_context("FerrumWorkspace")
             .on_action(cx.listener(Self::on_run_command))
             .on_drag_move(cx.listener(Self::on_drag_splitter))
+            .child(self.render_top_bar(cx))
             .child(
                 h_flex()
                     .flex_1()
                     .min_h_0()
-                    .when_some(tree, |this, tree| {
-                        this.child(div().flex_none().h_full().w(self.tree_width).child(tree))
+                    .when_some(sidebar, |this, sidebar| {
+                        this.child(div().flex_none().h_full().w(self.tree_width).child(sidebar))
                             .child(splitter("tree-splitter", Axis::Horizontal, cx))
                     })
                     .child(center),
@@ -402,5 +434,17 @@ impl Workspace {
 
     pub fn picker_open(&self) -> bool {
         self.picker.is_some()
+    }
+
+    pub fn git_state(&self) -> &Entity<crate::git::GitState> {
+        &self.git
+    }
+
+    pub fn sidebar_shows_git(&self) -> bool {
+        self.sidebar == git::SidebarTab::Git && self.tree_visible
+    }
+
+    pub fn in_git_view(&self) -> bool {
+        self.mode == git::ViewMode::Git
     }
 }

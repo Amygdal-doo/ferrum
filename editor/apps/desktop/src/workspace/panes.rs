@@ -152,6 +152,9 @@ impl Workspace {
             editor,
             window,
             |this: &mut Self, editor, event: &EditorEvent, window, cx| {
+                if *event == EditorEvent::Saved {
+                    this.refresh_git(cx);
+                }
                 if matches!(event, EditorEvent::Navigate { .. } | EditorEvent::Notice(_)) {
                     this.on_editor_lsp_event(event, window, cx);
                     return;
