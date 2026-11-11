@@ -1,9 +1,8 @@
 //! "Open shell": `docker exec -it <id> sh` in FerrumTerm when it is installed,
 //! else in Terminal.app.
 //!
-//! FerrumTerm counts as installed (like in FerrumIDE) when both its GUI bundle
-//! and the `fterm` CLI exist. `fterm window --name <container> --cwd ~ -- <cmd>`
-//! opens a new window (tab) in the running FerrumTerm server, starting it on
+//! FerrumTerm counts as installed when both its GUI bundle and the `fterm` CLI
+//! exist. `fterm window --name <container> --cwd ~ -- <cmd>` opens a new window (tab) in the running FerrumTerm server, starting it on
 //! demand; then `open -a FerrumTerm.app` brings the GUI forward.
 
 use crate::cli::DockerCli;

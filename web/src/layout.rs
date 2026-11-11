@@ -88,7 +88,7 @@ pub fn page(site_url: &str, meta: &PageMeta, main: Markup) -> Markup {
                 meta property="og:image" content=(og_image);
                 meta property="og:image:width" content="1200";
                 meta property="og:image:height" content="630";
-                meta property="og:image:alt" content="Ferrum wordmark: one toolbox, every tool";
+                meta property="og:image:alt" content="Ferrum wordmark: one launcher, every tool";
                 meta name="twitter:card" content="summary_large_image";
                 link rel="icon" href=(assets::url("img/favicon.svg")) type="image/svg+xml";
                 link rel="apple-touch-icon" href=(assets::url("img/apple-touch-icon.png"));

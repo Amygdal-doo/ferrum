@@ -1,10 +1,10 @@
 # FerrumAPI
 
 A local-first, Postman-style API client written in Rust: a native GPUI desktop app (the UI
-framework of Zed, via the FerrumIDE fork) built on the shared `ferrum-ui` crate,
+framework of Zed, from the `ide/` submodule) built on the shared `ferrum-ui` crate,
 reqwest + rustls, SQLite. No backend server, no account, no Electron, no webview. Part of
 the Ferrum monorepo — sibling of [FerrumData](../data), [FerrumGIT](../git) and
-[FerrumIDE](../ide), with the same theme and components.
+[Ferrum Editor](../editor), with the same theme and components.
 
 > **Status: M0 — first vertical slice.** See "What works" below; nothing beyond that list
 > should be assumed. "Tested" means automated tests; the GPUI UI has only been smoke-launched
@@ -49,7 +49,7 @@ colouring for XML/HTML bodies; regex / whole-word search; proxy and client-certi
 settings; drag-and-drop reordering / moving items between folders; keeping text per body mode when switching (switching starts the new mode empty); response
 bodies over 400 KB are truncated for display (copy/save use the full body); secrets stored in
 the OS keychain (they live in the local SQLite file, never in logs); packaging and signing;
-a light theme (the GPUI shell ships FerrumIDE's dark "One Dark" base theme only; the stored
+a light theme (the GPUI shell ships the dark "One Dark" base theme only; the stored
 `theme` setting is kept but not applied); soft-wrap in the response body view (the shared
 text field lays out unwrapped lines; wrapping needs a new layout path there).
 Local tools gaps: mock responses are static (no templating of path params or request data into
@@ -65,7 +65,7 @@ or exportable.
 - Rust via rustup. `rust-toolchain.toml` installs **1.99.1** automatically.
 - macOS: Xcode command line tools (GPUI renders with Metal). Linux/Windows: whatever GPUI
   needs on that platform (see `ide/` docs); only macOS has been smoke-tested.
-- No Node, no CSS build: styling is Rust code using the FerrumIDE theme.
+- No Node, no CSS build: styling is Rust code using the Ferrum theme.
 
 ## Commands
 Run from the monorepo root (`ferrum/`).

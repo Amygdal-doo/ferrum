@@ -215,9 +215,10 @@ pub fn render(site_url: &str) -> Markup {
                 div class="container" {
                     h2 id="platforms-title" { "Launcher installers" }
                     p {
-                        "The launcher is the only thing you download by hand. FerrumIDE, "
-                        "FerrumAPI, FerrumGIT, FerrumData and FerrumTerm have no separate "
-                        "installers: install, update and remove them from the launcher."
+                        "The launcher is the only thing you download by hand. Ferrum Editor, "
+                        "FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit and FerrumDock "
+                        "have no separate installers: install, update and remove them from the "
+                        "launcher."
                     }
                     dl class="spec-sheet" {
                         @for (os, file, how, published) in INSTALLERS {

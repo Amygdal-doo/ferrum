@@ -18,6 +18,10 @@ pub struct UserFiles {
     pub snippets: PathBuf,
     pub theme: PathBuf,
     pub session: PathBuf,
+    /// Whole themes (`*.toml`, VS Code `*.json`).
+    pub themes_dir: PathBuf,
+    /// Icon themes, one folder each with a `theme.toml`.
+    pub icon_themes_dir: PathBuf,
 }
 
 impl UserFiles {
@@ -29,6 +33,8 @@ impl UserFiles {
             snippets: dir.join("snippets.toml"),
             theme: dir.join("theme.toml"),
             session: dir.join("session.json"),
+            themes_dir: dir.join("themes"),
+            icon_themes_dir: dir.join("icon-themes"),
             dir,
         }
     }
@@ -57,7 +63,17 @@ impl UserFiles {
                 std::fs::write(path, contents)?;
             }
         }
+        crate::theme::registry::write_examples(&self.themes_dir)?;
+        if !self.icon_themes_dir.exists() {
+            std::fs::create_dir_all(&self.icon_themes_dir)?;
+            crate::icons::manifest::write_example(&self.icon_themes_dir)?;
+        }
         Ok(())
+    }
+
+    /// Whether a change at `path` affects loaded themes or icon themes.
+    pub fn is_theme_path(&self, path: &Path) -> bool {
+        path.starts_with(&self.themes_dir) || path.starts_with(&self.icon_themes_dir)
     }
 
     /// Whether `path` is one of the watched settings files.
@@ -93,6 +109,10 @@ mod tests {
         );
         assert!(files.is_settings_file(&files.theme));
         assert!(!files.is_settings_file(&files.session));
+        assert!(files.themes_dir.join("ferrum-dark.example.toml").exists());
+        assert!(files.icon_themes_dir.join("example/theme.toml").exists());
+        assert!(files.is_theme_path(&files.themes_dir.join("x.json")));
+        assert!(!files.is_theme_path(&files.config));
     }
 
     #[test]

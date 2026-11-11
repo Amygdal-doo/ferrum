@@ -8,9 +8,6 @@
 ferrum_app() {
   APP_WINDOWS=yes
   case "$1" in
-    ide)
-      APP_NAME="Ferrum IDE"; APP_BINARIES="zed"; DEB_PACKAGE="ferrum-ide"
-      APP_SUMMARY="GPU-accelerated code editor built on the Zed codebase" ;;
     api)
       APP_NAME="FerrumAPI"; APP_BINARIES="ferrumapi"; DEB_PACKAGE="ferrumapi"
       APP_SUMMARY="Native HTTP/API client: collections, environments and history" ;;

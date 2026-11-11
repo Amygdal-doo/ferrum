@@ -61,8 +61,8 @@ fn init_tracing() {
         .init();
 }
 
-/// `ferrumgit [path]`: the repository to open at launch (Ferrum IDE passes the
-/// project root). Flags are skipped, including macOS's legacy `-psn_…`.
+/// `ferrumgit [path]`: the repository to open at launch (e.g. `ferrumgit .`
+/// from a project root). Flags are skipped, including macOS's legacy `-psn_…`.
 fn repo_argument(mut args: impl Iterator<Item = std::ffi::OsString>) -> Option<std::path::PathBuf> {
     let arg = args.find(|arg| !arg.to_string_lossy().starts_with('-'))?;
     let path = std::path::PathBuf::from(arg);

@@ -6,17 +6,17 @@ one look through `shared/ui`.
 
 | Path | Product | Stack |
 | --- | --- | --- |
-| `ide/` | FerrumIDE: fork of Zed | GPUI (own Cargo workspace) |
+| `editor/` | Ferrum Editor: the suite's code editor, lightweight and hackable | GPUI + `ferrum-ui` |
 | `api/` | FerrumAPI: HTTP/API client | GPUI + `ferrum-ui` |
 | `git/` | FerrumGIT: Git client | GPUI + `ferrum-ui` |
 | `data/` | FerrumData: database IDE | GPUI + `ferrum-ui` |
 | `term/` | FerrumTerm: terminal server, GUI and CLI | GPUI GUI, crossterm CLI |
 | `kit/` | FerrumKit: developer utilities | GPUI + `ferrum-ui` |
 | `dock/` | FerrumDock: container manager | GPUI + `ferrum-ui` |
-| `editor/` | Ferrum Editor: lightweight, hackable text editor (not the Zed fork) | GPUI + `ferrum-ui` |
 | `launcher/` | Ferrum Launcher (formerly Ferrum Toolbox): installs, updates and launches the apps | GPUI + `ferrum-ui` |
 | `shared/ui` | `ferrum-ui`: shared shell and widgets | GPUI + Zed `ui`/`theme` |
 | `web/` | Marketing site | axum + maud (standalone package) |
+| `ide/` | Library only: the Zed codebase (git submodule) that provides GPUI and the `ui`/`theme` crates. Not a product: Ferrum IDE was dropped in favour of Ferrum Editor | GPUI (own Cargo workspace) |
 
 ## Layout
 
@@ -24,7 +24,7 @@ one look through `shared/ui`.
   `data/`, `term/`, `kit/`, `dock/`, `editor/` and `launcher/`. It has one `Cargo.lock` and one toolchain
   (`rust-toolchain.toml`).
 - `ide/` keeps its own workspace and toolchain so merges from upstream Zed
-  stay easy. The other tools depend on its `gpui`, `gpui_platform`, `ui`,
+  stay easy. Nothing is built or released from it on its own. The other tools depend on its `gpui`, `gpui_platform`, `ui`,
   `theme`, `menu` and `assets` crates by path, so GPUI is upgraded once, in
   `ide/`, for every tool.
 - `web/` is excluded from the workspace because it is deployed on its own
@@ -36,7 +36,7 @@ one look through `shared/ui`.
 
 `shared/ui` contains:
 
-- `ferrum_ui::run(AppConfig, build)` boots GPUI with FerrumIDE's fonts,
+- `ferrum_ui::run(AppConfig, build)` boots GPUI with the Ferrum fonts,
   icons and the One Dark theme, opens the main window and wires up Quit.
 - `TextInput`: single-line, multi-line, masked and monospace editable
   text. It emits `Changed`, `Submit` and `Blurred`.
@@ -63,8 +63,6 @@ cargo launcher   # Ferrum Launcher
 cargo lint       # clippy, whole workspace, -D warnings
 cargo test --workspace
 
-# FerrumIDE (own workspace)
-cd ide && cargo run
 # Website
 cd web && cargo run
 ```

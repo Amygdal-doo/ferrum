@@ -45,10 +45,9 @@ async fn send(req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 13] = [
+const PAGES: [&str; 12] = [
     "/",
     "/features",
-    "/ferrum-ide",
     "/ferrumapi",
     "/ferrumgit",
     "/ferrumdata",
@@ -304,4 +303,11 @@ async fn old_toolbox_page_redirects_to_launcher() {
     let res = get("/ferrum-toolbox").await;
     assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT);
     assert_eq!(res.header(header::LOCATION), "/ferrum-launcher");
+}
+
+#[tokio::test]
+async fn old_ide_page_redirects_to_editor() {
+    let res = get("/ferrum-ide").await;
+    assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.header(header::LOCATION), "/ferrum-editor");
 }

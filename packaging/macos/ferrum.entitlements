@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- Hardened-runtime exceptions for every Ferrum app (Developer ID builds).
-     Mirrors the code-execution entries of ide/crates/zed/resources/zed.entitlements:
-     the IDE runs JIT-compiled extensions, and GPUI apps script other apps
+     The code-execution entries match the GPUI framework's upstream app
+     entitlements (JIT-compiled code), and GPUI apps script other apps
      (e.g. opening a terminal or Finder) through Apple Events. -->
 <plist version="1.0">
 <dict>

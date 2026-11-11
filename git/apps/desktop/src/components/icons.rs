@@ -1,4 +1,4 @@
-//! App icons, mapped onto the FerrumIDE icon set so every Ferrum tool shares one look.
+//! App icons, mapped onto the shared `ui` crate icon set so every Ferrum tool shares one look.
 
 use ui::IconName;
 

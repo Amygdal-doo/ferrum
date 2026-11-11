@@ -160,7 +160,14 @@ impl Keymap {
         let mut bindings: Vec<Binding> = Vec::new();
         for command in commands {
             for keys in &command.default_keys {
-                let Ok(keys) = normalize_keys(keys) else {
+                // Ctrl+<key> belongs to the shell off macOS: terminal
+                // shortcuts use Ctrl+Shift there.
+                let keys = if !mac && command.scope == Scope::Terminal {
+                    keys.replace("cmd-", "ctrl-shift-")
+                } else {
+                    keys.clone()
+                };
+                let Ok(keys) = normalize_keys(&keys) else {
                     continue;
                 };
                 let Some(keys) = for_platform(&keys, mac) else {
@@ -381,6 +388,11 @@ mod tests {
         );
         assert_eq!(map.keys_for("editor:move-to-line-start"), vec!["home"]);
         assert_eq!(map.keys_for("editor:select-all"), vec!["ctrl-a"]);
+        assert_eq!(map.keys_for("terminal:copy"), vec!["ctrl-shift-c"]);
+        assert_eq!(map.keys_for("terminal:next-tab"), vec!["ctrl-shift-]"]);
+        assert_eq!(map.keys_for("terminal:toggle"), vec!["ctrl-`"]);
+        let mac = Keymap::defaults(&builtin_commands(), true);
+        assert_eq!(mac.keys_for("terminal:copy"), vec!["cmd-c"]);
     }
 
     #[test]

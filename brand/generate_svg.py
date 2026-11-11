@@ -6,10 +6,9 @@ INK = "#f1e9df"
 DARK = "#16130f"
 APPS = {
     # name: (symbol letter after "Fe", accent, glyph). The core mark is plain "Fe";
-    # every app is "Fe" + a capital in its accent: FeI, FeA, FeG, FeD, FeT, FeX,
+    # every app is "Fe" + a capital in its accent: FeA, FeG, FeD, FeT, FeX,
     # FeK (Kit), FeC (Dock: containers) and FeE (Editor).
     "ferrum":  ("e", "#E8743B", None),
-    "ide":     ("I", "#5B8DEF", "brackets"),
     "api":     ("A", "#3FB8A0", "arrows"),
     "git":     ("G", "#F0B43C", "branch"),
     "data":    ("D", "#A07CF0", "cylinder"),
@@ -52,7 +51,6 @@ def letter(ch, ox=0.0, oy=0.0, s=1.0):
 # Capitals for the app symbols, on the cap height 390..730, in their own x
 # centre lines: (paths, left edge, right edge of the centre lines).
 CAPITALS = {
-    "I": (["M-55 390 H55", "M-55 730 H55", "M0 390 V730"], -55, 55),
     "A": (["M0 730 L100 390 L200 730", "M40 610 H160"], 0, 200),
     "G": (["M190 451 A105 170 0 1 0 215 560", "M120 560 H215"], 5, 215),
     "D": (["M0 390 V730", "M0 390 H70 A130 170 0 0 1 70 730 H0"], 0, 200),
@@ -93,8 +91,6 @@ def glyph(kind):
     # drawn in a 220x220 box centred at (0,0), dark strokes on accent badge
     w = 30
     common = f'fill="none" stroke="{DARK}" stroke-width="{w}" stroke-linecap="round" stroke-linejoin="round"'
-    if kind == "brackets":
-        return f'<path {common} d="M-30 -55 L-75 0 L-30 55 M30 -55 L75 0 L30 55"/>'
     if kind == "arrows":
         return f'<path {common} d="M-70 -30 H60 M30 -60 L65 -30 L30 0 M70 35 H-60 M-30 5 L-65 35 L-30 65"/>'
     if kind == "branch":

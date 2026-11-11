@@ -355,7 +355,7 @@ mod tests {
       {"tag_name":"api-v0.1.0","draft":false,"prerelease":false,"html_url":"","assets":[]},
       {"tag_name":"git-v1.0.0","draft":true,"prerelease":false,"html_url":"","assets":[]},
       {"tag_name":"v1.0.0","draft":false,"prerelease":false,"html_url":"","assets":[]},
-      {"tag_name":"zed-v1.0.0","draft":false,"prerelease":false,"html_url":"","assets":[]},
+      {"tag_name":"forge-v1.0.0","draft":false,"prerelease":false,"html_url":"","assets":[]},
       {"tag_name":"data-vnot-semver","draft":false,"prerelease":false,"html_url":"","assets":[]}
     ]"#;
 
@@ -391,7 +391,7 @@ mod tests {
         let tags: Vec<_> = releases.iter().map(|r| r.tag.as_str()).collect();
         assert_eq!(
             tags,
-            ["api-v0.2.0", "api-v0.3.0-beta.1", "api-v0.1.0", "zed-v1.0.0"]
+            ["api-v0.2.0", "api-v0.3.0-beta.1", "api-v0.1.0", "forge-v1.0.0"]
         );
         assert_eq!(releases[1].title, "api-v0.3.0-beta.1");
         assert!(releases[1].is_prerelease());

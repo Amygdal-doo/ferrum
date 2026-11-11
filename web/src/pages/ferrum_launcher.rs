@@ -40,7 +40,7 @@ const FEATURES: &[(&str, &str)] = &[
 ];
 
 const MANAGES: &[&str] = &[
-    "Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData and FerrumTerm",
+    "Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit and FerrumDock",
     "Itself: new launcher versions install in place and restart the app",
     "Keeps the last 3 versions of each app by default",
 ];

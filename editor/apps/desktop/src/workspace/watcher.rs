@@ -1,5 +1,6 @@
 //! File watching: the project folder (tree refresh, reload changed files,
-//! git branch) and `~/.ferrum/editor/` (settings applied live). Events
+//! git branch) and `~/.ferrum/editor/` plus its `themes/` and
+//! `icon-themes/` folders (settings and themes applied live). Events
 //! from `notify` are collected on a channel and drained on a timer.
 
 use std::path::PathBuf;
@@ -35,13 +36,19 @@ impl Workspace {
         {
             eprintln!("ferrumeditor: cannot watch {}: {error}", root.display());
         }
-        if let Some(files) = cx.global::<Settings>().files.clone()
-            && let Err(error) = watcher.watch(&files.dir, RecursiveMode::NonRecursive)
-        {
-            eprintln!(
-                "ferrumeditor: cannot watch {}: {error}",
-                files.dir.display()
-            );
+        if let Some(files) = cx.global::<Settings>().files.clone() {
+            let dirs = [
+                (&files.dir, RecursiveMode::NonRecursive),
+                (&files.themes_dir, RecursiveMode::NonRecursive),
+                (&files.icon_themes_dir, RecursiveMode::Recursive),
+            ];
+            for (dir, mode) in dirs {
+                if dir.exists()
+                    && let Err(error) = watcher.watch(dir, mode)
+                {
+                    eprintln!("ferrumeditor: cannot watch {}: {error}", dir.display());
+                }
+            }
         }
         let task = cx.spawn_in(window, async move |this, cx| {
             loop {
@@ -65,11 +72,11 @@ impl Workspace {
     }
 
     fn on_fs_changes(&mut self, paths: Vec<PathBuf>, window: &mut Window, cx: &mut Context<Self>) {
-        let settings_changed = cx
-            .global::<Settings>()
-            .files
-            .as_ref()
-            .is_some_and(|files| paths.iter().any(|p| files.is_settings_file(p)));
+        let settings_changed = cx.global::<Settings>().files.as_ref().is_some_and(|files| {
+            paths
+                .iter()
+                .any(|p| files.is_settings_file(p) || files.is_theme_path(p))
+        });
         if settings_changed {
             self.reload_settings(cx);
         }

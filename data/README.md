@@ -1,7 +1,7 @@
 # FerrumData
 
 A local-first, DataGrip-class database IDE written in Rust: GPUI desktop (the UI framework
-from Zed, via the FerrumIDE fork) with the shared `ferrum-ui` crate, SQLx. No backend server,
+from Zed, from the `../ide` submodule) with the shared `ferrum-ui` crate, SQLx. No backend server,
 no webview, no React/TypeScript/Tauri/Electron. Part of the Ferrum monorepo (`../`).
 
 > **Status: M0/M1 foundation + PostgreSQL, MySQL, SQLite, SurrealDB and MongoDB drivers, plus a Redis key browser (alpha).**
@@ -117,7 +117,7 @@ RUST_LOG=debug cargo desktop                     # verbose logs (never include S
 There is no CSS. Views are GPUI elements styled with Tailwind-like builder methods and
 colours from the active theme (`cx.theme().colors()`). Shared widgets (text input, splitter,
 modal, notice, toolbar/status bar) come from `ferrum-ui` (`../shared/ui`); buttons, labels,
-icons, menus and tooltips come from FerrumIDE's `ui` crate. Fonts and icons are embedded
+icons, menus and tooltips come from Zed's `ui` crate (`../ide`). Fonts and icons are embedded
 from `../ide/assets`.
 
 ### Packaging

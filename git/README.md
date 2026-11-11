@@ -1,10 +1,10 @@
 # FerrumGIT
 
 A local-first, GitKraken/Tower-style Git client written in Rust: a native GPUI desktop app
-(the UI framework of Zed, taken from FerrumIDE in `../ide`), the shared `ferrum-ui` crate
+(the UI framework of Zed, from the `../ide` submodule), the shared `ferrum-ui` crate
 (`../shared/ui`), the system `git` binary, SQLite. No backend, no account, no Electron, no webview.
 Part of the Ferrum monorepo next to [FerrumData](../data) and [FerrumAPI](../api): same toolchain
-and the same FerrumIDE theme, fonts and icons.
+and the same Ferrum theme, fonts and icons.
 
 > **Status: M0, first vertical slice.** "Tested" means automated tests against the real
 > `git` binary (temp repos plus a local bare remote, so no network). The UI has been
@@ -53,7 +53,7 @@ or a specific private key). Each repository is assigned one profile (toolbar →
 | PR actions: check out (same-project branch → tracking branch of the same name; fork → `pr-<n>-<branch>`; existing branch fast-forwarded), create from the current branch (title, description, base, draft; pushes first when needed), comment, review (approve / request changes / comment), **merge** with a confirmation and only the methods the project allows (head SHA must be unchanged) | ✅ checkout/create tested end to end (local bare remote + fake API); review/merge payloads fixture-tested; UI not clicked through |
 | API errors and rate limits: 401 explains the needed scopes, 403/404/409/422 show the forge's message; rate-limit headers are tracked per API, an exhausted limit is reported with the reset time and not retried, and lists skip per-PR status lookups when fewer than 100 requests remain | ✅ unit + fixture tested |
 | Auto-refresh when the repo changes outside the app (3 s fingerprint poll) | ⚠️ implemented, not hand-tested |
-| FerrumIDE "One Dark" theme, resizable + persisted panels | ✅ (light theme not available yet) |
+| "One Dark" theme, resizable + persisted panels | ✅ (light theme not available yet) |
 
 ## Not built yet
 Redo, and undo beyond the last commit / amend / checkout (merges, rebases, cherry-picks, resets);
@@ -90,7 +90,7 @@ cargo test -p ferrumgit-forge     # GitHub / GitLab mapping from recorded fixtur
 ```
 
 ### Styling
-No CSS: views are GPUI elements styled with the FerrumIDE theme (`theme::ActiveTheme`) and built
+No CSS: views are GPUI elements styled with the Ferrum theme (`theme::ActiveTheme`) and built
 from Zed's `ui` components plus `ferrum-ui` (text inputs, modal, splitter, notices). App-only
 widgets live in `apps/desktop/src/components/widgets.rs`.
 

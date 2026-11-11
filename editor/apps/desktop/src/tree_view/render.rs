@@ -75,11 +75,11 @@ impl TreeView {
             .map(|(index, entry)| {
                 let selected = self.selected.as_ref() == Some(&entry.path);
                 let active = self.active_file.as_ref() == Some(&entry.path);
-                let icon = match (entry.is_dir, entry.expanded) {
-                    (true, true) => IconName::FolderOpen,
-                    (true, false) => IconName::Folder,
-                    (false, _) => IconName::File,
-                };
+                let icon = crate::file_icons::icon_element(
+                    &entry.path,
+                    crate::file_icons::file_kind(entry.is_dir, entry.expanded),
+                    cx,
+                );
                 let chevron: AnyElement = if entry.is_dir {
                     Icon::new(if entry.expanded {
                         IconName::ChevronDown
@@ -102,7 +102,7 @@ impl TreeView {
                         h_flex()
                             .gap_1()
                             .child(chevron)
-                            .child(Icon::new(icon).size(IconSize::Small).color(Color::Muted))
+                            .when_some(icon, |this, icon| this.child(icon))
                             .child(
                                 div().when(active, |this| this.text_color(accent)).child(
                                     Label::new(entry.name.clone())

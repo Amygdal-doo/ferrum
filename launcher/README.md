@@ -1,9 +1,9 @@
 # Ferrum Launcher
 
-Installs, updates, switches between and launches the Ferrum apps (FerrumIDE,
-FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock, Ferrum
-Editor, any app added to the catalog later, and itself), in the style of
-JetBrains Toolbox.
+Installs, updates, switches between and launches the Ferrum apps (Ferrum
+Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock,
+any app added to the catalog later, and itself), in the style of JetBrains
+Toolbox.
 GPUI desktop app built on `ferrum-ui`. Up to 0.5.0 it was called **Ferrum
 Toolbox**; see [Migration from Ferrum Toolbox](#migration-from-ferrum-toolbox).
 
@@ -23,7 +23,7 @@ Every version of every app is a **GitHub Release** in one repository,
 | Thing | Convention | Example |
 | --- | --- | --- |
 | Tag | `<app-id>-v<semver>` | `api-v0.2.0`, `term-v1.0.0-beta.1` |
-| App ids | 1–32 of `a-z`, `0-9`, `_`, starting with a letter (no `-`). Built in: `ide`, `api`, `git`, `data`, `term`, `kit`, `dock`, `editor`, `launcher`; others come from the catalog | |
+| App ids | 1–32 of `a-z`, `0-9`, `_`, starting with a letter (no `-`). Built in: `editor`, `api`, `git`, `data`, `term`, `kit`, `dock`, `launcher`; others come from the catalog. Retired: `ide` (see below) | |
 | Build | `<app-id>-<version>-<target>.tar.gz` with the binaries at the archive root | `api-0.2.0-aarch64-apple-darwin.tar.gz` |
 | macOS bundle | `<app-id>-<version>-<target>.app.tar.gz` with `<App>.app` at the root; preferred on macOS | `api-0.2.0-aarch64-apple-darwin.app.tar.gz` |
 | Windows build | `<app-id>-<version>-<target>.zip` with the `.exe` files and `<app-id>.ico` at the root; preferred on Windows | `api-0.2.0-x86_64-pc-windows-msvc.zip` |
@@ -103,7 +103,7 @@ next check; no launcher release is needed.
 | `binary` | for new apps | main executable at the archive root or in `<bundle_name>.app/Contents/MacOS/` |
 | `extra_binaries` | no | more executables that get `~/.ferrum/bin` links (`fterm`) |
 | `bundle_name` | for new apps | macOS bundle name without `.app`, published as `~/Applications/Ferrum/<bundle_name>.app` |
-| `icon` | no | a Zed `IconName` (`ToolHammer` or `tool_hammer`); unknown names show a generic icon |
+| `icon` | no | a `ui` crate `IconName` (`ToolHammer` or `tool_hammer`); unknown names show a generic icon |
 | `logo` | no | `https://` URL of a PNG (≤ 1 MiB), downloaded once and cached; falls back to the built-in logo, then the icon |
 | `order` | no | position on the overview, ascending (built-ins use 10–70; default 1000) |
 
@@ -119,6 +119,16 @@ reads this file; it skips the `launcher` entry and ignores the new fields.
 (`settings.seen_apps` in `state.json`). An app that appears for the first
 time gets a one-time "New app: <name> is available" banner with **Install**,
 and a **New** badge on its overview row until it is opened or installed.
+
+**Discontinued apps:** an installed app that is no longer offered (it left
+the catalog, or the launcher retired it: Ferrum IDE, id `ide`, dropped in
+favour of Ferrum Editor) is not removed or hidden. It stays on the overview
+below the offered apps with a **No longer offered** badge: Launch and
+Uninstall keep working, but it gets no updates or new installs and never
+counts as a new app. Retired ids are ignored in any catalog, including copies
+cached by older launchers, and their install layout (Ferrum IDE: binary
+`zed`, bundle `Ferrum IDE.app`) is kept in `catalog.rs` so an installed copy
+can still be launched and removed.
 
 **Logos:** release time must copy each app's `brand/png/<id>-256.png` to
 `logos/<id>.png` on `main` of `Amygdal-doo/ferrum-releases`, where the `logo`
@@ -144,14 +154,15 @@ clean, then creates the annotated tag. It never pushes. Pushing the tag runs
 
 1. creates the release, with the tag message as notes (or GitHub's
    auto-generated notes when there is no message);
-2. builds the app for the three targets (`ide` builds inside `ide/`);
+2. builds the app for the three targets;
 3. uploads `<build>.tar.gz` and, on macOS, the `.app.tar.gz` bundle from
    `scripts/bundle-macos.sh` (plus the launcher DMG from `scripts/make-dmg.sh`),
    each with a `.sha256`.
 
 The workflow needs a repository secret **`SUBMODULE_TOKEN`** with read access
-to `Amygdal-doo/ferrum-ide`. Every app needs the `ide/` submodule because the
-apps use its GPUI crates.
+to the repository behind the `ide/` submodule. Every app needs that submodule
+because the apps use its GPUI and UI crates (it is a library dependency only;
+Ferrum IDE itself is no longer built or released).
 
 ### Bridge release for Ferrum Toolbox 0.5.0
 

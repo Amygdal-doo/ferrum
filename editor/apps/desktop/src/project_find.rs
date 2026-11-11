@@ -193,6 +193,14 @@ impl ProjectFind {
                 .id(("pf-file", ix))
                 .px_2()
                 .gap_2()
+                .when_some(
+                    crate::file_icons::icon_element(
+                        &path,
+                        ferrumeditor_core::icons::EntryKind::File,
+                        cx,
+                    ),
+                    |this, icon| this.child(icon),
+                )
                 .child(Label::new(self.relative(&path)).size(LabelSize::Small))
                 .child(
                     Label::new(count.to_string())

@@ -84,7 +84,7 @@ impl FerrumLauncher {
             services,
             state,
             page: Page::Overview,
-            selected: AppId::IDE,
+            selected: AppId::EDITOR,
             selected_release: None,
             downloads: HashMap::new(),
             checking: false,

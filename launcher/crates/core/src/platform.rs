@@ -152,7 +152,6 @@ pub fn desktop_entry(info: &AppInfo, executable: &Path) -> String {
 #[must_use]
 pub fn icon_png(app: AppId) -> Option<&'static [u8]> {
     let png: &'static [u8] = match app.as_str() {
-        "ide" => include_bytes!("../../../../brand/png/ide-256.png"),
         "api" => include_bytes!("../../../../brand/png/api-256.png"),
         "git" => include_bytes!("../../../../brand/png/git-256.png"),
         "data" => include_bytes!("../../../../brand/png/data-256.png"),
@@ -256,5 +255,9 @@ mod tests {
             );
         }
         assert!(icon_png(AppId::new("forge").expect("id")).is_none());
+        assert!(
+            icon_png(AppId::new("ide").expect("id")).is_none(),
+            "retired"
+        );
     }
 }

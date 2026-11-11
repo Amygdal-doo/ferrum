@@ -2840,13 +2840,18 @@ dependencies = [
  "anyhow",
  "ferrum-ui",
  "ferrumeditor-core",
+ "ferrumterm-emulator",
+ "ferrumterm-protocol",
+ "futures",
  "gpui",
  "menu",
  "notify",
+ "portable-pty",
  "tempfile",
  "theme",
  "trash",
  "ui",
+ "unicode-width",
 ]
 
 [[package]]

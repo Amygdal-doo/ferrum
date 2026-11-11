@@ -360,14 +360,42 @@ impl State {
         self.catalog.as_ref().unwrap_or_else(|| Catalog::embedded())
     }
 
-    /// Metadata for `app`: built-in values overridden by the catalog, or
-    /// generic names for an id nothing describes.
+    /// Metadata for `app`: built-in values overridden by the catalog, the
+    /// install layout of a retired app, or generic names for an id nothing
+    /// describes.
     #[must_use]
     pub fn info(&self, app: AppId) -> AppInfo {
         self.catalog()
             .info(app)
             .or_else(|| Catalog::embedded().info(app))
+            .or_else(|| AppInfo::retired(app))
             .unwrap_or_else(|| AppInfo::generic(app))
+    }
+
+    /// Whether the suite still offers `app`: the launcher, or an app the
+    /// catalog or the built-in table describes. Retired apps (Ferrum IDE)
+    /// and apps whose catalog entry was removed are not offered.
+    #[must_use]
+    pub fn is_offered(&self, app: AppId) -> bool {
+        app == AppId::LAUNCHER || self.managed_apps().iter().any(|info| info.id == app)
+    }
+
+    /// Apps installed earlier that are no longer offered, in overview order.
+    /// The overview lists them as "No longer offered": they get no updates,
+    /// but Launch and Uninstall keep working.
+    #[must_use]
+    pub fn discontinued_apps(&self) -> Vec<AppInfo> {
+        let offered: BTreeSet<AppId> = self.managed_apps().iter().map(|info| info.id).collect();
+        let mut apps: Vec<AppInfo> = self
+            .apps
+            .iter()
+            .filter(|(app, state)| {
+                **app != AppId::LAUNCHER && !offered.contains(*app) && !state.installed.is_empty()
+            })
+            .map(|(app, _)| self.info(*app))
+            .collect();
+        apps.sort_by(|a, b| a.order.cmp(&b.order).then_with(|| a.name.cmp(&b.name)));
+        apps
     }
 
     /// The apps the overview lists, in order: every app the catalog
@@ -487,16 +515,19 @@ impl State {
         self.catalog = Some(catalog.or_fill_from(Catalog::embedded()));
     }
 
-    /// The newer release if `app` is installed and behind the latest.
+    /// The newer release if `app` is installed, still offered and behind
+    /// the latest.
     #[must_use]
     pub fn update_for(&self, app: AppId) -> Option<&ReleaseInfo> {
         let active = self.active(app)?;
+        if !self.is_offered(app) {
+            return None;
+        }
         self.latest(app).filter(|latest| &latest.version > active)
     }
 
     /// Every app with a newer release than its active version: the listed
-    /// apps, apps installed earlier whose catalog entry is gone, and the
-    /// launcher.
+    /// apps and the launcher. Discontinued apps get no updates.
     #[must_use]
     pub fn updates(&self) -> Vec<(AppId, Version)> {
         let apps: BTreeSet<AppId> = self
@@ -1234,6 +1265,54 @@ mod tests {
     }
 
     #[test]
+    fn installed_retired_app_is_discontinued_but_launchable_and_removable() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        let ide = AppId::new("ide").expect("id");
+        // A cached catalog from before Ferrum IDE was dropped.
+        let mut state = State {
+            catalog: Some(
+                Catalog::parse(
+                    r#"{"apps":[{"id":"ide","status":"alpha","summary":"Editor","name":"FerrumIDE",
+                        "binary":"zed","bundle_name":"Ferrum IDE"}]}"#,
+                )
+                .expect("catalog"),
+            ),
+            ..State::default()
+        };
+        let version = Version::new(0, 3, 0);
+        let macos = paths
+            .version_dir(ide, &version)
+            .join("Ferrum IDE.app/Contents/MacOS");
+        std::fs::create_dir_all(&macos).expect("mkdir");
+        std::fs::write(macos.join("zed"), b"bin").expect("write");
+        state.record_install(ide, installed("0.3.0"));
+        state.activate(ide, &version, &paths).expect("activate");
+        assert!(paths.bin_dir.join("zed").exists());
+
+        assert!(state.managed_apps().iter().all(|info| info.id != ide));
+        assert!(!state.is_offered(ide));
+        let discontinued = state.discontinued_apps();
+        assert_eq!(discontinued.len(), 1);
+        assert_eq!(discontinued[0].name, "Ferrum IDE");
+        assert_eq!(state.info(ide).bundle_name, "Ferrum IDE");
+        assert!(state.discover_apps().is_empty(), "never announced");
+
+        // Releases of it are still published, but nothing offers an update.
+        state.record_releases(vec![tagged("ide-v0.4.0")]);
+        assert!(state.update_for(ide).is_none());
+        assert!(state.updates().is_empty());
+
+        state.uninstall(ide, &version, &paths).expect("uninstall");
+        assert!(!paths.bin_dir.join("zed").exists());
+        assert!(!paths.version_dir(ide, &version).exists());
+        assert!(
+            state.discontinued_apps().is_empty(),
+            "gone once uninstalled"
+        );
+    }
+
+    #[test]
     fn reports_updates_only_for_installed_apps() {
         let mut state = State::default();
         state.record_releases(vec![
@@ -1294,18 +1373,18 @@ mod tests {
         std::fs::write(
             paths.state_file(),
             r#"{"settings":{"repo_owner":"o","repo_name":"r"},
-                "apps":{"ide":{"channel":"stable"},"git":{"channel":"beta"}}}"#,
+                "apps":{"api":{"channel":"stable"},"git":{"channel":"beta"}}}"#,
         )
         .expect("write");
         let mut state = State::load(&paths).expect("load");
-        assert_eq!(state.channel(AppId::IDE), UpdateChannel::Alpha);
+        assert_eq!(state.channel(AppId::API), UpdateChannel::Alpha);
         assert_eq!(state.channel(AppId::GIT), UpdateChannel::Alpha);
         assert_eq!(state.channel(AppId::LAUNCHER), UpdateChannel::Alpha);
 
-        state.set_channel(AppId::IDE, UpdateChannel::Stable);
+        state.set_channel(AppId::API, UpdateChannel::Stable);
         state.save(&paths).expect("save");
         let reloaded = State::load(&paths).expect("load");
-        assert_eq!(reloaded.channel(AppId::IDE), UpdateChannel::Stable);
+        assert_eq!(reloaded.channel(AppId::API), UpdateChannel::Stable);
     }
 
     #[test]
@@ -1375,7 +1454,7 @@ mod tests {
             state.catalog_entry(AppId::TERM).map(|e| e.status),
             Some(crate::AppStatus::Stable)
         );
-        assert!(state.catalog_entry(AppId::IDE).is_some());
+        assert!(state.catalog_entry(AppId::DATA).is_some());
     }
 
     #[test]

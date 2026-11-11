@@ -1,6 +1,6 @@
 //! Selected app: actions, versions and release notes.
 
-use super::{channel_badge, format_count, format_size, status_badge};
+use super::{channel_badge, discontinued_badge, format_count, format_size, status_badge};
 use crate::app::{FerrumLauncher, Page};
 use ferrum_ui::prelude::*;
 use ferrumlauncher_core::{AppId, ReleaseInfo, UpdateChannel, current_target};
@@ -57,7 +57,12 @@ impl FerrumLauncher {
         let app = self.selected;
         let border = cx.theme().colors().border;
         let active = self.state.active(app).cloned();
-        let latest = self.state.latest(app).cloned();
+        // A discontinued app is never installed or updated again.
+        let latest = self
+            .state
+            .latest(app)
+            .filter(|_| self.state.is_offered(app))
+            .cloned();
         let rows = self.version_rows(app);
         let downloading = self.downloads.contains_key(&app);
 
@@ -164,6 +169,7 @@ impl FerrumLauncher {
             .unwrap_or_default();
         let homepage = entry.as_ref().and_then(|entry| entry.homepage.clone());
         let channel = self.state.channel(app);
+        let offered = self.state.is_offered(app);
 
         let bullets = |items: Vec<String>, prefix: &'static str| {
             v_flex()
@@ -201,9 +207,11 @@ impl FerrumLauncher {
                         h_flex()
                             .gap_2()
                             .child(Headline::new(info.name).size(HeadlineSize::Small))
-                            .when_some(entry.as_ref().map(|entry| entry.status), |this, status| {
-                                this.child(status_badge(status, cx))
-                            }),
+                            .when(!offered, |this| this.child(discontinued_badge(cx)))
+                            .when_some(
+                                entry.as_ref().map(|entry| entry.status).filter(|_| offered),
+                                |this, status| this.child(status_badge(status, cx)),
+                            ),
                     )
                     .child(Label::new(summary).color(Color::Muted))
                     .when(!highlights.is_empty(), |this| {
@@ -223,12 +231,14 @@ impl FerrumLauncher {
                     .flex_none()
                     .items_end()
                     .gap_1()
-                    .child(
-                        Label::new("Update channel")
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted),
-                    )
-                    .child(h_flex().gap_1().children(channel_buttons))
+                    .when(offered, |this| {
+                        this.child(
+                            Label::new("Update channel")
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        )
+                        .child(h_flex().gap_1().children(channel_buttons))
+                    })
                     .when_some(homepage, |this, url| {
                         this.child(
                             Button::new("homepage", "Website")
@@ -314,13 +324,25 @@ impl FerrumLauncher {
                         })),
                 )
             })
-            .when(active.is_none() && latest.is_none(), |this| {
+            .when(!self.state.is_offered(app), |this| {
                 this.child(
-                    Label::new("No published release yet. Check for updates or review Settings.")
+                    Label::new("No longer offered: no updates or new installs.")
                         .size(LabelSize::Small)
                         .color(Color::Muted),
                 )
             })
+            .when(
+                active.is_none() && latest.is_none() && self.state.is_offered(app),
+                |this| {
+                    this.child(
+                        Label::new(
+                            "No published release yet. Check for updates or review Settings.",
+                        )
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                    )
+                },
+            )
             .when_some(
                 active.filter(|_| self.state.app(app).installed.len() == 1),
                 |this, version| {
@@ -395,7 +417,11 @@ impl FerrumLauncher {
         };
         let channel = row.release.as_ref().map(ReleaseInfo::channel);
         let downloads = row.release.as_ref().map(ReleaseInfo::downloads);
-        let can_install = !row.installed && !row.running && target_asset.is_some() && !downloading;
+        let can_install = !row.installed
+            && !row.running
+            && target_asset.is_some()
+            && !downloading
+            && self.state.is_offered(app);
 
         ListItem::new(SharedString::from(format!("version-{version}")))
             .toggle_state(selected)

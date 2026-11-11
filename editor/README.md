@@ -38,9 +38,16 @@ handling are its own; nothing from Zed's editor stack (`editor`, `language`, `pr
 | User dir `~/.ferrum/editor/`: `config.toml`, `keymap.toml`, `theme.toml`, `snippets.toml` created with documented defaults, watched and applied live (problems shown as a notice) | ✅ parsing tested; live reload headless-tested |
 | Snippets with `$1`, `${1:placeholder}`, mirrored stops, `$0`, Tab / Shift+Tab navigation | ✅ tested |
 | Built-in `ferrum-dark` / `ferrum-light` themes applied to the whole UI | ⚠️ not hand-tested |
+| Loadable themes in `~/.ferrum/editor/themes/`: our TOML format and VS Code colour themes (`.json`, comments / trailing commas / `include` allowed; workbench `colors` → UI + terminal tokens, `tokenColors` TextMate scopes → tree-sitter names); theme selector with live preview, Enter saves to `config.toml`, Escape reverts; install from file; folder watched live; bad files → notice | ✅ parsing / mapping unit-tested; selector headless-tested |
+| File icons (own SVG set, tinted per type) in the tree view, tabs, file finder and find-in-files results; icon themes in `~/.ferrum/editor/icon-themes/<name>/`; icon theme selector with preview; `show_file_icons` | ✅ resolution unit- and headless-tested; drawing not hand-tested |
+| Integrated terminal panel (FerrumTerm's emulator on a local PTY, your login shell in the project folder): tabs, ⌃\` / status-bar toggle, resizable, keeps running while hidden, keys incl. Ctrl / Alt / arrows / paste go to the shell, mouse selection + copy, wheel scrollback, ANSI colours from the theme | ✅ input / toggle / tabs headless-tested with a detached session; real PTY unit-tested; rendering not hand-tested |
 | CLI: `ferrumeditor [path[:line[:col]]...]`, `--help`, `--version` | ✅ tested |
 
 ## Not built yet
+Terminal: mouse reporting to programs (vim/htop mouse), selection beyond the visible screen,
+link detection, find in scrollback, split terminals, per-terminal font settings; VS Code font
+styles (bold / italic) and semantic token colours are not imported; icon SVGs are single-colour
+masks (multi-colour icons are flattened to one tint).
 Incremental tree-sitter reparsing (every edit reparses the whole file in the background);
 multiple windows; packages/plugins (a `Package` trait and command registry seam exist);
 cursor blinking; minimap; code folding; autocomplete; encodings other than UTF-8; editing files
@@ -64,20 +71,26 @@ Everything lives in `~/.ferrum/editor/` (override with `FERRUM_EDITOR_HOME`). Op
 from the palette: *Application: Open Config / Open Keymap / Open Snippets / Open Theme*.
 Saving any of them applies the change immediately.
 
-- **`config.toml`** — font family/size, line height, theme, tab size, soft tabs, soft wrap,
+- **`config.toml`** — font family/size, line height, `theme`, `icon_theme`, `show_file_icons`,
+  `terminal_shell` (empty = your login shell), tab size, soft tabs, soft wrap,
   line numbers, indent guides, current-line highlight, auto-close, auto-indent, trim trailing
   whitespace, final newline, scroll past end, session restore, and `[languages.<id>]`
   overrides (`tab_size`, `soft_tabs`, `soft_wrap`).
 - **`keymap.toml`** — `"keys" = "command:name"` under `[bindings]`; `""` unbinds. The default
   file lists every command and its default keys.
-- **`theme.toml`** — override any UI or syntax colour token (`[ui]`, `[syntax]`, or
-  `[themes.ferrum-light.ui]` for one theme).
+- **`theme.toml`** — override any UI, syntax or terminal colour token of the selected theme
+  (`[ui]`, `[syntax]`, `[terminal]`, or `[themes.<name>.ui]` … for one theme).
+- **`themes/`** — whole themes, see [Themes](#themes). *Theme: Select* (⌘K ⌘T) picks one.
+- **`icon-themes/`** — icon themes, see [Icon themes](#icon-themes).
 - **`snippets.toml`** — `[<language>.<name>]` with `prefix`, `body`, optional `description`;
   `["*".<name>]` applies to every language.
 
 Every action has a stable `namespace:command` name used by the palette, the keymap and the
-menus. Default bindings (macOS; elsewhere `cmd` becomes `ctrl`, Cmd+arrow motions are dropped
-and Alt word motions become Ctrl):
+menus. Default bindings (macOS; elsewhere `cmd` becomes `ctrl`, Cmd+arrow motions are dropped,
+Alt word motions become Ctrl, and terminal-scope `cmd` keys become `ctrl-shift`, e.g.
+`ctrl-shift-c` to copy). While a terminal has focus, window-wide keys without Cmd (without
+Ctrl+Shift off macOS) — Ctrl+G, Ctrl+Tab, Alt+Z, Escape… — go to the shell instead; the
+`terminal:*` keys always work:
 
 | Command | Default keys | Active in |
 |---------|--------------|-----------|
@@ -127,11 +140,27 @@ and Alt word motions become Ctrl):
 | `find-and-replace:use-selection-as-find` | `cmd-e` | editor |
 | `find-in-files:show` | `cmd-shift-f` | window |
 | `markdown-preview:toggle` | `cmd-shift-m` | window |
+| `terminal:toggle` | `` ctrl-` `` | window |
+| `terminal:new` | `` ctrl-shift-` `` | window |
+| `terminal:close` | — | window |
+| `terminal:next-tab` | `cmd-shift-]` | terminal |
+| `terminal:previous-tab` | `cmd-shift-[` | terminal |
+| `terminal:copy` | `cmd-c` | terminal |
+| `terminal:paste` | `cmd-v` | terminal |
+| `terminal:clear` | — | terminal |
+| `terminal:open-in-ferrumterm` | — | window |
 | `window:increase-font-size` | `cmd-=`, `cmd-+` | window |
 | `window:decrease-font-size` | `cmd--` | window |
 | `window:reset-font-size` | `cmd-0` | window |
 | `theme:use-dark` | — | window |
 | `theme:use-light` | — | window |
+| `theme:select` | `cmd-k cmd-t` | window |
+| `theme:install-from-file` | — | window |
+| `theme:open-themes-folder` | — | window |
+| `theme:reload` | — | window |
+| `icon-theme:select` | — | window |
+| `icon-theme:open-folder` | — | window |
+| `icon-theme:reload` | — | window |
 | `editor:toggle-soft-wrap` | `alt-z` | window |
 | `editor:toggle-line-numbers` | — | window |
 | `editor:toggle-indent-guides` | — | window |
@@ -196,6 +225,164 @@ and Alt word motions become Ctrl):
 | `editor:select-page-up` | `shift-pageup` | editor |
 | `editor:select-page-down` | `shift-pagedown` | editor |
 
+## Integrated terminal
+⌃\` (or the terminal button at the right end of the status bar) opens a panel at the bottom
+with your login shell (`$SHELL -l`, or `terminal_shell` from `config.toml`) in the project
+folder. ⌃\` again focuses it, and hides it when it already has focus; the button just shows /
+hides. Drag the divider to resize. `+` adds a terminal tab; closing the last tab (or `exit`)
+hides the panel. Shells keep running while the panel is hidden. The emulator is FerrumTerm's
+(`ferrumterm-emulator`, VT parsing by `alacritty_terminal`, 10 000 lines of scrollback) on a
+local PTY (`portable-pty`); nothing goes through the FerrumTerm server. Colours come from the
+theme's `[terminal]` tokens. *Terminal: Open in FerrumTerm* starts `fterm new <folder> -c
+<folder>` and/or the `ferrumterm` app when they are on `PATH`.
+
+## Themes
+Theme files live in `~/.ferrum/editor/themes/` (`$FERRUM_EDITOR_HOME/themes/`), are watched,
+and show up in *Theme: Select* (↑↓ previews live, Enter applies and saves `theme = "…"` to
+`config.toml`, Escape reverts). *Theme: Install from File…* validates a file and copies it in.
+A file that fails to load is skipped with a notice. Two kinds are loaded:
+
+**Ferrum TOML (`*.toml`)** — `ferrum-dark.example.toml` and `ferrum-light.example.toml` are
+written on first run as complete, commented examples (files ending in `.example.toml` are not
+loaded: copy one to a new name to start). Every key is optional; missing tokens come from the
+built-in named by `appearance`.
+
+```toml
+name = "my-theme"          # default: the file name; a taken name falls back to it
+appearance = "dark"        # "dark" | "light"
+
+[ui]       # window chrome and editor surface
+background = "#21252b"     # window background behind panels
+panel = "#21252b"          # tree view, find panels
+surface = "#2b3038"        # popovers: palette, dialogs, menus
+editor = "#282c33"         # text area
+gutter = "#282c33"         # line-number gutter
+border = "#363c46"
+border_focused = "#e8743b"
+text = "#dce0e5"
+text_muted = "#a9afbc"     # secondary text, untinted icons
+text_placeholder = "#6b717d"
+accent = "#e8743b"         # active tab marker, highlights, links
+element_hover = "#2f343e"
+element_selected = "#3a404b"
+tab_active = "#282c33"
+tab_inactive = "#21252b"
+tab_bar = "#21252b"
+status_bar = "#21252b"
+title_bar = "#21252b"
+scrollbar = "#ffffff22"
+selection = "#e8743b38"    # text selection
+cursor = "#e8743b"
+current_line = "#2d323a"
+line_number = "#5d636f"
+line_number_active = "#d0d4da"
+indent_guide = "#353a43"
+indent_guide_active = "#4f5561"
+bracket_match = "#9aa2b1"
+find_match = "#f0b43c40"
+find_match_active = "#f0b43c90"
+git_added = "#7cc85a"      # gutter marks
+git_modified = "#5b8def"
+git_deleted = "#e85a7e"
+error = "#e85a7e"          # notices
+warning = "#f0b43c"
+success = "#7cc85a"
+
+[syntax]   # tree-sitter highlight names; `a.b` falls back to `a`
+attribute = "#f0b43c"
+boolean = "#e8935f"
+comment = "#6f7683"
+constant = "#e8935f"
+"function.macro" = "#3fb8a0"
+keyword = "#d46be0"
+string = "#a1c181"
+type = "#6ec2c8"
+# … also: character constructor embedded escape function label module number operator
+# property punctuation punctuation.special string.special tag variable variable.builtin
+# variable.parameter text.title text.literal text.uri text.reference text.emphasis
+# text.strong markup.heading markup.raw markup.link markup.italic markup.bold markup.list
+# markup.quote
+
+[terminal] # integrated terminal
+background = "#21252b"
+foreground = "#dce0e5"
+cursor = "#e8743b"
+selection = "#e8743b45"
+black = "#3f4451"          # ANSI 0–7 …
+red = "#e85a7e"
+green = "#a1c181"
+yellow = "#f0b43c"
+blue = "#73ade9"
+magenta = "#d46be0"
+cyan = "#3fb8a0"
+white = "#dce0e5"
+bright_black = "#6b717d"   # … and 8–15
+bright_red = "#ff7a96"
+bright_green = "#b9d99a"
+bright_yellow = "#f5c867"
+bright_blue = "#8fc1f2"
+bright_magenta = "#e08aea"
+bright_cyan = "#5fd0b8"
+bright_white = "#ffffff"
+```
+
+**VS Code colour themes (`*.json`)** — the `themes/*.json` of a VS Code theme extension
+(JSONC: comments and trailing commas are fine; `include` of a sibling file is followed; a
+`tokenColors` path to a `.tmTheme` is not supported). `type` (`dark` / `light` / `hc-light`)
+picks the base. Workbench `colors` map onto our tokens, first key present wins — e.g.
+`editor.background` → `editor`, `editor.foreground` → `text`, `sideBar.background` → `panel` /
+`background`, `editorWidget.background` → `surface`, `button.background` / `focusBorder` →
+`accent`, `list.hoverBackground` → `element_hover`, `list.activeSelectionBackground` →
+`element_selected`, `tab.*` / `editorGroupHeader.tabsBackground` → tab tokens,
+`statusBar.background`, `titleBar.activeBackground`, `editor.selectionBackground`,
+`editorCursor.foreground`, `editor.lineHighlightBackground`, `editorLineNumber.*`,
+`editorIndentGuide.*`, `editorBracketMatch.border`, `editor.findMatch*Background`,
+`editorGutter.*Background` (git), `editorError/Warning.foreground`, and `terminal.background` /
+`terminal.foreground` / `terminalCursor.foreground` / `terminal.selectionBackground` /
+`terminal.ansi*` → `[terminal]`. `tokenColors` rules map onto highlight names through TextMate
+scopes (e.g. `keyword` ← `keyword.control`, `keyword`, `storage.type`; `function` ←
+`entity.name.function`, `support.function`; `type` ← `entity.name.type`, `support.type`;
+`property` ← `variable.other.property`, `support.type.property-name`; `string.special` ←
+`string.regexp`); a rule matches a scope it is a dot-prefix of, the longest selector wins.
+Descendant / exclusion selectors, `fontStyle` and `semanticTokenColors` are ignored.
+
+## Icon themes
+The built-in `ferrum` set (drawn for Ferrum Editor, tinted per file type) covers folders
+(open / closed), common languages and extensions, and special names (`Cargo.toml`,
+`package.json`, lock files, `Dockerfile`, `.gitignore`, `README`, `LICENSE`, `.env`, `Makefile`,
+images, archives, fonts, media…). Set `show_file_icons = false` to hide icons. An icon theme is
+a folder `~/.ferrum/editor/icon-themes/<name>/` with a `theme.toml` and SVG files (an
+`example` theme is written on first run). Pick one with *Icon Theme: Select* (live preview;
+Enter saves `icon_theme = "…"`). For a file the lookup is **exact file name → extension
+(longest first: `d.ts` before `ts`) → language id → `defaults.file`**; for a folder: folder name
+→ `defaults.folder` / `defaults.folder_open`. Whatever a theme does not cover (not even a
+default) comes from the built-in set.
+
+```toml
+name = "mono"                 # default: the folder name
+[defaults]
+file = "file.svg"
+folder = "folder.svg"
+folder_open = "folder-open.svg"
+[file_names]                  # exact, case-insensitive
+"Cargo.toml" = "cargo.svg"
+".gitignore" = "git.svg"
+[extensions]                  # without the dot
+rs = "rust.svg"
+"d.ts" = "types.svg"
+[languages]                   # rust javascript typescript tsx json toml yaml markdown
+shell = "shell.svg"           # python go html css shell text
+[folder_names]
+src = "folder-src.svg"
+[folder_names_open]
+src = "folder-src-open.svg"
+[colors]                      # optional tint per SVG (default: the theme's muted text)
+"rust.svg" = "#dea584"
+```
+
+SVGs must sit inside the theme folder (no `..`), be under 256 KB, and are painted as a
+single-colour mask (shape only; colours inside the SVG are ignored).
+
 ## Layout
 ```
 apps/desktop/      GPUI app (binary `ferrumeditor`)
@@ -208,23 +395,31 @@ apps/desktop/      GPUI app (binary `ferrumeditor`)
                    text runs), input (mouse, scroll, IME), commands, search, background
                    (highlighting, git marks)
   workspace/       root view: panes/tabs, files (open/save/close/reload/quit), overlays
-                   (palette, finder, go to line, find bar, find in files, preview), dialogs,
-                   watcher, session, status bar
+                   (palette, finder, go to line, find bar, find in files, preview), themes
+                   (selectors, preview, install), terminal (commands, status bar button),
+                   dialogs, watcher, session, status bar
+  terminal/        terminal panel (tabs), view (keys, mouse, scroll), session (PTY + emulator),
+                   paint (grid renderer), selection, ime
+  file_icons.rs    icon theme → SVG elements
   tree_view/ markdown_preview.rs picker.rs find_bar.rs project_find.rs
-  tests.rs         headless GPUI tests
+  tests.rs tests_terminal.rs tests_themes.rs   headless GPUI tests
 crates/core/       pure logic, no GPUI: buffer, selection, history, editor/ (all editing
                    commands), text (boundaries), display (tabs, wrap, display map), find,
-                   project_search, fuzzy, language, highlight, git, config, keymap, theme,
-                   snippets, commands (catalogue), files, file_tree, session, markdown, cli,
-                   paths
+                   project_search, fuzzy, language, highlight, git, config, keymap,
+                   theme/ (tokens, built-ins, TOML format, VS Code import, registry,
+                   overrides), icons/ (built-in set, manifests, registry), terminal (panel
+                   state, key translation), snippets, commands (catalogue), files,
+                   file_tree, session, markdown, cli, paths
 ```
 
 ## Runtime assets
 None on disk: tree-sitter grammars are compiled in by the grammar crates and their highlight
-queries are `include_str!`-embedded; fonts and icons come from the shared `assets` crate
-(embedded). The default settings files are string constants written on first launch.
+queries are `include_str!`-embedded; fonts and UI icons come from the shared `assets` crate
+(embedded); file icons are SVG strings in `crates/core/src/icons/builtin.rs`. The default
+settings files, example themes and the example icon theme are string constants written on
+first launch.
 
 ## Local data
-`~/.ferrum/editor/` holds the four settings files and `session.json` (last folder, pane
-layout, open tabs with cursor and scroll positions). Nothing is sent over the network; git
+`~/.ferrum/editor/` holds the four settings files, `themes/`, `icon-themes/` and
+`session.json` (last folder, pane layout, open tabs with cursor and scroll positions). Nothing is sent over the network; git
 information comes from the `git` CLI (`git show HEAD:<path>`) and `.git/HEAD`.

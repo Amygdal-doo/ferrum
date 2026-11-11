@@ -1,7 +1,12 @@
-//! A modal fuzzy picker used by the command palette, the file finder and
-//! go-to-line: a query field over a filtered, keyboard-navigable list.
+//! A modal fuzzy picker used by the command palette, the file finder,
+//! go-to-line and the theme / icon theme selectors: a query field over a
+//! filtered, keyboard-navigable list. Moving the selection emits
+//! [`PickerEvent::Highlighted`] (live theme preview).
 
+use std::path::PathBuf;
 use std::sync::Arc;
+
+use ferrumeditor_core::icons::{EntryKind, Icon};
 
 use ferrum_ui::prelude::*;
 use ferrum_ui::{TextInput, TextInputEvent};
@@ -16,6 +21,8 @@ pub enum PickerKind {
     Commands,
     Files,
     GoToLine,
+    Theme,
+    IconTheme,
 }
 
 #[derive(Debug, Clone)]
@@ -24,10 +31,38 @@ pub struct PickerItem {
     /// Right-hand hint (key binding) or secondary text (folder).
     pub detail: SharedString,
     pub payload: String,
+    /// File whose icon (from the active icon theme) leads the row.
+    pub icon: Option<PathBuf>,
+    /// Fixed icons shown after the label (icon theme samples).
+    pub samples: Vec<Icon>,
+}
+
+impl PickerItem {
+    pub fn new(
+        label: impl Into<SharedString>,
+        detail: impl Into<SharedString>,
+        payload: impl Into<String>,
+    ) -> Self {
+        Self {
+            label: label.into(),
+            detail: detail.into(),
+            payload: payload.into(),
+            icon: None,
+            samples: Vec::new(),
+        }
+    }
 }
 
 pub enum PickerEvent {
-    Confirmed { kind: PickerKind, payload: String },
+    Confirmed {
+        kind: PickerKind,
+        payload: String,
+    },
+    /// The selected row changed (by keyboard or filtering).
+    Highlighted {
+        kind: PickerKind,
+        payload: String,
+    },
     Dismissed,
 }
 
@@ -100,7 +135,37 @@ impl Picker {
         };
         self.selected = 0;
         self.scroll.scroll_to_item(0, ScrollStrategy::Top);
+        self.emit_highlighted(cx);
         cx.notify();
+    }
+
+    fn selected_payload(&self) -> Option<String> {
+        self.matches
+            .get(self.selected)
+            .and_then(|(index, _)| self.items.get(*index))
+            .map(|item| item.payload.clone())
+    }
+
+    fn emit_highlighted(&self, cx: &mut Context<Self>) {
+        if let Some(payload) = self.selected_payload() {
+            cx.emit(PickerEvent::Highlighted {
+                kind: self.kind,
+                payload,
+            });
+        }
+    }
+
+    /// Selects the row whose payload is `payload` (no event).
+    pub fn select_payload(&mut self, payload: &str, cx: &mut Context<Self>) {
+        if let Some(position) = self
+            .matches
+            .iter()
+            .position(|(index, _)| self.items.get(*index).is_some_and(|i| i.payload == payload))
+        {
+            self.selected = position;
+            self.scroll.scroll_to_item(position, ScrollStrategy::Center);
+            cx.notify();
+        }
     }
 
     fn move_selection(&mut self, delta: isize, cx: &mut Context<Self>) {
@@ -111,6 +176,7 @@ impl Picker {
         self.selected = ((self.selected as isize + delta).rem_euclid(len)) as usize;
         self.scroll
             .scroll_to_item(self.selected, ScrollStrategy::Nearest);
+        self.emit_highlighted(cx);
         cx.notify();
     }
 
@@ -118,10 +184,7 @@ impl Picker {
         let payload = if self.kind == PickerKind::GoToLine {
             Some(self.input.read(cx).text().to_string())
         } else {
-            self.matches
-                .get(self.selected)
-                .and_then(|(index, _)| self.items.get(*index))
-                .map(|item| item.payload.clone())
+            self.selected_payload()
         };
         match payload {
             Some(payload) => cx.emit(PickerEvent::Confirmed {
@@ -160,6 +223,26 @@ impl Picker {
         let selected = ix == self.selected;
         let detail = item.detail.clone();
         let kind = self.kind;
+        let icon = item
+            .icon
+            .as_ref()
+            .and_then(|path| crate::file_icons::icon_element(path, EntryKind::File, cx));
+        let muted = cx
+            .global::<crate::settings::Settings>()
+            .theme
+            .ui("text_muted");
+        let samples: Vec<AnyElement> = item
+            .samples
+            .iter()
+            .map(|icon| {
+                gpui::svg()
+                    .data(&icon.svg)
+                    .flex_none()
+                    .size(px(crate::file_icons::ICON_SIZE))
+                    .text_color(crate::theme_apply::hsla(icon.color.unwrap_or(muted)))
+                    .into_any_element()
+            })
+            .collect();
         h_flex()
             .id(("picker-row", ix))
             .w_full()
@@ -171,11 +254,20 @@ impl Picker {
             .when(selected, |this| this.bg(colors.element_selected))
             .hover(|this| this.bg(colors.element_hover))
             .child(
-                div()
+                h_flex()
                     .min_w_0()
-                    .overflow_hidden()
-                    .text_ellipsis()
-                    .child(StyledText::new(item.label.clone()).with_highlights(highlights)),
+                    .gap_2()
+                    .when_some(icon, |this, icon| this.child(icon))
+                    .child(
+                        div()
+                            .min_w_0()
+                            .overflow_hidden()
+                            .text_ellipsis()
+                            .child(StyledText::new(item.label.clone()).with_highlights(highlights)),
+                    )
+                    .when(!samples.is_empty(), |this| {
+                        this.child(h_flex().gap_1().flex_none().children(samples))
+                    }),
             )
             .when(!detail.is_empty(), |this| {
                 this.child(if kind == PickerKind::Commands {

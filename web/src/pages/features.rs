@@ -22,27 +22,42 @@ struct AppFeatures {
     demo_label: &'static str,
 }
 
-const APPS: [AppFeatures; 9] = [
+const APPS: [AppFeatures; 8] = [
     AppFeatures {
-        product: products::FERRUM_IDE,
-        version: "0.4.0-alpha.1",
-        summary: "The editor is the front door to the rest of the suite: open the project \
-                  you're in with the right Ferrum app in one keystroke.",
+        product: products::FERRUM_EDITOR,
+        version: "0.2.0-alpha.1",
+        summary: "The suite's code editor: small, hackable and in the spirit of Atom, written \
+                  from scratch in Rust. Light, fast to start, and yours to rewire.",
         points: &[
             (
-                "Every Ferrum app, one menu",
-                "Open FerrumGIT, FerrumTerm, FerrumData, FerrumAPI and now FerrumKit and \
-                 FerrumDock from the palette, File → Ferrum or the status-bar button.",
+                "Tree view, tabs and palette",
+                "Split panes, a fuzzy file finder and a command palette that lists every \
+                 command with its keys.",
             ),
             (
-                "Two keystrokes",
-                "⌃⌥⌘G opens the project in FerrumGIT, ⌃⌥⌘T opens a FerrumTerm tab in the \
-                 project folder.",
+                "Multi-cursor",
+                "Add carets with ⌘-click or ⌘D, split a selection into lines, and type, \
+                 paste or undo on all of them at once.",
+            ),
+            (
+                "Find everywhere",
+                "Find and replace with regex in the file, and find in files that respects \
+                 .gitignore.",
+            ),
+            (
+                "Built-in terminal",
+                "Open a terminal at the bottom from the status bar or with ⌃`, with tabs \
+                 that keep running while the panel is hidden.",
+            ),
+            (
+                "Themes and file icons",
+                "Pick a theme with live preview, write your own in TOML or import a VS Code \
+                 theme, and load your own file icon sets.",
             ),
         ],
-        demo: feature_demos::ide,
-        demo_label: "Ferrum IDE editor with the command palette open on Ferrum actions and a \
-                     Ferrum button in the status bar",
+        demo: feature_demos::editor,
+        demo_label: "Ferrum Editor with a tree view and tabs: three cursors type at once, then \
+                     the command palette filters commands on toggle",
     },
     AppFeatures {
         product: products::FERRUMAPI,
@@ -208,41 +223,10 @@ const APPS: [AppFeatures; 9] = [
                      bars and their logs",
     },
     AppFeatures {
-        product: products::FERRUM_EDITOR,
-        version: "0.1.0-alpha.1",
-        summary: "New: a small, hackable text editor in the spirit of Atom, written from \
-                  scratch in Rust. Not the IDE: lighter, and yours to rewire.",
-        points: &[
-            (
-                "Tree view, tabs and palette",
-                "Split panes, a fuzzy file finder and a command palette that lists every \
-                 command with its keys.",
-            ),
-            (
-                "Multi-cursor",
-                "Add carets with ⌘-click or ⌘D, split a selection into lines, and type, \
-                 paste or undo on all of them at once.",
-            ),
-            (
-                "Find everywhere",
-                "Find and replace with regex in the file, and find in files that respects \
-                 .gitignore.",
-            ),
-            (
-                "Hack it in TOML",
-                "Config, keymap, theme and snippets are plain files in ~/.ferrum/editor, \
-                 applied as soon as you save them.",
-            ),
-        ],
-        demo: feature_demos::editor,
-        demo_label: "Ferrum Editor with a tree view and tabs: three cursors type at once, then \
-                     the command palette filters commands on toggle",
-    },
-    AppFeatures {
         product: products::FERRUM_LAUNCHER,
-        version: "0.6.0",
-        summary: "Ferrum Toolbox is now Ferrum Launcher: one window that installs, updates \
-                  and launches all nine apps.",
+        version: "0.7.0",
+        summary: "One window that installs, updates and launches all eight Ferrum apps, \
+                  with Ferrum Editor first.",
         points: &[
             (
                 "New apps show up on their own",
@@ -250,8 +234,9 @@ const APPS: [AppFeatures; 9] = [
                  badge, ready to install. No launcher update needed.",
             ),
             (
-                "FerrumKit, FerrumDock and Ferrum Editor",
-                "The new apps are ready to install from the overview, on the Alpha channel.",
+                "Ferrum Editor replaces Ferrum IDE",
+                "Ferrum IDE is no longer offered. If it is installed it stays launchable and \
+                 removable, marked No longer offered.",
             ),
             (
                 "Updates itself in place",
@@ -271,8 +256,8 @@ const APPS: [AppFeatures; 9] = [
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Features"),
-        "What every Ferrum app can do in the current alpha: Ferrum IDE, FerrumAPI, FerrumGIT, \
-         FerrumData, FerrumTerm and Ferrum Launcher.",
+        "What every Ferrum app can do in the current alpha: Ferrum Editor, FerrumAPI, \
+         FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock and Ferrum Launcher.",
         PATH,
         "page-features",
     );
@@ -295,7 +280,7 @@ fn hero() -> Markup {
                 p class="eyebrow" { "Every app is in alpha" }
                 h1 id="features-title" { "What's new across Ferrum" }
                 p class="lead" {
-                    "Nine native apps, written in Rust and rendered with GPUI. This is what \
+                    "Eight native apps, written in Rust and rendered with GPUI. This is what \
                      each one can do in the current alpha, and Ferrum Launcher keeps them all \
                      up to date."
                 }

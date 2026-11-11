@@ -1,6 +1,7 @@
 //! Shared GPUI foundation for the Ferrum desktop tools (FerrumAPI, FerrumGIT,
-//! FerrumData, FerrumTerm). Builds on the `gpui`, `ui` and `theme` crates from
-//! the FerrumIDE fork so every tool looks and behaves like the IDE.
+//! FerrumData, FerrumTerm, ...). Builds on the `gpui`, `ui` and `theme` crates
+//! from the Zed codebase (the `ide/` submodule, used as a library) so every
+//! tool looks and behaves alike.
 
 mod app;
 mod chrome;

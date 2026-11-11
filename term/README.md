@@ -3,7 +3,7 @@
 A Rust terminal for humans and AI agents, inspired by Ghostty (GPU-rendered window), tmux
 (persistent sessions, attach from anywhere) and Rex (agent status, scriptable CLI,
 Tailscale access). Every line is Rust: `alacritty_terminal` for VT emulation,
-`portable-pty`, Tokio, GPUI (via the shared `ferrum-ui` crate, same UI stack as FerrumIDE) for
+`portable-pty`, Tokio, GPUI (via the shared `ferrum-ui` crate, same UI stack as the other Ferrum apps) for
 the window, crossterm for `attach`.
 
 > **Status: M0, first vertical slice.** The server, CLI and attach are covered by

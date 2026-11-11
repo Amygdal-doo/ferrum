@@ -1,13 +1,18 @@
 # Installing Ferrum
 
 You install **Ferrum Launcher** once. It then installs, updates and rolls back
-every other Ferrum app (Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData,
-FerrumTerm, FerrumKit, FerrumDock, Ferrum Editor, and apps published later).
+every other Ferrum app (Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData,
+FerrumTerm, FerrumKit, FerrumDock, and apps published later).
 Only the launcher has an installer (`.dmg`, `.exe`, `.deb`); the other apps are
 installed through it and have no separate download.
 
 Ferrum Launcher was called **Ferrum Toolbox** up to 0.5.0. See
 [Coming from Ferrum Toolbox](#coming-from-ferrum-toolbox).
+
+Ferrum IDE is no longer offered; Ferrum Editor is the suite's code editor
+(`ferrumeditor path[:line[:col]]`). A copy of Ferrum IDE installed earlier is
+listed in the launcher as **No longer offered**: it still launches and can be
+uninstalled, but gets no updates.
 
 Releases are public, in <https://github.com/Amygdal-doo/ferrum-releases>, so
 no GitHub account is needed. Every app is in **alpha**.
@@ -65,7 +70,7 @@ Click an app in the overview, then **Install**. The launcher:
    because Launchpad ignores symlinked apps;
 5. links its executables into **`~/.ferrum/bin`** (`ferrumapi`, `ferrumgit`,
    `ferrumdata`, `ferrumterm`, `fterm`, `ferrumkit`, `ferrumdock`,
-   `ferrumeditor`, `zed`).
+   `ferrumeditor`).
    Add that folder to your
    `PATH`:
    ```bash
@@ -224,7 +229,8 @@ scripts/make-dmg.sh dist/FerrumData.app dist/FerrumData-0.3.0-aarch64.dmg Ferrum
 ```
 
 The workflow needs the `SUBMODULE_TOKEN` secret (read access to
-`Amygdal-doo/ferrum-ide`). See [launcher/README.md](launcher/README.md).
+`Amygdal-doo/ferrum-ide`, the repository behind the `ide/` submodule that
+provides GPUI). See [launcher/README.md](launcher/README.md).
 
 ## Known limitations
 
@@ -247,9 +253,7 @@ The workflow needs the `SUBMODULE_TOKEN` secret (read access to
   admin user's `/Applications` is fine). Otherwise the button opens the
   release page instead.
 - **Windows:** the builds have only been compiled in CI, not tested by hand
-  yet. FerrumTerm has no Windows build. Ferrum IDE on Windows ships `zed.exe`
-  only, without the extras Zed's own installer adds (bundled ConPTY, Explorer
-  context menu, auto-update helper). Executables carry no embedded icon; the
+  yet. FerrumTerm has no Windows build. Executables carry no embedded icon; the
   shortcuts use `<app>.ico`. SmartScreen warns because nothing is signed.
 - **Linux:** only x86_64 `.deb` packages and tarballs (no arm64, RPM, Flatpak
   or AppImage).

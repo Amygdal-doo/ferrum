@@ -87,36 +87,6 @@
 /* Counts and hints on a highlighted (accent-tinted) row. */
 .is-open em { color: var(--text-muted); }
 
-/* ---------- Ferrum IDE ---------- */
-.ide { display: grid; grid-template-columns: 110px minmax(0, 1fr); grid-template-rows: 1fr auto; }
-.ide__tree { padding: 10px !important; border-right: 1px solid var(--border); background: var(--bg-elev); }
-.ide__tree li { padding: 1px 6px; white-space: nowrap; }
-.ide__tree .is-open { color: var(--text); background: color-mix(in srgb, var(--app-accent) 18%, transparent); border-radius: 3px; }
-.ide__editor { padding: 12px 16px; white-space: pre; overflow: hidden; color: var(--text); }
-.ide__typed { display: inline-block; overflow: hidden; vertical-align: bottom; animation: ide-type var(--cycle) steps(9) infinite; }
-.ide__palette {
-  position: absolute; top: 18px; left: 50%; width: min(78%, 360px); transform: translateX(-50%);
-  border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface);
-  box-shadow: var(--shadow), 0 20px 40px -20px rgba(0, 0, 0, 0.6);
-  animation: ide-palette var(--cycle) var(--ease) infinite;
-}
-.ide__query { padding: 8px 12px !important; border-bottom: 1px solid var(--border); color: var(--text); }
-.ide__palette ul { position: relative; padding: 4px !important; }
-.ide__palette li { position: relative; display: flex; justify-content: space-between; align-items: center; height: 26px; padding: 0 8px; color: var(--text); }
-.ide__palette li.ide__sel {
-  position: absolute; left: 4px; right: 4px; top: 4px; padding: 0; border-radius: 4px;
-  background: color-mix(in srgb, var(--app-accent) 24%, transparent);
-  animation: ide-sel var(--cycle) var(--ease) infinite;
-}
-.ide__status {
-  grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center;
-  height: 24px; padding: 0 10px; border-top: 1px solid var(--border); background: var(--surface); font-size: 11px;
-}
-.ide__ferrum {
-  padding: 0 8px; border-radius: 3px; color: color-mix(in srgb, var(--app-accent) var(--ink-mix), var(--text));
-  animation: demo-pulse var(--cycle) var(--ease) infinite;
-}
-
 /* ---------- FerrumAPI ---------- */
 .api { display: flex; flex-direction: column; }
 .api__req { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--border); }
@@ -361,8 +331,7 @@
   .kit__side, .dock__side, .ed__tree { display: none; }
   .dock__row { grid-template-columns: 10px 0.7fr 1.2fr 60px; }
   .dock__ports { display: none; }
-  .ide { grid-template-columns: minmax(0, 1fr); }
-  .ide__tree, .data__side, .term__side { display: none; }
+  .data__side, .term__side { display: none; }
   .data, .term { grid-template-columns: minmax(0, 1fr); }
   .api__panes, .git { grid-template-columns: minmax(0, 1fr); }
   .api__runner, .git__diff { display: none; }
@@ -386,18 +355,6 @@
   0%, 60% { opacity: 0; transform: translateY(10px); }
   66%, 90% { opacity: 1; transform: none; }
   96%, 100% { opacity: 0; transform: translateY(10px); }
-}
-
-@keyframes ide-type { 0%, 4% { width: 0; } 14%, 100% { width: 9ch; } }
-@keyframes ide-palette {
-  0%, 22% { opacity: 0; transform: translate(-50%, -8px) scale(0.98); }
-  28%, 74% { opacity: 1; transform: translate(-50%, 0); }
-  80%, 100% { opacity: 0; transform: translate(-50%, -8px) scale(0.98); }
-}
-@keyframes ide-sel {
-  0%, 38% { transform: translateY(0); }
-  44%, 56% { transform: translateY(26px); }
-  62%, 100% { transform: translateY(0); }
 }
 
 @keyframes api-find { 0%, 34% { opacity: 0; transform: translateY(-6px); } 40%, 92% { opacity: 1; transform: none; } 100% { opacity: 0; } }

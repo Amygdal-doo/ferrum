@@ -65,7 +65,7 @@ fn bind_text_input_keys(cx: &mut App) {
     cx.bind_keys([escape]);
 }
 
-fn init(cx: &mut TestAppContext) {
+pub(crate) fn init(cx: &mut TestAppContext) {
     cx.update(|cx| {
         bind_text_input_keys(cx);
         theme::set_theme_settings_provider(
@@ -86,7 +86,7 @@ fn init(cx: &mut TestAppContext) {
 }
 
 /// `cmd` on macOS, `ctrl` elsewhere.
-fn primary(keys: &str) -> String {
+pub(crate) fn primary(keys: &str) -> String {
     if MAC {
         keys.to_string()
     } else {
@@ -180,7 +180,9 @@ fn editor_renders_highlighted_rust(cx: &mut TestAppContext) {
     });
 }
 
-fn workspace_window(cx: &mut TestAppContext) -> (Entity<Workspace>, &mut VisualTestContext) {
+pub(crate) fn workspace_window(
+    cx: &mut TestAppContext,
+) -> (Entity<Workspace>, &mut VisualTestContext) {
     init(cx);
     let (workspace, cx) = cx.add_window_view(Workspace::new);
     cx.run_until_parked();
@@ -305,7 +307,7 @@ fn cli_targets_open_at_line(cx: &mut TestAppContext) {
     editor.read_with(cx, |e, _| assert_eq!(e.cursor_point(), Point::new(2, 0)));
 }
 
-fn init_with_user_dir(cx: &mut TestAppContext, dir: &Path) {
+pub(crate) fn init_with_user_dir(cx: &mut TestAppContext, dir: &Path) {
     init(cx);
     let files = ferrumeditor_core::paths::UserFiles::new(dir.join("editor"));
     cx.update(|cx| {

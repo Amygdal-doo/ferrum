@@ -4,7 +4,7 @@
 pub const SITE_NAME: &str = "Ferrum";
 pub const SITE_TAGLINE: &str = "One launcher, every tool.";
 pub const SITE_DESCRIPTION: &str = "Ferrum is a family of native developer tools written in Rust and \
-     rendered with GPUI: an IDE, an API client, a Git client, a database IDE, a terminal, a \
+     rendered with GPUI: a code editor, an API client, a Git client, a database IDE, a terminal, a \
      container manager and developer utilities, installed and updated by Ferrum Launcher.";
 
 /// Every download CTA on the site links here.
@@ -35,7 +35,8 @@ pub const MACOS_NOTARIZED: bool = true;
 /// PLACEHOLDER: contact address (none configured).
 pub const CONTACT_EMAIL: Option<&str> = None;
 
-/// Upstream project credited by Ferrum IDE. Text credit only; no Zed logos.
+/// Upstream of GPUI and the `ui`/`theme` crates every Ferrum app is built on.
+/// Text credit only; no Zed logos.
 pub const ZED_UPSTREAM_URL: &str = "https://github.com/zed-industries/zed";
 /// Amygdal, the studio that builds Ferrum.
 pub const AMYGDAL_URL: &str = "https://amygdal.com";

@@ -20,6 +20,12 @@ menu.workspace = true
 anyhow.workspace = true
 notify.workspace = true
 trash.workspace = true
+# Integrated terminal: FerrumTerm's emulator + a local PTY.
+ferrumterm-emulator.workspace = true
+ferrumterm-protocol.workspace = true
+portable-pty.workspace = true
+futures.workspace = true
+unicode-width.workspace = true
 
 
 [dev-dependencies]

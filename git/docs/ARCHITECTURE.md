@@ -18,7 +18,7 @@ crates/domain ◄── every crate (pure types, no I/O)
 ```
 
 ## Why the git CLI (not libgit2)
-Same choice as Tower and Zed/FerrumIDE: the user's config, hooks, signing, credential helpers,
+Same choice as Tower: the user's config, hooks, signing, credential helpers,
 `~/.ssh/config`, ssh-agent and every key type work unchanged. Output is read in machine formats
 (`status --porcelain=v2 -z`, `log -z --format` with `%x1f` separators, `for-each-ref` with `%00`)
 and parsed by pure, unit-tested functions in `crates/git/src/parse`.

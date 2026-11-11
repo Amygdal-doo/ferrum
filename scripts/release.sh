@@ -6,7 +6,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 <ide|api|git|data|term|kit|dock|editor|launcher> <semver> [-m \"release notes\"]" >&2
+  echo "usage: $0 <editor|api|git|data|term|kit|dock|launcher> <semver> [-m \"release notes\"]" >&2
   exit 2
 }
 
@@ -23,7 +23,10 @@ while [ $# -gt 0 ]; do
 done
 
 case "$app" in
-  ide|api|git|data|term|kit|dock|editor|launcher) ;;
+  editor|api|git|data|term|kit|dock|launcher) ;;
+  ide)
+    echo "error: Ferrum IDE is no longer released; Ferrum Editor ('editor') is the suite's code editor" >&2
+    exit 2 ;;
   toolbox)
     echo "error: toolbox-v* tags are only the bridge for Ferrum Toolbox 0.5.0; release 'launcher' and see launcher/README.md" >&2
     exit 2 ;;

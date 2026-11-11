@@ -51,17 +51,6 @@ impl Product {
     }
 }
 
-pub const FERRUM_IDE: Product = Product {
-    slug: "ferrum-ide",
-    name: "Ferrum IDE",
-    symbol: "Fi",
-    logo: "ide",
-    accent_var: "--app-ide",
-    kind: "Code editor",
-    tagline: "A GPU-accelerated code editor, an independent fork of the open-source Zed editor.",
-    status: Status::Alpha,
-};
-
 pub const FERRUMAPI: Product = Product {
     slug: "ferrumapi",
     name: "FerrumAPI",
@@ -134,8 +123,8 @@ pub const FERRUM_EDITOR: Product = Product {
     symbol: "Fe",
     logo: "editor",
     accent_var: "--app-editor",
-    kind: "Text editor",
-    tagline: "A small, hackable text editor in the spirit of Atom, written from scratch in Rust and \
+    kind: "Code editor",
+    tagline: "A small, hackable code editor in the spirit of Atom, written from scratch in Rust and \
               configured in plain TOML.",
     status: Status::Alpha,
 };
@@ -151,15 +140,15 @@ pub const FERRUM_LAUNCHER: Product = Product {
     status: Status::Alpha,
 };
 
-pub const ALL: [Product; 9] = [
-    FERRUM_IDE,
+/// Site order: Ferrum Editor, the suite's code editor, leads.
+pub const ALL: [Product; 8] = [
+    FERRUM_EDITOR,
     FERRUMAPI,
     FERRUMGIT,
     FERRUMDATA,
     FERRUMTERM,
     FERRUMKIT,
     FERRUMDOCK,
-    FERRUM_EDITOR,
     FERRUM_LAUNCHER,
 ];
 

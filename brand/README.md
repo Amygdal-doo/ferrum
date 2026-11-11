@@ -32,7 +32,6 @@ own dark ground.
 | Ingot ink (the `F`, wordmark) | `#f1e9df` |
 | Dark ink (badge glyphs, light wordmark) | `#16130f` / `#1f1913` |
 | Ferrum (core): rust | `#E8743B` |
-| IDE: cobalt | `#5B8DEF` |
 | API: patina | `#3FB8A0` |
 | GIT: brass | `#F0B43C` |
 | Data: amethyst | `#A07CF0` |
@@ -49,7 +48,6 @@ The rust and patina colours match the website tokens (`web/assets/css/tokens.css
 | File | Symbol | Badge glyph |
 | --- | --- | --- |
 | `ferrum.svg` | Fe | none (core mark) |
-| `ide.svg` | FeI | code brackets `‹ ›` |
 | `api.svg` | FeA | request/response arrows |
 | `git.svg` | FeG | branch |
 | `data.svg` | FeD | database cylinder |

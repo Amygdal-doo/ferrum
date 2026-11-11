@@ -10,7 +10,7 @@ const FEATURES: &[(&str, &str)] = &[
     (
         "Desktop shell",
         "Connections sidebar, tabbed SQL editor, results panel and status bar, with resizable \
-         panels that remember their size. Rendered natively with GPUI in the FerrumIDE theme.",
+         panels that remember their size. Rendered natively with GPUI in the Ferrum theme.",
     ),
     (
         "PostgreSQL profiles",
@@ -145,6 +145,6 @@ mod tests {
     fn links_to_the_other_products() {
         let html = rendered();
         assert!(html.contains("href=\"/ferrumapi\""));
-        assert!(html.contains("href=\"/ferrum-ide\""));
+        assert!(html.contains("href=\"/ferrum-editor\""));
     }
 }

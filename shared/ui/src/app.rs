@@ -61,7 +61,7 @@ impl ThemeSettingsProvider for FerrumThemeSettings {
     }
 }
 
-/// Boots GPUI with the FerrumIDE theme, fonts and icons, opens the main
+/// Boots GPUI with the Ferrum theme, fonts and icons, opens the main
 /// window with the root view returned by `build`, and quits when it closes.
 pub fn run<V: Render + 'static>(
     config: AppConfig,

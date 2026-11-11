@@ -12,7 +12,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 <ide|api|git|data|term|kit|dock|editor|launcher> <semver> <target> <binary-dir> <out-dir>" >&2
+  echo "usage: $0 <editor|api|git|data|term|kit|dock|launcher> <semver> <target> <binary-dir> <out-dir>" >&2
   exit 2
 }
 
@@ -24,7 +24,6 @@ binary_dir="$4"
 out_dir="$5"
 
 case "$app" in
-  ide)     name="Ferrum IDE";     binaries="zed" ;;
   api)     name="FerrumAPI";      binaries="ferrumapi" ;;
   git)     name="FerrumGIT";      binaries="ferrumgit" ;;
   data)    name="FerrumData";     binaries="ferrumdata" ;;

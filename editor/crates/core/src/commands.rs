@@ -15,6 +15,8 @@ pub enum Scope {
     Editor,
     /// Only while the tree view has focus.
     TreeView,
+    /// Only while an integrated terminal has focus.
+    Terminal,
 }
 
 impl Scope {
@@ -24,6 +26,7 @@ impl Scope {
             Scope::Workspace => None,
             Scope::Editor => Some("FerrumEditor"),
             Scope::TreeView => Some("FerrumTreeView"),
+            Scope::Terminal => Some("FerrumTerminal"),
         }
     }
 }
@@ -68,7 +71,7 @@ pub fn title_for(name: &str) -> String {
     }
 }
 
-use Scope::{Editor as E, TreeView as T, Workspace as W};
+use Scope::{Editor as E, Terminal as X, TreeView as T, Workspace as W};
 
 /// (name, scope, default keys).
 const BUILTIN: &[(&str, Scope, &[&str])] = &[
@@ -121,12 +124,29 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("find-and-replace:use-selection-as-find", E, &["cmd-e"]),
     ("find-in-files:show", W, &["cmd-shift-f"]),
     ("markdown-preview:toggle", W, &["cmd-shift-m"]),
+    // Integrated terminal (copy / paste become Ctrl+Shift+C / V off macOS)
+    ("terminal:toggle", W, &["ctrl-`"]),
+    ("terminal:new", W, &["ctrl-shift-`"]),
+    ("terminal:close", W, &[]),
+    ("terminal:next-tab", X, &["cmd-shift-]"]),
+    ("terminal:previous-tab", X, &["cmd-shift-["]),
+    ("terminal:copy", X, &["cmd-c"]),
+    ("terminal:paste", X, &["cmd-v"]),
+    ("terminal:clear", X, &[]),
+    ("terminal:open-in-ferrumterm", W, &[]),
     // View
     ("window:increase-font-size", W, &["cmd-=", "cmd-+"]),
     ("window:decrease-font-size", W, &["cmd--"]),
     ("window:reset-font-size", W, &["cmd-0"]),
     ("theme:use-dark", W, &[]),
     ("theme:use-light", W, &[]),
+    ("theme:select", W, &["cmd-k cmd-t"]),
+    ("theme:install-from-file", W, &[]),
+    ("theme:open-themes-folder", W, &[]),
+    ("theme:reload", W, &[]),
+    ("icon-theme:select", W, &[]),
+    ("icon-theme:open-folder", W, &[]),
+    ("icon-theme:reload", W, &[]),
     ("editor:toggle-soft-wrap", W, &["alt-z"]),
     ("editor:toggle-line-numbers", W, &[]),
     ("editor:toggle-indent-guides", W, &[]),
@@ -279,5 +299,6 @@ mod tests {
     fn scopes_map_to_key_contexts() {
         assert_eq!(Scope::Workspace.key_context(), None);
         assert_eq!(Scope::Editor.key_context(), Some("FerrumEditor"));
+        assert_eq!(Scope::Terminal.key_context(), Some("FerrumTerminal"));
     }
 }

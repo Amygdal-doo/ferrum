@@ -45,7 +45,6 @@ pub fn app_with(config: Config, macos_download: MacosDownload) -> Router {
         .route("/", get(home))
         .route("/ferrumdata", get(ferrumdata))
         .route("/ferrumapi", get(ferrumapi))
-        .route("/ferrum-ide", get(ferrum_ide))
         .route("/ferrumgit", get(ferrumgit))
         .route("/ferrumterm", get(ferrumterm))
         .route("/ferrumkit", get(ferrumkit))
@@ -55,6 +54,11 @@ pub fn app_with(config: Config, macos_download: MacosDownload) -> Router {
         .route(
             "/ferrum-toolbox",
             get(|| async { Redirect::permanent("/ferrum-launcher") }),
+        )
+        // Ferrum IDE was dropped; Ferrum Editor is the suite's code editor.
+        .route(
+            "/ferrum-ide",
+            get(|| async { Redirect::permanent("/ferrum-editor") }),
         )
         .route(pages::features::PATH, get(features))
         .route("/download", get(download))
@@ -77,9 +81,6 @@ async fn ferrumdata(State(s): State<AppState>) -> Markup {
 }
 async fn ferrumapi(State(s): State<AppState>) -> Markup {
     pages::ferrumapi::render(s.site_url())
-}
-async fn ferrum_ide(State(s): State<AppState>) -> Markup {
-    pages::ferrum_ide::render(s.site_url())
 }
 async fn ferrumgit(State(s): State<AppState>) -> Markup {
     pages::ferrumgit::render(s.site_url())

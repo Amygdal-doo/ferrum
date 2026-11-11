@@ -44,7 +44,6 @@
   /* Brand accents, one per app (see brand/README.md). Used for logos, borders
      and glows; never as body-text colour, so contrast holds in both themes. */
   --app-ferrum: #e8743b;
-  --app-ide: #5b8def;
   --app-api: #3fb8a0;
   --app-git: #f0b43c;
   --app-data: #a07cf0;
@@ -56,7 +55,7 @@
   --app-accent: var(--straw);
   /* Syntax colours in the animated app windows. */
   --syn-kw: var(--straw);
-  --syn-fn: var(--app-ide);
+  --syn-fn: #5b8def;
   --syn-ty: var(--app-git);
   --syn-str: var(--ok);
   --syn-num: var(--app-data);

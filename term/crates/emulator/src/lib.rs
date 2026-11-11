@@ -7,6 +7,9 @@ pub mod keys;
 mod palette;
 mod snapshot;
 
+/// Default palette, so embedders can map emulator colours onto their own theme.
+pub use palette::{ANSI, DEFAULT_BG, DEFAULT_FG};
+
 use alacritty_terminal::event::{Event as TermEvent, EventListener};
 use alacritty_terminal::grid::{Dimensions, Scroll};
 use alacritty_terminal::term::test::TermSize;

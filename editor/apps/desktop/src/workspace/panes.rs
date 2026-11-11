@@ -353,13 +353,20 @@ impl Workspace {
         let is_active_pane = index == self.active_pane && self.panes.len() > 1;
         let tabs =
             pane.items.iter().enumerate().map(|(i, item)| {
-                let (title, dirty) = match item {
+                let (title, dirty, path) = match item {
                     PaneItem::Editor(editor) => {
                         let editor = editor.read(cx);
-                        (editor.title(), editor.is_dirty())
+                        (editor.title(), editor.is_dirty(), editor.path.clone())
                     }
-                    PaneItem::Preview(preview, _) => (preview.read(cx).title(cx), false),
+                    PaneItem::Preview(preview, _) => (preview.read(cx).title(cx), false, None),
                 };
+                let icon = path.and_then(|path| {
+                    crate::file_icons::icon_element(
+                        &path,
+                        ferrumeditor_core::icons::EntryKind::File,
+                        cx,
+                    )
+                });
                 let active = i == pane.active;
                 h_flex()
                     .id(("tab", id * 10_000 + i))
@@ -379,6 +386,7 @@ impl Workspace {
                     .when(active && is_active_pane, |this| {
                         this.border_t_2().border_color(colors.text_accent)
                     })
+                    .when_some(icon, |this, icon| this.child(icon))
                     .child(Label::new(title).size(LabelSize::Small).color(if active {
                         Color::Default
                     } else {

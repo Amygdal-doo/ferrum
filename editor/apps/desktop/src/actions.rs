@@ -2,8 +2,11 @@
 //! binding and menu item dispatches it; views handle the names they know
 //! and let the rest bubble up to the workspace's registry.
 
+use ferrumeditor_core::commands::Scope;
 use ferrumeditor_core::keymap::Keymap;
-use gpui::{App, KeyBinding, Keystroke, Menu, MenuItem, SharedString};
+use gpui::{App, KeyBinding, Keystroke, Menu, MenuItem, NoAction, SharedString};
+
+use crate::settings::MAC;
 
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
 #[action(namespace = ferrum_editor, no_json)]
@@ -67,10 +70,47 @@ pub fn apply_keymap(keymap: &Keymap, cx: &mut App) -> Vec<String> {
         },
         Some("FerrumFindBar"),
     ));
+    ours.extend(terminal_passthrough(keymap));
     cx.clear_key_bindings();
     cx.bind_keys(base);
     cx.bind_keys(ours);
     problems
+}
+
+/// Whether a focused terminal should get `keys` instead of a window-wide
+/// binding: everything except Cmd shortcuts on macOS, and everything
+/// except Ctrl+Shift shortcuts elsewhere.
+pub fn terminal_owns(keys: &str) -> bool {
+    let first = keys.split_whitespace().next().unwrap_or_default();
+    let mods: Vec<&str> = first.split('-').collect();
+    let has = |m: &str| mods[..mods.len().saturating_sub(1)].contains(&m);
+    if MAC {
+        !has("cmd")
+    } else {
+        !(has("ctrl") && has("shift"))
+    }
+}
+
+/// `NoAction` bindings in the terminal's key context that hide
+/// window-wide bindings the shell needs (Ctrl+G, Ctrl+Tab, Alt+Z, Escape…),
+/// so those keys reach the terminal's key handler.
+fn terminal_passthrough(keymap: &Keymap) -> Vec<KeyBinding> {
+    let context = Scope::Terminal.key_context();
+    let mut keys: Vec<&str> = keymap
+        .bindings
+        .iter()
+        .filter(|b| b.scope == Scope::Workspace && !b.command.starts_with("terminal:"))
+        .map(|b| b.keys.as_str())
+        .filter(|keys| terminal_owns(keys))
+        // Unparseable keys are reported by `apply_keymap`; never bind them.
+        .filter(|keys| keys.split_whitespace().all(|k| Keystroke::parse(k).is_ok()))
+        .collect();
+    keys.push("escape");
+    keys.sort_unstable();
+    keys.dedup();
+    keys.into_iter()
+        .map(|keys| KeyBinding::new(keys, NoAction, context))
+        .collect()
 }
 
 fn item(title: &'static str, command: &'static str) -> MenuItem {
@@ -85,7 +125,11 @@ pub fn set_menus(cx: &mut App) {
             item("Settings…", "application:open-config"),
             item("Keymap…", "application:open-keymap"),
             item("Snippets…", "application:open-snippets"),
-            item("Theme…", "application:open-theme"),
+            item("Theme Overrides…", "application:open-theme"),
+            item("Select Theme…", "theme:select"),
+            item("Select Icon Theme…", "icon-theme:select"),
+            item("Install Theme from File…", "theme:install-from-file"),
+            item("Open Themes Folder", "theme:open-themes-folder"),
             MenuItem::separator(),
             item("Quit Ferrum Editor", "application:quit"),
         ]),
@@ -149,6 +193,9 @@ pub fn set_menus(cx: &mut App) {
             item("Toggle Tree View", "tree-view:toggle"),
             item("Reveal Active File", "tree-view:reveal-active-file"),
             item("Markdown Preview", "markdown-preview:toggle"),
+            item("Toggle Terminal", "terminal:toggle"),
+            item("New Terminal", "terminal:new"),
+            item("Open in FerrumTerm", "terminal:open-in-ferrumterm"),
             MenuItem::separator(),
             item("Split Right", "pane:split-right"),
             item("Split Down", "pane:split-down"),
@@ -164,6 +211,8 @@ pub fn set_menus(cx: &mut App) {
             MenuItem::separator(),
             item("Dark Theme", "theme:use-dark"),
             item("Light Theme", "theme:use-light"),
+            item("Select Theme…", "theme:select"),
+            item("Select Icon Theme…", "icon-theme:select"),
         ]),
     ]);
 }

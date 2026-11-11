@@ -23,9 +23,10 @@
 #
 # Secrets:
 #   RELEASES_TOKEN   A token with Contents: write on $RELEASE_REPO.
-#   SUBMODULE_TOKEN  A token with read access to Amygdal-doo/ferrum-ide. Every
-#                    app needs the ide/ submodule checked out, because the apps
-#                    depend on its GPUI crates by path.
+#   SUBMODULE_TOKEN  A token with read access to Amygdal-doo/ferrum-ide (the
+#                    repo behind the ide/ submodule). Every app needs it checked
+#                    out, because the apps depend on its GPUI and UI crates by
+#                    path. It is only a library; nothing is released from it.
 name: Release
 
 on:
@@ -60,7 +61,6 @@ jobs:
             echo "::error::'$version' is not a semver version"; exit 1
           fi
           case "$app" in
-            ide)     package=zed;                   binaries="zed" ;;
             api)     package=ferrumapi-desktop;     binaries="ferrumapi" ;;
             git)     package=ferrumgit-desktop;     binaries="ferrumgit" ;;
             data)    package=ferrumdata-desktop;    binaries="ferrumdata" ;;
@@ -70,6 +70,7 @@ jobs:
             editor)  package=ferrumeditor-desktop;  binaries="ferrumeditor" ;;
             launcher) package=ferrumlauncher-desktop; binaries="ferrum-launcher" ;;
             toolbox) echo "::error::toolbox-v* is the Ferrum Toolbox 0.5.0 bridge; build it with scripts/package-bridge.sh"; exit 1 ;;
+            ide) echo "::error::Ferrum IDE is no longer released; Ferrum Editor (editor-v*) is the suite's code editor"; exit 1 ;;
             *) echo "::error::unknown app id '$app'"; exit 1 ;;
           esac
           {
@@ -141,9 +142,6 @@ jobs:
       - name: Build
         if: env.FERRUM_SKIP != 'true'
         run: |
-          if [ "$APP" = "ide" ]; then
-            cd ide
-          fi
           rustup target add "${{ matrix.target }}"
           args=()
           for package in $PACKAGE; do args+=(-p "$package"); done

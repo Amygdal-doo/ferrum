@@ -202,6 +202,9 @@ mod tests {
         "api": {"installed": [{"version": "0.2.0", "tag": "api-v0.2.0", "asset": "a", "size": 1,
                                "installed_at": "2026-11-01T00:00:00Z", "notes": ""}],
                 "active": "0.2.0", "channel": "stable"},
+        "ide": {"installed": [{"version": "0.1.0", "tag": "ide-v0.1.0", "asset": "c", "size": 1,
+                               "installed_at": "2026-11-01T00:00:00Z", "notes": ""}],
+                "active": "0.1.0", "channel": "alpha"},
         "toolbox": {"installed": [{"version": "0.6.0", "tag": "toolbox-v0.6.0", "asset": "b", "size": 1,
                                    "installed_at": "2026-11-02T00:00:00Z", "notes": ""}],
                     "active": null, "channel": "alpha"}
@@ -211,9 +214,13 @@ mod tests {
         {"app": "toolbox", "version": "0.6.0", "tag": "toolbox-v0.6.0", "title": "", "notes": "",
          "prerelease": false, "published_at": null, "html_url": "", "assets": []},
         {"app": "api", "version": "0.2.0", "tag": "api-v0.2.0", "title": "", "notes": "",
+         "prerelease": false, "published_at": null, "html_url": "", "assets": []},
+        {"app": "ide", "version": "0.2.0", "tag": "ide-v0.2.0", "title": "", "notes": "",
          "prerelease": false, "published_at": null, "html_url": "", "assets": []}
       ],
       "catalog": {"apps": [{"id": "toolbox", "status": "alpha", "summary": "Old", "highlights": [],
+                            "roadmap": [], "homepage": null},
+                           {"id": "ide", "status": "alpha", "summary": "Old", "highlights": [],
                             "roadmap": [], "homepage": null}]}
     }"#;
 
@@ -269,10 +276,26 @@ mod tests {
             "Ferrum Launcher",
             "the cached 0.5.0 catalog doesn't break the new metadata"
         );
-        // Toolbox 0.5.0 knew five apps: FerrumKit, FerrumDock and Ferrum Editor are new.
+        // Ferrum IDE was dropped: the installed copy stays launchable and
+        // removable as "No longer offered", without updates.
+        let ide = AppId::new("ide").expect("id");
+        assert!(state.managed_apps().iter().all(|info| info.id != ide));
+        assert_eq!(
+            state
+                .discontinued_apps()
+                .iter()
+                .map(|info| info.id)
+                .collect::<Vec<_>>(),
+            vec![ide]
+        );
+        assert_eq!(state.info(ide).binary, "zed");
+        assert_eq!(state.active(ide), Some(&Version::new(0, 1, 0)));
+        assert!(state.update_for(ide).is_none());
+        assert!(state.updates().iter().all(|(app, _)| *app != ide));
+        // Toolbox 0.5.0 knew five apps: Ferrum Editor, FerrumKit and FerrumDock are new.
         assert_eq!(
             state.discover_apps(),
-            vec![AppId::KIT, AppId::DOCK, AppId::EDITOR]
+            vec![AppId::EDITOR, AppId::KIT, AppId::DOCK]
         );
         assert!(state.is_new(AppId::DOCK));
         state.save(&paths).expect("save");

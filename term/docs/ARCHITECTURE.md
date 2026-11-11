@@ -35,7 +35,7 @@ name, a window name, or a block label).
 
 ## GUI
 The window is a GPUI view built on the shared `ferrum-ui` crate (theme, fonts and window
-bootstrap shared with the other Ferrum tools and FerrumIDE). A canvas paints each pane from its
+bootstrap shared with the other Ferrum tools). A canvas paints each pane from its
 latest frame: background quads per span, then each row shaped with per-span `TextRun`s
 (bold/italic/dim/underline/strike) in the monospace buffer font. Narrow characters are shaped
 together with glyph advances forced to the cell width; wide characters (CJK, emoji) are shaped on

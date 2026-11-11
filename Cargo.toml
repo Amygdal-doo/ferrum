@@ -38,7 +38,7 @@ publish = false
 resvg = { version = "0.46", default-features = false }
 ferrum-ui = { path = "shared/ui" }
 
-# GPUI + Zed UI (from the FerrumIDE fork)
+# GPUI + Zed UI (from the `ide/` submodule, used as a library only)
 gpui = { path = "ide/crates/gpui" }
 gpui_platform = { path = "ide/crates/gpui_platform" }
 ui = { path = "ide/crates/ui" }

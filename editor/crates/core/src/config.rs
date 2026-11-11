@@ -31,6 +31,11 @@ pub struct Config {
     /// Ask before reloading a file that changed on disk while it has
     /// unsaved edits (clean files always reload silently).
     pub confirm_reload_dirty: bool,
+    /// Icon theme for the tree view, tabs and finders (`ferrum` = built-in).
+    pub icon_theme: String,
+    pub show_file_icons: bool,
+    /// Shell for the integrated terminal; empty = `$SHELL` as a login shell.
+    pub terminal_shell: String,
     pub languages: BTreeMap<String, LanguageConfig>,
 }
 
@@ -62,6 +67,9 @@ impl Default for Config {
             scroll_past_end: true,
             restore_session: true,
             confirm_reload_dirty: true,
+            icon_theme: crate::icons::BUILTIN_ICON_THEME.into(),
+            show_file_icons: true,
+            terminal_shell: String::new(),
             languages: BTreeMap::new(),
         }
     }
@@ -85,6 +93,9 @@ const KNOWN_KEYS: &[&str] = &[
     "scroll_past_end",
     "restore_session",
     "confirm_reload_dirty",
+    "icon_theme",
+    "show_file_icons",
+    "terminal_shell",
     "languages",
 ];
 
@@ -160,7 +171,10 @@ pub const DEFAULT_CONFIG_TOML: &str = r#"# Ferrum Editor settings. Changes apply
 font_family = ".ZedMono"     # any installed monospace font, e.g. "Menlo"
 font_size = 13
 line_height = 1.5            # multiple of font_size
-theme = "ferrum-dark"        # or "ferrum-light"
+theme = "ferrum-dark"        # "ferrum-light", or any theme in themes/ ("Theme: Select")
+icon_theme = "ferrum"        # built-in icons, or a folder in icon-themes/
+show_file_icons = true
+terminal_shell = ""          # empty: your login shell ($SHELL)
 
 tab_size = 4
 soft_tabs = true             # insert spaces for Tab
@@ -187,6 +201,54 @@ soft_tabs = false
 [languages.yaml]
 tab_size = 2
 "#;
+
+/// Sets top-level `key` to the string `value` in a config document,
+/// keeping comments and layout: the first `key = …` line before any table
+/// is rewritten (its trailing comment kept), otherwise the line is added
+/// before the first table.
+pub fn set_string_value(source: &str, key: &str, value: &str) -> String {
+    let quoted = toml::Value::String(value.to_string()).to_string();
+    let mut lines: Vec<String> = source.lines().map(str::to_string).collect();
+    let first_table = lines
+        .iter()
+        .position(|l| l.trim_start().starts_with('['))
+        .unwrap_or(lines.len());
+    let existing = lines[..first_table].iter().position(|line| {
+        let trimmed = line.trim_start();
+        trimmed
+            .strip_prefix(key)
+            .is_some_and(|rest| rest.trim_start().starts_with('='))
+    });
+    match existing {
+        Some(index) => {
+            let line = &lines[index];
+            let comment = line
+                .find(" #")
+                .filter(|at| line[..*at].matches('"').count().is_multiple_of(2))
+                .map(|at| line[at..].to_string())
+                .unwrap_or_default();
+            let new_line = format!("{key} = {quoted}");
+            let width = line.find(" #").map_or(0, |at| at.max(new_line.len()));
+            lines[index] = if comment.is_empty() {
+                new_line
+            } else {
+                format!("{new_line:<width$}{comment}")
+            };
+        }
+        None => {
+            let mut at = first_table;
+            while at > 0 && lines[at - 1].trim().is_empty() {
+                at -= 1;
+            }
+            lines.insert(at, format!("{key} = {quoted}"));
+        }
+    }
+    let mut out = lines.join("\n");
+    if source.ends_with('\n') || source.is_empty() {
+        out.push('\n');
+    }
+    out
+}
 
 #[cfg(test)]
 mod tests {
@@ -232,5 +294,32 @@ mod tests {
     fn language_aliases_resolve() {
         let (config, _) = Config::parse("[languages.py]\ntab_size = 2").expect("valid");
         assert_eq!(config.edit_settings(Language::Python).tab_size, 2);
+    }
+
+    #[test]
+    fn set_string_value_keeps_comments() {
+        let doc = set_string_value(DEFAULT_CONFIG_TOML, "theme", "Night Owl");
+        let (config, warnings) = Config::parse(&doc).expect("valid");
+        assert!(warnings.is_empty());
+        assert_eq!(config.theme, "Night Owl");
+        let line = doc
+            .lines()
+            .find(|l| l.starts_with("theme ="))
+            .expect("theme line");
+        assert!(line.starts_with("theme = \"Night Owl\" ") && line.contains("# \"ferrum-light\""));
+        assert!(doc.contains("[languages.markdown]"));
+        let added = set_string_value(
+            "tab_size = 2\n\n[languages.go]\nsoft_tabs = false\n",
+            "icon_theme",
+            "mono",
+        );
+        assert_eq!(
+            added,
+            "tab_size = 2\nicon_theme = \"mono\"\n\n[languages.go]\nsoft_tabs = false\n"
+        );
+        let (config, _) = Config::parse(&added).expect("valid");
+        assert_eq!(config.icon_theme, "mono");
+        assert_eq!(config.languages.len(), 1);
+        assert_eq!(set_string_value("", "theme", "x"), "theme = \"x\"\n");
     }
 }

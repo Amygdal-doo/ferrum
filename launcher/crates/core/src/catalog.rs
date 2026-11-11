@@ -21,7 +21,6 @@ use std::sync::{Mutex, OnceLock};
 pub struct AppId(&'static str);
 
 impl AppId {
-    pub const IDE: AppId = AppId("ide");
     pub const API: AppId = AppId("api");
     pub const GIT: AppId = AppId("git");
     pub const DATA: AppId = AppId("data");
@@ -37,15 +36,14 @@ impl AppId {
     pub const LEGACY_LAUNCHER: &'static str = "toolbox";
 
     /// Apps this build has metadata for, in overview order.
-    pub const BUILTIN: [AppId; 9] = [
-        AppId::IDE,
+    pub const BUILTIN: [AppId; 8] = [
+        AppId::EDITOR,
         AppId::API,
         AppId::GIT,
         AppId::DATA,
         AppId::TERM,
         AppId::KIT,
         AppId::DOCK,
-        AppId::EDITOR,
         AppId::LAUNCHER,
     ];
 
@@ -53,12 +51,18 @@ impl AppId {
     /// those versions has no seen-apps record; these count as seen so the
     /// apps added since are announced as new.
     pub const PRE_LAUNCHER: [AppId; 5] = [
-        AppId::IDE,
+        AppId("ide"),
         AppId::API,
         AppId::GIT,
         AppId::DATA,
         AppId::TERM,
     ];
+
+    /// Apps the suite no longer ships (Ferrum IDE). The launcher still
+    /// knows enough about them to launch and uninstall a copy installed
+    /// earlier, but never lists, offers or updates them, even if a catalog
+    /// still has an entry.
+    pub const RETIRED: [AppId; 1] = [AppId("ide")];
 
     /// Validates (and interns) `id`. `toolbox` maps to [`AppId::LAUNCHER`].
     #[must_use]
@@ -69,8 +73,12 @@ impl AppId {
         if !is_valid_id(id) {
             return None;
         }
-        if let Some(builtin) = Self::BUILTIN.iter().find(|app| app.0 == id) {
-            return Some(*builtin);
+        if let Some(known) = Self::BUILTIN
+            .iter()
+            .chain(&Self::RETIRED)
+            .find(|app| app.0 == id)
+        {
+            return Some(*known);
         }
         Some(AppId(intern(id)))
     }
@@ -83,6 +91,12 @@ impl AppId {
     #[must_use]
     pub fn is_builtin(self) -> bool {
         Self::BUILTIN.contains(&self)
+    }
+
+    /// Whether the suite dropped this app (see [`AppId::RETIRED`]).
+    #[must_use]
+    pub fn is_retired(self) -> bool {
+        Self::RETIRED.contains(&self)
     }
 }
 
@@ -153,7 +167,7 @@ pub struct AppInfo {
     pub extra_binaries: Vec<String>,
     /// macOS bundle name without `.app`.
     pub bundle_name: String,
-    /// Name of a Zed `IconName` variant (e.g. `ToolHammer`); the UI falls
+    /// Name of a `ui` crate `IconName` variant (e.g. `ToolHammer`); the UI falls
     /// back to a generic icon for names it doesn't know.
     pub icon: String,
     /// URL of a PNG logo, downloaded once and cached; built-in apps also have
@@ -172,17 +186,14 @@ impl AppInfo {
     /// The built-in metadata for `app`, if this build knows it.
     #[must_use]
     pub fn builtin(app: AppId) -> Option<AppInfo> {
-        BUILTIN.iter().find(|b| b.id == app).map(|b| AppInfo {
-            id: b.id,
-            name: b.name.into(),
-            description: b.description.into(),
-            binary: b.binary.into(),
-            extra_binaries: b.extra_binaries.iter().map(|s| (*s).into()).collect(),
-            bundle_name: b.bundle_name.into(),
-            icon: b.icon.into(),
-            logo: None,
-            order: b.order,
-        })
+        BUILTIN.iter().find(|b| b.id == app).map(Builtin::info)
+    }
+
+    /// What a copy of a retired app installed earlier is called and where
+    /// its files are, so it can still be launched and uninstalled.
+    #[must_use]
+    pub fn retired(app: AppId) -> Option<AppInfo> {
+        RETIRED.iter().find(|b| b.id == app).map(Builtin::info)
     }
 
     /// Stand-in for an id nothing describes (e.g. an installed app whose
@@ -217,15 +228,44 @@ struct Builtin {
     order: i32,
 }
 
-static BUILTIN: [Builtin; 9] = [
+impl Builtin {
+    fn info(&self) -> AppInfo {
+        AppInfo {
+            id: self.id,
+            name: self.name.into(),
+            description: self.description.into(),
+            binary: self.binary.into(),
+            extra_binaries: self.extra_binaries.iter().map(|s| (*s).into()).collect(),
+            bundle_name: self.bundle_name.into(),
+            icon: self.icon.into(),
+            logo: None,
+            order: self.order,
+        }
+    }
+}
+
+/// Install layout of the apps in [`AppId::RETIRED`], as the releases that
+/// were published for them ship it.
+static RETIRED: [Builtin; 1] = [Builtin {
+    id: AppId("ide"),
+    name: "Ferrum IDE",
+    description: "No longer offered: Ferrum Editor is the suite's code editor.",
+    binary: "zed",
+    extra_binaries: &[],
+    bundle_name: "Ferrum IDE",
+    icon: "Code",
+    order: 10,
+}];
+
+static BUILTIN: [Builtin; 8] = [
     Builtin {
-        id: AppId::IDE,
-        name: "FerrumIDE",
-        description: "Code editor and IDE built on the Zed codebase.",
-        binary: "zed",
+        id: AppId::EDITOR,
+        name: "Ferrum Editor",
+        description: "Lightweight, hackable text editor: tree view, tabs, fuzzy finder and command palette.",
+        binary: "ferrumeditor",
         extra_binaries: &[],
-        bundle_name: "Ferrum IDE",
-        icon: "Code",
+        bundle_name: "Ferrum Editor",
+        icon: "CursorIBeam",
         order: 10,
     },
     Builtin {
@@ -287,16 +327,6 @@ static BUILTIN: [Builtin; 9] = [
         bundle_name: "FerrumDock",
         icon: "Blocks",
         order: 70,
-    },
-    Builtin {
-        id: AppId::EDITOR,
-        name: "Ferrum Editor",
-        description: "Lightweight, hackable text editor: tree view, tabs, fuzzy finder and command palette.",
-        binary: "ferrumeditor",
-        extra_binaries: &[],
-        bundle_name: "Ferrum Editor",
-        icon: "CursorIBeam",
-        order: 80,
     },
     Builtin {
         id: AppId::LAUNCHER,
@@ -510,9 +540,9 @@ const EMBEDDED_CATALOG: &str = include_str!("../../../../catalog.json");
 
 impl Catalog {
     /// Parses `catalog.json`. Bad entries (invalid id, unknown status, an
-    /// unknown app without complete metadata) are skipped and logged, and
-    /// unknown fields are ignored, so neither an older nor a newer catalog
-    /// breaks the launcher.
+    /// unknown app without complete metadata) are skipped and logged,
+    /// entries for retired apps are dropped, and unknown fields are ignored,
+    /// so neither an older nor a newer catalog breaks the launcher.
     pub fn parse(json: &str) -> crate::Result<Self> {
         let value: Value = serde_json::from_str(json)?;
         if !value.get("apps").is_some_and(Value::is_array) {
@@ -531,6 +561,9 @@ impl Catalog {
             .map(|apps| {
                 apps.iter()
                     .filter_map(|app| match CatalogEntry::from_value(app) {
+                        // Older catalogs (and copies cached from them) still
+                        // list apps the suite dropped; they are not offered.
+                        Ok(entry) if entry.id.is_retired() => None,
                         Ok(entry) if seen.insert(entry.id) => Some(entry),
                         Ok(entry) => {
                             tracing::warn!(app = %entry.id, "skipping duplicate catalog entry");
@@ -702,7 +735,7 @@ mod tests {
         assert_eq!(
             order,
             [
-                "ide", "api", "git", "data", "term", "kit", "forge", "dock", "editor", "launcher"
+                "editor", "api", "git", "data", "term", "kit", "forge", "dock", "launcher"
             ]
         );
     }
@@ -764,6 +797,30 @@ mod tests {
             old.info(AppId::LAUNCHER).map(|i| i.bundle_name),
             Some("Ferrum Launcher".into())
         );
+    }
+
+    #[test]
+    fn retired_apps_are_never_listed_but_keep_their_install_layout() {
+        let ide = AppId::new("ide").expect("id");
+        assert!(ide.is_retired());
+        assert!(!ide.is_builtin());
+        assert!(AppInfo::builtin(ide).is_none());
+        // A catalog published before Ferrum IDE was dropped still lists it.
+        let old = Catalog::parse(
+            r#"{"apps":[{"id":"ide","status":"alpha","summary":"Editor","name":"FerrumIDE",
+                "binary":"zed","bundle_name":"Ferrum IDE"},
+              {"id":"api","status":"alpha","summary":"API"}]}"#,
+        )
+        .expect("parse");
+        assert!(old.entry(ide).is_none());
+        assert!(old.info(ide).is_none());
+        assert!(old.apps().iter().all(|info| info.id != ide));
+        assert!(Catalog::embedded().entry(ide).is_none());
+        let info = AppInfo::retired(ide).expect("retired");
+        assert_eq!(info.name, "Ferrum IDE");
+        assert_eq!(info.binary, "zed");
+        assert_eq!(info.bundle_name, "Ferrum IDE");
+        assert!(AppInfo::retired(AppId::EDITOR).is_none());
     }
 
     #[test]

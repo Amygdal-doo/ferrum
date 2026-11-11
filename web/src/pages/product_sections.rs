@@ -45,7 +45,7 @@ pub struct ProductPage {
 }
 
 /// Render a full product page. `extra` is inserted after the hero
-/// (used by Ferrum IDE for the upstream credit).
+/// (e.g. an upstream credit).
 pub fn render(site_url: &str, p: &ProductPage, extra: Markup) -> Markup {
     let prod = &p.product;
     let path = prod.path();

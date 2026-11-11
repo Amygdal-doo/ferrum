@@ -1,7 +1,7 @@
 //! Overview: every app with its status, versions and the next action.
 //! Clicking a row opens the app's page.
 
-use super::{format_count, format_date, status_badge};
+use super::{discontinued_badge, format_count, format_date, status_badge};
 use crate::app::FerrumLauncher;
 use ferrum_ui::prelude::*;
 use ferrumlauncher_core::{AppId, Channel, current_target};
@@ -37,10 +37,12 @@ fn version_label(version: Option<String>) -> Label {
 
 impl FerrumLauncher {
     pub fn render_overview(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        // Apps still offered, then installed apps the suite dropped.
         let rows: Vec<AnyElement> = self
             .state
             .managed_apps()
             .into_iter()
+            .chain(self.state.discontinued_apps())
             .map(|info| self.render_overview_row(info.id, cx))
             .collect();
         let colors = cx.theme().colors();
@@ -91,6 +93,7 @@ impl FerrumLauncher {
         let colors = cx.theme().colors();
         let info = self.state.info(app);
         let is_new = self.state.is_new(app);
+        let offered = self.state.is_offered(app);
         let entry = self.state.catalog_entry(app);
         let status = entry.map(|entry| entry.status);
         let summary = entry
@@ -148,7 +151,10 @@ impl FerrumLauncher {
             )
             .child(
                 cell(STATUS_WIDTH)
-                    .when_some(status, |this, status| this.child(status_badge(status, cx))),
+                    .when(!offered, |this| this.child(discontinued_badge(cx)))
+                    .when_some(status.filter(|_| offered), |this, status| {
+                        this.child(status_badge(status, cx))
+                    }),
             )
             .child(cell(VERSION_WIDTH).child(version_label(active)))
             .child(cell(VERSION_WIDTH).child(version_label(stable)))

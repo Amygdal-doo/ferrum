@@ -8,7 +8,7 @@ use ferrum_ui::gpui::Hsla;
 use ferrum_ui::prelude::*;
 use ferrumlauncher_core::{AppStatus, Channel};
 
-/// A Zed `IconName` from its variant name (`ToolHammer`) or its snake_case
+/// A `ui` crate `IconName` from its variant name (`ToolHammer`) or its snake_case
 /// form (`tool_hammer`); unknown names get a generic icon.
 pub fn icon_for(name: &str) -> IconName {
     let mut snake = String::with_capacity(name.len() + 4);
@@ -38,6 +38,11 @@ pub fn status_color(status: AppStatus, cx: &App) -> Hsla {
 
 pub fn status_badge(status: AppStatus, cx: &App) -> impl IntoElement {
     badge(status.label(), status_color(status, cx), cx)
+}
+
+/// Shown instead of the status for an installed app the suite dropped.
+pub fn discontinued_badge(cx: &App) -> impl IntoElement {
+    badge("No longer offered", cx.theme().colors().text_muted, cx)
 }
 
 pub fn channel_badge(channel: Channel, cx: &App) -> impl IntoElement {

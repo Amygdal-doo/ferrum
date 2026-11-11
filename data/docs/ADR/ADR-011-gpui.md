@@ -2,6 +2,8 @@
 
 Status: Accepted · 2026-11-08 · supersedes ADR-001 and ADR-002
 
+> **Note 2026-11-11:** Ferrum IDE was dropped as a product; `../ide` stays as a library (GPUI, `ui`, `theme`) and Ferrum Editor is the suite's code editor.
+
 ## Context
 FerrumData, FerrumAPI, FerrumGIT and FerrumTerm moved into one monorepo with FerrumIDE
 (a Zed fork). FerrumIDE already renders with GPUI. Keeping the tools on Dioxus desktop

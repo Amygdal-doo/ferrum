@@ -1,8 +1,8 @@
 # FerrumDock
 
 A fast, native container manager written in Rust, meant as a lighter alternative to
-Docker Desktop's dashboard. It is a GPUI desktop app (the UI framework of Zed, through the
-FerrumIDE fork) built on the shared `ferrum-ui` crate. FerrumDock **does not ship an
+Docker Desktop's dashboard. It is a GPUI desktop app (the UI framework of Zed, from the
+`ide/` submodule) built on the shared `ferrum-ui` crate. FerrumDock **does not ship an
 engine**. It talks to the Docker-compatible engine you already run (Docker Desktop, OrbStack,
 Colima, or Podman with the Docker API) over the Docker Engine API. It is part of the Ferrum
 monorepo, alongside [FerrumAPI](../api), [FerrumGIT](../git), [FerrumData](../data) and
@@ -37,7 +37,7 @@ monorepo, alongside [FerrumAPI](../api), [FerrumGIT](../git), [FerrumData](../da
 | Keyboard: ⌘R refresh (or retry while offline), ⌘F filter, Esc closes the dialog or the detail panel | ⚠️ compiled only |
 
 ### Open shell and FerrumTerm
-FerrumTerm counts as installed under the same rule FerrumIDE uses: its GUI bundle
+FerrumTerm counts as installed when its GUI bundle
 (`~/Applications/Ferrum/FerrumTerm.app`, `/Applications/Ferrum/FerrumTerm.app` or
 `/Applications/FerrumTerm.app`) **and** `~/.ferrum/bin/fterm` must both exist. In that case
 FerrumDock runs:

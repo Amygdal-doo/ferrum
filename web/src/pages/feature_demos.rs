@@ -12,7 +12,6 @@ use crate::products;
 /// The demo for a product, by slug.
 pub fn for_slug(slug: &str) -> Option<Markup> {
     let demo: fn() -> Markup = match slug {
-        s if s == products::FERRUM_IDE.slug => ide,
         s if s == products::FERRUMAPI.slug => api,
         s if s == products::FERRUMGIT.slug => git,
         s if s == products::FERRUMDATA.slug => data,
@@ -37,45 +36,6 @@ fn window(title: &str, body_class: &str, body: Markup) -> Markup {
             div class={ "demo__body " (body_class) } { (body) }
         }
     }
-}
-
-pub fn ide() -> Markup {
-    window(
-        "lexer.rs — ferrum",
-        "ide",
-        html! {
-            ul class="ide__tree" {
-                li { "▾ src" }
-                li class="is-open" { "lexer.rs" }
-                li { "parser.rs" }
-                li { "main.rs" }
-                li { "Cargo.toml" }
-            }
-            div class="ide__editor" {
-                p { span class="t-kw" { "pub fn " } span class="t-fn" { "tokens" } "(src: &" span class="t-kw" { "str" } ") -> " span class="t-ty" { "Vec" } "<Token> {" }
-                p { "    " span class="t-kw" { "let mut " } "out = " span class="t-ty" { "Vec" } "::new();" }
-                p { "    " span class="t-kw" { "for " } "ch " span class="t-kw" { "in " } "src.chars() {" }
-                p { "        out.push(" span class="t-ty" { "Token" } "::from(ch));" }
-                p { "    }" }
-                p { span class="ide__typed" { "    out" } span class="demo__caret" {} }
-                p { "}" }
-            }
-            div class="ide__palette" {
-                p class="ide__query" { "› ferrum: open" }
-                ul {
-                    li class="ide__sel" {}
-                    li { "Open in FerrumGIT" kbd { "⌃⌥⌘G" } }
-                    li { "Open FerrumTerm here" kbd { "⌃⌥⌘T" } }
-                    li { "Open FerrumData" }
-                    li { "Open FerrumAPI" }
-                }
-            }
-            div class="ide__status" {
-                span { "⎇ main" }
-                span class="ide__ferrum" { "◆ Ferrum" }
-            }
-        },
-    )
 }
 
 pub fn api() -> Markup {
@@ -249,7 +209,7 @@ pub fn term() -> Markup {
 
 pub fn launcher() -> Markup {
     let apps = [
-        ("Ferrum IDE", "--app-ide", "0.3.0-alpha.1"),
+        ("Ferrum Editor", "--app-editor", "0.1.0-alpha.1"),
         ("FerrumAPI", "--app-api", "0.2.0-alpha.1"),
         ("FerrumGIT", "--app-git", "0.2.0-alpha.1"),
         ("FerrumData", "--app-data", "0.3.0-alpha.1"),

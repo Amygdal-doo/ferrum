@@ -13,23 +13,22 @@ use std::sync::{Arc, OnceLock};
 macro_rules! logo_bytes {
     ($size:literal) => {
         [
-            include_bytes!(concat!("../../../../../brand/png/ide-", $size, ".png")).as_slice(),
+            include_bytes!(concat!("../../../../../brand/png/editor-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/api-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/git-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/data-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/term-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/kit-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/dock-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/editor-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/launcher-", $size, ".png")).as_slice(),
         ]
     };
 }
 
-const SMALL: [&[u8]; 9] = logo_bytes!("64");
-const LARGE: [&[u8]; 9] = logo_bytes!("128");
+const SMALL: [&[u8]; 8] = logo_bytes!("64");
+const LARGE: [&[u8]; 8] = logo_bytes!("128");
 
-fn images(cache: &'static OnceLock<Vec<Arc<Image>>>, bytes: &[&[u8]; 9]) -> &'static [Arc<Image>] {
+fn images(cache: &'static OnceLock<Vec<Arc<Image>>>, bytes: &[&[u8]; 8]) -> &'static [Arc<Image>] {
     cache.get_or_init(|| {
         bytes
             .iter()

@@ -241,3 +241,23 @@ impl TreeView {
         true
     }
 }
+
+#[cfg(test)]
+impl TreeView {
+    /// (file name, icon id) of every visible entry, as the rows render them.
+    pub fn visible_icon_ids(&self, cx: &App) -> Vec<(String, Option<String>)> {
+        let settings = cx.global::<crate::settings::Settings>();
+        self.entries
+            .iter()
+            .map(|e| {
+                let kind = crate::file_icons::file_kind(e.is_dir, e.expanded);
+                let icon = crate::file_icons::icon_for(&e.path, kind, settings);
+                (e.name.clone(), icon.map(|i| i.id))
+            })
+            .collect()
+    }
+
+    pub fn toggle_path(&mut self, path: &Path, cx: &mut Context<Self>) {
+        self.activate(path.to_path_buf(), cx);
+    }
+}

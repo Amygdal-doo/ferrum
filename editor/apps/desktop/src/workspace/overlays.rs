@@ -1,4 +1,4 @@
-//! Pickers (command palette, file finder, go to line), the find bar,
+//! Pickers (command palette, file finder, go to line, theme selectors), the find bar,
 //! find in files, and the Markdown preview toggle.
 
 use std::sync::Arc;
@@ -48,16 +48,23 @@ impl Workspace {
                 }
                 (Vec::new(), "Line[:column]")
             }
+            PickerKind::Theme | PickerKind::IconTheme => Self::theme_items(kind, cx),
         };
         let picker = cx.new(|cx| Picker::new(kind, items, placeholder, window, cx));
+        if matches!(kind, PickerKind::Theme | PickerKind::IconTheme) {
+            let current = self.begin_theme_preview(kind, cx);
+            picker.update(cx, |picker, cx| picker.select_payload(&current, cx));
+        }
         let subscription = cx.subscribe_in(&picker, window, Self::on_picker_event);
         self._subscriptions.push(subscription);
         self.picker = Some(picker);
         cx.notify();
     }
 
+    /// Closes the picker; an unconfirmed theme preview is reverted.
     pub(super) fn close_picker(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.picker = None;
+        self.revert_theme_preview(cx);
         self.focus_active(window, cx);
         cx.notify();
     }
@@ -70,16 +77,17 @@ impl Workspace {
             .filter(|c| {
                 !c.name.starts_with("editor:move-") && !c.name.starts_with("editor:select-to")
             })
-            .map(|c| PickerItem {
-                label: c.title().into(),
-                detail: settings
-                    .keymap
-                    .keys_for(&c.name)
-                    .first()
-                    .map(|k| display_keys(k, MAC))
-                    .unwrap_or_default()
-                    .into(),
-                payload: c.name.clone(),
+            .map(|c| {
+                PickerItem::new(
+                    c.title(),
+                    settings
+                        .keymap
+                        .keys_for(&c.name)
+                        .first()
+                        .map(|k| display_keys(k, MAC))
+                        .unwrap_or_default(),
+                    c.name.clone(),
+                )
             })
             .collect();
         items.sort_by(|a, b| a.label.cmp(&b.label));
@@ -115,11 +123,11 @@ impl Workspace {
         if let (Some(root), Some(files)) = (self.root.clone(), self.file_list.clone()) {
             items.extend(files.iter().map(|rel| {
                 let label = rel.to_string_lossy().to_string();
-                PickerItem {
-                    label: label.into(),
-                    detail: SharedString::default(),
-                    payload: root.join(rel).to_string_lossy().to_string(),
-                }
+                let path = root.join(rel);
+                let mut item =
+                    PickerItem::new(label, SharedString::default(), path.to_string_lossy());
+                item.icon = Some(path);
+                item
             }));
         }
         // Open files outside the project are findable too.
@@ -130,11 +138,13 @@ impl Workspace {
                     .as_deref()
                     .is_none_or(|root| !path.starts_with(root))
             {
-                items.push(PickerItem {
-                    label: path.to_string_lossy().to_string().into(),
-                    detail: "open".into(),
-                    payload: path.to_string_lossy().to_string(),
-                });
+                let mut item = PickerItem::new(
+                    path.to_string_lossy().to_string(),
+                    "open",
+                    path.to_string_lossy(),
+                );
+                item.icon = Some(path);
+                items.push(item);
             }
         }
         items
@@ -147,11 +157,22 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let PickerEvent::Confirmed { kind, payload } = event else {
-            self.close_picker(window, cx);
-            return;
+        let (kind, payload) = match event {
+            PickerEvent::Highlighted { kind, payload } => {
+                if self.theme_preview.as_ref().is_some_and(|(k, _)| k == kind) {
+                    self.preview_theme(*kind, payload, cx);
+                }
+                return;
+            }
+            PickerEvent::Dismissed => {
+                self.close_picker(window, cx);
+                return;
+            }
+            PickerEvent::Confirmed { kind, payload } => (*kind, payload.clone()),
         };
-        let payload = payload.clone();
+        if matches!(kind, PickerKind::Theme | PickerKind::IconTheme) {
+            self.confirm_theme(kind, &payload, cx);
+        }
         self.close_picker(window, cx);
         match kind {
             PickerKind::Commands => {
@@ -180,6 +201,7 @@ impl Workspace {
                     });
                 }
             }
+            PickerKind::Theme | PickerKind::IconTheme => {}
         }
     }
 

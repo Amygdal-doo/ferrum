@@ -34,8 +34,8 @@ const FEATURES: &[(&str, &str)] = &[
     ),
     (
         "Its own editor core",
-        "Rope buffer, undo, multi-cursor, rendering and input are written from scratch on GPUI. \
-         It is not Ferrum IDE and uses nothing from Zed's editor.",
+        "Rope buffer, undo, multi-cursor, rendering and input are written from scratch on \
+         GPUI, not forked from another editor.",
     ),
 ];
 
@@ -45,7 +45,10 @@ const WORKS_TODAY: &[&str] = &[
     "Auto-close brackets, auto-indent, toggle comment, move and duplicate lines",
     "Find and replace, find in files, fuzzy finder and command palette",
     "Git line marks and branch, Markdown preview, reload on change, session restore",
-    "Snippets with tab stops; dark and light themes; ferrumeditor path:line:col",
+    "Snippets with tab stops; ferrumeditor path:line:col",
+    "Terminal panel from the status bar (⌃`), with tabs that keep running when hidden",
+    "Theme picker with live preview; TOML themes and VS Code theme import",
+    "File icons in the tree, tabs and finder; loadable icon themes",
 ];
 
 const NOT_BUILT_YET: &[&str] = &[
@@ -57,7 +60,7 @@ const NOT_BUILT_YET: &[&str] = &[
 
 const PAGE: ProductPage = ProductPage {
     product: FERRUM_EDITOR,
-    meta_description: "Ferrum Editor is a small, hackable text editor in the spirit of Atom, \
+    meta_description: "Ferrum Editor is a small, hackable code editor in the spirit of Atom, \
                        written from scratch in Rust on GPUI and configured in plain TOML.",
     intro: "Tree view, tabs, fuzzy finder and command palette, with config, keymap, theme and \
             snippets in plain files you edit in the editor itself. Lighter than an IDE, and \

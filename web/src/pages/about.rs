@@ -33,12 +33,13 @@ const PRINCIPLES: &[(&str, &str)] = &[
 const CREDITS: &[(&str, &str)] = &[
     (
         "Zed",
-        "The open-source editor Ferrum IDE is forked from, developed by Zed Industries.",
+        "The open-source editor GPUI and the ui and theme crates come from, developed by Zed \
+         Industries.",
     ),
     (
         "GPUI",
         "Zed's GPU-accelerated UI framework. Every Ferrum desktop app renders with it, \
-         together with Zed's ui and theme crates, taken from the Ferrum IDE fork.",
+         together with Zed's ui and theme crates.",
     ),
     (
         "SQLx",
@@ -76,8 +77,8 @@ pub fn render(site_url: &str) -> Markup {
                     h1 id="about-title" { "Developer tools, forged in Rust" }
                     p class="lead" {
                         "Ferrum is a family of native developer tools written in Rust: a code \
-                         editor, an API client, a Git client, a database IDE and a terminal, \
-                         plus Ferrum Launcher to install and update them. They are local-first, \
+                         editor, an API client, a Git client, a database IDE, a terminal, a \
+                         container manager and developer utilities, plus Ferrum Launcher to install and update them. They are local-first, \
                          share one GPUI-based interface and run without Electron."
                     }
                 }
@@ -131,7 +132,7 @@ pub fn render(site_url: &str) -> Markup {
                         }
                     }
                     p class="muted" {
-                        "Ferrum IDE is based on the open-source "
+                        "GPUI and the ui and theme crates come from the open-source "
                         a href=(site::ZED_UPSTREAM_URL) rel="noopener" { "Zed editor" }
                         ". Ferrum is not affiliated with or endorsed by Zed Industries."
                     }

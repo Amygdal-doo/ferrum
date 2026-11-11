@@ -125,6 +125,46 @@ pub(super) fn builtin_registry() -> CommandRegistry {
         adjust_font(cx, Some(-1.0))
     });
     r.register("window:reset-font-size", |_, _, cx| adjust_font(cx, None));
+    r.register("terminal:toggle", |w, window, cx| {
+        w.toggle_terminal(window, cx)
+    });
+    r.register("terminal:new", |w, window, cx| w.new_terminal(window, cx));
+    r.register("terminal:close", |w, window, cx| {
+        w.close_terminal(window, cx)
+    });
+    r.register("terminal:next-tab", |w, window, cx| {
+        w.cycle_terminal(1, window, cx)
+    });
+    r.register("terminal:previous-tab", |w, window, cx| {
+        w.cycle_terminal(-1, window, cx)
+    });
+    for name in ["terminal:copy", "terminal:paste", "terminal:clear"] {
+        r.register(name, move |w, _, cx| {
+            if let Some(view) = w.terminal.read(cx).active() {
+                view.update(cx, |view, cx| view.run_command(name, cx));
+            }
+        });
+    }
+    r.register("terminal:open-in-ferrumterm", |w, _, cx| {
+        w.open_in_ferrumterm(cx)
+    });
+    r.register("theme:select", |w, window, cx| {
+        w.toggle_picker(PickerKind::Theme, window, cx)
+    });
+    r.register("theme:install-from-file", |w, window, cx| {
+        w.install_theme_dialog(window, cx)
+    });
+    r.register("theme:open-themes-folder", |w, _, cx| {
+        w.open_theme_folder(false, cx)
+    });
+    r.register("theme:reload", |w, _, cx| w.reload_settings(cx));
+    r.register("icon-theme:select", |w, window, cx| {
+        w.toggle_picker(PickerKind::IconTheme, window, cx)
+    });
+    r.register("icon-theme:open-folder", |w, _, cx| {
+        w.open_theme_folder(true, cx)
+    });
+    r.register("icon-theme:reload", |w, _, cx| w.reload_settings(cx));
     r.register("theme:use-dark", |w, _, cx| w.use_theme("ferrum-dark", cx));
     r.register("theme:use-light", |w, _, cx| {
         w.use_theme("ferrum-light", cx)

@@ -1,11 +1,11 @@
 # FerrumKit
 
 Offline developer utilities in the style of DevUtils / DevToys, written in Rust: a native
-GPUI desktop app (the UI framework of Zed, via the FerrumIDE fork) built on the shared
+GPUI desktop app (the UI framework of Zed, from the `ide/` submodule) built on the shared
 `ferrum-ui` crate. One window: a searchable list of tools on the left, the selected tool on
 the right. Everything runs locally — FerrumKit makes no network requests and writes nothing
 to disk. Part of the Ferrum monorepo, sibling of [FerrumAPI](../api), [FerrumGIT](../git),
-[FerrumData](../data) and [FerrumIDE](../ide), with the same theme and components.
+[FerrumData](../data) and [Ferrum Editor](../editor), with the same theme and components.
 
 > **Status: alpha — first vertical slice.** See "What works" below; nothing beyond that list
 > should be assumed. "Tested" means automated unit tests of `ferrumkit-core`; the GPUI UI
@@ -44,7 +44,7 @@ unwrapped lines); a light theme; packaging, signing and a Ferrum Launcher entry.
 - Rust via rustup. `rust-toolchain.toml` installs the pinned toolchain automatically.
 - macOS: Xcode command line tools (GPUI renders with Metal). Linux/Windows: whatever GPUI
   needs on that platform (see `ide/` docs).
-- No Node, no CSS build: styling is Rust code using the FerrumIDE theme.
+- No Node, no CSS build: styling is Rust code using the Ferrum theme.
 
 ## Commands
 Run from the monorepo root (`ferrum/`).

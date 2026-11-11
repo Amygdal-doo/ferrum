@@ -43,5 +43,5 @@ layer, so nothing from a database is interpreted as markup.
 
 ## Supply chain
 Toolchain pinned (`rust-toolchain.toml`), `Cargo.lock` committed, GPUI and the `ui`/`theme`
-crates come from the in-repo FerrumIDE fork (`../ide`, path dependencies), weekly `cargo
+crates come from the in-repo Zed codebase (`../ide` submodule, path dependencies), weekly `cargo
 audit` workflow.

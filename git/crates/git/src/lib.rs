@@ -1,6 +1,6 @@
 //! Git execution for FerrumGIT.
 //!
-//! Like Tower and Zed, FerrumGIT drives the system `git` binary instead of
+//! Like Tower, FerrumGIT drives the system `git` binary instead of
 //! linking libgit2: users get their own config, hooks, signing, credential
 //! helpers, `~/.ssh/config` and ssh-agent for free. Output is read in
 //! machine formats (`--porcelain=v2 -z`, `--format` with unit separators) and

@@ -50,7 +50,7 @@ pub fn render() -> Markup {
                 div class="footer-bottom" {
                     p { "Desktop apps built in Rust with GPUI. This site: Axum and maud." }
                     p {
-                        "Ferrum IDE is based on the open-source "
+                        "GPUI comes from the open-source "
                         a href=(site::ZED_UPSTREAM_URL) rel="noopener" { "Zed editor" }
                         "."
                     }

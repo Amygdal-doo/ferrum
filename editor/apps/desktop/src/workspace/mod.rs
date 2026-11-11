@@ -1,7 +1,7 @@
 //! The window's root view: tree view, split panes of tabs, find bar,
-//! find-in-files panel, overlays (palette, file finder, go to line),
-//! dialogs and the status bar. Behaviour is split by topic into the
-//! submodules.
+//! find-in-files panel, the terminal panel, overlays (palette, file
+//! finder, go to line, theme selectors), dialogs and the status bar.
+//! Behaviour is split by topic into the submodules.
 
 mod commands;
 mod dialogs;
@@ -10,6 +10,8 @@ mod overlays;
 mod panes;
 mod session;
 mod status_bar;
+mod terminal;
+mod themes;
 mod watcher;
 
 use std::path::PathBuf;
@@ -23,9 +25,10 @@ pub use panes::{Pane, PaneItem, PaneNode};
 use crate::actions::RunCommand;
 use crate::editor::EditorView;
 use crate::find_bar::FindBar;
-use crate::picker::Picker;
+use crate::picker::{Picker, PickerKind};
 use crate::project_find::ProjectFind;
 use crate::registry::CommandRegistry;
+use crate::terminal::TerminalPanel;
 use crate::tree_view::TreeView;
 
 pub use dialogs::Dialog;
@@ -48,6 +51,9 @@ pub struct Workspace {
     project_find: Entity<ProjectFind>,
     project_find_visible: bool,
     project_find_height: Pixels,
+    terminal: Entity<TerminalPanel>,
+    /// Theme / icon theme in use when a selector opened (restored on Escape).
+    theme_preview: Option<(PickerKind, String)>,
     dialog: Option<Dialog>,
     notice: Option<Notice>,
     notice_task: Option<Task<()>>,
@@ -63,9 +69,11 @@ impl Workspace {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let find_bar = cx.new(|cx| FindBar::new(window, cx));
         let project_find = cx.new(|cx| ProjectFind::new(window, cx));
+        let terminal = cx.new(|_| TerminalPanel::new());
         let subscriptions = vec![
             cx.subscribe_in(&find_bar, window, Self::on_find_bar_event),
             cx.subscribe_in(&project_find, window, Self::on_project_find_event),
+            cx.subscribe_in(&terminal, window, Self::on_terminal_event),
             // Files may change while the window is in the background.
             cx.observe_window_activation(window, |this, window, cx| {
                 if window.is_window_active() {
@@ -91,6 +99,8 @@ impl Workspace {
             project_find,
             project_find_visible: false,
             project_find_height: px(260.),
+            terminal,
+            theme_preview: None,
             dialog: None,
             notice: None,
             notice_task: None,
@@ -220,13 +230,36 @@ impl Workspace {
                     (event.event.position.x - event.bounds.left()).clamp(px(140.), px(600.));
             }
             "project-find-splitter" => {
-                self.project_find_height =
-                    (event.bounds.bottom() - event.event.position.y - px(26.))
-                        .clamp(px(120.), px(700.));
+                self.project_find_height = (event.bounds.bottom()
+                    - event.event.position.y
+                    - px(STATUS_BAR_HEIGHT)
+                    - self.terminal_height(cx))
+                .clamp(px(120.), px(700.));
+            }
+            "terminal-splitter" => {
+                let height = event.bounds.bottom() - event.event.position.y - px(STATUS_BAR_HEIGHT);
+                let available = f32::from(event.bounds.size.height);
+                self.terminal
+                    .update(cx, |p, _| p.state.set_height(f32::from(height), available));
             }
             _ => return,
         }
         cx.notify();
+    }
+}
+
+/// Height of the status bar below the panels, for splitter maths.
+const STATUS_BAR_HEIGHT: f32 = 26.0;
+
+impl Workspace {
+    /// Height the open terminal panel takes (0 when hidden).
+    fn terminal_height(&self, cx: &App) -> Pixels {
+        let panel = self.terminal.read(cx);
+        if panel.is_open() {
+            px(panel.state.height) + px(4.)
+        } else {
+            px(0.)
+        }
     }
 }
 
@@ -241,6 +274,10 @@ impl Render for Workspace {
         self.update_window_title(window, cx);
         let colors = cx.theme().colors().clone();
         let tree = self.tree.clone().filter(|_| self.tree_visible);
+        let (terminal_open, terminal_height) = {
+            let panel = self.terminal.read(cx);
+            (panel.is_open(), panel.state.height)
+        };
         let center = v_flex()
             .flex_1()
             .min_w_0()
@@ -258,6 +295,15 @@ impl Render for Workspace {
                             .flex_none()
                             .h(self.project_find_height)
                             .child(self.project_find.clone()),
+                    )
+            })
+            .when(terminal_open, |this| {
+                this.child(splitter("terminal-splitter", Axis::Vertical, cx))
+                    .child(
+                        div()
+                            .flex_none()
+                            .h(px(terminal_height))
+                            .child(self.terminal.clone()),
                     )
             });
         v_flex()
@@ -326,5 +372,17 @@ impl Workspace {
 
     pub fn project_find(&self) -> &Entity<ProjectFind> {
         &self.project_find
+    }
+
+    pub fn terminal(&self) -> &Entity<TerminalPanel> {
+        &self.terminal
+    }
+
+    pub fn tree(&self) -> Option<Entity<TreeView>> {
+        self.tree.clone()
+    }
+
+    pub fn picker_open(&self) -> bool {
+        self.picker.is_some()
     }
 }

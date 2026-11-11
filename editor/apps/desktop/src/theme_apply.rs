@@ -1,6 +1,6 @@
 //! Bridges the editor's token theme to the GPUI/`ui` theme so the window
-//! chrome (panels, tabs, buttons, inputs) follows `ferrum-dark` /
-//! `ferrum-light` and the user's overrides.
+//! chrome (panels, tabs, buttons, inputs, terminal) follows the active
+//! theme and the user's overrides.
 
 use std::sync::Arc;
 
@@ -77,6 +77,27 @@ pub fn apply(theme: &Theme, cx: &mut App) {
     c.version_control_modified = t("git_modified");
     c.version_control_deleted = t("git_deleted");
     c.element_selection_background = t("selection");
+    let term = |token: &str| hsla(theme.terminal(token));
+    c.terminal_background = term("background");
+    c.terminal_ansi_background = term("background");
+    c.terminal_foreground = term("foreground");
+    c.terminal_bright_foreground = term("bright_white");
+    c.terminal_ansi_black = term("black");
+    c.terminal_ansi_red = term("red");
+    c.terminal_ansi_green = term("green");
+    c.terminal_ansi_yellow = term("yellow");
+    c.terminal_ansi_blue = term("blue");
+    c.terminal_ansi_magenta = term("magenta");
+    c.terminal_ansi_cyan = term("cyan");
+    c.terminal_ansi_white = term("white");
+    c.terminal_ansi_bright_black = term("bright_black");
+    c.terminal_ansi_bright_red = term("bright_red");
+    c.terminal_ansi_bright_green = term("bright_green");
+    c.terminal_ansi_bright_yellow = term("bright_yellow");
+    c.terminal_ansi_bright_blue = term("bright_blue");
+    c.terminal_ansi_bright_magenta = term("bright_magenta");
+    c.terminal_ansi_bright_cyan = term("bright_cyan");
+    c.terminal_ansi_bright_white = term("bright_white");
     let status = &mut base.styles.status;
     status.error = t("error");
     status.warning = t("warning");

@@ -20,7 +20,6 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $apps = @{
-    ide     = @{ Name = "Ferrum IDE";     Binaries = @("zed") }
     api     = @{ Name = "FerrumAPI";      Binaries = @("ferrumapi") }
     git     = @{ Name = "FerrumGIT";      Binaries = @("ferrumgit") }
     data    = @{ Name = "FerrumData";     Binaries = @("ferrumdata") }

@@ -3,18 +3,24 @@
 
 mod actions;
 mod editor;
+mod file_icons;
 mod find_bar;
 mod markdown_preview;
 mod picker;
 mod project_find;
 mod registry;
 mod settings;
+mod terminal;
 mod theme_apply;
 mod tree_view;
 mod workspace;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_terminal;
+#[cfg(test)]
+mod tests_themes;
 
 use ferrum_ui::AppConfig;
 use ferrumeditor_core::cli::{self, CliAction};
