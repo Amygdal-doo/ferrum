@@ -28,6 +28,8 @@ const WORDS_LIMIT: usize = 2 * 1024 * 1024;
 const MAX_WORDS: usize = 200;
 /// Rows visible at once.
 pub const MENU_ROWS: usize = 10;
+/// Longest wait for `completionItem/resolve` before inserting as is.
+const RESOLVE_TIMEOUT: Duration = Duration::from_millis(400);
 
 #[derive(Debug, Clone)]
 pub struct CompletionEntry {
@@ -43,11 +45,15 @@ pub struct CompletionEntry {
     additional: Vec<TextEdit>,
     from_server: bool,
     preselect: bool,
+    /// The server's item, for `completionItem/resolve`.
+    item: Option<Box<CompletionItem>>,
 }
 
 impl CompletionEntry {
     fn from_item(item: CompletionItem) -> Self {
+        let original = Box::new(item.clone());
         Self {
+            item: Some(original),
             kind: kind_label(item.kind),
             label: item.label,
             detail: item.detail,
@@ -77,6 +83,7 @@ impl CompletionEntry {
             additional: Vec::new(),
             from_server: false,
             preselect: false,
+            item: None,
         }
     }
 }
@@ -314,7 +321,8 @@ impl EditorView {
         cx.notify();
     }
 
-    /// Inserts the selected item.
+    /// Inserts the selected item, first asking the server to fill it in
+    /// (auto-imports in TypeScript) if it supports that.
     pub(super) fn accept_completion(&mut self, cx: &mut Context<Self>) -> bool {
         let Some(menu) = self.completion.take() else {
             return false;
@@ -323,11 +331,55 @@ impl EditorView {
         let Some(entry) = menu.selected_entry().cloned() else {
             return false;
         };
+        let resolver = self.lsp.doc.as_ref().map(|d| d.client.clone()).filter(|c| {
+            c.capabilities()
+                .is_some_and(|caps| caps["completionProvider"]["resolveProvider"] == true)
+        });
+        let (Some(client), Some(item)) = (resolver, entry.item.clone()) else {
+            self.insert_completion(&entry, menu.anchor, menu.encoding, cx);
+            return true;
+        };
+        let version = self.state.buffer().version();
+        let (anchor, encoding) = (menu.anchor, menu.encoding);
+        let request = client.request("completionItem/resolve", item.raw.clone());
+        self.completion_task = Some(cx.spawn(async move |this, cx| {
+            let timeout = cx.background_executor().timer(RESOLVE_TIMEOUT);
+            let resolved = match futures::future::select(Box::pin(request), timeout).await {
+                futures::future::Either::Left((Ok(value), _)) => Some(value),
+                _ => None,
+            };
+            this.update(cx, |this, cx| {
+                if this.state.buffer().version() != version {
+                    return;
+                }
+                let entry = match resolved {
+                    Some(value) => {
+                        let mut item = *item;
+                        item.apply_resolved(&value);
+                        CompletionEntry::from_item(item)
+                    }
+                    None => entry,
+                };
+                this.insert_completion(&entry, anchor, encoding, cx);
+            })
+            .ok();
+        }));
+        true
+    }
+
+    fn insert_completion(
+        &mut self,
+        entry: &CompletionEntry,
+        anchor: usize,
+        encoding: PositionEncoding,
+        cx: &mut Context<Self>,
+    ) {
+        let menu_anchor = anchor;
         let buffer = self.state.buffer();
         let head = self.state.primary().head;
-        let (mut start, mut end) = (menu.anchor, head);
+        let (mut start, mut end) = (menu_anchor, head);
         if let Some(range) = entry.edit_range {
-            let r = range_to_offsets(buffer, range, menu.encoding);
+            let r = range_to_offsets(buffer, range, encoding);
             if r.start <= head {
                 start = r.start;
             }
@@ -339,7 +391,7 @@ impl EditorView {
             .iter()
             .map(|e| {
                 (
-                    range_to_offsets(buffer, e.range, menu.encoding),
+                    range_to_offsets(buffer, e.range, encoding),
                     e.new_text.clone(),
                 )
             })
@@ -366,7 +418,6 @@ impl EditorView {
         self.request_autoscroll();
         self.after_edit(cx);
         cx.emit(EditorEvent::SelectionsChanged);
-        true
     }
 
     /// Accepting by mouse.

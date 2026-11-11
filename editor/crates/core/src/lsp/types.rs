@@ -119,6 +119,36 @@ pub struct CompletionItem {
     /// Edits elsewhere, such as an import.
     pub additional_edits: Vec<TextEdit>,
     pub preselect: bool,
+    /// The item as the server sent it (sent back for `completionItem/resolve`).
+    pub raw: Value,
+}
+
+impl CompletionItem {
+    /// Fills in what `completionItem/resolve` added: docs, detail and
+    /// edits such as auto-imports (typescript-language-server sends those
+    /// only here).
+    pub fn apply_resolved(&mut self, resolved: &Value) {
+        let parsed = parse_completion(&Value::Array(vec![resolved.clone()])).0;
+        let Some(new) = parsed.into_iter().next() else {
+            return;
+        };
+        if new.documentation.is_some() {
+            self.documentation = new.documentation;
+        }
+        if new.detail.is_some() {
+            self.detail = new.detail;
+        }
+        if !new.additional_edits.is_empty() {
+            self.additional_edits = new.additional_edits;
+        }
+        if resolved.get("textEdit").is_some() || resolved.get("insertText").is_some() {
+            self.insert_text = new.insert_text;
+            self.is_snippet = new.is_snippet;
+            if new.edit_range.is_some() {
+                self.edit_range = new.edit_range;
+            }
+        }
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -155,9 +185,13 @@ pub fn parse_completion(value: &Value) -> (Vec<CompletionItem>, bool) {
     };
     let items = items
         .iter()
-        .filter_map(|item| serde_json::from_value::<RawItem>(item.clone()).ok())
-        .filter(|raw| !raw.label.is_empty())
-        .map(|raw| {
+        .filter_map(|item| {
+            serde_json::from_value::<RawItem>(item.clone())
+                .ok()
+                .map(|raw| (raw, item))
+        })
+        .filter(|(raw, _)| !raw.label.is_empty())
+        .map(|(raw, original)| {
             let edit = raw.text_edit.as_ref().and_then(parse_text_edit);
             let insert_text = edit
                 .as_ref()
@@ -188,6 +222,7 @@ pub fn parse_completion(value: &Value) -> (Vec<CompletionItem>, bool) {
                     .filter_map(parse_text_edit)
                     .collect(),
                 preselect: raw.preselect.unwrap_or(false),
+                raw: original.clone(),
             }
         })
         .collect();
@@ -343,6 +378,26 @@ mod tests {
         let (plain, incomplete) = parse_completion(&json!([{"label": "a"}]));
         assert!(!incomplete);
         assert_eq!(plain[0].insert_text, "a");
+    }
+
+    #[test]
+    fn resolve_adds_imports_and_docs() {
+        let (mut items, _) =
+            parse_completion(&json!([{"label": "useState", "kind": 3, "data": {"id": 7}}]));
+        let item = &mut items[0];
+        assert_eq!(item.raw["data"]["id"], 7);
+        item.apply_resolved(&json!({
+            "label": "useState", "detail": "function useState<S>()",
+            "documentation": "Returns a stateful value.",
+            "additionalTextEdits": [{"range": range(0, 0, 0, 0), "newText": "import { useState } from \"react\";\n"}]
+        }));
+        assert_eq!(item.detail.as_deref(), Some("function useState<S>()"));
+        assert_eq!(
+            item.documentation.as_deref(),
+            Some("Returns a stateful value.")
+        );
+        assert_eq!(item.additional_edits.len(), 1);
+        assert_eq!(item.insert_text, "useState");
     }
 
     #[test]

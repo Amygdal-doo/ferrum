@@ -172,6 +172,8 @@ impl LspStore {
             });
         }
         let config = cx.global::<Settings>().config.lsp.clone();
+        let root = servers::root_for(def, path, self.project.as_deref());
+        let path_env = &servers::with_project_bins(path_env, &root, path);
         let (program, args) = match servers::resolve(def, &config, path_env) {
             Resolved::Found { program, args } => (program, args),
             Resolved::Disabled => return None,
@@ -183,7 +185,6 @@ impl LspStore {
             }
         };
         self.missing.remove(def.id);
-        let root = servers::root_for(def, path, self.project.as_deref());
         let options = config
             .servers
             .get(def.id)

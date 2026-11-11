@@ -52,7 +52,7 @@ while True:
     if method == "initialize":
         send({"jsonrpc": "2.0", "id": mid, "result": {"capabilities": {
             "textDocumentSync": 1, "hoverProvider": True, "definitionProvider": True,
-            "completionProvider": {"triggerCharacters": ["."]}}}})
+            "completionProvider": {"triggerCharacters": ["."], "resolveProvider": True}}}})
     elif method == "textDocument/didOpen":
         docs[params["textDocument"]["uri"]] = params["textDocument"]["text"]
         publish(params["textDocument"]["uri"])
@@ -61,9 +61,15 @@ while True:
         publish(params["textDocument"]["uri"])
     elif method == "textDocument/completion":
         send({"jsonrpc": "2.0", "id": mid, "result": {"isIncomplete": False, "items": [
-            {"label": "helper", "kind": 3, "detail": "fn helper()", "insertText": "helper()"},
+            {"label": "helper", "kind": 3, "insertText": "helper()", "data": 1},
             {"label": "hello_world", "kind": 3, "insertText": "hello_world($1)",
              "insertTextFormat": 2}]}})
+    elif method == "completionItem/resolve":
+        item = dict(params)
+        item["detail"] = "fn helper()"
+        item["additionalTextEdits"] = [{"range": {"start": {"line": 0, "character": 0},
+            "end": {"line": 0, "character": 0}}, "newText": "use helper;\n"}]
+        send({"jsonrpc": "2.0", "id": mid, "result": item})
     elif method == "textDocument/definition":
         send({"jsonrpc": "2.0", "id": mid, "result": {"uri": params["textDocument"]["uri"],
             "range": {"start": {"line": 0, "character": 3}, "end": {"line": 0, "character": 9}}}})
@@ -182,10 +188,20 @@ fn language_server_problems_completion_and_definition(cx: &mut TestAppContext) {
     editor.read_with(cx, |e, _| {
         assert_eq!(e.completion_labels(), Some(vec!["helper".to_string()]));
     });
+    // Enter resolves the item first: its auto-import lands at the top.
     cx.simulate_keystrokes("enter");
-    editor.read_with(cx, |e, _| {
-        assert_eq!(e.state.buffer().line(3), "    helper()");
+    wait_until(cx, "resolved completion", |cx| {
+        editor.read_with(cx, |e, _| e.state.buffer().line(4) == "    helper()")
+    });
+    editor.update_in(cx, |e, window, cx| {
+        assert_eq!(e.state.buffer().line(0), "use helper;");
         assert!(e.completion_labels().is_none());
+        // Drop the import again so the lines below keep their numbers.
+        e.state.replace_ranges(vec![(0..12, String::new())]);
+        e.run_command("editor:move-to-line-end", window, cx);
+    });
+    editor.read_with(cx, |e, _| {
+        assert_eq!(e.state.buffer().line(3), "    helper()")
     });
 
     // Escape closes the menu without inserting anything.

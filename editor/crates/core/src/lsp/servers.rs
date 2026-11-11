@@ -242,6 +242,26 @@ pub fn search_path(login_shell_path: Option<&str>) -> String {
         .unwrap_or_default()
 }
 
+/// `path_env` with the project's `node_modules/.bin` folders (from `file`'s
+/// folder up to `root`) first, so a project's own TypeScript tooling wins.
+pub fn with_project_bins(path_env: &str, root: &Path, file: &Path) -> String {
+    let mut dirs: Vec<PathBuf> = file
+        .parent()
+        .into_iter()
+        .flat_map(Path::ancestors)
+        .take_while(|dir| dir.starts_with(root))
+        .map(|dir| dir.join("node_modules").join(".bin"))
+        .filter(|dir| dir.is_dir())
+        .collect();
+    if dirs.is_empty() {
+        return path_env.to_string();
+    }
+    dirs.extend(std::env::split_paths(path_env));
+    std::env::join_paths(dirs)
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| path_env.to_string())
+}
+
 /// Asks the user's login shell for its `PATH` (a few seconds at most).
 pub fn login_shell_path() -> Option<String> {
     if cfg!(windows) {
@@ -386,6 +406,25 @@ mod tests {
         assert_eq!(root_for(rust, &file, None), crate_dir);
         let yaml = server_by_id("yaml").expect("test value");
         assert_eq!(root_for(yaml, &file, None), crate_dir.join("src"));
+    }
+
+    #[test]
+    fn project_node_bins_come_first() {
+        let dir = tempfile::tempdir().expect("test value");
+        let root = dir.path();
+        let web = root.join("web");
+        std::fs::create_dir_all(web.join("node_modules/.bin")).expect("test value");
+        std::fs::create_dir_all(root.join("node_modules/.bin")).expect("test value");
+        let file = web.join("src/app.ts");
+        let path = with_project_bins("/usr/bin", root, &file);
+        let dirs: Vec<PathBuf> = std::env::split_paths(&path).collect();
+        assert_eq!(dirs[0], web.join("node_modules/.bin"));
+        assert_eq!(dirs[1], root.join("node_modules/.bin"));
+        assert_eq!(dirs[2], PathBuf::from("/usr/bin"));
+        assert_eq!(
+            with_project_bins("/usr/bin", &web, &root.join("x.ts")),
+            "/usr/bin"
+        );
     }
 
     #[test]

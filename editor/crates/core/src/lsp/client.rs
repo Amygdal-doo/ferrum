@@ -433,6 +433,9 @@ fn initialize_params(root: &Path, initialization_options: Option<Value>) -> Valu
                         "insertReplaceSupport": true,
                         "labelDetailsSupport": true,
                         "deprecatedSupport": true,
+                        "resolveSupport": {
+                            "properties": ["documentation", "detail", "additionalTextEdits"],
+                        },
                     },
                     "contextSupport": true,
                 },
