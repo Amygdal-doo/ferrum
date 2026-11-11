@@ -9,7 +9,7 @@ pub const SITE_DESCRIPTION: &str = "Ferrum is a family of native developer tools
 
 /// Every download CTA on the site links here.
 pub const DOWNLOAD_PATH: &str = "/download";
-pub const DOWNLOAD_LABEL: &str = "Download";
+pub const DOWNLOAD_LABEL: &str = "Download Launcher";
 
 /// Public, releases-only repository. Every Ferrum app release lives here as
 /// `<app>-v<semver>` (`launcher-v…`, `api-v…`, …); no GitHub account is needed.

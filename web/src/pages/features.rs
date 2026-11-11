@@ -5,9 +5,9 @@
 use maud::{Markup, html};
 
 use super::feature_demos;
-use crate::components::card;
 use crate::layout::{PageMeta, page};
 use crate::products::{self, Product};
+use crate::site;
 
 pub const PATH: &str = "/features";
 
@@ -22,10 +22,10 @@ struct AppFeatures {
     demo_label: &'static str,
 }
 
-const APPS: [AppFeatures; 8] = [
+const APPS: [AppFeatures; 7] = [
     AppFeatures {
         product: products::FERRUM_EDITOR,
-        version: "0.2.0-alpha.1",
+        version: "0.3.0-alpha.1",
         summary: "The suite's code editor: small, hackable and in the spirit of Atom, written \
                   from scratch in Rust. Light, fast to start, and yours to rewire.",
         points: &[
@@ -46,8 +46,14 @@ const APPS: [AppFeatures; 8] = [
             ),
             (
                 "Completions, problems and definitions",
-                "Language servers you already have, like rust-analyzer or Pyright, power \
-                 autocomplete, underlined errors and go to definition with F12.",
+                "Autocomplete, underlined errors and go to definition with F12 for Rust, Go, \
+                 TypeScript and JavaScript. The language server installs itself the first \
+                 time you open a file.",
+            ),
+            (
+                "Build and Git built in",
+                "⌘B builds with cargo, go or npm in the terminal and lists the errors. \
+                 Stage, commit and push from the sidebar, and switch to a Git view for diffs.",
             ),
             (
                 "Built-in terminal",
@@ -227,42 +233,13 @@ const APPS: [AppFeatures; 8] = [
         demo_label: "FerrumDock listing a Compose project's running containers with live CPU \
                      bars and their logs",
     },
-    AppFeatures {
-        product: products::FERRUM_LAUNCHER,
-        version: "0.7.0",
-        summary: "One window that installs, updates and launches all eight Ferrum apps, \
-                  with Ferrum Editor first.",
-        points: &[
-            (
-                "New apps show up on their own",
-                "When a new Ferrum app is released it appears in the launcher with a New \
-                 badge, ready to install. No launcher update needed.",
-            ),
-            (
-                "Ferrum Editor replaces Ferrum IDE",
-                "Ferrum IDE is no longer offered. If it is installed it stays launchable and \
-                 removable, marked No longer offered.",
-            ),
-            (
-                "Updates itself in place",
-                "Update Launcher replaces the app and restarts it. No DMG to download again.",
-            ),
-            (
-                "Signed and notarized",
-                "Every app is signed with Developer ID and notarized by Apple, so macOS opens \
-                 it without warnings.",
-            ),
-        ],
-        demo: feature_demos::launcher,
-        demo_label: "Ferrum Launcher updating itself, then updating each app on the Alpha channel",
-    },
 ];
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Features"),
         "What every Ferrum app can do in the current alpha: Ferrum Editor, FerrumAPI, \
-         FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock and Ferrum Launcher.",
+         FerrumGIT, FerrumData, FerrumTerm, FerrumKit and FerrumDock.",
         PATH,
         "page-features",
     );
@@ -285,17 +262,18 @@ fn hero() -> Markup {
                 p class="eyebrow" { "Every app is in alpha" }
                 h1 id="features-title" { "What's new across Ferrum" }
                 p class="lead" {
-                    "Eight native apps, written in Rust and rendered with GPUI. This is what \
-                     each one can do in the current alpha, and Ferrum Launcher keeps them all \
-                     up to date."
+                    "Seven native developer apps, written in Rust and rendered with GPUI. This \
+                     is what each one can do in the current alpha. "
+                    a href=(site::DOWNLOAD_PATH) { "Ferrum Launcher" }
+                    " installs them and keeps them up to date."
                 }
-                ul class="app-strip" {
-                    @for app in &APPS {
-                        li {
-                            a class="app-strip__link" href={ "#" (app.product.slug) }
-                                style=(app.product.accent_style()) {
-                                (card::app_logo(&app.product, "app-logo--xs", true))
-                                (app.product.name)
+                nav aria-label="Apps on this page" {
+                    ul class="feature-index" {
+                        @for app in &APPS {
+                            li {
+                                a href={ "#" (app.product.slug) } style=(app.product.accent_style()) {
+                                    (app.product.name)
+                                }
                             }
                         }
                     }
@@ -314,11 +292,8 @@ fn app_section(app: &AppFeatures) -> Markup {
             div class="container feature-app__inner" {
                 div class="feature-app__copy" {
                     div class="feature-app__head" {
-                        (card::app_logo(p, "app-logo--sm", true))
-                        div {
-                            h2 id=(heading) { (p.name) }
-                            p class="feature-app__meta" { (p.kind) " · v" (app.version) }
-                        }
+                        h2 id=(heading) { (p.name) }
+                        p class="feature-app__meta" { (p.kind) " · v" (app.version) }
                     }
                     p class="lead" { (app.summary) }
                     ul class="feature-points" {
@@ -350,10 +325,16 @@ mod tests {
     }
 
     #[test]
-    fn covers_every_app_with_a_demo() {
+    fn covers_every_app_but_the_launcher_without_logos() {
         let html = rendered();
         assert_eq!(html.matches("<h1").count(), 1);
-        for p in products::ALL {
+        assert!(!html.contains(r#"id="ferrum-launcher""#));
+        assert!(!html.contains("app-logo"));
+        assert!(html.contains(r#"href="/download""#));
+        for p in products::ALL
+            .iter()
+            .filter(|p| p.slug != products::FERRUM_LAUNCHER.slug)
+        {
             assert!(html.contains(&format!(r#"id="{}""#, p.slug)), "{}", p.slug);
             assert!(
                 html.contains(&format!(r##"href="#{}""##, p.slug)),

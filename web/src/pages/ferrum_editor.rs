@@ -35,8 +35,8 @@ const FEATURES: &[(&str, &str)] = &[
     (
         "Language servers",
         "Completions as you type, problems underlined with counts in the status bar, and \
-         go to definition with F12 or ⌘-click, from rust-analyzer, TypeScript, Pyright, gopls \
-         and more.",
+         go to definition with F12 or ⌘-click. rust-analyzer, gopls, TypeScript and the \
+         others install themselves the first time you open a file.",
     ),
     (
         "Its own editor core",
@@ -56,6 +56,8 @@ const WORKS_TODAY: &[&str] = &[
     "Theme picker with live preview; TOML themes and VS Code theme import",
     "File icons in the tree, tabs and finder; loadable icon themes",
     "Autocomplete from language servers, or from words in the file without one",
+    "Language servers install themselves (rust-analyzer, gopls, TypeScript and more)",
+    "Build tasks with ⌘B and their errors as problems; Git panel and Git view",
     "Problems underlined, listed (⌃⇧M) and stepped through with F8",
     "Go to definition (F12 or ⌘-click), with back and forward",
 ];

@@ -10,7 +10,21 @@
   background: radial-gradient(50% 90% at 100% 0%, color-mix(in srgb, var(--straw) 12%, transparent), transparent 70%);
 }
 .page-features .features-hero h1 { font-size: var(--fs-hero); line-height: 0.9; max-width: 12ch; }
-.page-features .app-strip { grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); }
+.page-features .features-hero .lead a { color: var(--text); }
+
+/* Jump links to each app: names only, each with its accent mark. */
+.feature-index {
+  list-style: none; margin: var(--sp-8) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-6);
+}
+.feature-index a {
+  display: inline-flex; align-items: center; gap: var(--sp-2); padding-block: var(--sp-1);
+  color: var(--text-muted); text-decoration: none; font-weight: 600;
+  border-bottom: 2px solid transparent; transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.feature-index a::before {
+  content: ""; width: 10px; height: 10px; border-radius: 3px; background: var(--app-accent);
+}
+.feature-index a:hover, .feature-index a:focus-visible { color: var(--text); border-bottom-color: var(--app-accent); }
 
 .feature-app { padding-block: var(--sp-16); border-bottom: 1px solid var(--border); scroll-margin-top: var(--header-h); }
 .feature-app:nth-of-type(odd) {
@@ -26,7 +40,7 @@
   .feature-app:nth-of-type(even) .feature-app__inner { grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr); }
 }
 .feature-app__copy { min-width: 0; }
-.feature-app__head { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-4); }
+.feature-app__head { margin-bottom: var(--sp-4); padding-left: var(--sp-4); border-left: 4px solid var(--app-accent); }
 .feature-app__head h2 { margin: 0; font-size: var(--fs-3xl); }
 .feature-app__meta { margin: var(--sp-1) 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
 .feature-points { list-style: none; margin: var(--sp-6) 0; padding: 0; display: grid; gap: var(--sp-4); }

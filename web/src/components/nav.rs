@@ -27,7 +27,6 @@ fn is_app_page(path: &str) -> bool {
 }
 
 pub fn render(current_path: &str) -> Markup {
-    let launcher = products::FERRUM_LAUNCHER.path();
     html! {
         header class="site-header" {
             div class="container site-header__inner" {
@@ -50,10 +49,13 @@ pub fn render(current_path: &str) -> Markup {
                     ul class="nav-list" {
                         (nav_link(APPS_HREF, "Apps", is_app_page(current_path), ""))
                         (nav_link(FEATURES_HREF, "Features", current_path == FEATURES_HREF, ""))
-                        (nav_link(&launcher, "Launcher", current_path == launcher, ""))
                         (nav_link("/about", "About", current_path == "/about", ""))
+                        // Ferrum Launcher is how every app is installed: the menu
+                        // offers it as the download.
                         (nav_link(site::DOWNLOAD_PATH, site::DOWNLOAD_LABEL,
-                            current_path == site::DOWNLOAD_PATH, "nav-link--cta"))
+                            current_path == site::DOWNLOAD_PATH
+                                || current_path == products::FERRUM_LAUNCHER.path(),
+                            "nav-link--cta"))
                     }
                 }
             }
@@ -73,11 +75,14 @@ mod tests {
     }
 
     #[test]
-    fn launcher_and_download_have_their_own_links() {
+    fn the_launcher_is_the_download() {
         let html = render("/download").into_string();
         assert!(html.contains(r#"href="/download" aria-current="page""#));
-        assert!(html.contains(r#"href="/ferrum-launcher""#));
+        assert!(html.contains(">Download Launcher<"));
+        assert!(!html.contains(r#"href="/ferrum-launcher""#));
         assert_eq!(html.matches("aria-current").count(), 1);
+        let launcher_page = render("/ferrum-launcher").into_string();
+        assert!(launcher_page.contains(r#"href="/download" aria-current="page""#));
     }
 
     #[test]
