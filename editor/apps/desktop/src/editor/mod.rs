@@ -405,7 +405,7 @@ impl Render for EditorView {
             .on_scroll(cx.listener(Self::on_scroll))
             .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
                 if !hovered {
-                    this.hide_hover(cx);
+                    this.hover_left(cx);
                 }
             }))
             .child(element::EditorElement::new(cx.entity()))

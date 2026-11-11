@@ -21,6 +21,8 @@ use crate::settings::Settings;
 /// Edits are sent to the server after this pause (and before requests).
 const SYNC_DEBOUNCE: Duration = Duration::from_millis(120);
 const HOVER_DELAY: Duration = Duration::from_millis(400);
+/// Time to move the mouse from the text onto the popup.
+const HOVER_GRACE: Duration = Duration::from_millis(200);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EditorDiagnostic {
@@ -54,6 +56,9 @@ pub struct LspState {
     pub(super) doc: Option<LspDoc>,
     pub diagnostics: Arc<Vec<EditorDiagnostic>>,
     pub(super) hover: Option<HoverPopup>,
+    /// The mouse is over the hover popup (keeps it open).
+    pub(super) pointer_in_hover: bool,
+    hide_task: Option<Task<()>>,
     attach_task: Option<Task<()>>,
     sync_task: Option<Task<()>>,
     hover_task: Option<Task<()>>,
@@ -375,8 +380,28 @@ impl EditorView {
         }));
     }
 
+    /// The mouse left the text or the popup: close soon, unless it went
+    /// onto the popup.
+    pub(super) fn hover_left(&mut self, cx: &mut Context<Self>) {
+        if self.lsp.hover.is_none() {
+            self.lsp.hover_task = None;
+            return;
+        }
+        self.lsp.hide_task = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(HOVER_GRACE).await;
+            this.update(cx, |this, cx| {
+                if !this.lsp.pointer_in_hover {
+                    this.hide_hover(cx);
+                }
+            })
+            .ok();
+        }));
+    }
+
     pub(super) fn hide_hover(&mut self, cx: &mut Context<Self>) {
         self.lsp.hover_task = None;
+        self.lsp.hide_task = None;
+        self.lsp.pointer_in_hover = false;
         if self.lsp.hover.take().is_some() {
             cx.notify();
         }

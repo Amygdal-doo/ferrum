@@ -11,6 +11,7 @@ use ferrumeditor_core::completion::{
     Candidate, buffer_words, is_word_char, normalize_lsp_snippet, rank, word_start,
 };
 use ferrumeditor_core::history::EditKind;
+use ferrumeditor_core::language::Language;
 use ferrumeditor_core::lsp::position::range_to_offsets;
 use ferrumeditor_core::lsp::types::{kind_label, parse_completion};
 use ferrumeditor_core::lsp::{CompletionItem, LspRange, PositionEncoding, TextEdit};
@@ -195,6 +196,16 @@ impl EditorView {
         });
         if server.is_none() && manual && prefix.is_empty() {
             cx.emit(EditorEvent::Notice(self.no_server_message(cx)));
+            return;
+        }
+        // Prose gets word suggestions only on request.
+        if server.is_none()
+            && !manual
+            && matches!(
+                self.state.language,
+                Language::PlainText | Language::Markdown
+            )
+        {
             return;
         }
         let mut words = Vec::new();

@@ -225,6 +225,12 @@ impl EditorView {
                 .px_2()
                 .py_1()
                 .text_size(font_size * 0.92)
+                .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+                    this.lsp.pointer_in_hover = *hovered;
+                    if !hovered {
+                        this.hover_left(cx);
+                    }
+                }))
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .children(problems)
                 .children(docs);
