@@ -38,7 +38,11 @@ pub fn cell_at(pane: &PaneHit, x: f32, y: f32, cell_w: f32, cell_h: f32) -> Cell
 impl Selection {
     #[must_use]
     pub fn new(block: BlockId, at: Cell) -> Self {
-        Self { block, anchor: at, head: at }
+        Self {
+            block,
+            anchor: at,
+            head: at,
+        }
     }
 
     #[must_use]
@@ -47,7 +51,11 @@ impl Selection {
     }
 
     fn ordered(&self) -> (Cell, Cell) {
-        if self.anchor <= self.head { (self.anchor, self.head) } else { (self.head, self.anchor) }
+        if self.anchor <= self.head {
+            (self.anchor, self.head)
+        } else {
+            (self.head, self.anchor)
+        }
     }
 
     /// Selected columns `start..end` on `row` of a `cols`-wide pane.
@@ -102,7 +110,12 @@ mod tests {
             rows: lines.len() as u16,
             lines: lines
                 .iter()
-                .map(|l| vec![Span { t: (*l).to_owned(), ..Span::default() }])
+                .map(|l| {
+                    vec![Span {
+                        t: (*l).to_owned(),
+                        ..Span::default()
+                    }]
+                })
                 .collect(),
             ..Frame::default()
         }
@@ -111,8 +124,14 @@ mod tests {
     fn sel(anchor: (u16, u16), head: (u16, u16)) -> Selection {
         Selection {
             block: BlockId(1),
-            anchor: Cell { row: anchor.0, col: anchor.1 },
-            head: Cell { row: head.0, col: head.1 },
+            anchor: Cell {
+                row: anchor.0,
+                col: anchor.1,
+            },
+            head: Cell {
+                row: head.0,
+                col: head.1,
+            },
         }
     }
 
@@ -145,8 +164,17 @@ mod tests {
     #[test]
     fn hit_testing_clamps_to_the_pane() {
         let pane = (BlockId(1), 100.0, 50.0, 80.0, 40.0); // 10 × 2 cells of 8 × 20
-        assert_eq!(cell_at(&pane, 117.0, 71.0, 8.0, 20.0), Cell { row: 1, col: 2 });
-        assert_eq!(cell_at(&pane, 0.0, 500.0, 8.0, 20.0), Cell { row: 1, col: 0 });
-        assert_eq!(cell_at(&pane, 999.0, 0.0, 8.0, 20.0), Cell { row: 0, col: 9 });
+        assert_eq!(
+            cell_at(&pane, 117.0, 71.0, 8.0, 20.0),
+            Cell { row: 1, col: 2 }
+        );
+        assert_eq!(
+            cell_at(&pane, 0.0, 500.0, 8.0, 20.0),
+            Cell { row: 1, col: 0 }
+        );
+        assert_eq!(
+            cell_at(&pane, 999.0, 0.0, 8.0, 20.0),
+            Cell { row: 0, col: 9 }
+        );
     }
 }

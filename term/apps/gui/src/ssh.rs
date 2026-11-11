@@ -87,7 +87,10 @@ impl App {
             Ok(command) => self.send(Request::NewWindow {
                 session: self.session().map(|s| s.id.to_string()),
                 name: Some(name.to_owned()),
-                spawn: Spawn { command, ..spawn_env() },
+                spawn: Spawn {
+                    command,
+                    ..spawn_env()
+                },
             }),
             Err(e) => self.notify(e),
         }
@@ -96,7 +99,11 @@ impl App {
     /// Starts a stopped / failed forward, or stops a running one.
     pub fn toggle_forward(&mut self, host_name: &str, spec: &ForwardSpec) {
         let key = forward_key(host_name, spec);
-        if self.ssh.forward(host_name, spec).is_some_and(|f| f.state == ForwardState::Running) {
+        if self
+            .ssh
+            .forward(host_name, spec)
+            .is_some_and(|f| f.state == ForwardState::Running)
+        {
             self.send(Request::ForwardStop { key });
             return;
         }
@@ -154,8 +161,12 @@ impl App {
                 }
                 !ports::is_alive(pid)
             });
-            let _ =
-                proxy.unbounded_send(UiEvent::Killed(KillOutcome { pid, name, signal, result }));
+            let _ = proxy.unbounded_send(UiEvent::Killed(KillOutcome {
+                pid,
+                name,
+                signal,
+                result,
+            }));
         });
     }
 }

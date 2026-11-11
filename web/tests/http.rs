@@ -45,7 +45,7 @@ async fn send(req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 12] = [
+const PAGES: [&str; 17] = [
     "/",
     "/features",
     "/ferrumapi",
@@ -54,10 +54,15 @@ const PAGES: [&str; 12] = [
     "/ferrumterm",
     "/ferrumkit",
     "/ferrumdock",
+    "/ferrumports",
+    "/ferrumenv",
     "/ferrum-editor",
     "/ferrum-launcher",
     "/download",
+    "/updates",
+    "/updates/ferrum-public-alpha",
     "/about",
+    "/privacy",
 ];
 
 async fn get(uri: &str) -> Res {
@@ -155,6 +160,29 @@ async fn brand_assets_are_served() {
         let res = get(path).await;
         assert_eq!(res.status, StatusCode::OK, "{path}");
         assert_eq!(res.header(header::CONTENT_TYPE), "image/png", "{path}");
+    }
+}
+
+#[tokio::test]
+async fn new_app_pages_show_their_logo_demo_and_status() {
+    for (path, name, logo) in [
+        ("/ferrumports", "FerrumPorts", "ports"),
+        ("/ferrumenv", "FerrumEnv", "env"),
+    ] {
+        let html = get(path).await.text();
+        assert!(html.contains(&format!(">{name}</h1>")), "{path}");
+        assert!(
+            html.contains(&format!("Animated preview of {name}")),
+            "{path}"
+        );
+        assert!(
+            html.contains(&format!("/assets/img/brand/{logo}.svg?v=")),
+            "{path}"
+        );
+        assert!(html.contains("Works today"), "{path}");
+        assert!(html.contains("Not built yet"), "{path}");
+        let logo_res = get(&format!("/assets/img/brand/{logo}.svg")).await;
+        assert_eq!(logo_res.status, StatusCode::OK, "{logo}");
     }
 }
 
@@ -310,4 +338,155 @@ async fn old_ide_page_redirects_to_editor() {
     let res = get("/ferrum-ide").await;
     assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT);
     assert_eq!(res.header(header::LOCATION), "/ferrum-editor");
+}
+
+#[tokio::test]
+async fn old_ci_page_redirects_to_the_editors_ci_section() {
+    let res = get("/ferrumci").await;
+    assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.header(header::LOCATION), "/ferrum-editor#ci");
+    let editor = get("/ferrum-editor").await.text();
+    assert!(editor.contains(r#"id="ci""#));
+    assert!(editor.contains("GitHub Actions"));
+}
+
+#[tokio::test]
+async fn old_logs_page_redirects_to_the_editors_logs_section() {
+    let res = get("/ferrumlogs").await;
+    assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT);
+    assert_eq!(res.header(header::LOCATION), "/ferrum-editor#logs");
+    let editor = get("/ferrum-editor").await.text();
+    assert!(editor.contains(r#"id="logs""#));
+}
+
+#[tokio::test]
+async fn ferrumci_and_ferrumlogs_are_gone_from_the_site() {
+    for path in [
+        "/",
+        "/features",
+        "/download",
+        "/ferrum-launcher",
+        "/updates/ferrum-public-alpha",
+    ] {
+        let html = get(path).await.text();
+        for gone in [
+            "FerrumCI",
+            "FerrumLogs",
+            r#"href="/ferrumci""#,
+            r#"href="/ferrumlogs""#,
+        ] {
+            assert!(!html.contains(gone), "{path}: {gone}");
+        }
+    }
+    for logo in ["ci", "logs"] {
+        assert_eq!(
+            get(&format!("/assets/img/brand/{logo}.svg")).await.status,
+            StatusCode::NOT_FOUND
+        );
+    }
+    let sitemap = get("/sitemap.xml").await.text();
+    assert!(!sitemap.contains("/ferrumci"));
+    assert!(!sitemap.contains("/ferrumlogs"));
+}
+
+#[tokio::test]
+async fn mailing_list_is_gone() {
+    for (method, path) in [
+        (Method::POST, "/api/subscribe"),
+        (Method::GET, "/api/confirm?token=x"),
+        (Method::GET, "/api/subscribers.csv"),
+        (Method::GET, "/unsubscribe?token=x"),
+        (Method::POST, "/unsubscribe"),
+    ] {
+        let req = Request::builder()
+            .method(method.clone())
+            .uri(path)
+            .body(Body::empty())
+            .unwrap();
+        let status = send(req).await.status;
+        assert!(
+            status == StatusCode::NOT_FOUND || status == StatusCode::METHOD_NOT_ALLOWED,
+            "{method} {path}: {status}"
+        );
+    }
+    for path in ["/", "/updates", "/updates/ferrum-public-alpha", "/privacy"] {
+        let html = get(path).await.text();
+        assert!(!html.contains("<form"), "{path}");
+        assert!(!html.contains("mailing-list"), "{path}");
+        assert!(!html.contains("Mailing list"), "{path}");
+    }
+    let robots = get("/robots.txt").await.text();
+    assert!(!robots.contains("unsubscribe"));
+}
+
+#[tokio::test]
+async fn updates_pages_point_to_the_feed() {
+    let index = get("/updates").await;
+    assert_eq!(index.status, StatusCode::OK);
+    let html = index.text();
+    assert!(html.contains(r#"href="/updates/ferrum-public-alpha""#));
+    assert!(html.contains(r#"type="application/atom+xml""#));
+    assert!(html.contains(r#"id="follow""#));
+    assert!(html.contains(r#"href="/updates/feed.xml""#));
+
+    let post = get("/updates/ferrum-public-alpha").await;
+    assert_eq!(post.status, StatusCode::OK);
+    let html = post.text();
+    assert!(html.contains("<h1 id=\"post-title\">Ferrum is in public alpha</h1>"));
+    assert!(html.contains(r#"<time datetime="2026-11-11">11 November 2026</time>"#));
+    assert!(html.contains(r#"<meta property="og:type" content="article">"#));
+    assert!(html.contains(r#"href="/updates" aria-current="page""#));
+    let article_end = html.find("</article>").unwrap();
+    assert!(html.find(r#"id="follow""#).unwrap() > article_end);
+
+    assert_eq!(
+        get("/updates/no-such-post").await.status,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn feed_is_valid_atom() {
+    let config = Config::from_vars(|k| (k == "SITE_URL").then(|| "https://ferrum.test".to_owned()));
+    let req = Request::get("/updates/feed.xml")
+        .body(Body::empty())
+        .unwrap();
+    let res = app(config).oneshot(req).await.unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert!(
+        res.headers()[header::CONTENT_TYPE]
+            .to_str()
+            .unwrap()
+            .starts_with("application/atom+xml")
+    );
+    let body = res.into_body().collect().await.unwrap().to_bytes();
+    let body = String::from_utf8_lossy(&body);
+    let doc = roxmltree::Document::parse(&body).unwrap();
+    let feed = doc.root_element();
+    assert_eq!(feed.tag_name().name(), "feed");
+    assert_eq!(
+        feed.tag_name().namespace(),
+        Some("http://www.w3.org/2005/Atom")
+    );
+    let entries: Vec<_> = feed
+        .children()
+        .filter(|n| n.has_tag_name("entry"))
+        .collect();
+    assert_eq!(entries.len(), web_ferrum::updates::POSTS.len());
+    let first = entries[0];
+    let text = |name: &str| {
+        first
+            .children()
+            .find(|n| n.has_tag_name(name))
+            .and_then(|n| n.text())
+            .unwrap_or_default()
+            .to_owned()
+    };
+    assert_eq!(text("title"), "Ferrum is in public alpha");
+    assert_eq!(
+        text("id"),
+        "https://ferrum.test/updates/ferrum-public-alpha"
+    );
+    assert_eq!(text("published"), "2026-11-11T00:00:00Z");
+    assert!(text("content").contains("href=\"https://ferrum.test/ferrumapi\""));
 }

@@ -6,7 +6,7 @@
 use maud::{Markup, html};
 
 use crate::components::{ferrum_mark, icons};
-use crate::{products, site};
+use crate::{products, site, updates};
 
 const APPS_HREF: &str = "/#apps";
 const FEATURES_HREF: &str = crate::pages::features::PATH;
@@ -49,6 +49,9 @@ pub fn render(current_path: &str) -> Markup {
                     ul class="nav-list" {
                         (nav_link(APPS_HREF, "Apps", is_app_page(current_path), ""))
                         (nav_link(FEATURES_HREF, "Features", current_path == FEATURES_HREF, ""))
+                        (nav_link(updates::INDEX_PATH, "Updates",
+                            current_path == updates::INDEX_PATH
+                                || current_path.starts_with("/updates/"), ""))
                         (nav_link("/about", "About", current_path == "/about", ""))
                         // Ferrum Launcher is how every app is installed: the menu
                         // offers it as the download.
@@ -91,5 +94,12 @@ mod tests {
         assert!(html.contains(r#"aria-controls="site-nav""#));
         assert!(html.contains("data-theme-toggle"));
         assert!(html.contains(r#"href="/about""#));
+    }
+
+    #[test]
+    fn updates_link_is_active_on_posts() {
+        let html = render("/updates/ferrum-public-alpha").into_string();
+        assert!(html.contains(r#"href="/updates" aria-current="page""#));
+        assert_eq!(html.matches("aria-current").count(), 1);
     }
 }

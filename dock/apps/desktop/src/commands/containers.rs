@@ -3,6 +3,7 @@
 use crate::app::FerrumDock;
 use crate::state::{Confirm, Dialog, EngineStatus, PendingAction, Section};
 use ferrumdock_engine::compose::{self, ComposeAction, ComposeProject};
+use ferrumdock_engine::shell::Shell;
 use ferrumdock_engine::{Container, ContainerAction, DockerCli, ops, shell};
 use gpui::Context;
 use std::path::PathBuf;
@@ -133,8 +134,16 @@ impl FerrumDock {
         cx.notify();
     }
 
-    /// `docker exec -it <id> sh` in FerrumTerm (if installed) or Terminal.app.
+    /// `docker exec -it <id> <shell>` in FerrumTerm (if installed), else
+    /// Terminal.app (macOS) or a terminal emulator on `PATH` (Linux). The
+    /// shell is the one picked in the detail panel for this container, else auto.
     pub fn open_shell(&mut self, container: &Container, cx: &mut Context<Self>) {
+        let choice = self
+            .state
+            .detail
+            .as_ref()
+            .filter(|d| d.id == container.id)
+            .map_or(Shell::Auto, |d| d.shell);
         let EngineStatus::Connected(connection) = &self.status else {
             return;
         };
@@ -147,9 +156,15 @@ impl FerrumDock {
             return;
         };
         let home = std::env::var_os("HOME").map_or_else(|| PathBuf::from("/"), PathBuf::from);
-        let command = shell::exec_command(&cli, &connection.candidate.endpoint, &container.id);
+        let command =
+            shell::exec_command(&cli, &connection.candidate.endpoint, &container.id, choice);
         let ferrumterm = shell::find_ferrumterm(&home, |p| p.exists());
-        let plan = shell::plan(&command, &container.name, &home, ferrumterm);
+        let linux = if cfg!(target_os = "linux") {
+            shell::find_linux_terminal(std::env::var_os("PATH").as_deref(), |p| p.is_file())
+        } else {
+            None
+        };
+        let plan = shell::plan(&command, &container.name, &home, ferrumterm, linux);
         let target = plan.target_name();
         let name = container.name.clone();
         self.spawn_run(
@@ -159,6 +174,42 @@ impl FerrumDock {
                 app.report(&result, format!("Opened a shell in {name} ({target})"), cx);
             },
         );
+    }
+
+    /// Asks the selected running container which shells it has (`docker exec … sh -c`).
+    pub fn detect_shells(&mut self, cx: &mut Context<Self>) {
+        let EngineStatus::Connected(connection) = &self.status else {
+            return;
+        };
+        let (Some(cli), Some(detail)) = (self.docker_cli.clone(), self.state.detail.as_ref())
+        else {
+            return;
+        };
+        if detail.project.is_some()
+            || !self
+                .state
+                .container(&detail.id)
+                .is_some_and(|c| c.state.is_up())
+        {
+            return;
+        }
+        let id = detail.id.clone();
+        let endpoint = connection.candidate.endpoint.clone();
+        let target = id.clone();
+        self.spawn_run(
+            cx,
+            async move { shell::detect_shells(&cli, &endpoint, &target).await },
+            move |app, result, _| {
+                if let Some(detail) = app.state.detail.as_mut().filter(|d| d.id == id) {
+                    // Unknown (exec failed): keep offering every choice.
+                    detail.shells = result.ok();
+                }
+            },
+        );
+    }
+
+    pub fn set_shell(&mut self, shell: Shell, cx: &mut Context<Self>) {
+        self.update_detail(|d| d.shell = shell, cx);
     }
 
     pub fn open_url(&mut self, url: &str, cx: &mut Context<Self>) {

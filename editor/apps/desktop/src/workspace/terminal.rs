@@ -91,6 +91,10 @@ impl Workspace {
         match event {
             PanelEvent::Hidden => self.focus_active(window, cx),
             PanelEvent::TaskFinished { .. } => self.on_task_finished(event, cx),
+            PanelEvent::AgentExited { terminal, code } => {
+                let (terminal, code) = (*terminal, *code);
+                self.agents.update(cx, |a, cx| a.exited(terminal, code, cx));
+            }
             PanelEvent::Focused => {}
         }
         cx.notify();

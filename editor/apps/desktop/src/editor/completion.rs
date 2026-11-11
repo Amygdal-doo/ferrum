@@ -160,6 +160,7 @@ impl EditorView {
 
     /// Called after plain typing (not IME composition or paste).
     pub(super) fn after_typing(&mut self, typed: &str, cx: &mut Context<Self>) {
+        self.signature_after_typing(typed, cx);
         let auto = cx.global::<Settings>().config.autocomplete;
         let mut chars = typed.chars();
         let (Some(last), None) = (chars.next_back(), chars.next_back()) else {

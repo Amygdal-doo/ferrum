@@ -49,6 +49,18 @@ impl EditorView {
                 }
             }
         }
+        if let Some(exec) = self.debug_marks.exec_line {
+            let color = ui(theme, "warning").opacity(0.18);
+            for row in layout.rows.iter().filter(|r| r.buffer_row == exec) {
+                frame.backgrounds.push(fill(
+                    Bounds::new(
+                        point(frame.text_area.left(), row.top),
+                        size(frame.text_area.size.width, lh),
+                    ),
+                    color,
+                ));
+            }
+        }
         let span_quads = |ranges: &mut dyn Iterator<Item = std::ops::Range<usize>>,
                           color: Hsla,
                           out: &mut Vec<PaintQuad>,
@@ -253,6 +265,38 @@ impl EditorView {
                         .corner_radii(dot / 2.),
                     );
                 }
+            }
+        }
+        // Breakpoints: red dots (hollow-looking when the adapter has not
+        // verified them); the paused line gets an arrow.
+        let red = ui(theme, "error");
+        let dot = (layout.line_height * 0.5).clamp(px(7.), px(11.));
+        for row in layout.rows.iter().filter(|r| r.segment.start == 0) {
+            let y = row.top + (layout.line_height - dot) / 2.;
+            let x = layout.bounds.left() + px(3.);
+            if let Some((_, verified)) = self
+                .debug_marks
+                .breakpoints
+                .iter()
+                .find(|(line, _)| *line == row.buffer_row)
+            {
+                let color = if *verified == Some(false) {
+                    red.opacity(0.4)
+                } else {
+                    red
+                };
+                frame.gutter_marks.push(
+                    fill(Bounds::new(point(x, y), size(dot, dot)), color).corner_radii(dot / 2.),
+                );
+            }
+            if self.debug_marks.exec_line == Some(row.buffer_row) {
+                let color = ui(theme, "warning");
+                let h = dot * 0.8;
+                let y = row.top + (layout.line_height - h) / 2.;
+                frame.gutter_marks.push(
+                    fill(Bounds::new(point(x + px(1.), y), size(px(9.), h)), color)
+                        .corner_radii(px(2.)),
+                );
             }
         }
         let marks = &self.git_marks;

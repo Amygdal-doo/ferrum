@@ -2,11 +2,12 @@
 //! [`Engine`], implemented by [`crate::docker::DockerEngine`] (bollard) and
 //! by [`crate::fake::FakeEngine`] in tests.
 
+use crate::create::CreateSpec;
 use crate::endpoint::Candidate;
 use crate::error::{EngineError, EngineResult};
 use crate::model::{
-    Container, ContainerAction, ContainerDetail, EngineInfo, Image, LogChunk, LogOptions, Network,
-    PruneReport, PullEvent, Stats, Volume,
+    Container, ContainerAction, ContainerDetail, EngineInfo, Image, ImageLayer, LogChunk,
+    LogOptions, Network, PruneReport, PullEvent, Stats, Volume,
 };
 use async_trait::async_trait;
 use futures::stream::BoxStream;
@@ -27,11 +28,17 @@ pub trait Engine: Send + Sync + 'static {
     async fn inspect(&self, id: &str) -> EngineResult<ContainerDetail>;
     async fn container_action(&self, id: &str, action: ContainerAction) -> EngineResult<()>;
     fn logs(&self, id: &str, options: LogOptions) -> EngineStream<LogChunk>;
+    /// Creates (does not start) a container; returns its id. 404 when the image is missing.
+    async fn create_container(&self, spec: &CreateSpec) -> EngineResult<String>;
 
     async fn images(&self) -> EngineResult<Vec<Image>>;
     /// Pulls `reference` (a missing tag means `latest`).
     fn pull(&self, reference: &str) -> EngineStream<PullEvent>;
     async fn remove_image(&self, id: &str) -> EngineResult<()>;
+    /// Adds the reference `repo:tag` to image `id`.
+    async fn tag_image(&self, id: &str, repo: &str, tag: &str) -> EngineResult<()>;
+    /// Layers, newest first (`docker image history`).
+    async fn image_history(&self, id: &str) -> EngineResult<Vec<ImageLayer>>;
     /// Removes dangling (untagged) images.
     async fn prune_images(&self) -> EngineResult<PruneReport>;
 
@@ -114,10 +121,7 @@ mod tests {
     use crate::fake::FakeEngine;
 
     fn candidate(path: &str, source: &'static str) -> Candidate {
-        Candidate {
-            endpoint: Endpoint::Unix(path.into()),
-            source,
-        }
+        Candidate::new(Endpoint::Unix(path.into()), source)
     }
 
     #[tokio::test]

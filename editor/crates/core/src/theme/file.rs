@@ -67,16 +67,26 @@ fn section_doc(section: Section) -> &'static str {
 
 /// Writes `theme` in this format, documented, with every token.
 pub fn to_toml(theme: &Theme) -> String {
+    to_toml_with_header(
+        theme,
+        &format!(
+            "# Ferrum Editor theme — a complete copy of the built-in `{}`.\n\
+             # Copy this file to a new name (e.g. my-theme.toml), change `name`, edit the\n\
+             # colours, then pick it with \"Theme: Select\". Files ending in\n\
+             # .example.toml are not loaded. Colours: #rgb, #rrggbb or #rrggbbaa.\n\
+             # Leave out any token to inherit it from the built-in named by `appearance`.\n",
+            theme.name
+        ),
+    )
+}
+
+/// [`to_toml`] with another comment at the top (e.g. an import's origin).
+pub fn to_toml_with_header(theme: &Theme, header: &str) -> String {
     let mut out = String::new();
-    out.push_str(&format!(
-        "# Ferrum Editor theme — a complete copy of the built-in `{}`.\n\
-         # Copy this file to a new name (e.g. my-theme.toml), change `name`, edit the\n\
-         # colours, then pick it with \"Theme: Select\". Files ending in\n\
-         # .example.toml are not loaded. Colours: #rgb, #rrggbb or #rrggbbaa.\n\
-         # Leave out any token to inherit it from the built-in named by `appearance`.\n\n",
-        theme.name
-    ));
-    out.push_str(&format!("name = \"{}\"\n", theme.name));
+    out.push_str(header);
+    out.push('\n');
+    let name = toml::Value::String(theme.name.clone());
+    out.push_str(&format!("name = {name}\n"));
     out.push_str(&format!(
         "appearance = \"{}\"\n",
         if theme.dark { "dark" } else { "light" }

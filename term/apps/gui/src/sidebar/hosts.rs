@@ -16,14 +16,18 @@ impl TermView {
         let colors = cx.theme().colors().clone();
         let hosts = self.app.ssh.hosts();
         let mut section = v_flex().mt_2().child(
-            h_flex().pr_1().child(heading("SSH hosts", cx)).child(div().flex_1()).child(
-                IconButton::new("add-ssh-host", IconName::Plus)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text("Add SSH host"))
-                    .on_click(cx.listener(|view, _, window, cx| {
-                        view.open_host_form(None, window, cx);
-                    })),
-            ),
+            h_flex()
+                .pr_1()
+                .child(heading("SSH hosts", cx))
+                .child(div().flex_1())
+                .child(
+                    IconButton::new("add-ssh-host", IconName::Plus)
+                        .icon_size(IconSize::Small)
+                        .tooltip(Tooltip::text("Add SSH host"))
+                        .on_click(cx.listener(|view, _, window, cx| {
+                            view.open_host_form(None, window, cx);
+                        })),
+                ),
         );
         if hosts.is_empty() {
             section = section.child(
@@ -47,7 +51,10 @@ impl TermView {
                     .gap_1p5()
                     .cursor_pointer()
                     .hover(|style| style.bg(colors.ghost_element_hover))
-                    .tooltip(Tooltip::text(format!("Open ssh {} in a new tab", host.name)))
+                    .tooltip(Tooltip::text(format!(
+                        "Open ssh {} in a new tab",
+                        host.name
+                    )))
                     .on_click(cx.listener(move |view, _, window, cx| {
                         window.focus(&view.focus_handle, cx);
                         view.app.open_ssh(&name);
@@ -89,7 +96,14 @@ impl TermView {
                         )),
                     ),
             );
-            for (j, spec) in self.app.ssh.store.forwards_of(&host.name).iter().enumerate() {
+            for (j, spec) in self
+                .app
+                .ssh
+                .store
+                .forwards_of(&host.name)
+                .iter()
+                .enumerate()
+            {
                 let info = self.app.ssh.forward(&host.name, spec);
                 section = section.child(self.forward_row(
                     format!("fwd-{i}-{j}"),
@@ -132,7 +146,9 @@ impl TermView {
             None => (colors.text_muted, "off", "Stopped: click to start"),
         };
         let message = info.and_then(|f| f.message.clone());
-        let failed_key = info.filter(|f| f.state == ForwardState::Failed).map(|f| f.key.clone());
+        let failed_key = info
+            .filter(|f| f.state == ForwardState::Failed)
+            .map(|f| f.key.clone());
         let label = spec.describe();
         let (host, spec) = (host.to_owned(), spec.clone());
         v_flex()
@@ -154,7 +170,13 @@ impl TermView {
                     .text_size(px(12.))
                     .child(div().flex_none().size(px(7.)).rounded_full().bg(dot))
                     .child(div().flex_1().min_w_0().truncate().child(label))
-                    .child(div().flex_none().text_size(px(11.)).text_color(dot).child(state))
+                    .child(
+                        div()
+                            .flex_none()
+                            .text_size(px(11.))
+                            .text_color(dot)
+                            .child(state),
+                    )
                     .when_some(failed_key, |row, key| {
                         row.child(
                             IconButton::new(

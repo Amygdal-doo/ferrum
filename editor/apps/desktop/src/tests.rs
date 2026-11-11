@@ -419,3 +419,23 @@ fn tree_view_new_file_dialog_creates_and_opens(cx: &mut TestAppContext) {
         assert_eq!(e.path.as_deref(), Some(created.as_path()))
     });
 }
+
+#[gpui::test]
+fn project_bar_opens_the_picked_folder(cx: &mut TestAppContext) {
+    let (workspace, cx) = workspace_window(cx);
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().canonicalize().expect("canonical");
+    // ⌥⌘O reaches the bar from anywhere in the window.
+    cx.dispatch_action(ferrum_ui::ToggleProjectSwitcher);
+    cx.run_until_parked();
+    let bar = workspace.read_with(cx, |w, _| w.project_bar().clone());
+    // Picking a project in the switcher opens it like Open Folder.
+    bar.update(cx, |_, cx| {
+        cx.emit(ferrum_ui::ProjectBarEvent::Open(root.clone()))
+    });
+    cx.run_until_parked();
+    workspace.read_with(cx, |w, _| {
+        assert_eq!(w.root.as_deref(), Some(root.as_path()));
+        assert!(w.tree().is_some());
+    });
+}

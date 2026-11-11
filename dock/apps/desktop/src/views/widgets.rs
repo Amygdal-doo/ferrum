@@ -2,10 +2,11 @@
 
 use crate::app::FerrumDock;
 use gpui::{AnyElement, App, Context, Div, ElementId, Hsla, SharedString, div, prelude::*, px};
+use std::rc::Rc;
 use theme::ActiveTheme;
 use ui::{
     Button, ButtonCommon, ButtonSize, ButtonStyle, Clickable, Color, Disableable, IconButton,
-    IconName, IconSize, Label, LabelCommon, LabelSize, Tooltip, h_flex,
+    IconName, IconSize, Label, LabelCommon, LabelSize, Toggleable, Tooltip, h_flex,
 };
 
 /// Compact outlined button bound to the root view.
@@ -20,7 +21,11 @@ pub fn button(
         .style(ButtonStyle::Outlined)
         .size(ButtonSize::Compact)
         .disabled(disabled)
-        .on_click(cx.listener(move |app, _, _, cx| on_click(app, cx)))
+        .on_click(cx.listener(move |app, _, _, cx| {
+            // Buttons sit inside clickable rows (compose group headers).
+            cx.stop_propagation();
+            on_click(app, cx);
+        }))
 }
 
 /// Small icon button with a tooltip.
@@ -127,4 +132,35 @@ pub fn muted(text: impl Into<SharedString>) -> Label {
     Label::new(text.into())
         .size(LabelSize::Small)
         .color(Color::Muted)
+}
+
+/// A row of small toggle buttons; `options` are (label, selected, disabled, value).
+pub fn segmented<T: Copy + 'static>(
+    id: &'static str,
+    options: &[(&'static str, bool, bool, T)],
+    cx: &mut Context<FerrumDock>,
+    on_pick: impl Fn(&mut FerrumDock, T, &mut Context<FerrumDock>) + 'static,
+) -> Div {
+    let on_pick = Rc::new(on_pick);
+    h_flex()
+        .flex_none()
+        .gap_0p5()
+        .children(
+            options
+                .iter()
+                .enumerate()
+                .map(|(i, &(label, selected, disabled, value))| {
+                    let on_pick = on_pick.clone();
+                    Button::new((id, i), label)
+                        .style(ButtonStyle::Subtle)
+                        .size(ButtonSize::Compact)
+                        .label_size(LabelSize::XSmall)
+                        .toggle_state(selected)
+                        .disabled(disabled)
+                        .on_click(cx.listener(move |app, _, _, cx| {
+                            cx.stop_propagation();
+                            on_pick(app, value, cx);
+                        }))
+                }),
+        )
 }

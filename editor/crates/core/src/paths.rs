@@ -18,6 +18,8 @@ pub struct UserFiles {
     pub snippets: PathBuf,
     pub theme: PathBuf,
     pub session: PathBuf,
+    /// Debugger breakpoints per project.
+    pub breakpoints: PathBuf,
     /// Whole themes (`*.toml`, VS Code `*.json`).
     pub themes_dir: PathBuf,
     /// Icon themes, one folder each with a `theme.toml`.
@@ -35,6 +37,7 @@ impl UserFiles {
             snippets: dir.join("snippets.toml"),
             theme: dir.join("theme.toml"),
             session: dir.join("session.json"),
+            breakpoints: dir.join("breakpoints.json"),
             themes_dir: dir.join("themes"),
             icon_themes_dir: dir.join("icon-themes"),
             servers_dir: dir.join("servers"),

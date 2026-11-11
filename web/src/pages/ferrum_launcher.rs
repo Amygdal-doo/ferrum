@@ -40,11 +40,13 @@ const FEATURES: &[(&str, &str)] = &[
 ];
 
 const MANAGES: &[&str] = &[
-    "Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit and FerrumDock",
+    "Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock, \
+     FerrumPorts and FerrumEnv",
     "Itself: new launcher versions install in place and restart the app",
     "Keeps the last 3 versions of each app by default",
     "Shell commands like `fee .` to open Ferrum Editor on the current folder, `feg .` for \
-     FerrumGIT or `fet` for FerrumTerm, each turned on per app",
+     FerrumGIT or `fet` for FerrumTerm, and `fep` and `fev` for FerrumPorts and \
+     FerrumEnv, each turned on per app",
     "Global shortcuts, a menu bar icon and hiding any app from the Dock (macOS)",
 ];
 
@@ -86,8 +88,8 @@ const PAGE: ProductPage = ProductPage {
         ),
         ("Built with", "Rust, GPUI, reqwest + rustls"),
     ],
-    specs_note: "The current macOS build is not notarized yet. See the Download page for the \
-                 first-launch step.",
+    specs_note: "The macOS build is signed with a Developer ID and notarized by Apple, so it \
+                 opens without a Gatekeeper warning.",
 };
 
 /// The managed apps, shown right after the hero.

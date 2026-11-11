@@ -119,6 +119,109 @@ impl LogBuffer {
     }
 }
 
+impl LogBuffer {
+    /// Like [`Self::search`], or with `regex` a case-insensitive regular
+    /// expression; an invalid pattern is an error (shown next to the field).
+    pub fn search_with(&self, query: &str, regex: bool) -> Result<Vec<usize>, String> {
+        if !regex || query.trim().is_empty() {
+            return Ok(self.search(query));
+        }
+        let pattern = regex::RegexBuilder::new(query.trim())
+            .case_insensitive(true)
+            .size_limit(1 << 20)
+            .build()
+            .map_err(|e| match e {
+                regex::Error::Syntax(_) => "Invalid regular expression".to_owned(),
+                other => other.to_string(),
+            })?;
+        Ok(self
+            .lines
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| pattern.is_match(&line.plain))
+            .map(|(i, _)| i)
+            .collect())
+    }
+
+    /// Plain text for "Save logs…": the lines at `rows` (all when `None`),
+    /// ANSI stripped, stderr marked, the engine timestamp first when asked.
+    #[must_use]
+    pub fn export(&self, rows: Option<&[usize]>, timestamps: bool) -> String {
+        let mut out = String::new();
+        let mut write = |line: &LogLine| {
+            if timestamps && let Some(ts) = &line.timestamp {
+                out.push_str(ts);
+                out.push(' ');
+            }
+            if line.stream == LogStream::Stderr {
+                out.push_str("[stderr] ");
+            }
+            out.push_str(&line.plain);
+            out.push('\n');
+        };
+        match rows {
+            Some(rows) => rows
+                .iter()
+                .filter_map(|i| self.lines.get(*i))
+                .for_each(&mut write),
+            None => self.lines.iter().for_each(&mut write),
+        }
+        out
+    }
+}
+
+/// The "since" choice of the log toolbar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Since {
+    Minutes5,
+    Hour1,
+    Hours24,
+    #[default]
+    All,
+}
+
+impl Since {
+    pub const ALL: [Self; 4] = [Self::Minutes5, Self::Hour1, Self::Hours24, Self::All];
+
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Minutes5 => "5m",
+            Self::Hour1 => "1h",
+            Self::Hours24 => "24h",
+            Self::All => "all",
+        }
+    }
+
+    /// The `since` Unix time for logs requested at `now`.
+    #[must_use]
+    pub fn since(self, now: i64) -> Option<i64> {
+        let secs = match self {
+            Self::Minutes5 => 5 * 60,
+            Self::Hour1 => 60 * 60,
+            Self::Hours24 => 24 * 60 * 60,
+            Self::All => return None,
+        };
+        Some(now - secs)
+    }
+}
+
+/// A file name for saved logs: `web-db-1-20240501-100000.log`.
+#[must_use]
+pub fn export_file_name(name: &str, now: chrono::DateTime<chrono::Local>) -> String {
+    let safe: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || "-_.".contains(c) {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    format!("{safe}-{}.log", now.format("%Y%m%d-%H%M%S"))
+}
+
 /// Splits Docker's `2024-05-01T10:00:00.123456789Z ` prefix off a line.
 #[must_use]
 pub fn split_timestamp(line: &str) -> (Option<&str>, &str) {
@@ -234,5 +337,52 @@ mod tests {
         );
         assert_eq!(display_timestamp("not a time"), "not a time");
         assert!(display_timestamp("2024-05-01T10:00:00.123456789Z").ends_with(":00.123"));
+    }
+
+    #[test]
+    fn searches_with_regex_and_reports_bad_patterns() {
+        let mut buffer = LogBuffer::new(100, false);
+        buffer.push(&chunk(
+            LogStream::Stdout,
+            "GET /a 200\nGET /b 500\nPOST /c 201\n",
+        ));
+        assert_eq!(buffer.search_with(r"^get .* 5\d\d$", true), Ok(vec![1]));
+        assert_eq!(buffer.search_with("2..", true), Ok(vec![0, 2]));
+        assert_eq!(
+            buffer.search_with("2..", false),
+            Ok(vec![]),
+            "plain is literal"
+        );
+        assert_eq!(buffer.search_with("", true), Ok(vec![0, 1, 2]));
+        assert_eq!(
+            buffer.search_with("(", true),
+            Err("Invalid regular expression".to_owned())
+        );
+    }
+
+    #[test]
+    fn exports_plain_lines() {
+        let mut buffer = LogBuffer::new(100, true);
+        buffer.push(&chunk(
+            LogStream::Stdout,
+            "2024-05-01T10:00:00Z \u{1b}[1mhi\u{1b}[0m\n",
+        ));
+        buffer.push(&chunk(LogStream::Stderr, "2024-05-01T10:00:01Z boom\n"));
+        assert_eq!(buffer.export(None, false), "hi\n[stderr] boom\n");
+        assert_eq!(
+            buffer.export(Some(&[1, 7]), true),
+            "2024-05-01T10:00:01Z [stderr] boom\n"
+        );
+    }
+
+    #[test]
+    fn computes_since_and_file_names() {
+        assert_eq!(Since::Minutes5.since(1_000), Some(700));
+        assert_eq!(Since::Hours24.since(100_000), Some(13_600));
+        assert_eq!(Since::All.since(5), None);
+        assert_eq!(Since::default(), Since::All);
+        let now = chrono::Local::now();
+        let name = export_file_name("web/db 1", now);
+        assert!(name.starts_with("web_db_1-") && name.ends_with(".log"));
     }
 }

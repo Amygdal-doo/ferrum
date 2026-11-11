@@ -37,8 +37,9 @@ impl TermView {
         cx: &mut Context<Self>,
     ) {
         self._dialog_events.clear();
-        let host =
-            name.as_deref().and_then(|n| find_host(&self.app.ssh.store, &self.app.ssh.config, n));
+        let host = name
+            .as_deref()
+            .and_then(|n| find_host(&self.app.ssh.store, &self.app.ssh.config, n));
         let (saved, config) = match host.as_ref().map(|h| &h.source) {
             Some(HostSource::Saved(h)) => (h.clone(), None),
             Some(HostSource::SshConfig(c)) => (
@@ -103,12 +104,18 @@ impl TermView {
             error: None,
             confirm_delete: false,
         };
-        let focus = if ro { form.forwards.clone() } else { form.name.clone() };
+        let focus = if ro {
+            form.forwards.clone()
+        } else {
+            form.name.clone()
+        };
         self.open_dialog(Dialog::Host(form), Some(focus), window, cx);
     }
 
     pub(crate) fn save_host_form(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(Dialog::Host(form)) = &self.dialog else { return };
+        let Some(Dialog::Host(form)) = &self.dialog else {
+            return;
+        };
         let text = |e: &Entity<TextInput>| e.read(cx).text().to_owned();
         let mut store = self.app.ssh.store.clone();
         let result = ForwardSpec::parse_list(&text(&form.forwards)).and_then(|specs| {
@@ -134,7 +141,10 @@ impl TermView {
         });
         let saved = result.and_then(|name| {
             let previous = std::mem::replace(&mut self.app.ssh.store, store);
-            self.app.save_ssh().map(|()| name).inspect_err(|_| self.app.ssh.store = previous)
+            self.app
+                .save_ssh()
+                .map(|()| name)
+                .inspect_err(|_| self.app.ssh.store = previous)
         });
         match saved {
             Ok(name) => {
@@ -153,8 +163,12 @@ impl TermView {
 
     /// First click asks; the second deletes the host and stops its forwards.
     fn delete_host(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(Dialog::Host(form)) = &mut self.dialog else { return };
-        let Some(name) = form.editing.clone() else { return };
+        let Some(Dialog::Host(form)) = &mut self.dialog else {
+            return;
+        };
+        let Some(name) = form.editing.clone() else {
+            return;
+        };
         if !form.confirm_delete {
             form.confirm_delete = true;
             cx.notify();
@@ -219,7 +233,11 @@ impl TermView {
             m = m.footer(
                 Button::new(
                     "host-delete",
-                    if form.confirm_delete { "Really delete?" } else { "Delete" },
+                    if form.confirm_delete {
+                        "Really delete?"
+                    } else {
+                        "Delete"
+                    },
                 )
                 .style(ButtonStyle::Tinted(TintColor::Error))
                 .on_click(cx.listener(|view, _, window, cx| view.delete_host(window, cx))),

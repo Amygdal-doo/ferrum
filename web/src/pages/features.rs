@@ -4,7 +4,7 @@
 
 use maud::{Markup, html};
 
-use super::feature_demos;
+use super::{feature_demos, project_demos};
 use crate::layout::{PageMeta, page};
 use crate::products::{self, Product};
 use crate::site;
@@ -22,7 +22,7 @@ struct AppFeatures {
     demo_label: &'static str,
 }
 
-const APPS: [AppFeatures; 7] = [
+const APPS: [AppFeatures; 9] = [
     AppFeatures {
         product: products::FERRUM_EDITOR,
         version: "0.3.0-alpha.1",
@@ -59,6 +59,16 @@ const APPS: [AppFeatures; 7] = [
                 "Built-in terminal",
                 "Open a terminal at the bottom from the status bar or with ⌃`, with tabs \
                  that keep running while the panel is hidden.",
+            ),
+            (
+                "Logs page",
+                "Tail a project's log files, dev servers and Docker containers in one live, \
+                 filtered view, with levels detected and JSON lines made readable.",
+            ),
+            (
+                "CI page",
+                "GitHub Actions for the open project: workflow runs, live job logs in colour, \
+                 a form for workflow_dispatch and pull request checks.",
             ),
             (
                 "Themes and file icons",
@@ -233,13 +243,74 @@ const APPS: [AppFeatures; 7] = [
         demo_label: "FerrumDock listing a Compose project's running containers with live CPU \
                      bars and their logs",
     },
+    AppFeatures {
+        product: products::FERRUMPORTS,
+        version: "0.1.0-alpha.1",
+        summary: "New: which process is on port 3000, which project it belongs to, and a \
+                  confirmed way to stop it.",
+        points: &[
+            (
+                "Ports by project",
+                "TCP listeners, and UDP on request, with process, command and user, grouped \
+                 by the git project they run in.",
+            ),
+            (
+                "Stop a process",
+                "SIGTERM after a confirmation that shows the full command, then SIGKILL if it \
+                 is still running 2 s later.",
+            ),
+            (
+                "Is port N free?",
+                "Check a port before you use it, and get the nearest free one if it's taken.",
+            ),
+            (
+                "Search and hints",
+                "Refreshes every 2 s, searches every column, and names about 45 well-known \
+                 ports.",
+            ),
+        ],
+        demo: project_demos::ports,
+        demo_label: "FerrumPorts listing a project's listening ports, then stopping a dev \
+                     server after a confirmation",
+    },
+    AppFeatures {
+        product: products::FERRUMENV,
+        version: "0.1.0-alpha.1",
+        summary: "New: your projects' environment variables in an encrypted vault, locked by a \
+                  master password.",
+        points: &[
+            (
+                "Locked by default",
+                "Nothing is decrypted before you type the master password, and the vault locks \
+                 itself after 30 minutes without activity.",
+            ),
+            (
+                "Environments per project",
+                "Development, staging and production to start, with secret values masked and \
+                 the clipboard cleared after a copy.",
+            ),
+            (
+                "Encrypted sharing",
+                "Send a teammate an encrypted bundle sealed with the project's share key, and \
+                 preview an import before it changes anything.",
+            ),
+            (
+                ".env in and out",
+                "Import .env files from the project folder, write them back, and compare two \
+                 environments.",
+            ),
+        ],
+        demo: project_demos::env,
+        demo_label: "FerrumEnv showing a project's development variables with secrets masked, \
+                     one value revealed and copied",
+    },
 ];
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Features"),
         "What every Ferrum app can do in the current alpha: Ferrum Editor, FerrumAPI, \
-         FerrumGIT, FerrumData, FerrumTerm, FerrumKit and FerrumDock.",
+         FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock, FerrumPorts and FerrumEnv.",
         PATH,
         "page-features",
     );
@@ -262,10 +333,16 @@ fn hero() -> Markup {
                 p class="eyebrow" { "Every app is in alpha" }
                 h1 id="features-title" { "What's new across Ferrum" }
                 p class="lead" {
-                    "Seven native developer apps, written in Rust and rendered with GPUI. This \
+                    "Nine native developer apps, written in Rust and rendered with GPUI. This \
                      is what each one can do in the current alpha. "
                     a href=(site::DOWNLOAD_PATH) { "Ferrum Launcher" }
                     " installs them and keeps them up to date."
+                }
+                p {
+                    "Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumPorts \
+                     and FerrumEnv share a project strip at the top: the \
+                     project's name, path and branch, ⌥⌘O to switch between recent projects, \
+                     and buttons to open it in Ferrum Editor, FerrumGIT or FerrumTerm."
                 }
                 nav aria-label="Apps on this page" {
                     ul class="feature-index" {

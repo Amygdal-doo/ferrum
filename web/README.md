@@ -1,8 +1,9 @@
 # web-ferrum
 
 Server-rendered marketing site for the **Ferrum** family of Rust developer tools
-(Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock
-and Ferrum Launcher).
+(Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock,
+FerrumPorts, FerrumEnv and Ferrum Launcher). Project logs and GitHub Actions live
+in Ferrum Editor's Logs and CI pages, presented as sections of `/ferrum-editor`.
 It is a single Rust binary built with
 Axum 0.8, maud templates and tower-http. All CSS, JS and images are embedded in
 the binary with rust-embed, so there is nothing to upload besides the binary.
@@ -37,15 +38,19 @@ and reload without recompiling. Release builds embed the files.
 If neither `SITE_URL` nor `RAILWAY_PUBLIC_DOMAIN` is set, the site URL is
 `http://localhost:$PORT`.
 
+There is no mailing list: news goes on `/updates` and its Atom feed.
+
 ## Routes
 
 | Path | Notes |
 |------|-------|
-| `/`, `/features`, `/ferrum-editor`, `/ferrumapi`, `/ferrumgit`, `/ferrumdata`, `/ferrumterm`, `/ferrumkit`, `/ferrumdock`, `/ferrum-launcher`, `/download`, `/about` | HTML pages, `Cache-Control: public, max-age=300` |
-| `/ferrum-toolbox`, `/ferrum-ide` | `308` to `/ferrum-launcher` (the launcher's former name) and `/ferrum-editor` (Ferrum IDE was dropped; Ferrum Editor is the suite's code editor) |
+| `/`, `/features`, `/ferrum-editor`, `/ferrumapi`, `/ferrumgit`, `/ferrumdata`, `/ferrumterm`, `/ferrumkit`, `/ferrumdock`, `/ferrumports`, `/ferrumenv`, `/ferrum-launcher`, `/download`, `/about` | HTML pages, `Cache-Control: public, max-age=300` |
+| `/ferrum-toolbox`, `/ferrum-ide`, `/ferrumlogs`, `/ferrumci` | `308` to `/ferrum-launcher` (the launcher's former name), `/ferrum-editor` (Ferrum IDE was dropped; Ferrum Editor is the suite's code editor), `/ferrum-editor#logs` and `/ferrum-editor#ci` (FerrumLogs and FerrumCI became the editor's Logs and CI pages) |
 | `/download/macos` | `302` to the newest stable `launcher-v*` (or older `toolbox-v*`) `*-aarch64.dmg` in the public `Amygdal-doo/ferrum-releases` repo, resolved via the GitHub API (anonymous) and cached in memory for 10 min. Falls back to the releases page (cached 1 min) when the lookup fails. `no-store` |
+| `/updates`, `/updates/{slug}`, `/privacy` | HTML pages. Posts are Rust data in `src/updates.rs` with bodies in `src/pages/posts/`. The updates pages end with a block at `#follow` that points to the Atom feed |
+| `/updates/feed.xml` | Atom feed of every post, full HTML content with absolute links. Linked from every page's `<head>` |
 | `/healthz` | `200 ok`, `text/plain`, `no-store`, used by the Railway health check |
-| `/robots.txt`, `/sitemap.xml` | The sitemap is built from `products::ALL` plus `/`, `/download` and `/about` |
+| `/robots.txt`, `/sitemap.xml` | The sitemap is built from `products::ALL`, the static pages and every post |
 | `/assets/*` | Embedded files. URLs from `assets::url()` carry `?v=<sha256 prefix>` and are served `immutable` for one year. Every asset has a strong ETag (`304` on `If-None-Match`) |
 | anything else | HTML 404, `no-cache` |
 
@@ -64,12 +69,13 @@ src/
   site.rs          site-wide constants and links (download, releases, upstream credits)
   products.rs      product catalogue (drives nav, cards, sitemap)
   releases.rs      newest launcher DMG lookup (pure JSON selection + cache) for /download/macos
+  updates.rs       posts on /updates (slug, title, date, byline, summary, body fn)
   layout.rs        HTML shell (head, meta, nav, footer)
   components/      reusable maud components (nav, footer, card, badge, ...)
-  pages/           one module per page, each with `render(site_url)`
-  routes/          router (mod.rs), assets, health, seo, middleware
+  pages/           one module per page, each with `render(site_url)`; posts/ holds post bodies
+  routes/          router (mod.rs), assets, health, seo, middleware, updates
 assets/            css/, js/, img/ (embedded at compile time)
-tests/http.rs      end-to-end HTTP tests via tower::ServiceExt::oneshot
+tests/http.rs      end-to-end HTTP tests via tower::ServiceExt::oneshot (pages, redirects, feed)
 Dockerfile         cargo-chef multi-stage build -> debian:bookworm-slim, uid 10001
 railway.toml       Railway build + deploy config
 ```

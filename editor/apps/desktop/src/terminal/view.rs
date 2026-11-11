@@ -49,6 +49,10 @@ pub struct TerminalView {
     /// Tasks: the label shown in the tab, and whether the end was reported.
     pub task: Option<String>,
     task_reported: bool,
+    /// AI agent sessions: the agent's name (the tab shows its status).
+    pub agent: Option<String>,
+    /// When output last arrived (agents idle → "waiting for input").
+    pub last_output: std::time::Instant,
     _reader: Task<()>,
     _focus: Subscription,
 }
@@ -97,13 +101,16 @@ impl TerminalView {
             exited: false,
             task: None,
             task_reported: false,
+            agent: None,
+            last_output: std::time::Instant::now(),
             _reader: reader,
             _focus: focus,
         }
     }
 
     fn on_output(&mut self, cx: &mut Context<Self>) {
-        if self.task.is_some() {
+        self.last_output = std::time::Instant::now();
+        if self.task.is_some() || self.agent.is_some() {
             if let Some(code) = self.session.exit_code()
                 && !self.task_reported
             {
@@ -121,6 +128,27 @@ impl TerminalView {
     #[cfg(test)]
     pub fn session(&self) -> &Session {
         &self.session
+    }
+
+    pub fn kill(&self) {
+        self.session.kill();
+    }
+
+    /// Tab title; agents show their status (idle longer than `idle` =
+    /// waiting for input).
+    pub fn title_with_idle(&self, idle: std::time::Duration) -> String {
+        match &self.agent {
+            Some(name) => {
+                let status = ferrumeditor_core::agents::AgentStatus::of(
+                    self.session.exit_code(),
+                    false,
+                    self.last_output.elapsed(),
+                    idle,
+                );
+                format!("✦ {name} · {}", status.label())
+            }
+            None => self.title(),
+        }
     }
 
     pub fn title(&self) -> String {

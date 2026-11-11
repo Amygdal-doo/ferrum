@@ -374,9 +374,14 @@ mod tests {
         write_example(dir.path()).expect("write");
         let (registry, warnings) = IconThemeRegistry::load(Some(dir.path()));
         assert!(warnings.is_empty(), "{warnings:?}");
+        // Bundled `material` comes after the user's themes.
         assert_eq!(
             registry.names(),
-            vec!["ferrum".to_string(), "example".to_string()]
+            vec![
+                "ferrum".to_string(),
+                "example".to_string(),
+                "material".to_string()
+            ]
         );
         let example = registry.get("example").expect("example");
         let readme = example.resolve("readme.md", EntryKind::File, Some("markdown"));

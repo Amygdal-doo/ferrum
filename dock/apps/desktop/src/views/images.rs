@@ -16,7 +16,7 @@ const COLUMNS: [(&str, Option<f32>); 6] = [
     ("SIZE", Some(90.)),
     ("CREATED", Some(120.)),
     ("USED BY", Some(90.)),
-    ("", Some(40.)),
+    ("", Some(116.)),
 ];
 
 pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
@@ -110,6 +110,12 @@ fn image_row(
         n => format!("{n} container{}", if n == 1 { "" } else { "s" }),
     };
     let target = image.clone();
+    let (tag, history) = (image.clone(), image.clone());
+    let run_ref = image
+        .tags
+        .first()
+        .cloned()
+        .unwrap_or_else(|| image.id.clone());
     row(SharedString::from(format!("image-{}", image.id)), false, cx)
         .child(grow_cell(label))
         .child(cell(110., image.short_id().to_owned(), Color::Muted))
@@ -119,8 +125,33 @@ fn image_row(
         .child(
             h_flex()
                 .flex_none()
-                .w(gpui::px(40.))
+                .w(gpui::px(116.))
+                .gap_0p5()
                 .justify_end()
+                .child(icon_button(
+                    SharedString::from(format!("run-image-{}", image.id)),
+                    IconName::PlayFilled,
+                    "Run a container…",
+                    false,
+                    cx,
+                    move |app, cx| app.open_run_dialog(Some(run_ref.clone()), cx),
+                ))
+                .child(icon_button(
+                    SharedString::from(format!("tag-image-{}", image.id)),
+                    IconName::Pencil,
+                    "Tag…",
+                    busy,
+                    cx,
+                    move |app, cx| app.open_tag_dialog(&tag, cx),
+                ))
+                .child(icon_button(
+                    SharedString::from(format!("history-image-{}", image.id)),
+                    IconName::HistoryRerun,
+                    "History (layers)",
+                    false,
+                    cx,
+                    move |app, cx| app.open_image_history(&history, cx),
+                ))
                 .child(icon_button(
                     SharedString::from(format!("rm-image-{}", image.id)),
                     IconName::Trash,

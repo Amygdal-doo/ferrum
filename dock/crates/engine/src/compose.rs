@@ -139,16 +139,12 @@ impl ComposeAction {
     }
 }
 
-/// Arguments after `docker`. The project directory and compose files from the
-/// labels are passed only if they all still exist; otherwise compose works
-/// from the project name alone (fine for `down`/`restart`; `up` then needs the
+/// `compose -p <name>` plus `--project-directory` and `-f` from the labels,
+/// passed only if they all still exist; otherwise compose works from the
+/// project name alone (fine for `down`/`restart`/`ps`; `up` then needs the
 /// files and reports that clearly).
 #[must_use]
-pub fn compose_args(
-    project: &ComposeProject,
-    action: ComposeAction,
-    exists: impl Fn(&Path) -> bool,
-) -> Vec<String> {
+pub fn base_args(project: &ComposeProject, exists: impl Fn(&Path) -> bool) -> Vec<String> {
     let mut args = vec!["compose".to_owned(), "-p".to_owned(), project.name.clone()];
     let dir_ok = project
         .working_dir
@@ -164,6 +160,17 @@ pub fn compose_args(
             args.extend(["-f".to_owned(), file.clone()]);
         }
     }
+    args
+}
+
+/// Arguments after `docker` for `action` (see [`base_args`]).
+#[must_use]
+pub fn compose_args(
+    project: &ComposeProject,
+    action: ComposeAction,
+    exists: impl Fn(&Path) -> bool,
+) -> Vec<String> {
+    let mut args = base_args(project, exists);
     match action {
         ComposeAction::Up => args.extend(["up".to_owned(), "-d".to_owned()]),
         ComposeAction::Down => args.push("down".to_owned()),

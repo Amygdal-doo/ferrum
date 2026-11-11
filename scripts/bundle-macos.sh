@@ -31,6 +31,8 @@ case "$app" in
   kit)     name="FerrumKit";      binaries="ferrumkit" ;;
   dock)    name="FerrumDock";     binaries="ferrumdock" ;;
   editor)  name="Ferrum Editor";  binaries="ferrumeditor" ;;
+  ports)   name="FerrumPorts";    binaries="ferrumports" ;;
+  env)     name="FerrumEnv";      binaries="ferrumenv" ;;
   launcher) name="Ferrum Launcher"; binaries="ferrum-launcher" ;;
   *) echo "error: unknown app id '$app'" >&2; usage ;;
 esac

@@ -42,6 +42,9 @@ pub struct Diagnostic {
     pub message: String,
     pub source: Option<String>,
     pub code: Option<String>,
+    /// The diagnostic as the server sent it (sent back with code action
+    /// requests; `Null` for problems parsed from task output).
+    pub raw: Value,
 }
 
 impl Diagnostic {
@@ -82,6 +85,7 @@ fn parse_diagnostic(value: &Value) -> Option<Diagnostic> {
         message: value["message"].as_str().unwrap_or_default().to_string(),
         source: value["source"].as_str().map(str::to_string),
         code,
+        raw: value.clone(),
     })
 }
 
@@ -91,7 +95,7 @@ pub struct TextEdit {
     pub new_text: String,
 }
 
-fn parse_text_edit(value: &Value) -> Option<TextEdit> {
+pub(crate) fn parse_text_edit(value: &Value) -> Option<TextEdit> {
     // `InsertReplaceEdit` has `insert` / `replace` instead of `range`.
     let range = value
         .get("range")

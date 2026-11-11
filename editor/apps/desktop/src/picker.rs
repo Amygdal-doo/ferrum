@@ -29,6 +29,12 @@ pub enum PickerKind {
     Locations,
     /// Build, test and run tasks.
     Tasks,
+    /// Quick fixes and refactorings from the language server.
+    CodeActions,
+    /// Agents to start a session with.
+    Agents,
+    /// Debug launch configurations.
+    DebugConfigs,
 }
 
 #[derive(Debug, Clone)]

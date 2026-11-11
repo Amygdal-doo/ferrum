@@ -2,6 +2,7 @@
 
 pub mod about;
 pub mod download;
+pub mod editor_pages;
 pub mod feature_demos;
 pub mod features;
 pub mod ferrum_editor;
@@ -9,9 +10,15 @@ pub mod ferrum_launcher;
 pub mod ferrumapi;
 pub mod ferrumdata;
 pub mod ferrumdock;
+pub mod ferrumenv;
 pub mod ferrumgit;
 pub mod ferrumkit;
+pub mod ferrumports;
 pub mod ferrumterm;
 pub mod home;
 pub mod not_found;
+pub mod posts;
+pub mod privacy;
 pub mod product_sections;
+pub mod project_demos;
+pub mod updates;

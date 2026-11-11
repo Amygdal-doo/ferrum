@@ -53,7 +53,8 @@ fn theme_selector_previews_reverts_and_applies(cx: &mut TestAppContext) {
     assert!(workspace.read_with(cx, |w, _| w.picker_open()));
     cx.simulate_keystrokes("down");
     assert_eq!(theme_name(cx), "ferrum-light");
-    cx.simulate_keystrokes("down");
+    // Shorter names list first (the bundled Material themes are longer).
+    cx.simulate_keystrokes("up up up");
     assert_eq!(theme_name(cx), "ocean");
     cx.simulate_keystrokes("escape");
     assert!(!workspace.read_with(cx, |w, _| w.picker_open()));
@@ -167,4 +168,60 @@ fn tree_view_rows_resolve_file_icons(cx: &mut TestAppContext) {
     // Icons can be turned off.
     cx.update(|_, cx| cx.global_mut::<Settings>().config.show_file_icons = false);
     assert_eq!(icon("main.rs", cx), None);
+}
+
+#[gpui::test]
+fn material_themes_and_vscode_import(cx: &mut TestAppContext) {
+    let home = tempfile::tempdir().expect("tempdir");
+    init_with_user_dir(cx, home.path());
+    let (workspace, cx) = cx.add_window_view(Workspace::new);
+    cx.run_until_parked();
+
+    // The bundled Material themes are in the selector.
+    run(&workspace, "theme:select", cx);
+    cx.simulate_input("palenight");
+    cx.simulate_keystrokes("enter");
+    assert_eq!(theme_name(cx), "Material Palenight");
+    assert!(config_text(home.path()).contains("theme = \"Material Palenight\""));
+    // …and the Material icons.
+    run(&workspace, "icon-theme:select", cx);
+    cx.simulate_input("material");
+    cx.simulate_keystrokes("enter");
+    assert_eq!(icon_theme_name(cx), "material");
+
+    // A VS Code theme with an `include` is converted into themes/.
+    let elsewhere = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        elsewhere.path().join("base.json"),
+        r##"{ "colors": { "sideBar.background": "#e8e8e8" }, }"##,
+    )
+    .expect("write");
+    let theme = elsewhere.path().join("fixture-color-theme.json");
+    std::fs::write(
+        &theme,
+        r##"{ "name": "Fixture", "type": "light", "include": "./base.json",
+             // comments and trailing commas are fine
+             "colors": { "editor.background": "#fcfcfc", },
+             "tokenColors": [{ "scope": "keyword", "settings": { "foreground": "#0000ff" } }], }"##,
+    )
+    .expect("write");
+    workspace.update(cx, |w, cx| w.import_vscode_theme(&theme, cx));
+    assert_eq!(theme_name(cx), "Fixture");
+    assert!(home.path().join("editor/themes/fixture.toml").is_file());
+    assert!(config_text(home.path()).contains("theme = \"Fixture\""));
+    cx.read(|cx| {
+        let theme = &cx.global::<Settings>().theme;
+        assert!(!theme.dark);
+        assert_eq!(theme.ui("editor").to_hex(), "#fcfcfc");
+        assert_eq!(theme.ui("background").to_hex(), "#e8e8e8");
+        assert_eq!(
+            theme.syntax("keyword").map(|c| c.to_hex()).as_deref(),
+            Some("#0000ff")
+        );
+    });
+    // Not a theme: a notice, nothing changes.
+    let junk = elsewhere.path().join("junk.json");
+    std::fs::write(&junk, "[1, 2]").expect("write");
+    workspace.update(cx, |w, cx| w.import_vscode_theme(&junk, cx));
+    assert_eq!(theme_name(cx), "Fixture");
 }

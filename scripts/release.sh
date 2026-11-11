@@ -6,7 +6,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 <editor|api|git|data|term|kit|dock|launcher> <semver> [-m \"release notes\"]" >&2
+  echo "usage: $0 <editor|api|git|data|term|kit|dock|ports|env|launcher> <semver> [-m \"release notes\"]" >&2
   exit 2
 }
 
@@ -23,7 +23,7 @@ while [ $# -gt 0 ]; do
 done
 
 case "$app" in
-  editor|api|git|data|term|kit|dock|launcher) ;;
+  editor|api|git|data|term|kit|dock|ports|env|launcher) ;;
   ide)
     echo "error: Ferrum IDE is no longer released; Ferrum Editor ('editor') is the suite's code editor" >&2
     exit 2 ;;

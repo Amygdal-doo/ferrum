@@ -11,7 +11,7 @@
 set -euo pipefail
 
 usage() {
-  echo "usage: $0 <editor|api|git|data|term|kit|dock|launcher> <semver> <binary-dir> <out-dir> [arch]" >&2
+  echo "usage: $0 <editor|api|git|data|term|kit|dock|ports|env|launcher> <semver> <binary-dir> <out-dir> [arch]" >&2
   exit 2
 }
 

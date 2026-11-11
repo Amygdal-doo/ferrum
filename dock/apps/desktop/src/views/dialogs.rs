@@ -1,4 +1,4 @@
-//! Confirm and pull dialogs.
+//! Confirm and pull dialogs; dispatch to the run, tag, history and engine dialogs.
 
 use crate::app::FerrumDock;
 use crate::state::Dialog;
@@ -40,6 +40,10 @@ pub fn render(
                 .into_any_element(),
         ),
         Dialog::Pull => Some(pull(app, cx)),
+        Dialog::Run => Some(super::run_dialog::render(app, cx)),
+        Dialog::Tag(image) => Some(super::image_dialogs::tag(app, image, cx)),
+        Dialog::History => Some(super::image_dialogs::history(app, cx)),
+        Dialog::Engines => Some(super::engines::render(app, cx)),
     }
 }
 

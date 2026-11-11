@@ -1,6 +1,8 @@
 //! End to end with a scripted language server (a small Python program):
 //! problems, completion while typing, hover, go to definition and back,
-//! and the problems list.
+//! the problems list, rename across files, find all references, code
+//! actions (edits and commands that make the server apply an edit),
+//! formatting (command and on save) and signature help.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -16,10 +18,46 @@ use crate::tests::init;
 use crate::workspace::Workspace;
 
 const FAKE_SERVER: &str = r#"#!/usr/bin/env python3
-import json, re, sys
+import json, os, re, sys, urllib.parse
 
 inp, out = sys.stdin.buffer, sys.stdout.buffer
 docs = {}
+root = "/"
+pending_command = None
+
+def path_of(uri):
+    return urllib.parse.unquote(urllib.parse.urlparse(uri).path)
+
+def text_of(uri):
+    if uri in docs:
+        return docs[uri]
+    with open(path_of(uri)) as f:
+        return f.read()
+
+def word_at(uri, pos):
+    line = text_of(uri).split("\n")[pos["line"]]
+    for m in re.finditer(r"\w+", line):
+        if m.start() <= pos["character"] <= m.end():
+            return m.group(0), m.start(), m.end()
+    return None
+
+def rng(line, start, end):
+    return {"start": {"line": line, "character": start}, "end": {"line": line, "character": end}}
+
+def occurrences(word):
+    """(uri, range) of `word` in open documents and the project's .rs files."""
+    uris = {path_of(u): u for u in docs}
+    for name in sorted(os.listdir(root)):
+        path = os.path.join(root, name)
+        if name.endswith(".rs") and path not in uris:
+            uris[path] = "file://" + urllib.parse.quote(path)
+    found = []
+    for path in sorted(uris):
+        uri = uris[path]
+        for n, line in enumerate(text_of(uri).split("\n")):
+            for m in re.finditer(r"\b%s\b" % re.escape(word), line):
+                found.append((uri, rng(n, m.start(), m.end())))
+    return found
 
 def send(msg):
     body = json.dumps(msg).encode()
@@ -50,9 +88,60 @@ while True:
     msg = json.loads(inp.read(length))
     method, params, mid = msg.get("method"), msg.get("params") or {}, msg.get("id")
     if method == "initialize":
+        root = path_of(params["rootUri"])
         send({"jsonrpc": "2.0", "id": mid, "result": {"capabilities": {
             "textDocumentSync": 1, "hoverProvider": True, "definitionProvider": True,
-            "completionProvider": {"triggerCharacters": ["."], "resolveProvider": True}}}})
+            "completionProvider": {"triggerCharacters": ["."], "resolveProvider": True},
+            "renameProvider": {"prepareProvider": True}, "referencesProvider": True,
+            "documentFormattingProvider": True, "codeActionProvider": True,
+            "executeCommandProvider": {"commands": ["fake.addComment"]},
+            "signatureHelpProvider": {"triggerCharacters": ["("], "retriggerCharacters": [","]}}}})
+    elif method == "textDocument/prepareRename":
+        word = word_at(params["textDocument"]["uri"], params["position"])
+        send({"jsonrpc": "2.0", "id": mid, "result": word and {
+            "range": rng(params["position"]["line"], word[1], word[2]), "placeholder": word[0]}})
+    elif method == "textDocument/rename":
+        word = word_at(params["textDocument"]["uri"], params["position"])[0]
+        by_uri = {}
+        for uri, r in occurrences(word):
+            by_uri.setdefault(uri, []).append({"range": r, "newText": params["newName"]})
+        send({"jsonrpc": "2.0", "id": mid, "result": {"documentChanges": [
+            {"textDocument": {"uri": uri, "version": None}, "edits": edits}
+            for uri, edits in by_uri.items()]}})
+    elif method == "textDocument/references":
+        word = word_at(params["textDocument"]["uri"], params["position"])[0]
+        send({"jsonrpc": "2.0", "id": mid, "result": [
+            {"uri": uri, "range": r} for uri, r in occurrences(word)]})
+    elif method == "textDocument/formatting":
+        edits = []
+        for n, line in enumerate(text_of(params["textDocument"]["uri"]).split("\n")):
+            stripped = line.rstrip(" ")
+            if stripped != line:
+                edits.append({"range": rng(n, len(stripped), len(line)), "newText": ""})
+        send({"jsonrpc": "2.0", "id": mid, "result": edits})
+    elif method == "textDocument/codeAction":
+        uri = params["textDocument"]["uri"]
+        send({"jsonrpc": "2.0", "id": mid, "result": [
+            {"title": "Insert header", "kind": "source",
+             "edit": {"changes": {uri: [{"range": rng(0, 0, 0), "newText": "// header\n"}]}}},
+            {"title": "Add comment", "kind": "quickfix",
+             "command": {"title": "Add comment", "command": "fake.addComment", "arguments": [uri]}}]})
+    elif method == "workspace/executeCommand":
+        pending_command = mid
+        uri = params["arguments"][0]
+        send({"jsonrpc": "2.0", "id": "apply-1", "method": "workspace/applyEdit", "params": {
+            "label": "Add comment",
+            "edit": {"changes": {uri: [{"range": rng(0, 0, 0), "newText": "// added\n"}]}}}})
+    elif method is None and mid == "apply-1":
+        assert msg["result"]["applied"], msg
+        send({"jsonrpc": "2.0", "id": pending_command, "result": None})
+    elif method == "textDocument/signatureHelp":
+        pos = params["position"]
+        line = text_of(params["textDocument"]["uri"]).split("\n")[pos["line"]]
+        send({"jsonrpc": "2.0", "id": mid, "result": {
+            "signatures": [{"label": "fn helper(a: i32, b: i32)",
+                            "parameters": [{"label": "a: i32"}, {"label": "b: i32"}]}],
+            "activeParameter": line[:pos["character"]].count(",")}})
     elif method == "textDocument/didOpen":
         docs[params["textDocument"]["uri"]] = params["textDocument"]["text"]
         publish(params["textDocument"]["uri"])
@@ -428,4 +517,155 @@ fn missing_server_is_installed_and_started(cx: &mut TestAppContext) {
     );
     assert!(servers_dir.join("logs/typescript.log").is_file());
     editor.read_with(cx, |e, _| assert!(e.has_language_server()));
+}
+
+/// Starts the scripted server for Rust files in `root` and opens `file`.
+fn open_with_server<'a>(
+    root: &Path,
+    file: &Path,
+    cx: &'a mut TestAppContext,
+) -> (Entity<Workspace>, &'a mut VisualTestContext) {
+    let server = write_server(root);
+    cx.update(|cx| {
+        let settings = cx.global_mut::<Settings>();
+        settings.config.lsp.servers.insert(
+            "rust".into(),
+            LspServerConfig {
+                command: Some(server.to_string_lossy().to_string()),
+                ..Default::default()
+            },
+        );
+        let path = std::env::var("PATH").unwrap_or_default();
+        let store = cx.new(|_| LspStore::with_path(path));
+        cx.set_global(GlobalLsp(store));
+    });
+    let (workspace, cx) = cx.add_window_view(Workspace::new);
+    let (root, file) = (root.to_path_buf(), file.to_path_buf());
+    workspace.update_in(cx, |w, window, cx| {
+        w.set_root(root, window, cx);
+        w.open_file(&file, window, cx);
+    });
+    (workspace, cx)
+}
+
+fn line(editor: &Entity<EditorView>, row: usize, cx: &mut VisualTestContext) -> String {
+    editor.read_with(cx, |e, _| e.state.buffer().line(row).to_string())
+}
+
+#[gpui::test]
+fn rename_references_code_actions_and_formatting(cx: &mut TestAppContext) {
+    if !has_python() {
+        eprintln!("skipping: python3 is not installed");
+        return;
+    }
+    cx.executor().allow_parking();
+    init(cx);
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().canonicalize().expect("canonical");
+    let main = root.join("main.rs");
+    let other = root.join("other.rs");
+    std::fs::write(
+        &main,
+        "fn helper(a: i32, b: i32) {}\nfn main() {\n    helper(1, 2);   \n}\n",
+    )
+    .expect("write");
+    std::fs::write(&other, "fn other() {\n    helper(3, 4);\n}\n").expect("write");
+    let (workspace, cx) = open_with_server(&root, &main, cx);
+    let editor = active(&workspace, cx);
+    wait_until(cx, "the server", |cx| {
+        editor.read_with(cx, |e, _| e.server_ready())
+    });
+    editor.update_in(cx, |e, window, cx| {
+        e.state.go_to_point(2, 6);
+        e.focus(window, cx);
+    });
+
+    // Shift+F12 lists every reference, grouped by file, in the bottom panel.
+    cx.simulate_keystrokes("shift-f12");
+    let panel = workspace.read_with(cx, |w, _| w.project_find().clone());
+    wait_until(cx, "references", |cx| {
+        workspace.read_with(cx, |w, _| w.project_find_visible())
+    });
+    panel.read_with(cx, |p, _| {
+        assert_eq!(p.status().as_ref(), "3 references to `helper` in 2 files");
+        assert_eq!(p.result_rows(), 5);
+    });
+    panel.update(cx, |p, cx| p.open_first_match(cx));
+    cx.run_until_parked();
+    assert_eq!(cursor(&editor, cx), Point::new(0, 3));
+
+    // F2 opens the inline input with the name selected; Enter renames in
+    // the open buffer and in the file that is not open.
+    editor.update_in(cx, |e, window, cx| e.focus(window, cx));
+    cx.simulate_keystrokes("f2");
+    wait_until(cx, "rename input", |cx| {
+        editor.read_with(cx, |e, _| e.rename_open())
+    });
+    cx.simulate_input("assist");
+    cx.simulate_keystrokes("enter");
+    wait_until(cx, "rename", |cx| {
+        line(&editor, 0, cx).starts_with("fn assist(")
+    });
+    assert_eq!(line(&editor, 2, cx), "    assist(1, 2);   ");
+    assert!(!editor.read_with(cx, |e, _| e.rename_open()));
+    assert_eq!(
+        std::fs::read_to_string(&other).expect("read"),
+        "fn other() {\n    assist(3, 4);\n}\n"
+    );
+    // One undo step reverts the open buffer.
+    cx.simulate_keystrokes(&crate::tests::primary("cmd-z"));
+    assert_eq!(line(&editor, 0, cx), "fn helper(a: i32, b: i32) {}");
+    assert_eq!(line(&editor, 2, cx), "    helper(1, 2);   ");
+
+    // Shift+Alt+F formats; saving formats too.
+    cx.simulate_keystrokes("shift-alt-f");
+    wait_until(cx, "format", |cx| {
+        line(&editor, 2, cx) == "    helper(1, 2);"
+    });
+    editor.update_in(cx, |e, window, cx| {
+        e.state.go_to_point(2, 17);
+        e.focus(window, cx);
+    });
+    cx.simulate_input("  ");
+    assert_eq!(line(&editor, 2, cx), "    helper(1, 2);  ");
+    cx.simulate_keystrokes(&crate::tests::primary("cmd-s"));
+    wait_until(cx, "format on save", |cx| {
+        !editor.read_with(cx, |e, _| e.is_dirty())
+    });
+    assert_eq!(
+        std::fs::read_to_string(&main).expect("read"),
+        "fn helper(a: i32, b: i32) {}\nfn main() {\n    helper(1, 2);\n}\n"
+    );
+
+    // Cmd+. lists the actions, quick fixes first. A command action makes
+    // the server send workspace/applyEdit; an edit action applies directly.
+    cx.simulate_keystrokes(&crate::tests::primary("cmd-."));
+    wait_until(cx, "code actions", |cx| {
+        workspace.read_with(cx, |w, _| w.picker_open())
+    });
+    cx.simulate_keystrokes("enter");
+    wait_until(cx, "command edit", |cx| line(&editor, 0, cx) == "// added");
+    cx.simulate_keystrokes(&crate::tests::primary("cmd-."));
+    wait_until(cx, "code actions again", |cx| {
+        workspace.read_with(cx, |w, _| w.picker_open())
+    });
+    cx.simulate_keystrokes("down enter");
+    wait_until(cx, "edit action", |cx| line(&editor, 0, cx) == "// header");
+    assert_eq!(line(&editor, 1, cx), "// added");
+
+    // Typing `(` shows the signature; Escape hides it.
+    editor.update_in(cx, |e, window, cx| {
+        e.state.go_to_point(5, 0);
+        e.focus(window, cx);
+    });
+    cx.simulate_input("helper(");
+    wait_until(cx, "signature help", |cx| {
+        editor.read_with(cx, |e, _| e.signature_label().is_some())
+    });
+    assert_eq!(
+        editor.read_with(cx, |e, _| e.signature_label()).as_deref(),
+        Some("fn helper(a: i32, b: i32)")
+    );
+    cx.simulate_keystrokes("escape");
+    assert!(editor.read_with(cx, |e, _| e.signature_label().is_none()));
 }

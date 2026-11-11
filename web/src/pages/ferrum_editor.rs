@@ -1,10 +1,20 @@
 //! Ferrum Editor product page. Claims follow the Ferrum Editor README
 //! ("What works today" / "Not built yet") and nothing beyond it.
+//!
+//! The Logs and CI pages (formerly the FerrumLogs and FerrumCI apps) have
+//! their own sections, defined in `editor_pages`; `/ferrumlogs` and
+//! `/ferrumci` redirect to [`LOGS_PATH`] and [`CI_PATH`].
 
 use maud::{Markup, html};
 
+use super::editor_pages;
 use super::product_sections::{self as sections, BulletGroup, ProductPage};
 use crate::products::FERRUM_EDITOR;
+
+/// Where `/ferrumlogs` points: this page's Logs section.
+pub const LOGS_PATH: &str = "/ferrum-editor#logs";
+/// Where `/ferrumci` points: this page's CI section.
+pub const CI_PATH: &str = "/ferrum-editor#ci";
 
 const FEATURES: &[(&str, &str)] = &[
     (
@@ -60,6 +70,8 @@ const WORKS_TODAY: &[&str] = &[
     "Build tasks with ⌘B and their errors as problems; Git panel and Git view",
     "Problems underlined, listed (⌃⇧M) and stepped through with F8",
     "Go to definition (F12 or ⌘-click), with back and forward",
+    "Logs page: files, commands and containers of a project tailed in one filtered view",
+    "CI page: GitHub Actions runs, live logs, workflow dispatch and pull request checks",
 ];
 
 const NOT_BUILT_YET: &[&str] = &[
@@ -73,7 +85,8 @@ const NOT_BUILT_YET: &[&str] = &[
 const PAGE: ProductPage = ProductPage {
     product: FERRUM_EDITOR,
     meta_description: "Ferrum Editor is a small, hackable code editor in the spirit of Atom, \
-                       written from scratch in Rust on GPUI and configured in plain TOML.",
+                       written from scratch in Rust on GPUI, configured in plain TOML, with \
+                       project logs and GitHub Actions built in.",
     intro: "Tree view, tabs, fuzzy finder and command palette, with config, keymap, theme and \
             snippets in plain files you edit in the editor itself. Lighter than an IDE, and \
             built from scratch rather than forked.",
@@ -98,7 +111,10 @@ const PAGE: ProductPage = ProductPage {
     ],
     specs: &[
         ("Install", "Ferrum Launcher (free, see Download)"),
-        ("Network", "None"),
+        (
+            "Network",
+            "None, except the CI page, which talks to GitHub with your own token",
+        ),
         (
             "Builds",
             "macOS (Apple Silicon and Intel), Linux x86_64 and Windows",
@@ -110,7 +126,11 @@ const PAGE: ProductPage = ProductPage {
 };
 
 pub fn render(site_url: &str) -> Markup {
-    sections::render(site_url, &PAGE, html! {})
+    let extra = html! {
+        (editor_pages::section(&editor_pages::LOGS))
+        (editor_pages::section(&editor_pages::CI))
+    };
+    sections::render(site_url, &PAGE, extra)
 }
 
 #[cfg(test)]
@@ -125,5 +145,19 @@ mod tests {
         assert!(html.contains("Animated preview of Ferrum Editor"));
         assert!(html.contains("/assets/img/brand/editor.svg"));
         assert!(html.contains("href=\"/download\""));
+    }
+
+    #[test]
+    fn has_logs_and_ci_sections_with_their_demos() {
+        let html = render("https://example.test").into_string();
+        assert!(html.contains(r#"id="logs""#));
+        assert!(html.contains(r#"id="ci""#));
+        assert!(html.contains("Ferrum Editor · Logs"));
+        assert!(html.contains("Ferrum Editor · CI"));
+        assert!(html.contains("workflow_dispatch"));
+        assert!(!html.contains("FerrumCI"));
+        assert!(!html.contains("FerrumLogs"));
+        assert_eq!(LOGS_PATH, editor_pages::path(&editor_pages::LOGS));
+        assert_eq!(CI_PATH, editor_pages::path(&editor_pages::CI));
     }
 }

@@ -1,4 +1,5 @@
-//! Every theme the editor can use: the built-ins plus the files in
+//! Every theme the editor can use: the built-ins, the bundled Material
+//! themes, and the files in
 //! `~/.ferrum/editor/themes/` — `*.toml` in our format ([`super::file`])
 //! and `*.json` VS Code themes ([`super::vscode`]). Files ending in
 //! `.example.toml` are documentation, not loaded. A file that fails to
@@ -7,6 +8,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
+use super::material::{MATERIAL_THEMES, material};
 use super::{BUILTIN_THEMES, Theme, file, vscode};
 
 /// Theme files above this size are ignored.
@@ -16,7 +18,20 @@ const EXAMPLE_SUFFIX: &str = ".example.toml";
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ThemeSource {
     Builtin,
+    /// Shipped with the editor (the Material themes); listed after yours.
+    Bundled,
     File(PathBuf),
+}
+
+impl ThemeSource {
+    /// Order in the selector: Ferrum built-ins, your themes, bundled.
+    fn rank(&self) -> u8 {
+        match self {
+            ThemeSource::Builtin => 0,
+            ThemeSource::File(_) => 1,
+            ThemeSource::Bundled => 2,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,15 +90,22 @@ pub fn load_file(path: &Path) -> Result<(Theme, Vec<String>), String> {
 
 impl ThemeRegistry {
     pub fn builtins() -> Self {
+        let builtin = BUILTIN_THEMES
+            .iter()
+            .filter_map(|name| Theme::builtin(name))
+            .map(|theme| (theme, ThemeSource::Builtin));
+        let bundled = MATERIAL_THEMES
+            .iter()
+            .filter_map(|name| material(name))
+            .map(|theme| (theme, ThemeSource::Bundled));
         Self {
-            themes: BUILTIN_THEMES
-                .iter()
-                .filter_map(|name| Theme::builtin(name))
-                .map(|theme| {
+            themes: builtin
+                .chain(bundled)
+                .map(|(theme, source)| {
                     let entry = ThemeEntry {
                         name: theme.name.clone(),
                         dark: theme.dark,
-                        source: ThemeSource::Builtin,
+                        source,
                     };
                     (entry, theme)
                 })
@@ -175,13 +197,14 @@ impl ThemeRegistry {
         self.find(name).cloned().or_else(|| Theme::builtin(name))
     }
 
-    /// Built-ins first, then loaded themes sorted by name.
+    /// Built-ins first, then loaded themes sorted by name, then the
+    /// bundled Material themes.
     pub fn entries(&self) -> Vec<&ThemeEntry> {
         let mut entries: Vec<&ThemeEntry> = self.themes.iter().map(|(e, _)| e).collect();
         entries.sort_by_key(|e| {
             (
-                e.source != ThemeSource::Builtin,
-                e.name.to_ascii_lowercase(),
+                e.source.rank(),
+                (e.source != ThemeSource::Bundled).then(|| e.name.to_ascii_lowercase()),
             )
         });
         entries
@@ -241,11 +264,25 @@ mod tests {
         std::fs::write(dir.path().join("dupe.toml"), "name = \"ferrum-dark\"").expect("write");
         std::fs::write(dir.path().join("notes.txt"), "ignored").expect("write");
         let (registry, warnings) = ThemeRegistry::load(Some(dir.path()));
-        let names: Vec<&str> = registry.entries().iter().map(|e| e.name.as_str()).collect();
+        let names: Vec<&str> = registry
+            .entries()
+            .iter()
+            .filter(|e| e.source != ThemeSource::Bundled)
+            .map(|e| e.name.as_str())
+            .collect();
         assert_eq!(
             names,
             ["ferrum-dark", "ferrum-light", "dupe", "ocean", "VS Light"]
         );
+        // The bundled Material themes come last, in their own order.
+        let bundled: Vec<&str> = registry
+            .entries()
+            .iter()
+            .skip(5)
+            .map(|e| e.name.as_str())
+            .collect();
+        assert_eq!(bundled, MATERIAL_THEMES);
+        assert!(registry.get("material palenight").is_some_and(|t| t.dark));
         assert_eq!(warnings.len(), 2, "{warnings:?}");
         assert!(warnings.iter().any(|w| w.starts_with("themes/broken.json")));
         assert_eq!(

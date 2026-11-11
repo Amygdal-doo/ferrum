@@ -70,6 +70,19 @@ pub fn apply_keymap(keymap: &Keymap, cx: &mut App) -> Vec<String> {
         },
         Some("FerrumFindBar"),
     ));
+    // On the CI page, ⌘R refreshes and ⌘F searches the open job log.
+    let primary = if MAC { "cmd" } else { "ctrl" };
+    for (key, command) in [("r", "ci:refresh"), ("f", "ci:search-log")] {
+        ours.push(KeyBinding::new(
+            &format!("{primary}-{key}"),
+            RunCommand {
+                name: command.into(),
+            },
+            Some(crate::ci::KEY_CONTEXT),
+        ));
+    }
+    // The Logs page's own shortcuts (⌘F search, ⌘E errors only, ⌘K clear…).
+    ours.extend(crate::logs::key_bindings());
     ours.extend(terminal_passthrough(keymap));
     cx.clear_key_bindings();
     cx.bind_keys(base);
@@ -129,6 +142,7 @@ pub fn set_menus(cx: &mut App) {
             item("Select Theme…", "theme:select"),
             item("Select Icon Theme…", "icon-theme:select"),
             item("Install Theme from File…", "theme:install-from-file"),
+            item("Import VS Code Theme…", "theme:import-vscode-theme"),
             item("Open Themes Folder", "theme:open-themes-folder"),
             MenuItem::separator(),
             item("Quit Ferrum Editor", "application:quit"),
@@ -185,6 +199,18 @@ pub fn set_menus(cx: &mut App) {
             item("Add Cursor Below", "editor:add-cursor-below"),
             item("Go to Matching Bracket", "editor:go-to-matching-bracket"),
         ]),
+        Menu::new("Code").items([
+            item("Go to Definition", "editor:go-to-definition"),
+            item("Find All References", "editor:find-references"),
+            item("Rename Symbol…", "editor:rename-symbol"),
+            item("Code Actions…", "editor:show-code-actions"),
+            item("Format Document", "editor:format-document"),
+            item("Signature Help", "editor:show-signature-help"),
+            MenuItem::separator(),
+            item("Next Problem", "editor:go-to-next-problem"),
+            item("Previous Problem", "editor:go-to-previous-problem"),
+            item("Problems…", "problems:show"),
+        ]),
         Menu::new("View").items([
             item("Command Palette…", "command-palette:toggle"),
             item("Go to File…", "fuzzy-finder:toggle-file-finder"),
@@ -196,6 +222,10 @@ pub fn set_menus(cx: &mut App) {
             item("Toggle Terminal", "terminal:toggle"),
             item("New Terminal", "terminal:new"),
             item("Open in FerrumTerm", "terminal:open-in-ferrumterm"),
+            MenuItem::separator(),
+            item("Git", "git:toggle-view"),
+            item("CI", "ci:toggle-view"),
+            item("Logs", "logs:toggle-view"),
             MenuItem::separator(),
             item("Split Right", "pane:split-right"),
             item("Split Down", "pane:split-down"),

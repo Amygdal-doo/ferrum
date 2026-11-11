@@ -32,6 +32,13 @@ pub enum ServerEvent {
         method: String,
         params: Value,
     },
+    /// A request the app answers itself with [`Client::reply`]
+    /// (`workspace/applyEdit`).
+    Request {
+        id: Value,
+        method: String,
+        params: Value,
+    },
     /// The process ended or the connection broke. `message` explains why
     /// (an error reply to `initialize`, or the end of stderr).
     Stopped {
@@ -246,6 +253,15 @@ impl Client {
         }));
     }
 
+    /// Answers a [`ServerEvent::Request`].
+    pub fn reply(&self, id: Value, result: Value) {
+        self.shared.send_now(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": result,
+        }));
+    }
+
     /// Sends a request; the future resolves with the result, or an error
     /// message if the server replied with one or stopped.
     pub fn request(
@@ -315,7 +331,21 @@ fn read_loop(reader: impl Read, shared: &Shared, events: &UnboundedSender<Server
         let id = message.get("id").cloned();
         let method = message["method"].as_str().map(str::to_string);
         match (id, method) {
-            // A request from the server.
+            // A request from the server: edits go to the app (which
+            // answers), the rest get a default answer here.
+            (Some(id), Some(method)) if method == "workspace/applyEdit" => {
+                let params = message.get("params").cloned().unwrap_or(Value::Null);
+                let request = ServerEvent::Request {
+                    id: id.clone(),
+                    method,
+                    params,
+                };
+                if events.unbounded_send(request).is_err() {
+                    shared.send_now(
+                        json!({"jsonrpc": "2.0", "id": id, "result": {"applied": false}}),
+                    );
+                }
+            }
             (Some(id), Some(method)) => {
                 shared.send_now(answer_server_request(id, &method, &message["params"]));
             }
@@ -384,7 +414,6 @@ fn answer_server_request(id: Value, method: &str, params: &Value) -> Value {
             let count = params["items"].as_array().map_or(0, Vec::len);
             Value::Array(vec![Value::Null; count])
         }
-        "workspace/applyEdit" => json!({ "applied": false }),
         "window/workDoneProgress/create"
         | "client/registerCapability"
         | "client/unregisterCapability"
@@ -421,6 +450,14 @@ fn initialize_params(root: &Path, initialization_options: Option<Value>) -> Valu
             "workspace": {
                 "configuration": true,
                 "workspaceFolders": true,
+                "applyEdit": true,
+                "workspaceEdit": {
+                    "documentChanges": true,
+                    "resourceOperations": ["create", "rename", "delete"],
+                    "failureHandling": "abort",
+                },
+                "executeCommand": { "dynamicRegistration": false },
+                "didChangeWatchedFiles": { "dynamicRegistration": false },
             },
             "window": { "workDoneProgress": true },
             "textDocument": {
@@ -441,6 +478,32 @@ fn initialize_params(root: &Path, initialization_options: Option<Value>) -> Valu
                 },
                 "hover": { "contentFormat": ["markdown", "plaintext"] },
                 "definition": { "linkSupport": true },
+                "references": { "dynamicRegistration": false },
+                "rename": { "prepareSupport": true, "honorsChangeAnnotations": false },
+                "codeAction": {
+                    "codeActionLiteralSupport": {
+                        "codeActionKind": {
+                            "valueSet": [
+                                "", "quickfix", "refactor", "refactor.extract",
+                                "refactor.inline", "refactor.rewrite", "source",
+                                "source.organizeImports",
+                            ],
+                        },
+                    },
+                    "isPreferredSupport": true,
+                    "disabledSupport": true,
+                    "dataSupport": true,
+                    "resolveSupport": { "properties": ["edit", "command"] },
+                },
+                "formatting": { "dynamicRegistration": false },
+                "signatureHelp": {
+                    "signatureInformation": {
+                        "documentationFormat": ["markdown", "plaintext"],
+                        "parameterInformation": { "labelOffsetSupport": true },
+                        "activeParameterSupport": true,
+                    },
+                    "contextSupport": true,
+                },
             },
         },
     });
@@ -469,6 +532,7 @@ mod tests {
         std::thread::spawn(move || {
             let mut input = BufReader::new(server_read);
             let mut seen_initialized = false;
+            let mut apply_request = Value::Null;
             while let Ok(Some(message)) = read_message(&mut input) {
                 let method = message["method"].as_str().unwrap_or_default().to_string();
                 match method.as_str() {
@@ -515,6 +579,24 @@ mod tests {
                     "" if message["id"] == "cfg" => {
                         assert_eq!(message["result"], json!([null, null]));
                     }
+                    // Asks the client to apply an edit, then reports the
+                    // client's answer as this request's result.
+                    "apply" => {
+                        apply_request = message["id"].clone();
+                        write_message(
+                            &mut server_write,
+                            &json!({"jsonrpc": "2.0", "id": "ae", "method": "workspace/applyEdit",
+                                    "params": {"label": "fix", "edit": {"changes": {}}}}),
+                        )
+                        .expect("test value");
+                    }
+                    "" if message["id"] == "ae" => {
+                        write_message(
+                            &mut server_write,
+                            &json!({"jsonrpc": "2.0", "id": apply_request, "result": message["result"]}),
+                        )
+                        .expect("test value");
+                    }
                     "exit" => break,
                     _ => {}
                 }
@@ -557,6 +639,36 @@ mod tests {
             block_on(client.request("fail", Value::Null)),
             Err("nope".to_string())
         );
+    }
+
+    #[test]
+    fn apply_edit_requests_reach_the_app() {
+        let (client, mut events) = fake_server();
+        let answer = client.request("apply", Value::Null);
+        let request = loop {
+            match block_on(events.next()) {
+                Some(ServerEvent::Request { id, method, params }) => break (id, method, params),
+                Some(_) => {}
+                None => panic!("events ended"),
+            }
+        };
+        assert_eq!(request.1, "workspace/applyEdit");
+        assert_eq!(request.2["label"], "fix");
+        client.reply(request.0, json!({"applied": true}));
+        assert_eq!(block_on(answer), Ok(json!({"applied": true})));
+    }
+
+    #[test]
+    fn initialize_advertises_editing_features() {
+        let params = initialize_params(Path::new("/tmp/p"), None);
+        let caps = &params["capabilities"];
+        assert_eq!(caps["workspace"]["applyEdit"], true);
+        assert_eq!(caps["workspace"]["workspaceEdit"]["documentChanges"], true);
+        assert_eq!(caps["textDocument"]["rename"]["prepareSupport"], true);
+        assert!(caps["textDocument"]["codeAction"]["codeActionLiteralSupport"].is_object());
+        assert!(caps["textDocument"]["formatting"].is_object());
+        assert!(caps["textDocument"]["signatureHelp"].is_object());
+        assert!(caps["textDocument"]["references"].is_object());
     }
 
     #[test]

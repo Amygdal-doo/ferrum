@@ -3,9 +3,10 @@
 //! `fet` FerrumTerm in this folder, and so on. Each is a small script in
 //! `~/.ferrum/bin` (next to the apps' own CLI links), turned on per app in
 //! the launcher. Turning the first one on also puts `~/.ferrum/bin` on the
-//! login shell's PATH (one marked line in `~/.zprofile`, `~/.bash_profile`
-//! or fish's `conf.d`), so the commands work in any terminal, FerrumTerm
-//! and Ferrum Editor's included.
+//! shell's PATH (one marked line in `~/.zprofile` and `~/.zshrc`,
+//! `~/.bash_profile` and `~/.bashrc`, or fish's `conf.d`), so the commands
+//! work in login and non-login terminals alike: Terminal, editor and IDE
+//! terminals, tmux, FerrumTerm and Ferrum Editor's.
 
 use std::path::{Path, PathBuf};
 
@@ -31,6 +32,8 @@ pub fn default_command(app: AppId) -> Option<&'static str> {
         "term" => "fet",
         "kit" => "fek",
         "dock" => "fec",
+        "ports" => "fep",
+        "env" => "fev",
         "launcher" => "fel",
         _ => return None,
     })
@@ -153,13 +156,16 @@ impl Shell {
         }
     }
 
-    /// The file read by this shell's login (and FerrumTerm's) sessions.
+    /// The files that get the PATH line: the login file (read by
+    /// Terminal's and FerrumTerm's login sessions and `$SHELL -l -c`) and
+    /// the interactive one (read by editor/IDE terminals and tmux, which
+    /// start non-login shells).
     #[must_use]
-    pub fn startup_file(self, home: &Path) -> PathBuf {
+    pub fn startup_files(self, home: &Path) -> Vec<PathBuf> {
         match self {
-            Shell::Zsh => home.join(".zprofile"),
-            Shell::Bash => home.join(".bash_profile"),
-            Shell::Fish => home.join(".config/fish/conf.d/ferrum.fish"),
+            Shell::Zsh => vec![home.join(".zprofile"), home.join(".zshrc")],
+            Shell::Bash => vec![home.join(".bash_profile"), home.join(".bashrc")],
+            Shell::Fish => vec![home.join(".config/fish/conf.d/ferrum.fish")],
         }
     }
 
@@ -175,39 +181,38 @@ impl Shell {
     }
 }
 
-/// Adds `bin_dir` to the shell's PATH unless its startup file already
-/// mentions it. Returns the file it changed.
-pub fn ensure_on_path(
-    bin_dir: &Path,
-    home: &Path,
-    shell: Shell,
-) -> Result<Option<PathBuf>, String> {
-    let file = shell.startup_file(home);
-    let existing = std::fs::read_to_string(&file).unwrap_or_default();
+/// Adds `bin_dir` to the shell's PATH in each of its startup files that
+/// does not mention it yet. Returns the files it changed.
+pub fn ensure_on_path(bin_dir: &Path, home: &Path, shell: Shell) -> Result<Vec<PathBuf>, String> {
     let line = shell.path_line(bin_dir, home);
     let shown = bin_dir
         .strip_prefix(home)
         .map(|rest| rest.display().to_string())
         .unwrap_or_default();
-    if existing.contains(RC_COMMENT)
-        || existing.contains(&bin_dir.display().to_string())
-        || (!shown.is_empty() && existing.contains(&format!("$HOME/{shown}")))
-    {
-        return Ok(None);
+    let mut changed = Vec::new();
+    for file in shell.startup_files(home) {
+        let existing = std::fs::read_to_string(&file).unwrap_or_default();
+        if existing.contains(RC_COMMENT)
+            || existing.contains(&bin_dir.display().to_string())
+            || (!shown.is_empty() && existing.contains(&format!("$HOME/{shown}")))
+        {
+            continue;
+        }
+        if let Some(parent) = file.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let mut text = existing;
+        if !text.is_empty() && !text.ends_with('\n') {
+            text.push('\n');
+        }
+        if !text.is_empty() {
+            text.push('\n');
+        }
+        text.push_str(&format!("{RC_COMMENT}\n{line}\n"));
+        std::fs::write(&file, text).map_err(|e| e.to_string())?;
+        changed.push(file);
     }
-    if let Some(parent) = file.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    let mut text = existing;
-    if !text.is_empty() && !text.ends_with('\n') {
-        text.push('\n');
-    }
-    if !text.is_empty() {
-        text.push('\n');
-    }
-    text.push_str(&format!("{RC_COMMENT}\n{line}\n"));
-    std::fs::write(&file, text).map_err(|e| e.to_string())?;
-    Ok(Some(file))
+    Ok(changed)
 }
 
 #[cfg(test)]
@@ -305,13 +310,25 @@ mod tests {
     fn path_line_is_added_once_per_shell() {
         let home = tempfile::tempdir().expect("tempdir");
         let bin = home.path().join(".ferrum/bin");
+        // A .zshrc that already has the line (added by hand) is left alone.
+        std::fs::write(
+            home.path().join(".zshrc"),
+            "export PATH=\"$HOME/.ferrum/bin:$PATH\"\n",
+        )
+        .expect("write");
         let changed = ensure_on_path(&bin, home.path(), Shell::Zsh).expect("zsh");
-        assert_eq!(changed, Some(home.path().join(".zprofile")));
+        assert_eq!(changed, vec![home.path().join(".zprofile")]);
         let text = std::fs::read_to_string(home.path().join(".zprofile")).expect("read");
         assert!(text.contains("export PATH=\"$HOME/.ferrum/bin:$PATH\""));
+        std::fs::remove_file(home.path().join(".zshrc")).expect("remove");
         assert_eq!(
             ensure_on_path(&bin, home.path(), Shell::Zsh).expect("again"),
-            None
+            vec![home.path().join(".zshrc")]
+        );
+        assert!(
+            ensure_on_path(&bin, home.path(), Shell::Zsh)
+                .expect("third")
+                .is_empty()
         );
         std::fs::write(home.path().join(".bash_profile"), "alias ll='ls -l'").expect("write");
         ensure_on_path(&bin, home.path(), Shell::Bash).expect("bash");

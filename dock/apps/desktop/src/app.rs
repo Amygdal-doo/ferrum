@@ -1,9 +1,10 @@
-//! Root view and window layout: toolbar / sidebar | section (+ detail) / status bar.
+//! Root view and window layout: project bar / toolbar / sidebar | section
+//! (+ detail) / status bar.
 
 use crate::services::Services;
 use crate::state::{AppState, EngineStatus};
 use crate::views;
-use ferrum_ui::{TextInput, TextInputEvent};
+use ferrum_ui::{ProjectBar, ProjectBarEvent, TextInput, TextInputEvent, ToggleProjectSwitcher};
 use ferrumdock_engine::DockerCli;
 use gpui::{
     App, Context, Entity, FocusHandle, KeyBinding, Subscription, Task, UniformListScrollHandle,
@@ -13,6 +14,9 @@ use theme::ActiveTheme;
 use ui::v_flex;
 
 actions!(ferrumdock, [Refresh, FocusFilter]);
+
+/// The executable name recorded in `~/.ferrum/projects.json`.
+pub const APP_BINARY: &str = "ferrumdock";
 
 const KEY_CONTEXT: &str = "FerrumDock";
 
@@ -31,6 +35,44 @@ pub struct Inputs {
     pub filter: Entity<TextInput>,
     pub log_search: Entity<TextInput>,
     pub pull: Entity<TextInput>,
+    pub run: RunInputs,
+    /// New reference in the tag dialog.
+    pub tag: Entity<TextInput>,
+}
+
+/// The run dialog's text fields.
+pub struct RunInputs {
+    pub image: Entity<TextInput>,
+    pub name: Entity<TextInput>,
+    pub ports: Entity<TextInput>,
+    pub env: Entity<TextInput>,
+    pub volumes: Entity<TextInput>,
+    pub command: Entity<TextInput>,
+}
+
+impl RunInputs {
+    fn new(window: &mut Window, cx: &mut Context<FerrumDock>) -> Self {
+        let mut field = |placeholder: &'static str, lines: usize| {
+            cx.new(|cx| {
+                let input = TextInput::new(window, cx)
+                    .placeholder(placeholder)
+                    .monospace();
+                if lines > 1 {
+                    input.multiline(lines)
+                } else {
+                    input
+                }
+            })
+        };
+        Self {
+            image: field("nginx:latest", 1),
+            name: field("optional, e.g. web", 1),
+            ports: field("8080:80, 127.0.0.1:5432:5432", 1),
+            env: field("KEY=value, one per line", 3),
+            volumes: field("~/site:/usr/share/nginx/html:ro, data:/data", 1),
+            command: field("optional, overrides the image's CMD", 1),
+        }
+    }
 }
 
 pub struct FerrumDock {
@@ -40,8 +82,11 @@ pub struct FerrumDock {
     /// `docker` CLI for compose and "open shell" (None: those actions explain why).
     pub docker_cli: Option<DockerCli>,
     pub inputs: Inputs,
+    pub project_bar: Entity<ProjectBar>,
     pub log_scroll: UniformListScrollHandle,
     pub detail_width: f32,
+    /// Clock for stats history timestamps.
+    pub started: std::time::Instant,
     pub(crate) connecting: bool,
     pub(crate) polling: bool,
     pub(crate) log_task: Option<(Task<()>, tokio::task::AbortHandle)>,
@@ -73,6 +118,13 @@ impl FerrumDock {
                 .placeholder("e.g. nginx:latest, ghcr.io/org/app:1.2")
                 .monospace()
         });
+        let tag = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("e.g. myapp:v2, registry.local:5000/team/app:1.0")
+                .monospace()
+        });
+        let run = RunInputs::new(window, cx);
+        let project_bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx));
         let subscriptions = vec![
             cx.subscribe(&filter, |app: &mut Self, input, event, cx| {
                 if *event == TextInputEvent::Changed {
@@ -91,6 +143,19 @@ impl FerrumDock {
                     app.start_pull(cx);
                 }
             }),
+            cx.subscribe(&tag, |app: &mut Self, _, event, cx| {
+                if *event == TextInputEvent::Submit {
+                    app.submit_tag(cx);
+                }
+            }),
+            cx.subscribe(&run.image, |app: &mut Self, _, event, cx| {
+                if *event == TextInputEvent::Submit {
+                    app.submit_run(cx);
+                }
+            }),
+            cx.subscribe(&project_bar, |app: &mut Self, _, event, cx| match event {
+                ProjectBarEvent::Open(path) => app.open_project(path.clone(), cx),
+            }),
         ];
         let mut app = Self {
             state: AppState::default(),
@@ -101,9 +166,13 @@ impl FerrumDock {
                 filter,
                 log_search,
                 pull,
+                run,
+                tag,
             },
+            project_bar,
             log_scroll: UniformListScrollHandle::new(),
             detail_width: 560.,
+            started: std::time::Instant::now(),
             connecting: false,
             polling: false,
             log_task: None,
@@ -156,11 +225,16 @@ impl Render for FerrumDock {
             .on_action(cx.listener(Self::on_refresh))
             .on_action(cx.listener(Self::on_focus_filter))
             .on_action(cx.listener(Self::on_cancel))
+            .on_action(cx.listener(|app, _: &ToggleProjectSwitcher, window, cx| {
+                app.project_bar
+                    .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
+            }))
             .relative()
             .size_full()
             .bg(background)
             .text_color(text)
             .text_sm()
+            .child(self.project_bar.clone())
             .child(toolbar)
             .child(body)
             .child(status)

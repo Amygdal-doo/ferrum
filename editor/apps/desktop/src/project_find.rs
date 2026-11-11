@@ -168,6 +168,20 @@ impl ProjectFind {
         .into();
     }
 
+    /// Shows results found elsewhere (find all references) with `status`.
+    pub fn show_results(
+        &mut self,
+        result: ProjectSearchResult,
+        status: String,
+        cx: &mut Context<Self>,
+    ) {
+        self.cancel.store(true, Ordering::Relaxed);
+        self.task = None;
+        self.show(result);
+        self.status = status.into();
+        cx.notify();
+    }
+
     fn toggle(&mut self, which: u8, cx: &mut Context<Self>) {
         match which {
             0 => self.case_sensitive = !self.case_sensitive,

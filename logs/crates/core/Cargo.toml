@@ -1,0 +1,22 @@
+[package]
+name = "ferrumlogs-core"
+description = "Logs core behind Ferrum Editor's Logs page: log sources (files, commands, Docker), parsing, buffering and filtering."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+chrono.workspace = true
+futures.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

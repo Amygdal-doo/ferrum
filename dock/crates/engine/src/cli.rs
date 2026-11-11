@@ -101,7 +101,7 @@ pub async fn run_capture(
         .map_err(|e| EngineError::Command(format!("could not run {}: {e}", cli.path.display())))?;
     let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
     text.push_str(&String::from_utf8_lossy(&output.stderr));
-    let text = crate::ansi::strip(text.trim());
+    let text = strip_lines(&text);
     if output.status.success() {
         Ok(text)
     } else {
@@ -113,9 +113,28 @@ pub async fn run_capture(
     }
 }
 
+/// Strips ANSI escapes line by line: [`crate::ansi::strip`] also drops
+/// control characters, newlines included, which would glue lines together
+/// (e.g. the JSON lines of `compose ps`).
+fn strip_lines(text: &str) -> String {
+    text.trim()
+        .lines()
+        .map(crate::ansi::strip)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keeps_lines_apart_when_stripping() {
+        assert_eq!(
+            strip_lines("\u{1b}[32m{\"a\":1}\u{1b}[0m\n{\"b\":2}\r\n"),
+            "{\"a\":1}\n{\"b\":2}"
+        );
+    }
 
     #[test]
     fn prefers_path_then_fallbacks() {

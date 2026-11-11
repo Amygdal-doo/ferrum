@@ -24,6 +24,8 @@ pub enum PanelEvent {
     Hidden,
     /// A terminal took focus.
     Focused,
+    /// An AI agent's program ended.
+    AgentExited { terminal: u64, code: i32 },
     /// A task ended.
     TaskFinished {
         label: String,
@@ -150,6 +152,41 @@ impl TerminalPanel {
         Ok(())
     }
 
+    /// Runs an AI agent in a new tab labelled with its name; returns the
+    /// tab's id. The panel opens and the agent gets the keyboard.
+    pub fn run_agent(
+        &mut self,
+        name: &str,
+        command: &str,
+        cwd: &std::path::Path,
+        env: &[(String, String)],
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Result<u64, String> {
+        let shell = cx.global::<Settings>().config.terminal_shell.clone();
+        let (session, output) = spawn_agent_session(&shell, command, cwd, env)?;
+        self.state.open = true;
+        let id = self.add_view(session, output, None, true, window, cx);
+        if let Some(view) = self.view(id) {
+            view.update(cx, |v, _| v.agent = Some(name.to_string()));
+        }
+        Ok(id)
+    }
+
+    /// The terminal with tab id `id`.
+    pub fn view(&self, id: u64) -> Option<Entity<TerminalView>> {
+        let index = self.state.tabs().iter().position(|t| *t == id)?;
+        self.terminals.get(index).cloned()
+    }
+
+    /// Shows tab `id` (opening the panel) and focuses it.
+    pub fn reveal(&mut self, id: u64, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(index) = self.state.tabs().iter().position(|t| *t == id) {
+            self.state.open = true;
+            self.select(index, window, cx);
+        }
+    }
+
     fn add_view(
         &mut self,
         session: session::Session,
@@ -158,7 +195,7 @@ impl TerminalPanel {
         focus: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> u64 {
         let id = self.state.add_tab();
         let index = self.state.active_index().unwrap_or(0);
         let label = task.as_ref().map(|(label, _)| label.clone());
@@ -173,6 +210,12 @@ impl TerminalPanel {
                 TerminalEvent::Exited => {
                     let id = view.read(cx).id;
                     this.close(id, window, cx);
+                }
+                TerminalEvent::TaskFinished(code) if view.read(cx).agent.is_some() => {
+                    cx.emit(PanelEvent::AgentExited {
+                        terminal: view.read(cx).id,
+                        code: *code,
+                    });
                 }
                 TerminalEvent::TaskFinished(code) => {
                     let v = view.read(cx);
@@ -202,6 +245,7 @@ impl TerminalPanel {
             window.focus(&handle, cx);
         }
         cx.notify();
+        id
     }
 
     /// Closes terminal `id` (killing its shell).
@@ -240,6 +284,9 @@ impl TerminalPanel {
     fn render_tabs(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let active = self.state.active_index();
+        let idle = std::time::Duration::from_secs(
+            cx.global::<Settings>().config.agent_idle_seconds.max(1),
+        );
         let tabs = self.terminals.iter().enumerate().map(|(i, view)| {
             let id = view.read(cx).id;
             let is_active = active == Some(i);
@@ -260,7 +307,7 @@ impl TerminalPanel {
                         .color(Color::Muted),
                 )
                 .child(
-                    Label::new(view.read(cx).title())
+                    Label::new(view.read(cx).title_with_idle(idle))
                         .size(LabelSize::Small)
                         .color(if is_active {
                             Color::Default
@@ -365,6 +412,57 @@ fn spawn_task_session(
     session::Session::spawn_task(Some(shell), command, cwd, 80, 24)
 }
 
+#[cfg(not(test))]
+fn spawn_agent_session(
+    shell: &str,
+    command: &str,
+    cwd: &std::path::Path,
+    env: &[(String, String)],
+) -> Result<
+    (
+        session::Session,
+        futures::channel::mpsc::UnboundedReceiver<()>,
+    ),
+    String,
+> {
+    session::Session::spawn_agent(Some(shell), command, cwd, env, 80, 24)
+}
+
+/// Tests run the agent's command line to the end with `/bin/sh` (a fake
+/// agent script edits files), then show a detached session that has
+/// "printed" its output and exited.
+#[cfg(test)]
+fn spawn_agent_session(
+    _shell: &str,
+    command: &str,
+    cwd: &std::path::Path,
+    env: &[(String, String)],
+) -> Result<
+    (
+        session::Session,
+        futures::channel::mpsc::UnboundedReceiver<()>,
+    ),
+    String,
+> {
+    test_support::AGENTS.with(|a| a.borrow_mut().push(command.to_string()));
+    let output = std::process::Command::new("/bin/sh")
+        .args(["-c", command])
+        .current_dir(cwd)
+        .envs(env.iter().map(|(k, v)| (k, v)))
+        .output()
+        .map_err(|e| e.to_string())?;
+    let (session, sent) = session::Session::detached(80, 24);
+    test_support::SENT.with(|s| s.borrow_mut().push(sent));
+    session.finish(
+        &String::from_utf8_lossy(&output.stdout),
+        output.status.code().unwrap_or(-1),
+    );
+    // One wake-up so the view sees the exit.
+    let (tx, rx) = futures::channel::mpsc::unbounded();
+    tx.unbounded_send(()).ok();
+    Ok((session, rx))
+}
+
 /// Tests record the task's command line instead of running it.
 #[cfg(test)]
 fn spawn_task_session(
@@ -412,6 +510,8 @@ pub mod test_support {
         pub static SENT: RefCell<Vec<Arc<Mutex<Vec<u8>>>>> = const { RefCell::new(Vec::new()) };
         /// Task command lines started on this thread.
         pub static TASKS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+        /// Agent command lines started on this thread.
+        pub static AGENTS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     }
 
     /// Bytes sent to the `index`-th terminal created on this thread.

@@ -7,7 +7,8 @@ DARK = "#16130f"
 APPS = {
     # name: (symbol letter after "Fe", accent, glyph). The core mark is plain "Fe";
     # every app is "Fe" + a capital in its accent: FeA, FeG, FeD, FeT, FeL,
-    # FeK (Kit), FeC (Dock: containers) and FeE (Editor).
+    # FeK (Kit), FeC (Dock: containers), FeE (Editor), FeP (Ports) and
+    # FeV (Env: the vault).
     "ferrum":  ("e", "#E8743B", None),
     "api":     ("A", "#3FB8A0", "arrows"),
     "git":     ("G", "#F0B43C", "branch"),
@@ -17,6 +18,8 @@ APPS = {
     "kit":     ("K", "#D46BE0", "sliders"),
     "dock":    ("C", "#38BDF8", "containers"),
     "editor":  ("E", "#C5DC3A", "caret"),
+    "ports":   ("P", "#5B8DEF", "plug"),
+    "env":     ("V", "#F2665A", "lock"),
 }
 SW = 62  # letter stroke width
 
@@ -60,6 +63,10 @@ CAPITALS = {
     "K": (["M0 390 V730", "M195 390 L0 600", "M70 525 L205 730"], 0, 205),
     "C": (["M195 455 A105 170 0 1 0 195 665"], 5, 200),
     "E": (["M190 390 H0 V730 H190", "M0 560 H160"], 0, 190),
+    "P": (["M0 730 V390 H95 A95 85 0 0 1 95 560 H0"], 0, 190),
+    "V": (["M0 390 L100 730 L200 390"], 0, 200),
+    "O": (["M100 390 A100 170 0 0 1 100 730 A100 170 0 0 1 100 390"], 0, 200),
+    "I": (["M100 390 V730", "M30 390 H170", "M30 730 H170"], 30, 170),
 }
 CAP_SCALE = 0.72
 CAP_SW = 76  # heavier so the scaled-down strokes match the two-letter marks
@@ -111,6 +118,13 @@ def glyph(kind):
         thin = common.replace(f'stroke-width="{w}"', 'stroke-width="22"')
         return (f'<path {common} d="M-78 -48 H-6 M-78 0 H-22 M-78 48 H-38"/>'
                 f'<path {thin} d="M42 -62 V62 M18 -62 H66 M18 62 H66"/>')
+    if kind == "plug":
+        # A plug: two prongs, the body and its cord.
+        return (f'<path {common} d="M-30 -80 V-40 M30 -80 V-40 M0 45 V82"/>'
+                f'<path fill="{DARK}" d="M-62 -42 H62 V5 Q62 50 0 50 Q-62 50 -62 5 Z"/>')
+    if kind == "lock":
+        return (f'<path {common} d="M-40 -12 V-42 Q-40 -82 0 -82 Q40 -82 40 -42 V-12"/>'
+                f'<rect x="-66" y="-14" width="132" height="96" rx="16" fill="{DARK}"/>')
     if kind == "grid":
         r = 18
         return "".join(f'<rect x="{x-30}" y="{y-30}" width="60" height="60" rx="{r}" fill="{DARK}"/>' for x in (-38, 38) for y in (-38, 38))

@@ -3,8 +3,11 @@
 
 pub mod connection;
 pub mod containers;
+pub mod engines;
 pub mod logs;
+pub mod project;
 pub mod resources;
+pub mod run;
 
 use crate::app::FerrumDock;
 use crate::state::{EngineStatus, Notice};

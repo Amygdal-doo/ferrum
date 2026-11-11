@@ -43,7 +43,7 @@ impl Session {
         cols: u16,
         rows: u16,
     ) -> Result<(Self, UnboundedReceiver<()>), String> {
-        Self::start(shell, None, cwd, cols, rows)
+        Self::start(shell, None, cwd, &[], cols, rows)
     }
 
     /// Runs `command` through the login shell (`$SHELL -l -c`), keeping its
@@ -55,13 +55,31 @@ impl Session {
         cols: u16,
         rows: u16,
     ) -> Result<(Self, UnboundedReceiver<()>), String> {
-        Self::start(shell, Some(command), Some(cwd), cols, rows)
+        Self::start(shell, Some(command), Some(cwd), &[], cols, rows)
+    }
+
+    /// Runs an AI agent's command line through the login shell with extra
+    /// environment (API keys: passed to the process only, never logged).
+    /// Its exit code is kept; its output is not captured.
+    #[cfg_attr(test, allow(dead_code))]
+    pub fn spawn_agent(
+        shell: Option<&str>,
+        command: &str,
+        cwd: &Path,
+        env: &[(String, String)],
+        cols: u16,
+        rows: u16,
+    ) -> Result<(Self, UnboundedReceiver<()>), String> {
+        let (mut session, rx) = Self::start(shell, Some(command), Some(cwd), env, cols, rows)?;
+        session.capture = None;
+        Ok((session, rx))
     }
 
     fn start(
         shell: Option<&str>,
         task: Option<&str>,
         cwd: Option<&Path>,
+        env: &[(String, String)],
         cols: u16,
         rows: u16,
     ) -> Result<(Self, UnboundedReceiver<()>), String> {
@@ -101,6 +119,9 @@ impl Session {
                     cmd.env("PATH", path);
                 }
             }
+        }
+        for (key, value) in env {
+            cmd.env(key, value);
         }
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
@@ -201,6 +222,13 @@ impl Session {
     #[cfg(test)]
     pub fn feed(&self, bytes: &[u8]) {
         lock(&self.term).feed(bytes);
+    }
+
+    /// Ends the program (the tab stays, showing its last output).
+    pub fn kill(&self) {
+        if let Some(killer) = &self.killer {
+            let _ = lock(killer).kill();
+        }
     }
 
     pub fn write(&self, bytes: &[u8]) {

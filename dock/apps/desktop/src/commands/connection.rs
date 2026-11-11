@@ -23,7 +23,11 @@ impl FerrumDock {
             self.status = EngineStatus::Connecting;
             cx.notify();
         }
-        self.spawn_run(cx, ferrumdock_engine::connect(), move |app, result, cx| {
+        let preferred = self.state.preferred.clone();
+        self.spawn_run(
+            cx,
+            ferrumdock_engine::connect(preferred),
+            move |app, result, cx| {
             app.connecting = false;
             match result {
                 Ok(connection) => {
@@ -43,7 +47,8 @@ impl FerrumDock {
                     app.go_offline(error);
                 }
             }
-        });
+            },
+        );
     }
 
     fn go_offline(&mut self, error: String) {
@@ -55,7 +60,10 @@ impl FerrumDock {
     /// Reloads one section's list.
     pub fn refresh(&mut self, section: Section, cx: &mut Context<Self>) {
         match section {
-            Section::Containers => self.poll_containers(cx),
+            Section::Containers => {
+                self.reload_project_files();
+                self.poll_containers(cx);
+            }
             Section::Images => self.with_engine(
                 cx,
                 |e| async move { e.images().await },
@@ -126,6 +134,7 @@ impl FerrumDock {
                 Ok((list, stats)) => {
                     if with_stats {
                         app.state.stats = stats;
+                        app.state.record_stats(app.started.elapsed().as_secs_f64());
                     }
                     app.state.containers = list;
                     app.state.loaded.insert(Section::Containers);

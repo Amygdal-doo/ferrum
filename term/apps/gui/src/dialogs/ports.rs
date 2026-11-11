@@ -53,7 +53,9 @@ impl TermView {
     }
 
     pub(crate) fn run_port_query(&mut self, cx: &mut Context<Self>) {
-        let Some(Dialog::Ports(d)) = &mut self.dialog else { return };
+        let Some(Dialog::Ports(d)) = &mut self.dialog else {
+            return;
+        };
         match parse_query(d.query.read(cx).text()) {
             Ok(port) => {
                 d.loading = true;
@@ -96,9 +98,17 @@ impl TermView {
     }
 
     fn confirm_signal(&mut self, cx: &mut Context<Self>) {
-        let Some(Dialog::Ports(d)) = &mut self.dialog else { return };
-        let Some((pid, name, signal)) = d.confirm.take() else { return };
-        let sig = if signal == Signal::Term { "SIGTERM" } else { "SIGKILL" };
+        let Some(Dialog::Ports(d)) = &mut self.dialog else {
+            return;
+        };
+        let Some((pid, name, signal)) = d.confirm.take() else {
+            return;
+        };
+        let sig = if signal == Signal::Term {
+            "SIGTERM"
+        } else {
+            "SIGKILL"
+        };
         d.note = Some(format!("Sent {sig} to {name} (pid {pid})…"));
         self.app.signal_process(pid, name, signal);
         cx.notify();
@@ -107,11 +117,15 @@ impl TermView {
     pub(crate) fn render_ports(&self, d: &PortsDialog, cx: &mut Context<Self>) -> AnyElement {
         let colors = cx.theme().colors().clone();
         let mut m = modal("What's using a port?", cx).width(px(680.)).child(
-            h_flex().gap_2().items_end().child(field("Port", d.query.clone()).flex_1()).child(
-                Button::new("ports-find", "Find")
-                    .style(ButtonStyle::Filled)
-                    .on_click(cx.listener(|view, _, _, cx| view.run_port_query(cx))),
-            ),
+            h_flex()
+                .gap_2()
+                .items_end()
+                .child(field("Port", d.query.clone()).flex_1())
+                .child(
+                    Button::new("ports-find", "Find")
+                        .style(ButtonStyle::Filled)
+                        .on_click(cx.listener(|view, _, _, cx| view.run_port_query(cx))),
+                ),
         );
         if let Some((pid, name, signal)) = &d.confirm {
             let (question, action) = match signal {
@@ -188,7 +202,11 @@ impl TermView {
                                         .min_w_0()
                                         .child(div().truncate().child(SharedString::from(format!(
                                             "{} · pid {} · {} · {}",
-                                            if l.process.is_empty() { "?" } else { &l.process },
+                                            if l.process.is_empty() {
+                                                "?"
+                                            } else {
+                                                &l.process
+                                            },
                                             l.pid.map_or("?".into(), |p| p.to_string()),
                                             l.user.as_deref().unwrap_or("?"),
                                             l.address,

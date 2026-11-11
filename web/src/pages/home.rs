@@ -6,13 +6,14 @@ use super::feature_demos;
 use crate::components::{
     button::{self, Variant},
     card,
+    follow::{self, Size},
 };
 use crate::layout::{PageMeta, page};
 use crate::{products, site};
 
 const DESCRIPTION: &str = "Ferrum is a family of native developer tools written in Rust and \
-     rendered with GPUI: Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit \
-     and FerrumDock, installed and updated by Ferrum Launcher.";
+     rendered with GPUI: Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, \
+     FerrumDock, FerrumPorts and FerrumEnv, installed and updated by Ferrum Launcher.";
 
 /// (title, body) pairs for the "native" section.
 const NATIVE: [(&str, &str); 4] = [
@@ -33,8 +34,9 @@ const NATIVE: [(&str, &str); 4] = [
     ),
     (
         "One family",
-        "The apps share one UI crate and one theme, and open each other: FerrumDock opens a \
-         container shell in FerrumTerm, and every app installs from one launcher.",
+        "The apps share one UI crate and one theme, and open each other. Most have a project \
+         strip on top: switch projects with ⌥⌘O and open the current one in Ferrum Editor, \
+         FerrumGIT or FerrumTerm. Every app installs from one launcher.",
     ),
 ];
 
@@ -48,6 +50,9 @@ pub fn render(site_url: &str) -> Markup {
             (showcase())
             (native_section())
             (install_section())
+            div class="container" {
+                (follow::block(Size::Compact, true))
+            }
         },
     )
 }
@@ -75,9 +80,10 @@ fn hero() -> Markup {
                     span class="hero__line" { "rebuilt in Rust." }
                 }
                 p class="hero__lead" {
-                    "A hackable code editor, API client, Git client, database IDE, terminal, "
-                    "container manager and utilities. Native apps drawn on the GPU, installed and kept up "
-                    "to date by Ferrum Launcher."
+                    "A hackable code editor with CI and logs built in, API client, Git client, "
+                    "database IDE, terminal, container manager and utilities, plus tools for "
+                    "ports and environment variables. Native apps drawn on the GPU, installed and "
+                    "kept up to date by Ferrum Launcher."
                 }
                 div class="hero__ctas" {
                     (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
@@ -97,7 +103,7 @@ fn showcase() -> Markup {
         section class="section showcase" id="apps" aria-labelledby="apps-title" {
             div class="container" {
                 div class="section-header" {
-                    h2 id="apps-title" { "Eight apps that work as one" }
+                    h2 id="apps-title" { "Ten apps that work as one" }
                     p class="lead" {
                         "Pick an app to see it at work. Each one is a native desktop app with the \
                          same keyboard-first feel."
@@ -221,5 +227,14 @@ mod tests {
         assert!(html.contains(r#"data-copy="curl -fsSL"#));
         assert!(html.contains(r#"class="steps""#));
         assert!(html.contains(r#"href="/download""#));
+    }
+
+    #[test]
+    fn ends_with_the_follow_block() {
+        let html = render("https://example.test").into_string();
+        assert!(html.contains(r#"id="follow""#));
+        assert!(html.contains("follow--compact"));
+        assert!(html.contains(r#"href="/updates/feed.xml""#));
+        assert!(!html.contains("<form"));
     }
 }

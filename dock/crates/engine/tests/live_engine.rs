@@ -2,13 +2,29 @@
 //! stops or removes anything. Run with:
 //! `cargo test -p ferrumdock-engine --test live_engine -- --ignored --nocapture`
 
-use ferrumdock_engine::{LogOptions, compose, connect, format, sample_stats};
+use ferrumdock_engine::{LogOptions, compose, connect, context, endpoint, format, sample_stats};
 use futures::StreamExt;
 
 #[tokio::test]
 #[ignore = "needs a running Docker-compatible engine"]
 async fn reads_the_local_engine() {
-    let connection = match connect().await {
+    for c in context::detect() {
+        println!(
+            "context {}{}: {} ({})",
+            c.name,
+            if c.current { " (current)" } else { "" },
+            c.host,
+            if c.endpoint.is_some() {
+                "usable"
+            } else {
+                "not supported"
+            }
+        );
+    }
+    for c in endpoint::detect() {
+        println!("candidate: {} at {}", c.label(), c.endpoint);
+    }
+    let connection = match connect(None).await {
         Ok(c) => c,
         Err(e) => panic!("no engine reachable: {e}"),
     };
@@ -53,6 +69,47 @@ async fn reads_the_local_engine() {
                 s.map_or_else(|| "-".into(), |s| format::cpu(s.cpu_percent)),
                 s.map_or_else(|| "-".into(), |s| format::memory(s.mem_usage, s.mem_limit)),
             );
+            if let Some(s) = s {
+                println!(
+                    "    net {} in / {} out, disk {} read / {} written",
+                    format::bytes(s.net_rx),
+                    format::bytes(s.net_tx),
+                    format::bytes(s.blk_read),
+                    format::bytes(s.blk_write)
+                );
+            }
+        }
+    }
+    // `docker compose ps` (read-only) for the first compose project.
+    let cli = ferrumdock_engine::DockerCli::detect();
+    let first = compose::group_by_project(containers.clone())
+        .into_iter()
+        .find_map(|g| g.compose_project());
+    if let (Some(cli), Some(project)) = (cli, first) {
+        let services =
+            ferrumdock_engine::compose_ps::run_ps(&cli, &connection.candidate.endpoint, &project)
+                .await
+                .unwrap_or_else(|e| panic!("compose ps: {e}"));
+        println!("compose ps {}: {} services", project.name, services.len());
+        for s in &services {
+            println!("  {} {} {} {:?}", s.service, s.name, s.status, s.ports);
+        }
+        assert!(!services.is_empty());
+        // The project folder's compose files (read from disk) and container matching.
+        if let Some(dir) = project.working_dir.as_deref().map(std::path::Path::new) {
+            let files = ferrumdock_engine::project::load_compose_files(dir);
+            let names: Vec<String> = files.iter().map(|f| f.project.clone()).collect();
+            let members = containers
+                .iter()
+                .filter(|c| ferrumdock_engine::project::belongs_to(c, dir, &names))
+                .count();
+            println!(
+                "project folder {}: {} compose file(s) {:?}, {members} containers",
+                dir.display(),
+                files.len(),
+                files.iter().map(|f| &f.services).collect::<Vec<_>>()
+            );
+            assert!(members >= services.len());
         }
     }
     if let Some(c) = containers.first() {
@@ -71,6 +128,7 @@ async fn reads_the_local_engine() {
             follow: false,
             tail: Some(3),
             timestamps: true,
+            since: None,
         };
         let chunks: Vec<_> = engine.logs(&c.id, options).collect().await;
         println!("logs: {} chunks", chunks.len());
@@ -87,6 +145,14 @@ async fn reads_the_local_engine() {
         format::bytes(total),
         images.iter().filter(|i| i.is_dangling()).count()
     );
+    if let Some(image) = images.iter().find(|i| !i.is_dangling()) {
+        let layers = engine
+            .image_history(&image.id)
+            .await
+            .unwrap_or_else(|e| panic!("image history: {e}"));
+        println!("history of {}: {} layers", image.tags[0], layers.len());
+        assert!(!layers.is_empty());
+    }
     let volumes = engine
         .volumes()
         .await

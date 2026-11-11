@@ -210,34 +210,94 @@ impl Installer<'_> {
                 Ok(())
             }
             Method::Npm(packages) => {
-                let npm = match find_program("npm", &self.path_env) {
-                    Some(npm) => npm,
-                    None => self.install_node()?,
-                };
                 let prefix = server_dir(&self.servers, def);
-                std::fs::create_dir_all(&prefix).map_err(|e| e.to_string())?;
-                let mut command = Command::new(npm);
-                command
-                    .args(["install", "--prefix"])
-                    .arg(&prefix)
-                    .args(["--no-audit", "--no-fund", "--loglevel=error"])
-                    .args(packages.iter().map(|p| format!("{p}@latest")));
-                self.run(&mut command)
+                self.npm_install(&prefix, packages)
             }
             Method::Go(module) => {
-                let go = match find_program("go", &self.path_env) {
-                    Some(go) => go,
-                    None => self.install_go()?,
-                };
                 let bin = server_dir(&self.servers, def).join("bin");
-                std::fs::create_dir_all(&bin).map_err(|e| e.to_string())?;
-                let mut command = Command::new(go);
-                command
-                    .args(["install", &format!("{module}@latest")])
-                    .env("GOBIN", &bin);
-                self.run(&mut command)
+                self.go_install(&bin, module)
             }
         }
+    }
+
+    /// `npm install --prefix <prefix> <packages>@latest` (Node.js first
+    /// when there is none). The programs land in
+    /// `<prefix>/node_modules/.bin`, which [`with_managed`] adds to PATH
+    /// when `prefix` is a folder of `servers/`.
+    pub fn npm_install(&mut self, prefix: &Path, packages: &[&str]) -> Result<(), String> {
+        let npm = match find_program("npm", &self.path_env) {
+            Some(npm) => npm,
+            None => self.install_node()?,
+        };
+        std::fs::create_dir_all(prefix).map_err(|e| e.to_string())?;
+        let mut command = Command::new(npm);
+        command
+            .args(["install", "--prefix"])
+            .arg(prefix)
+            .args(["--no-audit", "--no-fund", "--loglevel=error"])
+            .args(packages.iter().map(|p| format!("{p}@latest")));
+        self.run(&mut command)
+    }
+
+    /// `go install <module>@latest` into `bin` (Go first when there is
+    /// none).
+    pub fn go_install(&mut self, bin: &Path, module: &str) -> Result<(), String> {
+        let go = match find_program("go", &self.path_env) {
+            Some(go) => go,
+            None => self.install_go()?,
+        };
+        std::fs::create_dir_all(bin).map_err(|e| e.to_string())?;
+        let mut command = Command::new(go);
+        command
+            .args(["install", &format!("{module}@latest")])
+            .env("GOBIN", bin);
+        self.run(&mut command)
+    }
+
+    /// Delve for Go debugging, into `servers/dlv/bin`.
+    pub fn install_delve(&mut self) -> Result<(), String> {
+        self.say("Installing dlv via go install");
+        let bin = self.servers.join("dlv").join("bin");
+        self.go_install(&bin, "github.com/go-delve/delve/cmd/dlv")
+    }
+
+    /// js-debug's DAP server from its latest GitHub release
+    /// (`js-debug-dap-*.tar.gz`) into `servers/js-debug/js-debug`,
+    /// checked against the release's SHA-256 digest (or its size when the
+    /// release has none), plus Node.js when there is none.
+    pub fn install_js_debug(&mut self) -> Result<(), String> {
+        if find_program("node", &with_managed(&self.path_env, &self.servers)).is_none() {
+            self.install_node()?;
+        }
+        std::fs::create_dir_all(&self.servers).map_err(|e| e.to_string())?;
+        let index = self
+            .fetch_text("https://api.github.com/repos/microsoft/vscode-js-debug/releases/latest")?;
+        let asset =
+            js_debug_asset(&index).ok_or("no js-debug-dap archive in the latest release")?;
+        let archive = self.servers.join(&asset.name);
+        self.download(&asset.url, &archive)?;
+        match &asset.sha256 {
+            Some(sha) => verify(&archive, sha)?,
+            None => {
+                let size = std::fs::metadata(&archive)
+                    .map_err(|e| e.to_string())?
+                    .len();
+                if size != asset.size {
+                    std::fs::remove_file(&archive).ok();
+                    return Err(format!(
+                        "size mismatch for {}: the download was not used",
+                        asset.name
+                    ));
+                }
+            }
+        }
+        self.say(&format!("Verified; unpacking {}", asset.name));
+        let target = self.servers.join("js-debug").join("js-debug");
+        std::fs::create_dir_all(self.servers.join("js-debug")).map_err(|e| e.to_string())?;
+        extract_tar_gz(&archive, &self.servers, "js-debug", &target)?;
+        std::fs::remove_file(&archive).ok();
+        self.say(&format!("Installed {}", target.display()));
+        Ok(())
     }
 
     /// Runs a command with the install PATH, logging its output.
@@ -329,6 +389,35 @@ impl Installer<'_> {
         std::fs::remove_file(&archive).ok();
         Ok(target.join("bin").join("go"))
     }
+}
+
+/// A release asset to download.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Asset {
+    pub name: String,
+    pub url: String,
+    pub size: u64,
+    /// From the asset's `digest` (`sha256:…`) when GitHub published one.
+    pub sha256: Option<String>,
+}
+
+/// The `js-debug-dap-*.tar.gz` asset of a GitHub release JSON.
+pub fn js_debug_asset(release: &str) -> Option<Asset> {
+    let release: Value = serde_json::from_str(release).ok()?;
+    let asset = release["assets"].as_array()?.iter().find(|a| {
+        a["name"]
+            .as_str()
+            .is_some_and(|n| n.starts_with("js-debug-dap-") && n.ends_with(".tar.gz"))
+    })?;
+    Some(Asset {
+        name: asset["name"].as_str()?.to_string(),
+        url: asset["browser_download_url"].as_str()?.to_string(),
+        size: asset["size"].as_u64()?,
+        sha256: asset["digest"]
+            .as_str()
+            .and_then(|d| d.strip_prefix("sha256:"))
+            .map(str::to_string),
+    })
 }
 
 /// The newest LTS version in nodejs.org's `index.json` (newest first).
@@ -532,6 +621,43 @@ mod tests {
         .install(server_by_id("yaml").expect("yaml"))
         .expect_err("fails");
         assert_eq!(error, "npm failed: npm ERR! network unreachable");
+    }
+
+    #[test]
+    fn js_debug_release_asset() {
+        let release = r#"{"tag_name": "v1.104.0", "assets": [
+            {"name": "js-debug-1.104.0.vsix", "size": 1, "browser_download_url": "https://x/a.vsix"},
+            {"name": "js-debug-dap-v1.104.0.tar.gz", "size": 4242, "digest": "sha256:abc",
+             "browser_download_url": "https://x/js-debug-dap-v1.104.0.tar.gz"}]}"#;
+        let asset = js_debug_asset(release).expect("asset");
+        assert_eq!(asset.name, "js-debug-dap-v1.104.0.tar.gz");
+        assert_eq!((asset.size, asset.sha256.as_deref()), (4242, Some("abc")));
+        assert!(js_debug_asset(r#"{"assets": []}"#).is_none());
+    }
+
+    #[test]
+    fn npm_install_into_any_prefix() {
+        let tools = tempfile::tempdir().expect("tempdir");
+        let servers = tempfile::tempdir().expect("tempdir");
+        script(
+            tools.path(),
+            "npm",
+            r#"prefix="$3"; mkdir -p "$prefix/node_modules/.bin"; printf '#!/bin/sh\n' > "$prefix/node_modules/.bin/claude"; chmod +x "$prefix/node_modules/.bin/claude""#,
+        );
+        let path = format!("{}:/bin:/usr/bin", tools.path().display());
+        let mut log = Vec::new();
+        Installer {
+            servers: servers.path().to_path_buf(),
+            path_env: path.clone(),
+            log: &mut log,
+        }
+        .npm_install(
+            &servers.path().join("agent-claude"),
+            &["@anthropic-ai/claude-code"],
+        )
+        .expect("install");
+        let full = with_managed(&path, servers.path());
+        assert!(find_program("claude", &full).is_some_and(|p| p.starts_with(servers.path())));
     }
 
     #[test]

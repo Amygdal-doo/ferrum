@@ -24,6 +24,12 @@ members = [
     "kit/crates/*",
     "editor/apps/*",
     "editor/crates/*",
+    "ports/apps/*",
+    "ports/crates/*",
+    "env/apps/*",
+    "env/crates/*",
+    "logs/crates/*",
+    "ci/crates/*",
 ]
 exclude = ["ide", "web"]
 
@@ -99,6 +105,22 @@ bollard = { version = "0.21", default-features = false, features = ["http", "pip
 
 # FerrumKit
 ferrumkit-core = { path = "kit/crates/core" }
+
+# FerrumPorts
+ferrumports-core = { path = "ports/crates/core" }
+
+# FerrumEnv
+ferrumenv-core = { path = "env/crates/core" }
+# Vault encryption: XChaCha20-Poly1305 with an Argon2id-derived key.
+chacha20poly1305 = { version = "0.10", features = ["std"] }
+argon2 = { version = "0.5", features = ["std"] }
+zeroize = { version = "1.8", features = ["derive"] }
+
+# Logs (library behind the Editor's Logs page)
+ferrumlogs-core = { path = "logs/crates/core" }
+
+# CI (library behind the Editor's CI page)
+ferrumci-core = { path = "ci/crates/core" }
 
 # Ferrum Editor
 ferrumeditor-core = { path = "editor/crates/core" }

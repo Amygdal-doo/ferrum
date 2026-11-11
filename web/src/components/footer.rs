@@ -7,7 +7,7 @@ use crate::components::{
     button::{self, Variant},
     ferrum_mark,
 };
-use crate::{products, site};
+use crate::{products, site, updates};
 
 pub fn render() -> Markup {
     html! {
@@ -42,7 +42,10 @@ pub fn render() -> Markup {
                         ul {
                             li { a href=(site::DOWNLOAD_PATH) { "Download & install" } }
                             li { a href="/features" { "Features" } }
+                            li { a href=(updates::INDEX_PATH) { "Updates" } }
+                            li { a href=(updates::FEED_PATH) { "Atom feed" } }
                             li { a href="/about" { "About" } }
+                            li { a href=(crate::pages::privacy::PATH) { "Privacy" } }
                             li { a href=(site::GPUI_URL) rel="noopener" { "GPUI" } }
                         }
                     }
@@ -73,6 +76,8 @@ mod tests {
         assert!(html.contains("© 2026 Ferrum"));
         assert!(html.contains(site::AMYGDAL_URL));
         assert!(html.contains("for the Rust community"));
+        assert!(html.contains(r#"href="/privacy""#));
+        assert!(html.contains(r#"href="/updates""#));
         for p in products::ALL {
             assert!(html.contains(&format!(r#"href="{}""#, p.path())));
         }

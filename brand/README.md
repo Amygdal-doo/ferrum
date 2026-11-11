@@ -14,8 +14,8 @@ iron. The tile has these parts:
   This is iron's crystal structure, drawn faintly behind the letters.
 - **Symbol:** monoline, geometric letters. The core mark is `Fe` (iron) with
   a light "ingot" `F` (`#f1e9df`) and an accent `e`. Each app is `Fe` in ingot
-  ink plus a capital in its accent colour: `FeI`, `FeA`, `FeG`, `FeD`, `FeT`,
-  `FeL`, `FeK`, `FeC`, `FeE`.
+  ink plus a capital in its accent colour: `FeA`, `FeG`, `FeD`, `FeT`,
+  `FeL`, `FeK`, `FeC`, `FeE`, `FeP`, `FeV`.
 - **Job badge** (app variants only): a circle in the accent colour that
   overlaps the top-right of the ring and shows the app's job in dark ink. The
   core mark has no badge.
@@ -40,6 +40,8 @@ own dark ground.
 | Kit: orchid | `#D46BE0` |
 | Dock: glacier | `#38BDF8` |
 | Editor: citron | `#C5DC3A` |
+| Ports: cobalt | `#5B8DEF` |
+| Env: vermilion | `#F2665A` |
 
 The rust and patina colours match the website tokens (`web/assets/css/tokens.css`).
 
@@ -56,6 +58,8 @@ The rust and patina colours match the website tokens (`web/assets/css/tokens.css
 | `kit.svg` | FeK | two sliders |
 | `dock.svg` | FeC | stacked containers |
 | `editor.svg` | FeE | lines of text and an I-beam cursor |
+| `ports.svg` | FeP | plug |
+| `env.svg` | FeV | padlock |
 | `ferrum-wordmark.svg` | Fe + "Ferrum" | light lettering, for dark backgrounds |
 | `ferrum-wordmark-light.svg` | Fe + "Ferrum" | dark lettering, for light backgrounds |
 

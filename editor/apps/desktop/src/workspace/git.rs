@@ -1,4 +1,4 @@
-//! Git in the workspace: the Editor | Git switch at the top right, the
+//! Git in the workspace: the Editor | Git | CI | Logs switch at the top right, the
 //! Files | Git tabs of the sidebar, `git:*` commands, and refreshing git
 //! status after saves and when the window comes back.
 
@@ -14,6 +14,12 @@ pub enum ViewMode {
     #[default]
     Editor,
     Git,
+    /// AI Diff Review of an agent session.
+    Review,
+    /// The CI page (GitHub Actions of the project, see `workspace/ci.rs`).
+    Ci,
+    /// The Logs page (live logs of the project, see `workspace/logs.rs`).
+    Logs,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -65,6 +71,10 @@ impl Workspace {
         self.mode = mode;
         if mode == ViewMode::Git {
             self.git.update(cx, |g, cx| g.refresh(false, cx));
+        } else if mode == ViewMode::Ci {
+            self.show_ci(window, cx);
+        } else if mode == ViewMode::Logs {
+            self.show_logs(window, cx);
         } else {
             self.focus_active(window, cx);
         }
@@ -73,8 +83,8 @@ impl Workspace {
 
     pub(super) fn toggle_git_view(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let next = match self.mode {
-            ViewMode::Editor => ViewMode::Git,
-            ViewMode::Git => ViewMode::Editor,
+            ViewMode::Editor | ViewMode::Ci | ViewMode::Logs => ViewMode::Git,
+            ViewMode::Git | ViewMode::Review => ViewMode::Editor,
         };
         self.set_mode(next, window, cx);
     }
@@ -100,17 +110,12 @@ impl Workspace {
         self.git.update(cx, |g, cx| g.refresh(true, cx));
     }
 
-    /// The thin bar at the top: project name left, Editor | Git right.
+    /// The bar at the top: the shared project bar (name, path, branch,
+    /// switcher) with the Editor | Git | CI | Logs switch at its right end.
     pub(super) fn render_top_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let git = self.git.read(cx);
         let changes = git.change_count();
-        let project = self
-            .root
-            .as_deref()
-            .and_then(|r| r.file_name())
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
         let git_label = if changes > 0 {
             format!("Git {changes}")
         } else {
@@ -118,40 +123,62 @@ impl Workspace {
         };
         h_flex()
             .flex_none()
-            .h(px(30.))
-            .px_2()
-            .justify_between()
-            .bg(colors.title_bar_background)
-            .border_b_1()
-            .border_color(colors.border)
-            .child(
-                Label::new(project)
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
-            )
+            .w_full()
+            .child(div().flex_1().min_w_0().child(self.project_bar.clone()))
             .child(
                 h_flex()
-                    .gap_0p5()
-                    .p_0p5()
-                    .rounded_md()
-                    .bg(colors.element_background)
+                    .flex_none()
+                    .h(px(30.))
+                    .px_2()
+                    .bg(colors.title_bar_background)
+                    .border_b_1()
+                    .border_color(colors.border_variant)
                     .child(
-                        Button::new("mode-editor", "Editor")
-                            .style(ButtonStyle::Subtle)
-                            .toggle_state(self.mode == ViewMode::Editor)
-                            .tooltip(Tooltip::text("Editor"))
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.set_mode(ViewMode::Editor, window, cx)
-                            })),
-                    )
-                    .child(
-                        Button::new("mode-git", git_label)
-                            .style(ButtonStyle::Subtle)
-                            .toggle_state(self.mode == ViewMode::Git)
-                            .tooltip(Tooltip::text("Git: changes, diffs and history (⌥⌘G)"))
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.set_mode(ViewMode::Git, window, cx)
-                            })),
+                        h_flex()
+                            .gap_0p5()
+                            .p_0p5()
+                            .rounded_md()
+                            .bg(colors.element_background)
+                            .child(
+                                Button::new("mode-editor", "Editor")
+                                    .style(ButtonStyle::Subtle)
+                                    .toggle_state(self.mode == ViewMode::Editor)
+                                    .tooltip(Tooltip::text("Editor"))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.set_mode(ViewMode::Editor, window, cx)
+                                    })),
+                            )
+                            .child(
+                                Button::new("mode-git", git_label)
+                                    .style(ButtonStyle::Subtle)
+                                    .toggle_state(self.mode == ViewMode::Git)
+                                    .tooltip(Tooltip::text("Git: changes, diffs and history (⌥⌘G)"))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.set_mode(ViewMode::Git, window, cx)
+                                    })),
+                            )
+                            .child(
+                                Button::new("mode-ci", "CI")
+                                    .style(ButtonStyle::Subtle)
+                                    .toggle_state(self.mode == ViewMode::Ci)
+                                    .tooltip(Tooltip::text(
+                                        "CI: GitHub Actions runs, logs and PR checks (⇧⌘I)",
+                                    ))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.set_mode(ViewMode::Ci, window, cx)
+                                    })),
+                            )
+                            .child(
+                                Button::new("mode-logs", "Logs")
+                                    .style(ButtonStyle::Subtle)
+                                    .toggle_state(self.mode == ViewMode::Logs)
+                                    .tooltip(Tooltip::text(
+                                        "Logs: live logs of the project's files, commands and containers (⌥⌘L)",
+                                    ))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.set_mode(ViewMode::Logs, window, cx)
+                                    })),
+                            ),
                     ),
             )
     }

@@ -24,7 +24,12 @@ impl TermView {
     pub(crate) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let model = Model::build(&self.app.sessions, self.app.window(), &self.app.seen);
-        let mut list = v_flex().id("sidebar-list").flex_1().min_h_0().overflow_y_scroll().pb_2();
+        let mut list = v_flex()
+            .id("sidebar-list")
+            .flex_1()
+            .min_h_0()
+            .overflow_y_scroll()
+            .pb_2();
         if model.agents.is_empty() {
             list = list.child(
                 div()
@@ -170,13 +175,14 @@ impl TermView {
                         }
                     }
                     let weak = weak.clone();
-                    menu.separator().entry("Custom command…", None, move |window, cx| {
-                        if let Err(error) =
-                            weak.update(cx, |view, cx| view.begin_custom_agent(window, cx))
-                        {
-                            tracing::warn!(%error, "sidebar closed before the prompt opened");
-                        }
-                    })
+                    menu.separator()
+                        .entry("Custom command…", None, move |window, cx| {
+                            if let Err(error) =
+                                weak.update(cx, |view, cx| view.begin_custom_agent(window, cx))
+                            {
+                                tracing::warn!(%error, "sidebar closed before the prompt opened");
+                            }
+                        })
                 }))
             })
     }
@@ -197,20 +203,26 @@ impl TermView {
             self.app.toggle_sidebar();
         }
         let input = cx.new(|cx| {
-            TextInput::new(window, cx).placeholder("Command, e.g. aider --model sonnet").monospace()
+            TextInput::new(window, cx)
+                .placeholder("Command, e.g. aider --model sonnet")
+                .monospace()
         });
         let subscription =
-            cx.subscribe_in(&input, window, |view, input, event, window, cx| match event {
-                TextInputEvent::Submit => {
-                    let line = input.read(cx).text().trim().to_owned();
-                    view.end_custom_agent(window, cx);
-                    if !line.is_empty() {
-                        view.launch_agent(&line, true, cx);
+            cx.subscribe_in(
+                &input,
+                window,
+                |view, input, event, window, cx| match event {
+                    TextInputEvent::Submit => {
+                        let line = input.read(cx).text().trim().to_owned();
+                        view.end_custom_agent(window, cx);
+                        if !line.is_empty() {
+                            view.launch_agent(&line, true, cx);
+                        }
                     }
-                }
-                TextInputEvent::Blurred => view.end_custom_agent(window, cx),
-                TextInputEvent::Changed => {}
-            });
+                    TextInputEvent::Blurred => view.end_custom_agent(window, cx),
+                    TextInputEvent::Changed => {}
+                },
+            );
         input.update(cx, |input, cx| input.focus(window, cx));
         self.custom_agent = Some(input);
         self._custom_agent_events = Some(subscription);
@@ -276,7 +288,11 @@ impl TermView {
                 })),
             )
             .when(attention > 0, |toggle| {
-                toggle.child(badge(attention.to_string(), cx.theme().status().warning, cx))
+                toggle.child(badge(
+                    attention.to_string(),
+                    cx.theme().status().warning,
+                    cx,
+                ))
             })
     }
 }

@@ -1,9 +1,12 @@
 //! Language Server Protocol support without GPUI: the JSON-RPC transport,
 //! a threaded client, position conversion, the protocol shapes the editor
 //! uses and the table of known servers. The desktop app owns the running
-//! servers and turns their answers into completions, diagnostics and jumps.
+//! servers and turns their answers into completions, diagnostics, jumps,
+//! renames, references, code actions and formatting.
 
 pub mod client;
+pub mod edit;
+pub mod features;
 pub mod install;
 pub mod position;
 pub mod servers;
@@ -13,6 +16,7 @@ pub mod types;
 use std::path::{Path, PathBuf};
 
 pub use client::{Client, Launch, ServerEvent};
+pub use edit::{EditOp, WorkspaceEdit};
 pub use position::{LspRange, Position, PositionEncoding};
 pub use types::{CompletionItem, Diagnostic, Location, Severity, TextEdit};
 

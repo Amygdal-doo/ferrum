@@ -39,8 +39,52 @@ pub struct Config {
     /// Suggest completions while typing (language server results plus
     /// words from open files). Ctrl+Space always asks.
     pub autocomplete: bool,
+    /// Format with the language server when saving (`core:save`): on by
+    /// default for Rust, Go, TypeScript and JavaScript when the server can
+    /// format; `false` turns it off everywhere, `[languages.<id>]
+    /// format_on_save` decides per language.
+    pub format_on_save: bool,
     pub languages: BTreeMap<String, LanguageConfig>,
     pub lsp: LspConfig,
+    /// `[[agents]]`: AI coding agents besides (or overriding) the built-in
+    /// `claude`, `codex` and `gemini` presets.
+    pub agents: Vec<AgentConfig>,
+    /// Seconds without output after which a running agent shows as
+    /// "waiting for input".
+    pub agent_idle_seconds: u64,
+}
+
+/// One `[[agents]]` entry. A `name` that matches a built-in preset
+/// (`claude`, `codex`, `gemini`) changes that preset (e.g. adds `env`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AgentConfig {
+    pub name: String,
+    /// Program name (looked up on PATH) or path; default: `name`.
+    pub command: Option<String>,
+    pub args: Option<Vec<String>>,
+    /// Extra environment, e.g. API keys. Never logged or shown.
+    pub env: SecretEnv,
+    /// How a starting prompt is passed: `"positional"`, a flag such as
+    /// `"--message"`, or absent (not supported).
+    pub prompt: Option<String>,
+    /// Shown when the program is missing, e.g. `pipx install aider-chat`.
+    pub install: Option<String>,
+    pub enabled: Option<bool>,
+}
+
+/// Environment variables whose values are secrets: `Debug` prints the
+/// names only, so they never end up in logs or panic messages.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct SecretEnv(pub BTreeMap<String, String>);
+
+impl std::fmt::Debug for SecretEnv {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_map()
+            .entries(self.0.keys().map(|k| (k, "••••")))
+            .finish()
+    }
 }
 
 /// `[lsp]`: language servers for completions, problems and go to
@@ -82,6 +126,7 @@ pub struct LanguageConfig {
     pub tab_size: Option<usize>,
     pub soft_tabs: Option<bool>,
     pub soft_wrap: Option<bool>,
+    pub format_on_save: Option<bool>,
 }
 
 impl Default for Config {
@@ -108,8 +153,11 @@ impl Default for Config {
             show_file_icons: true,
             terminal_shell: String::new(),
             autocomplete: true,
+            format_on_save: true,
             languages: BTreeMap::new(),
             lsp: LspConfig::default(),
+            agents: Vec::new(),
+            agent_idle_seconds: 5,
         }
     }
 }
@@ -136,8 +184,11 @@ const KNOWN_KEYS: &[&str] = &[
     "show_file_icons",
     "terminal_shell",
     "autocomplete",
+    "format_on_save",
     "languages",
     "lsp",
+    "agents",
+    "agent_idle_seconds",
 ];
 
 impl Config {
@@ -170,6 +221,15 @@ impl Config {
                 ));
             }
         }
+        for (i, agent) in config.agents.iter().enumerate() {
+            if agent.name.trim().is_empty() {
+                warnings.push(format!("[[agents]] entry {} has no `name`", i + 1));
+            }
+        }
+        if config.agent_idle_seconds == 0 {
+            warnings.push("agent_idle_seconds must be at least 1".to_string());
+            config.agent_idle_seconds = 1;
+        }
         if !(6.0..=72.0).contains(&config.font_size) {
             warnings.push(format!("font_size {} out of range 6–72", config.font_size));
             config.font_size = config.font_size.clamp(6.0, 72.0);
@@ -193,6 +253,23 @@ impl Config {
             .iter()
             .find(|(k, _)| Language::from_id(k) == Some(language))
             .map(|(_, v)| v)
+    }
+
+    /// Whether saving formats `language` (when its server can format).
+    pub fn format_on_save_for(&self, language: Language) -> bool {
+        if !self.format_on_save {
+            return false;
+        }
+        self.language(language)
+            .and_then(|l| l.format_on_save)
+            .unwrap_or(matches!(
+                language,
+                Language::Rust
+                    | Language::Go
+                    | Language::TypeScript
+                    | Language::Tsx
+                    | Language::JavaScript
+            ))
     }
 
     pub fn soft_wrap_for(&self, language: Language) -> bool {
@@ -229,6 +306,7 @@ icon_theme = "ferrum"        # built-in icons, or a folder in icon-themes/
 show_file_icons = true
 terminal_shell = ""          # empty: your login shell ($SHELL)
 autocomplete = true          # suggestions while typing; Ctrl+Space always works
+format_on_save = true        # Rust, Go, TS/JS by default (if the server formats); per language below
 
 tab_size = 4
 soft_tabs = true             # insert spaces for Tab
@@ -245,7 +323,8 @@ restore_session = true
 confirm_reload_dirty = true
 
 # Per-language overrides (ids: rust javascript typescript tsx json toml yaml
-# markdown python go html css shell text).
+# markdown python go html css shell text). Keys: tab_size, soft_tabs,
+# soft_wrap, format_on_save.
 [languages.markdown]
 soft_wrap = true
 
@@ -268,6 +347,16 @@ auto_install = true
 # [lsp.python]
 # command = "pylsp"          # program on PATH, or a full path
 # args = []
+
+# AI coding agents (Agents panel, Cmd+Alt+A): claude, codex and gemini are
+# built in. Add your own, or give a built-in an API key (values are never
+# shown or logged; you can also keep using each CLI's own login).
+# [[agents]]
+# name = "aider"
+# command = "aider"
+# args = ["--no-auto-commits"]
+# prompt = "--message"       # "positional", a flag, or leave out
+# env = { OPENAI_API_KEY = "sk-…" }
 "#;
 
 /// Sets top-level `key` to the string `value` in a config document,
@@ -359,6 +448,27 @@ mod tests {
     }
 
     #[test]
+    fn format_on_save_defaults_and_overrides() {
+        let config = Config::default();
+        assert!(config.format_on_save_for(Language::Rust));
+        assert!(config.format_on_save_for(Language::Tsx));
+        assert!(!config.format_on_save_for(Language::Python));
+        let (config, warnings) = Config::parse(
+            "[languages.python]\nformat_on_save = true\n[languages.go]\nformat_on_save = false",
+        )
+        .expect("valid");
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert!(config.format_on_save_for(Language::Python));
+        assert!(!config.format_on_save_for(Language::Go));
+        assert!(config.format_on_save_for(Language::Rust));
+        let (off, _) = Config::parse("format_on_save = false").expect("valid");
+        assert!(!off.format_on_save_for(Language::Rust));
+        let (default, warnings) = Config::parse(DEFAULT_CONFIG_TOML).expect("valid");
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert!(default.format_on_save);
+    }
+
+    #[test]
     fn lsp_overrides_parse_and_unknown_ids_warn() {
         let (config, warnings) = Config::parse(
             "[lsp]\nenabled = false\n[lsp.python]\ncommand = \"pylsp\"\nargs = [\"-v\"]\n[lsp.rust.initialization_options]\ncheck = { command = \"clippy\" }\n[lsp.cobol]\nenabled = true",
@@ -373,6 +483,25 @@ mod tests {
         assert!(warnings[0].contains("cobol"));
         assert!(Config::default().lsp.enabled);
         assert!(Config::default().autocomplete);
+    }
+
+    #[test]
+    fn agents_parse_and_secrets_stay_hidden() {
+        let (config, warnings) = Config::parse(
+            "agent_idle_seconds = 9\n[[agents]]\nname = \"aider\"\ncommand = \"aider\"\nargs = [\"--no-auto-commits\"]\nenv = { OPENAI_API_KEY = \"sk-secret-123\" }\n[[agents]]\nname = \"\"",
+        )
+        .expect("valid");
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert_eq!(config.agent_idle_seconds, 9);
+        let aider = &config.agents[0];
+        assert_eq!(
+            aider.args.as_deref(),
+            Some(&["--no-auto-commits".to_string()][..])
+        );
+        assert_eq!(aider.env.0["OPENAI_API_KEY"], "sk-secret-123");
+        let debug = format!("{config:?}");
+        assert!(debug.contains("OPENAI_API_KEY") && !debug.contains("sk-secret"));
+        assert!(Config::default().agents.is_empty());
     }
 
     #[test]

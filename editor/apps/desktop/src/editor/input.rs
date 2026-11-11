@@ -13,6 +13,9 @@ use gpui::{
 
 use super::{DragMode, DragState, EditorEvent, EditorView};
 
+/// Width of the gutter's breakpoint lane (left edge).
+pub(super) const BREAKPOINT_LANE: Pixels = px(16.);
+
 impl EditorView {
     pub(super) fn on_mouse_down(
         &mut self,
@@ -28,6 +31,15 @@ impl EditorView {
         };
         let offset = layout.offset_at(event.position, &self.state, &self.display_map);
         let in_gutter = event.position.x < layout.bounds.left() + layout.gutter_width;
+        // The gutter's left lane toggles breakpoints.
+        if in_gutter
+            && event.position.x < layout.bounds.left() + BREAKPOINT_LANE
+            && self.path.is_some()
+        {
+            let row = self.state.buffer().row_of(offset);
+            cx.emit(EditorEvent::ToggleBreakpoint(row));
+            return;
+        }
         self.marked_range = None;
         let m = event.modifiers;
         if m.platform && !m.alt && !m.shift && !in_gutter && self.has_language_server() {

@@ -77,8 +77,9 @@ pub fn render(site_url: &str) -> Markup {
                     h1 id="about-title" { "Developer tools, forged in Rust" }
                     p class="lead" {
                         "Ferrum is a family of native developer tools written in Rust: a code \
-                         editor, an API client, a Git client, a database IDE, a terminal, a \
-                         container manager and developer utilities, plus Ferrum Launcher to install and update them. They are local-first, \
+                         editor with CI and logs built in, an API client, a Git client, a \
+                         database IDE, a terminal, a container manager, developer utilities, and \
+                         tools for ports and environment variables, plus Ferrum Launcher to install and update them. They are local-first, \
                          share one GPUI-based interface and run without Electron."
                     }
                 }

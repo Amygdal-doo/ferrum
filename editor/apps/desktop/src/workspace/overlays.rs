@@ -54,6 +54,18 @@ impl Workspace {
                 std::mem::take(&mut self.location_items),
                 "Go to definition…",
             ),
+            PickerKind::CodeActions => (
+                std::mem::take(&mut self.location_items),
+                "Pick a code action…",
+            ),
+            PickerKind::Agents => match self.agent_items(cx) {
+                Some(items) => (items, "Start an agent session…"),
+                None => return,
+            },
+            PickerKind::DebugConfigs => match self.debug_items(cx) {
+                Some(items) => (items, "Start debugging…"),
+                None => return,
+            },
             PickerKind::Tasks => {
                 let items = self.task_items();
                 if items.is_empty() {
@@ -221,6 +233,9 @@ impl Workspace {
             PickerKind::Problems | PickerKind::Locations => {
                 self.open_location_payload(&payload, window, cx);
             }
+            PickerKind::CodeActions => self.run_code_action_payload(&payload, cx),
+            PickerKind::Agents => self.agent_payload(&payload, window, cx),
+            PickerKind::DebugConfigs => self.debug_payload(&payload, cx),
             PickerKind::Theme | PickerKind::IconTheme => {}
         }
     }

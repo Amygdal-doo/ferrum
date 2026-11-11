@@ -1,10 +1,9 @@
-//! The status bar: file path, git branch, cursor position, selection,
+//! The status bar: file path, cursor position, selection,
 //! language, indentation, line endings, encoding, problem counts, the
 //! language server's state, and the terminal toggle in the bottom-right
 //! corner.
 
 use ferrum_ui::prelude::*;
-use ui::{Icon, IconName, IconSize};
 
 use super::Workspace;
 
@@ -73,26 +72,10 @@ impl Workspace {
             for item in items.into_iter().filter(|s| !s.is_empty()) {
                 right = right.child(Label::new(item).size(LabelSize::Small));
             }
-        } else if let Some(root) = &self.root {
-            left = left.child(
-                Label::new(root.to_string_lossy().to_string())
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
-            );
         }
-        if let Some(branch) = &self.branch {
-            left = left.child(
-                h_flex()
-                    .gap_1()
-                    .flex_none()
-                    .child(
-                        Icon::new(IconName::GitBranch)
-                            .size(IconSize::XSmall)
-                            .color(Color::Muted),
-                    )
-                    .child(Label::new(branch.clone()).size(LabelSize::Small)),
-            );
-        }
+        // The project folder and git branch are in the project bar above.
+        left = left.children(self.render_agent_status(cx));
+        left = left.children(self.render_debug_status(cx));
         right = right.children(self.render_lsp_status(cx));
         right = right.child(self.render_terminal_button(cx));
         status_bar(cx).child(left).child(right)

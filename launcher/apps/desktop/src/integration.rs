@@ -192,10 +192,17 @@ impl FerrumLauncher {
         };
         let mut message = format!("{usage}. Open a new terminal window to use it.");
         match rc {
-            Some(Ok(Some(file))) => {
+            Some(Ok(files)) if !files.is_empty() => {
+                let names: Vec<String> = files
+                    .iter()
+                    .map(|file| match home.as_deref().map(|h| file.strip_prefix(h)) {
+                        Some(Ok(rest)) => format!("~/{}", rest.display()),
+                        _ => file.display().to_string(),
+                    })
+                    .collect();
                 message.push_str(&format!(
                     " (Added ~/.ferrum/bin to PATH in {}.)",
-                    file.display()
+                    names.join(" and ")
                 ));
             }
             Some(Err(e)) => {
@@ -376,6 +383,27 @@ impl FerrumLauncher {
         .detach();
         self.refresh_hotkeys(cx);
         self.refresh_menu_bar(cx);
+        self.repair_shell_path();
+    }
+
+    /// Adds the PATH line to startup files that lack it while a shell
+    /// command is on (older launchers only wrote the login file).
+    fn repair_shell_path(&self) {
+        let any_command = self
+            .state
+            .settings
+            .app_prefs
+            .values()
+            .any(|prefs| prefs.command.is_some());
+        let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else {
+            return;
+        };
+        if any_command {
+            let shell_kind = shell::Shell::from_env(std::env::var("SHELL").ok().as_deref());
+            if let Err(e) = shell::ensure_on_path(&self.services.paths.bin_dir, &home, shell_kind) {
+                tracing::warn!(%e, "could not add ~/.ferrum/bin to PATH");
+            }
+        }
     }
 
     fn app_for_hotkey(&self, id: u32) -> Option<AppId> {

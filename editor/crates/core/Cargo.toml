@@ -37,6 +37,8 @@ tree-sitter-bash.workspace = true
 unicode-segmentation.workspace = true
 unicode-width.workspace = true
 url.workspace = true
+# Reading VS Code extensions (.vsix) for theme import.
+zip.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

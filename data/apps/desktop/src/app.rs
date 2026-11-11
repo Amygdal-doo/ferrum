@@ -48,6 +48,10 @@ pub struct FerrumData {
     pub form: Option<Entity<ConnectionForm>>,
     pub grid_scroll: UniformListScrollHandle,
     pub notice: Option<Notice>,
+    /// Shared Ferrum project strip above the header.
+    pub project_bar: Entity<ProjectBar>,
+    /// Connection the bar was last set from (`Some(None)`: none).
+    pub(crate) project_synced: Option<Option<String>>,
     notice_task: Option<Task<()>>,
     _autosave: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -65,6 +69,7 @@ impl FerrumData {
         let focus_handle = cx.focus_handle();
         window.focus(&focus_handle, cx);
         crate::components::result_grid::bind_grid_keys(cx);
+        let project_bar = crate::components::shell::project::new_bar(window, cx);
 
         let mut this = Self {
             services,
@@ -80,6 +85,8 @@ impl FerrumData {
             form: None,
             grid_scroll: UniformListScrollHandle::new(),
             notice: None,
+            project_bar,
+            project_synced: None,
             notice_task: None,
             _autosave: Task::ready(()),
             _subscriptions: vec![filter_changed, history_changed],
@@ -318,6 +325,9 @@ impl FerrumData {
 impl Render for FerrumData {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
+        if self.state.loaded {
+            self.sync_project_bar(cx);
+        }
         let body = if self.state.loaded {
             self.render_main(window, cx)
         } else {
@@ -354,6 +364,11 @@ impl Render for FerrumData {
             .on_drop(cx.listener(|this, _: &DraggedSplitter, _, cx| {
                 this.save_settings(cx);
             }))
+            .on_action(cx.listener(|this, _: &ToggleProjectSwitcher, window, cx| {
+                this.project_bar
+                    .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
+            }))
+            .child(self.project_bar.clone())
             .child(header)
             .child(body)
             .child(status)

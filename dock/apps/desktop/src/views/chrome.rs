@@ -29,6 +29,10 @@ pub fn toolbar(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
         EngineStatus::Offline(_) => badge("No engine", status.error, cx).into_any_element(),
     };
     let connected = matches!(app.status, EngineStatus::Connected(_));
+    let context = match &app.status {
+        EngineStatus::Connected(c) => c.candidate.context.clone(),
+        _ => None,
+    };
     ferrum_ui::toolbar(cx)
         .child(
             Icon::new(IconName::Box)
@@ -37,6 +41,14 @@ pub fn toolbar(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
         )
         .child(Label::new("FerrumDock").weight(gpui::FontWeight::SEMIBOLD))
         .child(engine_badge)
+        .when_some(context, |bar, name| {
+            bar.child(muted(format!("context {name}")))
+        })
+        .when(!matches!(app.status, EngineStatus::Connecting), |bar| {
+            bar.child(button("pick-engine", "Engine…", false, cx, |app, cx| {
+                app.open_engine_picker(cx)
+            }))
+        })
         .child(div().flex_1())
         .when(connected, |bar| {
             bar.child(

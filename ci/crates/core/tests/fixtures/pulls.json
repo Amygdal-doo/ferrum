@@ -1,0 +1,10 @@
+[
+  {
+    "number": 12, "title": "Add retries", "state": "open", "draft": false,
+    "user": { "login": "alice" }, "updated_at": "2024-05-01T09:00:00Z",
+    "html_url": "https://github.com/octo/app/pull/12",
+    "head": { "ref": "feature/x", "sha": "abc12", "repo": { "full_name": "octo/app" } },
+    "base": { "ref": "main", "sha": "def34", "repo": { "full_name": "octo/app" } },
+    "requested_reviewers": [], "labels": []
+  }
+]

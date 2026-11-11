@@ -9,6 +9,8 @@ kit = "run -p ferrumkit-desktop"
 dock = "run -p ferrumdock-desktop"
 launcher = "run -p ferrumlauncher-desktop"
 editor = "run -p ferrumeditor-desktop"
+ports = "run -p ferrumports-desktop"
+env-ui = "run -p ferrumenv-desktop"
 lint = "clippy --workspace --all-targets -- -D warnings"
 
 [env]

@@ -16,12 +16,17 @@ gpui.workspace = true
 # Same platform features as the IDE; without `font-kit` macOS renders no text.
 gpui_platform = { workspace = true, features = ["font-kit", "wayland", "x11"] }
 menu.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 smallvec.workspace = true
 theme.workspace = true
 ui.workspace = true
 unicode-segmentation.workspace = true
 # Enables `debug-embed` for `assets` (see root Cargo.toml).
 util.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Dock icon visibility (NSApplication activation policy), safe bindings.

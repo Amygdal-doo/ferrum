@@ -2,10 +2,10 @@
 //! empty values instead of errors: engines differ in what they fill in.
 
 use crate::model::{
-    Container, ContainerDetail, ContainerState, EngineInfo, Image, Labels, Mount, Network,
-    NetworkAttachment, PortMapping, PullEvent, Stats, Volume,
+    Container, ContainerDetail, ContainerState, EngineInfo, Image, ImageLayer, Labels, Mount,
+    Network, NetworkAttachment, PortMapping, PullEvent, Stats, Volume,
 };
-use crate::stats::{CpuSample, cpu_percent, memory_usage};
+use crate::stats::{CpuSample, block_io, cpu_percent, memory_usage};
 use bollard::models as m;
 
 /// Negative sizes (`-1` = unknown) become 0.
@@ -97,10 +97,32 @@ pub fn stats(s: &m::ContainerStatsResponse) -> Stats {
     let (current, online) = cpu_sample(s.cpu_stats.as_ref());
     let (previous, _) = cpu_sample(s.precpu_stats.as_ref());
     let memory = s.memory_stats.as_ref();
+    let (net_rx, net_tx) =
+        s.networks
+            .iter()
+            .flat_map(|n| n.values())
+            .fold((0u64, 0u64), |(rx, tx), n| {
+                (
+                    rx.saturating_add(n.rx_bytes.unwrap_or(0)),
+                    tx.saturating_add(n.tx_bytes.unwrap_or(0)),
+                )
+            });
+    let (blk_read, blk_write) = block_io(
+        s.blkio_stats
+            .as_ref()
+            .and_then(|b| b.io_service_bytes_recursive.as_ref())
+            .into_iter()
+            .flatten()
+            .filter_map(|e| Some((e.op.as_deref()?, e.value?))),
+    );
     Stats {
         cpu_percent: cpu_percent(previous, current, online),
         mem_usage: memory.map_or(0, |m| memory_usage(m.usage.unwrap_or(0), m.stats.as_ref())),
         mem_limit: memory.and_then(|m| m.limit).unwrap_or(0),
+        net_rx,
+        net_tx,
+        blk_read,
+        blk_write,
     }
 }
 
@@ -249,6 +271,18 @@ pub fn network(n: m::Network) -> Network {
 }
 
 #[must_use]
+pub fn image_layer(h: m::ImageHistoryResponseItem) -> ImageLayer {
+    ImageLayer {
+        id: h.id,
+        created: h.created,
+        created_by: h.created_by,
+        size: size(Some(h.size)),
+        tags: h.tags,
+        comment: h.comment,
+    }
+}
+
+#[must_use]
 pub fn pull_event(info: m::CreateImageInfo) -> PullEvent {
     let detail = info.progress_detail.unwrap_or_default();
     PullEvent {
@@ -295,13 +329,20 @@ mod tests {
         let json = serde_json::json!({
             "cpu_stats": {"cpu_usage": {"total_usage": 6000}, "system_cpu_usage": 200_000, "online_cpus": 2},
             "precpu_stats": {"cpu_usage": {"total_usage": 1000}, "system_cpu_usage": 100_000},
-            "memory_stats": {"usage": 1000, "limit": 4000, "stats": {"inactive_file": 200}}
+            "memory_stats": {"usage": 1000, "limit": 4000, "stats": {"inactive_file": 200}},
+            "networks": {"eth0": {"rx_bytes": 10, "tx_bytes": 20}, "eth1": {"rx_bytes": 1}},
+            "blkio_stats": {"io_service_bytes_recursive": [
+                {"major": 8, "minor": 0, "op": "read", "value": 4096},
+                {"major": 8, "minor": 0, "op": "write", "value": 512}
+            ]}
         });
         let response: m::ContainerStatsResponse =
             serde_json::from_value(json).unwrap_or_else(|e| panic!("valid stats: {e}"));
         let s = stats(&response);
         assert!((s.cpu_percent - 10.0).abs() < 1e-9);
         assert_eq!((s.mem_usage, s.mem_limit), (800, 4000));
+        assert_eq!((s.net_rx, s.net_tx), (11, 20));
+        assert_eq!((s.blk_read, s.blk_write), (4096, 512));
 
         let mut volumes = vec![Volume {
             name: "data".into(),

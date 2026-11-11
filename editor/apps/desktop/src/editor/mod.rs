@@ -2,8 +2,8 @@
 //! metadata, scroll state, syntax highlights, git marks and search
 //! matches. Rendering lives in `element`, input in `input`, command
 //! dispatch in `commands`, background work in `background`, find support
-//! in `search`; language server features in `lsp`, `completion` and
-//! `popups`.
+//! in `search`; language server features in `lsp`, `lsp_actions`,
+//! `completion` and `popups`.
 
 mod background;
 mod commands;
@@ -13,6 +13,7 @@ mod element;
 mod input;
 mod layout;
 mod lsp;
+mod lsp_actions;
 mod popups;
 mod search;
 
@@ -56,6 +57,32 @@ pub enum EditorEvent {
     },
     /// A message for the status notice.
     Notice(String),
+    /// Apply a workspace edit (rename, code action) across files, then run
+    /// the server `command` if there is one.
+    ApplyEdit {
+        edit: ferrumeditor_core::lsp::WorkspaceEdit,
+        encoding: ferrumeditor_core::lsp::PositionEncoding,
+        label: String,
+        command: Option<ferrumeditor_core::lsp::features::LspCommand>,
+    },
+    /// Find all references found these places.
+    References {
+        locations: Vec<ferrumeditor_core::lsp::Location>,
+        encoding: ferrumeditor_core::lsp::PositionEncoding,
+        symbol: String,
+    },
+    /// Code actions to pick from.
+    CodeActions(Vec<ferrumeditor_core::lsp::features::CodeAction>),
+    /// The breakpoint lane of the gutter was clicked at this 0-based line.
+    ToggleBreakpoint(usize),
+}
+
+/// Debugger marks for the gutter: breakpoints (0-based line, verified by
+/// the adapter: `None` = no session) and where execution is paused.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DebugMarks {
+    pub breakpoints: Vec<(usize, Option<bool>)>,
+    pub exec_line: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,8 +131,10 @@ pub struct EditorView {
     /// Widest line in chars (for horizontal scrolling), keyed by version.
     widest_line: (u64, usize),
     pub(crate) lsp: lsp::LspState,
+    actions: lsp_actions::LspActions,
     completion: Option<completion::CompletionMenu>,
     completion_task: Option<Task<()>>,
+    pub debug_marks: DebugMarks,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -172,8 +201,10 @@ impl EditorView {
             last_layout: None,
             widest_line: (u64::MAX, 0),
             lsp: lsp::LspState::default(),
+            actions: lsp_actions::LspActions::default(),
             completion: None,
             completion_task: None,
+            debug_marks: DebugMarks::default(),
             _subscriptions: subscriptions,
         };
         this.refresh_disk_stamp();
@@ -285,6 +316,22 @@ impl EditorView {
         Ok(())
     }
 
+    /// The file was moved on disk (a server's rename-file edit).
+    pub fn moved_to(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        self.detach_lsp(cx);
+        let language = Language::detect(&path, &self.state.buffer().line(0));
+        self.git_repo = ferrumeditor_core::git::repo_root(&path);
+        self.path = Some(path);
+        self.refresh_disk_stamp();
+        let same_language = self.state.language == language;
+        // A new language attaches by itself.
+        self.set_language(language, cx);
+        if same_language {
+            self.attach_lsp(cx);
+        }
+        cx.emit(EditorEvent::Edited);
+    }
+
     pub fn refresh_disk_stamp(&mut self) {
         self.disk_stamp = self
             .path
@@ -355,6 +402,13 @@ impl EditorView {
         self.scroll_y = line_height * row as f32;
     }
 
+    pub fn set_debug_marks(&mut self, marks: DebugMarks, cx: &mut Context<Self>) {
+        if self.debug_marks != marks {
+            self.debug_marks = marks;
+            cx.notify();
+        }
+    }
+
     pub fn cursor_point(&self) -> ferrumeditor_core::buffer::Point {
         self.state
             .buffer()
@@ -375,6 +429,21 @@ impl EditorView {
 
     pub fn hover_popup(&self) -> Option<&lsp::HoverPopup> {
         self.lsp.hover.as_ref()
+    }
+
+    pub fn server_ready(&self) -> bool {
+        self.lsp.doc.as_ref().is_some_and(|d| d.client.is_ready())
+    }
+
+    pub fn rename_open(&self) -> bool {
+        self.actions.rename.is_some()
+    }
+
+    pub fn signature_label(&self) -> Option<String> {
+        self.actions
+            .signature
+            .as_ref()
+            .map(|s| s.help.label.clone())
     }
 }
 

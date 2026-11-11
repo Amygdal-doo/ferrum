@@ -8,7 +8,7 @@ use axum::{
 use tower_http::{
     compression::CompressionLayer,
     set_header::SetResponseHeaderLayer,
-    trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
+    trace::{DefaultOnResponse, TraceLayer},
 };
 use tracing::Level;
 
@@ -38,7 +38,10 @@ pub fn with_middleware(router: Router) -> Router {
     }
     router.layer(CompressionLayer::new()).layer(
         TraceLayer::new_for_http()
-            .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+            // Path only: query strings stay out of the logs.
+            .make_span_with(|req: &axum::http::Request<_>| {
+                tracing::info_span!("request", method = %req.method(), path = %req.uri().path())
+            })
             .on_response(DefaultOnResponse::new().level(Level::INFO)),
     )
 }

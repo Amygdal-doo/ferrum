@@ -57,7 +57,11 @@ impl Seen {
     /// Drops blocks that no longer exist.
     pub fn retain(&mut self, sessions: &[SessionInfo]) {
         self.0.retain(|id, _| {
-            sessions.iter().flat_map(|s| &s.windows).flat_map(|w| &w.blocks).any(|b| b.id == *id)
+            sessions
+                .iter()
+                .flat_map(|s| &s.windows)
+                .flat_map(|w| &w.blocks)
+                .any(|b| b.id == *id)
         });
     }
 
@@ -79,14 +83,22 @@ impl Model {
     pub fn build(sessions: &[SessionInfo], visible: Option<&WindowInfo>, seen: &Seen) -> Self {
         let mut model = Self::default();
         for s in sessions {
-            let mut section = Section { session: s.id, title: s.name.clone(), rows: Vec::new() };
+            let mut section = Section {
+                session: s.id,
+                title: s.name.clone(),
+                rows: Vec::new(),
+            };
             for w in &s.windows {
                 let shown = visible.is_some_and(|v| v.id == w.id);
                 for (i, b) in w.blocks.iter().enumerate() {
                     let mut row = Row {
                         session: s.id,
                         block: b.id,
-                        title: if i == 0 { window_title(w, b) } else { block_title(b) },
+                        title: if i == 0 {
+                            window_title(w, b)
+                        } else {
+                            block_title(b)
+                        },
                         detail: detail(b),
                         status: b.status.clone(),
                         nested: i > 0,
@@ -179,7 +191,10 @@ mod tests {
             pid: None,
             cols: 80,
             rows: 24,
-            status: state.map(|s| ProgramStatus { updated_ms: 7, ..ProgramStatus::new(s) }),
+            status: state.map(|s| ProgramStatus {
+                updated_ms: 7,
+                ..ProgramStatus::new(s)
+            }),
             exited: None,
         }
     }
@@ -267,7 +282,8 @@ mod tests {
         let mut s = session(vec![block(1, &[], None, None)]);
         let w = &mut s.windows[0];
         w.name = "logs".into();
-        w.blocks.push(block(2, &["tail", "-f", "x.log"], None, None));
+        w.blocks
+            .push(block(2, &["tail", "-f", "x.log"], None, None));
         let m = Model::build(&[s], None, &Seen::default());
         let rows = &m.sessions[0].rows;
         assert_eq!((rows[0].title.as_str(), rows[0].nested), ("logs", false));

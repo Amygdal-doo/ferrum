@@ -31,6 +31,12 @@ ferrum_app() {
     editor)
       APP_NAME="Ferrum Editor"; APP_BINARIES="ferrumeditor"; DEB_PACKAGE="ferrum-editor"
       APP_SUMMARY="Lightweight, hackable text editor: tree view, tabs, command palette" ;;
+    ports)
+      APP_NAME="FerrumPorts"; APP_BINARIES="ferrumports"; DEB_PACKAGE="ferrumports"
+      APP_SUMMARY="Listening ports and the processes behind them" ;;
+    env)
+      APP_NAME="FerrumEnv"; APP_BINARIES="ferrumenv"; DEB_PACKAGE="ferrumenv"
+      APP_SUMMARY="Password-locked vault for project environment variables" ;;
     launcher)
       APP_NAME="Ferrum Launcher"; APP_BINARIES="ferrum-launcher"; DEB_PACKAGE="ferrum-launcher"
       APP_SUMMARY="Installs, updates and rolls back the Ferrum apps" ;;

@@ -122,7 +122,11 @@ pub fn translate(keystroke: &Keystroke) -> Option<Action> {
         if prefix.is_empty() && is_space && !modifiers.shift {
             return Some(Action::Send(Input::Text(" ".into())));
         }
-        let shift = if modifiers.shift && !is_space { "S-" } else { "" };
+        let shift = if modifiers.shift && !is_space {
+            "S-"
+        } else {
+            ""
+        };
         return Some(Action::Send(Input::Key(format!("{prefix}{shift}{name}"))));
     }
     if !prefix.is_empty() && key.chars().count() == 1 {
@@ -143,17 +147,29 @@ mod tests {
     #[test]
     fn named_keys_and_modifiers() {
         assert_eq!(key("enter"), Some(Action::Send(Input::Key("Enter".into()))));
-        assert_eq!(key("shift-tab"), Some(Action::Send(Input::Key("S-Tab".into()))));
-        assert_eq!(key("ctrl-up"), Some(Action::Send(Input::Key("C-Up".into()))));
+        assert_eq!(
+            key("shift-tab"),
+            Some(Action::Send(Input::Key("S-Tab".into())))
+        );
+        assert_eq!(
+            key("ctrl-up"),
+            Some(Action::Send(Input::Key("C-Up".into())))
+        );
         assert_eq!(key("space"), Some(Action::Send(Input::Text(" ".into()))));
-        assert_eq!(key("ctrl-space"), Some(Action::Send(Input::Key("C-Space".into()))));
+        assert_eq!(
+            key("ctrl-space"),
+            Some(Action::Send(Input::Key("C-Space".into())))
+        );
     }
 
     #[test]
     fn control_and_meta_characters() {
         assert_eq!(key("ctrl-c"), Some(Action::Send(Input::Key("C-c".into()))));
         assert_eq!(key("alt-f"), Some(Action::Send(Input::Key("M-f".into()))));
-        assert_eq!(key("ctrl-alt-x"), Some(Action::Send(Input::Key("C-M-x".into()))));
+        assert_eq!(
+            key("ctrl-alt-x"),
+            Some(Action::Send(Input::Key("C-M-x".into())))
+        );
     }
 
     #[test]
@@ -165,12 +181,24 @@ mod tests {
     #[test]
     fn cmd_shortcuts() {
         assert_eq!(key("cmd-t"), Some(Action::Shortcut(Shortcut::NewTab)));
-        assert_eq!(key("cmd-shift-d"), Some(Action::Shortcut(Shortcut::SplitDown)));
+        assert_eq!(
+            key("cmd-shift-d"),
+            Some(Action::Shortcut(Shortcut::SplitDown))
+        );
         assert_eq!(key("cmd-3"), Some(Action::Shortcut(Shortcut::Tab(2))));
-        assert_eq!(key("cmd-shift-]"), Some(Action::Shortcut(Shortcut::NextTab)));
-        assert_eq!(key("cmd-pageup"), Some(Action::Shortcut(Shortcut::ScrollPageUp)));
+        assert_eq!(
+            key("cmd-shift-]"),
+            Some(Action::Shortcut(Shortcut::NextTab))
+        );
+        assert_eq!(
+            key("cmd-pageup"),
+            Some(Action::Shortcut(Shortcut::ScrollPageUp))
+        );
         assert_eq!(key("cmd-c"), Some(Action::Shortcut(Shortcut::Copy)));
-        assert_eq!(key("cmd-b"), Some(Action::Shortcut(Shortcut::ToggleSidebar)));
+        assert_eq!(
+            key("cmd-b"),
+            Some(Action::Shortcut(Shortcut::ToggleSidebar))
+        );
         assert_eq!(key("cmd-q"), None);
     }
 }

@@ -1,0 +1,9 @@
+{
+  "total_count": 2,
+  "workflows": [
+    { "id": 11, "node_id": "W_11", "name": "CI", "path": ".github/workflows/ci.yml", "state": "active",
+      "html_url": "https://github.com/octo/app/blob/main/.github/workflows/ci.yml" },
+    { "id": 12, "name": "Deploy", "path": ".github/workflows/deploy.yml", "state": "active",
+      "html_url": "https://github.com/octo/app/blob/main/.github/workflows/deploy.yml" }
+  ]
+}

@@ -1,5 +1,6 @@
 //! File icons for the tree view, tabs, file finder and find-in-files:
-//! the built-in `ferrum` set ([`builtin`]) and icon themes loaded from
+//! the built-in `ferrum` set ([`builtin`]), the bundled `material` set
+//! ([`material`]) and icon themes loaded from
 //! `~/.ferrum/editor/icon-themes/<name>/theme.toml` ([`manifest`]).
 //!
 //! Lookup order for a file: exact file name, then extension (longest
@@ -10,6 +11,7 @@
 
 mod builtin;
 pub mod manifest;
+mod material;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -20,6 +22,8 @@ use crate::theme::Color;
 
 /// Name of the built-in icon theme.
 pub const BUILTIN_ICON_THEME: &str = "ferrum";
+/// Name of the bundled Material-style icon theme.
+pub const MATERIAL_ICON_THEME: &str = "material";
 
 /// One icon: monochrome SVG data plus its tint (`None` = muted text).
 #[derive(Debug, Clone, PartialEq)]
@@ -97,6 +101,48 @@ impl IconTheme {
         }
     }
 
+    /// The bundled `material` set: the `ferrum` file tables with solid
+    /// Material-style glyphs, plus folders coloured by role (`src`,
+    /// `tests`, `docs`, `node_modules`, …).
+    pub fn material() -> Self {
+        let mut theme = Self::builtin();
+        theme.name = MATERIAL_ICON_THEME.into();
+        let icon = |id: &str, svg: &str, color: &str| Icon {
+            id: id.to_string(),
+            svg: Arc::from(svg.as_bytes()),
+            color: Color::parse(color).ok(),
+        };
+        theme.icons = material::ICONS
+            .iter()
+            .map(|(id, svg, color)| ((*id).to_string(), icon(id, svg, color)))
+            .collect();
+        theme.extensions.extend(
+            material::EXTENSIONS
+                .iter()
+                .map(|(ext, id)| ((*ext).to_string(), (*id).to_string())),
+        );
+        let (closed, open) = material::FOLDER_SHAPES;
+        for (names, color) in material::FOLDERS {
+            let key = names[0].trim_start_matches(['.', '_']);
+            let (closed_id, open_id) = (format!("folder-{key}"), format!("folder-{key}-open"));
+            theme
+                .icons
+                .insert(closed_id.clone(), icon(&closed_id, closed, color));
+            theme
+                .icons
+                .insert(open_id.clone(), icon(&open_id, open, color));
+            for name in *names {
+                theme
+                    .folder_names
+                    .insert(name.to_string(), closed_id.clone());
+                theme
+                    .folder_names_open
+                    .insert(name.to_string(), open_id.clone());
+            }
+        }
+        theme
+    }
+
     pub fn icon_count(&self) -> usize {
         self.icons.len()
     }
@@ -149,7 +195,8 @@ impl IconTheme {
     }
 }
 
-/// The built-in set plus every theme in `~/.ferrum/editor/icon-themes/`.
+/// The built-in set, every theme in `~/.ferrum/editor/icon-themes/`, then
+/// the bundled `material` set.
 #[derive(Debug, Clone)]
 pub struct IconThemeRegistry {
     themes: Vec<Arc<IconTheme>>,
@@ -169,6 +216,7 @@ impl IconThemeRegistry {
         let mut registry = Self::default();
         let mut warnings = Vec::new();
         let Some(dir) = dir else {
+            registry.themes.push(Arc::new(IconTheme::material()));
             return (registry, warnings);
         };
         let mut folders: Vec<PathBuf> = std::fs::read_dir(dir)
@@ -202,6 +250,9 @@ impl IconThemeRegistry {
                 }
                 Err(error) => warnings.push(format!("icon-themes/{label}: {error}")),
             }
+        }
+        if registry.get(MATERIAL_ICON_THEME).is_none() {
+            registry.themes.push(Arc::new(IconTheme::material()));
         }
         (registry, warnings)
     }
@@ -280,7 +331,61 @@ mod tests {
     fn registry_always_has_the_builtin() {
         let (registry, warnings) = IconThemeRegistry::load(None);
         assert!(warnings.is_empty());
-        assert_eq!(registry.names(), vec!["ferrum".to_string()]);
+        assert_eq!(
+            registry.names(),
+            vec!["ferrum".to_string(), "material".to_string()]
+        );
         assert!(registry.get("FERRUM").is_some());
+        assert!(registry.get("Material").is_some());
+    }
+
+    #[test]
+    fn material_set_colours_folders_by_role() {
+        let theme = IconTheme::material();
+        assert_eq!(id(&theme, "main.rs", EntryKind::File), Some("rust"));
+        assert_eq!(id(&theme, "App.tsx", EntryKind::File), Some("react_ts"));
+        assert_eq!(id(&theme, "Cargo.toml", EntryKind::File), Some("cargo"));
+        assert_eq!(id(&theme, "mystery", EntryKind::File), Some("file"));
+        assert_eq!(
+            id(&theme, "src", EntryKind::Folder { open: false }),
+            Some("folder-src")
+        );
+        assert_eq!(
+            id(&theme, "Tests", EntryKind::Folder { open: true }),
+            Some("folder-test-open")
+        );
+        assert_eq!(
+            id(&theme, "node_modules", EntryKind::Folder { open: false }),
+            Some("folder-node_modules")
+        );
+        assert_eq!(
+            id(&theme, ".github", EntryKind::Folder { open: false }),
+            Some("folder-github")
+        );
+        assert_eq!(
+            id(&theme, "random", EntryKind::Folder { open: true }),
+            Some("folder-open")
+        );
+        // Every table entry has an icon, every icon is an SVG with a tint.
+        for (_, target) in builtin::FILE_NAMES
+            .iter()
+            .chain(builtin::EXTENSIONS)
+            .chain(builtin::LANGUAGES)
+            .chain(material::EXTENSIONS)
+        {
+            assert!(theme.icons.contains_key(*target), "{target}");
+        }
+        for icon in theme.icons.values() {
+            let svg = std::str::from_utf8(&icon.svg).expect("utf-8");
+            assert!(
+                svg.starts_with("<svg") && svg.ends_with("</svg>"),
+                "{}",
+                icon.id
+            );
+            assert!(icon.color.is_some(), "{}", icon.id);
+        }
+        let src = theme.resolve("src", EntryKind::Folder { open: false }, None);
+        let docs = theme.resolve("docs", EntryKind::Folder { open: false }, None);
+        assert_ne!(src.map(|i| i.color), docs.map(|i| i.color));
     }
 }

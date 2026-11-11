@@ -1,12 +1,19 @@
 //! Rendering. Each section is a function of the root view's state.
 
 pub mod chrome;
+pub mod compose_rows;
 pub mod containers;
 pub mod detail;
 pub mod dialogs;
+pub mod engines;
+pub mod image_dialogs;
 pub mod images;
 pub mod inspect;
+pub mod logs;
 pub mod resources;
+pub mod run_dialog;
+pub mod services;
+pub mod stats;
 pub mod widgets;
 
 use crate::app::FerrumDock;

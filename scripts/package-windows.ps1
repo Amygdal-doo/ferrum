@@ -26,6 +26,8 @@ $apps = @{
     kit     = @{ Name = "FerrumKit";      Binaries = @("ferrumkit") }
     dock    = @{ Name = "FerrumDock";     Binaries = @("ferrumdock") }
     editor  = @{ Name = "Ferrum Editor";  Binaries = @("ferrumeditor") }
+    ports   = @{ Name = "FerrumPorts";    Binaries = @("ferrumports") }
+    env     = @{ Name = "FerrumEnv";      Binaries = @("ferrumenv") }
     launcher = @{ Name = "Ferrum Launcher"; Binaries = @("ferrum-launcher") }
 }
 if ($App -eq "term") {

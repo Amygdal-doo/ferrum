@@ -56,6 +56,10 @@ pub fn title_for(name: &str) -> String {
         s.split(['-', '_'])
             .filter(|w| !w.is_empty())
             .map(|w| {
+                // Names whose spelling isn't just a capital first letter.
+                if w == "vscode" {
+                    return "VS Code".to_string();
+                }
                 let mut chars = w.chars();
                 chars
                     .next()
@@ -134,11 +138,41 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("git:pull", W, &[]),
     ("git:push", W, &[]),
     ("git:open-in-ferrumgit", W, &[]),
+    // CI page: GitHub Actions runs, logs and PR checks (ferrumci-core)
+    ("ci:toggle-view", W, &["cmd-shift-i"]),
+    ("ci:refresh", W, &[]),
+    ("ci:search-log", W, &[]),
+    // Logs page: live logs per project (ferrumlogs-core)
+    ("logs:toggle-view", W, &["cmd-alt-l"]),
+    ("logs:add-source", W, &[]),
+    ("logs:stop-all", W, &[]),
     // Tasks (build, test, run) in the terminal
     ("tasks:build", W, &["cmd-b"]),
     ("tasks:run", W, &["cmd-shift-b"]),
     ("tasks:test", W, &[]),
     ("tasks:rerun-last", W, &[]),
+    // AI agent sessions and their diff review
+    ("agents:toggle-panel", W, &["cmd-alt-a"]),
+    ("agents:new-session", W, &[]),
+    ("agents:stop-session", W, &[]),
+    ("agents:restart-session", W, &[]),
+    ("agents:review-changes", W, &["cmd-alt-r"]),
+    ("agents:accept-all", W, &[]),
+    ("agents:reject-all", W, &[]),
+    // Debugger (DAP)
+    ("debug:start", W, &[]),
+    ("debug:continue", W, &["f5"]),
+    ("debug:stop", W, &["shift-f5"]),
+    ("debug:restart", W, &["cmd-shift-f5"]),
+    ("debug:pause", W, &["f6"]),
+    ("debug:step-over", W, &["f10"]),
+    ("debug:step-into", W, &["f11"]),
+    ("debug:step-out", W, &["shift-f11"]),
+    ("debug:toggle-breakpoint", W, &["f9"]),
+    ("debug:remove-all-breakpoints", W, &[]),
+    ("debug:toggle-panel", W, &["cmd-shift-y"]),
+    ("debug:add-watch", W, &[]),
+    ("debug:install-adapter", W, &[]),
     // Language servers
     ("problems:show", W, &["ctrl-shift-m"]),
     ("language-server:restart", W, &[]),
@@ -164,6 +198,7 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("theme:use-light", W, &[]),
     ("theme:select", W, &["cmd-k cmd-t"]),
     ("theme:install-from-file", W, &[]),
+    ("theme:import-vscode-theme", W, &[]),
     ("theme:open-themes-folder", W, &[]),
     ("theme:reload", W, &[]),
     ("icon-theme:select", W, &[]),
@@ -211,6 +246,11 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("editor:show-character-palette", E, &["ctrl-cmd-space"]),
     ("editor:show-completions", E, &["ctrl-space", "cmd-i"]),
     ("editor:go-to-definition", E, &["f12"]),
+    ("editor:rename-symbol", E, &["f2"]),
+    ("editor:find-references", E, &["shift-f12"]),
+    ("editor:show-code-actions", E, &["cmd-."]),
+    ("editor:format-document", E, &["shift-alt-f"]),
+    ("editor:show-signature-help", E, &["cmd-shift-space"]),
     ("editor:show-hover", E, &["cmd-k cmd-i"]),
     ("editor:go-to-next-problem", E, &["f8"]),
     ("editor:go-to-previous-problem", E, &["shift-f8"]),
@@ -320,6 +360,10 @@ mod tests {
         );
         assert_eq!(title_for("tree-view:toggle"), "Tree View: Toggle");
         assert_eq!(title_for("plain"), "Plain");
+        assert_eq!(
+            title_for("theme:import-vscode-theme"),
+            "Theme: Import VS Code Theme"
+        );
     }
 
     #[test]

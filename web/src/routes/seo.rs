@@ -3,10 +3,18 @@
 use axum::{extract::State, http::header, response::IntoResponse};
 
 use super::AppState;
-use crate::products;
+use crate::{products, updates};
 
-/// Non-product pages listed in the sitemap: home first, about last.
-const STATIC_PATHS: [&str; 4] = ["/", "/features", "/download", "/about"];
+/// Non-product pages listed in the sitemap: home first, privacy last.
+/// Posts (`/updates/<slug>`) follow `/updates`.
+const STATIC_PATHS: [&str; 6] = [
+    "/",
+    "/features",
+    "/download",
+    "/updates",
+    "/about",
+    "/privacy",
+];
 
 pub async fn robots(State(s): State<AppState>) -> impl IntoResponse {
     let body = format!(
@@ -16,17 +24,21 @@ pub async fn robots(State(s): State<AppState>) -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "text/plain; charset=utf-8")], body)
 }
 
-/// Every public page path: "/", each product, then "/features", "/download" and "/about".
+/// Every public page path: "/", each product, then the other static pages,
+/// with every post right after "/updates".
 pub fn sitemap_paths() -> Vec<String> {
-    let (home, rest) = STATIC_PATHS.split_at(1);
-    home.iter()
-        .map(|p| (*p).to_owned())
-        .chain(products::ALL.iter().map(|p| p.path()))
-        .chain(rest.iter().map(|p| (*p).to_owned()))
-        .collect()
+    let mut paths = vec![STATIC_PATHS[0].to_owned()];
+    paths.extend(products::ALL.iter().map(|p| p.path()));
+    for p in &STATIC_PATHS[1..] {
+        paths.push((*p).to_owned());
+        if *p == updates::INDEX_PATH {
+            paths.extend(updates::newest_first().iter().map(|post| post.path()));
+        }
+    }
+    paths
 }
 
-fn xml_escape(s: &str) -> String {
+pub fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
@@ -58,12 +70,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sitemap_covers_home_products_download_and_about() {
+    fn sitemap_covers_home_products_static_pages_and_posts() {
         let paths = sitemap_paths();
         assert!(paths.iter().any(|p| p == "/download"));
+        assert!(paths.iter().any(|p| p == "/updates"));
+        for post in updates::POSTS {
+            assert!(paths.contains(&post.path()));
+        }
         assert_eq!(paths.first().map(String::as_str), Some("/"));
-        assert_eq!(paths.last().map(String::as_str), Some("/about"));
-        assert_eq!(paths.len(), products::ALL.len() + STATIC_PATHS.len());
+        assert_eq!(paths.last().map(String::as_str), Some("/privacy"));
+        assert_eq!(
+            paths.len(),
+            products::ALL.len() + STATIC_PATHS.len() + updates::POSTS.len()
+        );
     }
 
     #[test]

@@ -1,0 +1,5 @@
+﻿2024-04-30T09:00:12.0000000Z ##[group]Run cargo test
+2024-04-30T09:00:12.1000000Z [36;1mcargo test[0m
+2024-04-30T09:00:12.2000000Z ##[endgroup]
+2024-04-30T09:03:17.0000000Z test tests::flaky ... [31mFAILED[0m
+2024-04-30T09:03:18.0000000Z ##[error]Process completed with exit code 101.

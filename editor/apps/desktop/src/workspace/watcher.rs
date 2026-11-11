@@ -87,7 +87,8 @@ impl Workspace {
                 .any(|c| matches!(c.as_os_str().to_str(), Some("target" | "node_modules")))
         };
         if paths.iter().any(in_git) {
-            self.refresh_branch();
+            self.project_bar
+                .update(cx, |bar, cx| bar.refresh_branch(cx));
             for editor in self.all_editors() {
                 editor.update(cx, |e, cx| e.load_git_base(cx));
             }
@@ -102,6 +103,7 @@ impl Workspace {
                 tree.update(cx, |tree, cx| tree.refresh(cx));
             }
         }
+        self.agents.update(cx, |a, cx| a.files_changed(&paths, cx));
         let open_changed = self
             .all_editors()
             .iter()

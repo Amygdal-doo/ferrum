@@ -1,0 +1,6 @@
+{
+  "name": "deploy.yml",
+  "path": ".github/workflows/deploy.yml",
+  "encoding": "base64",
+  "content": "bmFtZTogRGVwbG95Cm9uOgogIHdvcmtmbG93X2Rpc3BhdGNoOgogICAgaW5w\ndXRzOgogICAgICBlbnZpcm9ubWVudDoKICAgICAgICBkZXNjcmlwdGlvbjog\nVGFyZ2V0CiAgICAgICAgcmVxdWlyZWQ6IHRydWUKICAgICAgICB0eXBlOiBj\naG9pY2UKICAgICAgICBvcHRpb25zOiBbc3RhZ2luZywgcHJvZHVjdGlvbl0K\nICAgICAgICBkZWZhdWx0OiBzdGFnaW5nCiAgICAgIGRyeV9ydW46CiAgICAg\nICAgdHlwZTogYm9vbGVhbgogICAgICAgIGRlZmF1bHQ6IHRydWUKam9iczoK\nICBkZXBsb3k6CiAgICBydW5zLW9uOiB1YnVudHUtbGF0ZXN0CiAgICBzdGVw\nczogW3tydW46IGVjaG8gaGl9XQo=\n"
+}

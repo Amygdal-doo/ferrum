@@ -1,10 +1,17 @@
 //! UI state owned by the root view. Plain data plus pure helpers (tested);
 //! the view mutates it and calls `cx.notify()`.
 
+mod detail;
+mod dialogs;
+
+pub use detail::{DetailState, DetailTab};
+pub use dialogs::{Confirm, Dialog, EnginePicker, LayersState, PendingAction, PullState, RunState};
+
+use crate::project::ProjectState;
 use ferrumdock_engine::compose::{self, ComposeProject, ContainerGroup};
-use ferrumdock_engine::logs::LogBuffer;
-use ferrumdock_engine::pull::PullProgress;
-use ferrumdock_engine::{Connection, Container, ContainerDetail, Image, Network, Stats, Volume};
+use ferrumdock_engine::project::ComposeFile;
+use ferrumdock_engine::stats::StatsHistory;
+use ferrumdock_engine::{Connection, Container, Endpoint, Image, Network, Stats, Volume};
 use std::collections::{HashMap, HashSet};
 
 /// Lines kept per container log view.
@@ -43,105 +50,10 @@ pub enum EngineStatus {
     Offline(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum DetailTab {
-    #[default]
-    Logs,
-    Inspect,
-}
-
-/// The container detail panel.
-pub struct DetailState {
-    pub id: String,
-    pub tab: DetailTab,
-    pub logs: LogBuffer,
-    /// Logs are still streaming.
-    pub streaming: bool,
-    pub log_error: Option<String>,
-    /// Keep the view scrolled to the newest line.
-    pub follow: bool,
-    pub timestamps: bool,
-    /// Render ANSI colours (else show plain text).
-    pub colors: bool,
-    pub search: String,
-    /// Line indexes matching `search`; `None` shows every line.
-    pub matches: Option<Vec<usize>>,
-    pub inspect: Option<Result<ContainerDetail, String>>,
-}
-
-impl DetailState {
-    pub fn new(id: String) -> Self {
-        Self {
-            id,
-            tab: DetailTab::Logs,
-            logs: LogBuffer::new(LOG_CAPACITY, true),
-            streaming: true,
-            log_error: None,
-            follow: true,
-            timestamps: false,
-            colors: true,
-            search: String::new(),
-            matches: None,
-            inspect: None,
-        }
-    }
-
-    /// Recomputes `matches` after the search text or the lines changed.
-    pub fn refilter(&mut self) {
-        self.matches = (!self.search.trim().is_empty()).then(|| self.logs.search(&self.search));
-    }
-
-    pub fn visible_count(&self) -> usize {
-        self.matches.as_ref().map_or(self.logs.len(), Vec::len)
-    }
-
-    /// Buffer index of the `row`-th visible line.
-    pub fn line_index(&self, row: usize) -> Option<usize> {
-        match &self.matches {
-            Some(m) => m.get(row).copied(),
-            None => (row < self.logs.len()).then_some(row),
-        }
-    }
-}
-
-/// What a confirm dialog does when accepted.
-#[derive(Debug, Clone)]
-pub enum PendingAction {
-    RemoveContainer(Container),
-    RemoveImage(Image),
-    PruneImages,
-    RemoveVolume(String),
-    PruneVolumes,
-    RemoveNetwork(Network),
-    PruneNetworks,
-    ComposeDown(ComposeProject),
-}
-
-#[derive(Debug, Clone)]
-pub struct Confirm {
-    pub title: String,
-    pub body: String,
-    pub confirm_label: String,
-    pub action: PendingAction,
-}
-
-pub enum Dialog {
-    Confirm(Box<Confirm>),
-    Pull,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Notice {
     pub message: String,
     pub error: bool,
-}
-
-#[derive(Default)]
-pub struct PullState {
-    pub reference: String,
-    pub running: bool,
-    pub progress: PullProgress,
-    pub error: Option<String>,
 }
 
 #[derive(Default)]
@@ -163,6 +75,15 @@ pub struct AppState {
     pub dialog: Option<Dialog>,
     pub pull: Option<PullState>,
     pub notice: Option<Notice>,
+    /// The folder open in the project bar.
+    pub project: Option<ProjectState>,
+    /// Recent stats per running container (sparklines, I/O rates).
+    pub history: HashMap<String, StatsHistory>,
+    pub run: RunState,
+    pub layers: Option<LayersState>,
+    pub engines: EnginePicker,
+    /// Engine picked in the toolbar; tried first when (re)connecting.
+    pub preferred: Option<Endpoint>,
 }
 
 impl AppState {
@@ -175,7 +96,16 @@ impl AppState {
         self.networks.clear();
         self.loaded.clear();
         self.busy.clear();
+        self.history.clear();
         self.detail = None;
+    }
+
+    /// Records a poll's stats at `at` seconds; containers without a sample lose their history.
+    pub fn record_stats(&mut self, at: f64) {
+        self.history.retain(|id, _| self.stats.contains_key(id));
+        for (id, stats) in &self.stats {
+            self.history.entry(id.clone()).or_default().push(at, *stats);
+        }
     }
 
     pub fn container(&self, id: &str) -> Option<&Container> {
@@ -202,22 +132,38 @@ pub enum Row {
         /// Indented under a compose group.
         grouped: bool,
     },
+    /// A compose file of the open project with no containers yet (offers Up).
+    ComposeFile(ComposeFile),
 }
 
 /// Flattens containers into grouped rows: filtered, compose projects first,
 /// collapsed groups without their containers. A group stays visible when any
-/// of its containers matches the filter (or the project name does).
+/// of its containers matches the filter (or the project name does). With a
+/// `scope` (project open, "this project only" on) only its containers are
+/// listed; its compose files without containers come first either way.
 pub fn container_rows(
     containers: &[Container],
     filter: &str,
     collapsed: &HashSet<String>,
+    scope: Option<&ProjectState>,
 ) -> Vec<Row> {
     let needle = filter.trim().to_lowercase();
-    let mut rows = Vec::new();
+    let mut rows: Vec<Row> = scope
+        .map(|p| p.idle_files(containers))
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|f| matches_any(filter, &[&f.project, &f.services.join(" ")]))
+        .map(Row::ComposeFile)
+        .collect();
+    let containers: Vec<Container> = containers
+        .iter()
+        .filter(|c| scope.is_none_or(|p| !p.only || p.contains(c)))
+        .cloned()
+        .collect();
     for ContainerGroup {
         project,
         containers,
-    } in compose::group_by_project(containers.to_vec())
+    } in compose::group_by_project(containers)
     {
         let group = ContainerGroup {
             project: project.clone(),
@@ -285,13 +231,14 @@ mod tests {
                     ..
                 } => format!("[{project} {running}/{total}]"),
                 Row::Container { container, .. } => container.name.clone(),
+                Row::ComposeFile(file) => format!("<{}>", file.project),
             })
             .collect()
     }
 
     #[test]
     fn groups_rows_by_project() {
-        let rows = container_rows(&sample(), "", &HashSet::new());
+        let rows = container_rows(&sample(), "", &HashSet::new(), None);
         assert_eq!(
             names(&rows),
             ["[web 1/2]", "web-app-1", "web-db-1", "scratch"]
@@ -304,19 +251,19 @@ mod tests {
     fn collapses_and_filters() {
         let collapsed = HashSet::from(["web".to_owned()]);
         assert_eq!(
-            names(&container_rows(&sample(), "", &collapsed)),
+            names(&container_rows(&sample(), "", &collapsed, None)),
             ["[web 1/2]", "scratch"]
         );
         // Group counts stay those of the whole project while filtering.
         assert_eq!(
-            names(&container_rows(&sample(), "db", &HashSet::new())),
+            names(&container_rows(&sample(), "db", &HashSet::new(), None)),
             ["[web 1/2]", "web-db-1"]
         );
         assert_eq!(
-            names(&container_rows(&sample(), "WEB", &HashSet::new())),
+            names(&container_rows(&sample(), "WEB", &HashSet::new(), None)),
             ["[web 1/2]", "web-app-1", "web-db-1"]
         );
-        assert!(container_rows(&sample(), "nothing", &HashSet::new()).is_empty());
+        assert!(container_rows(&sample(), "nothing", &HashSet::new(), None).is_empty());
     }
 
     #[test]
@@ -324,26 +271,6 @@ mod tests {
         assert!(matches_any("", &[]));
         assert!(matches_any("Gr", &["postgres"]));
         assert!(!matches_any("x", &["postgres", "local"]));
-    }
-
-    #[test]
-    fn filters_log_lines() {
-        use ferrumdock_engine::{LogChunk, LogStream};
-        let mut detail = DetailState::new("1".into());
-        detail.logs.push(&LogChunk {
-            stream: LogStream::Stdout,
-            text:
-                "2024-05-01T10:00:00Z boot\n2024-05-01T10:00:01Z ERROR x\n2024-05-01T10:00:02Z ok\n"
-                    .into(),
-        });
-        detail.refilter();
-        assert_eq!(detail.visible_count(), 3);
-        assert_eq!(detail.line_index(2), Some(2));
-        assert_eq!(detail.line_index(3), None);
-        detail.search = "error".into();
-        detail.refilter();
-        assert_eq!(detail.visible_count(), 1);
-        assert_eq!(detail.line_index(0), Some(1));
     }
 
     #[test]
@@ -358,5 +285,25 @@ mod tests {
         assert!(state.container("3").is_some());
         state.clear_engine_data();
         assert!(state.containers.is_empty() && state.loaded.is_empty() && state.detail.is_none());
+    }
+
+    #[test]
+    fn records_stats_history_for_sampled_containers_only() {
+        let mut state = AppState::default();
+        let sample = Stats {
+            cpu_percent: 5.0,
+            ..Stats::default()
+        };
+        state.stats = HashMap::from([("a".to_owned(), sample), ("b".to_owned(), sample)]);
+        state.record_stats(0.0);
+        state.record_stats(2.0);
+        assert_eq!(state.history.get("a").map(StatsHistory::len), Some(2));
+        // "b" stopped: no sample, so its history goes.
+        state.stats.remove("b");
+        state.record_stats(4.0);
+        assert!(!state.history.contains_key("b"));
+        assert_eq!(state.history.get("a").map(StatsHistory::len), Some(3));
+        state.clear_engine_data();
+        assert!(state.history.is_empty());
     }
 }

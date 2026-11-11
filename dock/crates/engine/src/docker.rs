@@ -1,12 +1,13 @@
 //! [`Engine`] over the Docker Engine API with bollard.
 
 use crate::convert;
+use crate::create::{CreateSpec, create_body};
 use crate::endpoint::Endpoint;
 use crate::engine::{Engine, EngineStream};
 use crate::error::{EngineError, EngineResult};
 use crate::model::{
-    Container, ContainerAction, ContainerDetail, EngineInfo, Image, LogChunk, LogOptions,
-    LogStream, Network, PruneReport, PullEvent, Stats, Volume,
+    Container, ContainerAction, ContainerDetail, EngineInfo, Image, ImageLayer, LogChunk,
+    LogOptions, LogStream, Network, PruneReport, PullEvent, Stats, Volume,
 };
 use crate::rawhttp;
 use async_trait::async_trait;
@@ -119,11 +120,16 @@ impl Engine for DockerEngine {
         let tail = options
             .tail
             .map_or_else(|| "all".to_owned(), |n| n.to_string());
+        let since = options
+            .since
+            .and_then(|s| i32::try_from(s).ok())
+            .unwrap_or(0);
         let options = q::LogsOptionsBuilder::new()
             .follow(options.follow)
             .stdout(true)
             .stderr(true)
             .timestamps(options.timestamps)
+            .since(since)
             .tail(&tail)
             .build();
         self.docker
@@ -142,6 +148,21 @@ impl Engine for DockerEngine {
             })
             .map_err(EngineError::from)
             .boxed()
+    }
+
+    async fn create_container(&self, spec: &CreateSpec) -> EngineResult<String> {
+        let options = spec
+            .name
+            .as_ref()
+            .map(|name| q::CreateContainerOptionsBuilder::new().name(name).build());
+        let created = self
+            .docker
+            .create_container(options, create_body(spec))
+            .await?;
+        for warning in &created.warnings {
+            tracing::warn!(%warning, "create container");
+        }
+        Ok(created.id)
     }
 
     async fn images(&self) -> EngineResult<Vec<Image>> {
@@ -176,6 +197,17 @@ impl Engine for DockerEngine {
             .remove_image(id, None::<q::RemoveImageOptions>, None)
             .await?;
         Ok(())
+    }
+
+    async fn tag_image(&self, id: &str, repo: &str, tag: &str) -> EngineResult<()> {
+        let options = q::TagImageOptionsBuilder::new().repo(repo).tag(tag).build();
+        self.docker.tag_image(id, Some(options)).await?;
+        Ok(())
+    }
+
+    async fn image_history(&self, id: &str) -> EngineResult<Vec<ImageLayer>> {
+        let history = self.docker.image_history(id).await?;
+        Ok(history.into_iter().map(convert::image_layer).collect())
     }
 
     async fn prune_images(&self) -> EngineResult<PruneReport> {

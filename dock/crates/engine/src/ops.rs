@@ -1,6 +1,7 @@
 //! Application-level operations on top of [`Engine`]: the policies the UI
 //! relies on, kept here so they are tested without a window.
 
+use crate::create::CreateSpec;
 use crate::engine::SharedEngine;
 use crate::error::{EngineError, EngineResult};
 use crate::format;
@@ -77,6 +78,56 @@ pub async fn pull(
     progress.finished = true;
     on_progress(&progress);
     Ok(progress)
+}
+
+/// `docker run -d`: creates the container (pulling the image first when the
+/// engine does not have it, like the CLI) and starts it. Returns its id.
+/// A container that was created but failed to start is left in place
+/// (`created`), as `docker run` does, and the error says so.
+pub async fn run_container(
+    engine: &SharedEngine,
+    spec: &CreateSpec,
+    on_pull: impl FnMut(&PullProgress) + Send,
+) -> EngineResult<String> {
+    let id = match engine.create_container(spec).await {
+        Ok(id) => id,
+        Err(error) if error.is_not_found() => {
+            tracing::info!(image = %spec.image, "image not present: pulling before create");
+            pull(engine, &spec.image, on_pull).await?;
+            engine.create_container(spec).await?
+        }
+        Err(error) => return Err(error),
+    };
+    if let Err(error) = engine.container_action(&id, ContainerAction::Start).await {
+        return Err(EngineError::Api {
+            status: 500,
+            message: format!(
+                "Created {} but it did not start: {error}",
+                format::short_id(&id)
+            ),
+        });
+    }
+    Ok(id)
+}
+
+/// A new reference for `docker tag`: (`repo`, `tag`), `latest` when no tag is
+/// given. Digests cannot be used as tags.
+#[must_use]
+pub fn tag_reference(reference: &str) -> Option<(String, String)> {
+    if reference.contains('@') {
+        return None;
+    }
+    let (repo, tag) = crate::pull::split_reference(reference)?;
+    let valid_tag = tag.len() <= 128
+        && tag
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
+        && tag
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || "_.-".contains(c));
+    let valid_repo = repo == repo.to_lowercase();
+    (valid_tag && valid_repo).then_some((repo, tag))
 }
 
 #[cfg(test)]
@@ -236,5 +287,81 @@ mod tests {
         assert!(
             matches!(failed, Err(EngineError::Api { message, .. }) if message.contains("access denied"))
         );
+    }
+
+    #[tokio::test]
+    async fn run_pulls_a_missing_image_then_starts() {
+        let fake = Arc::new(FakeEngine::with_sample_data());
+        let engine: SharedEngine = fake.clone();
+        let spec = CreateSpec {
+            image: "redis".into(),
+            name: Some("cache".into()),
+            ..CreateSpec::default()
+        };
+        let id = run_container(&engine, &spec, |_| {}).await;
+        let id = id.unwrap_or_else(|e| panic!("run: {e}"));
+        assert_eq!(
+            fake.state().calls,
+            [
+                "create cache redis:latest",
+                "pull redis",
+                "create cache redis:latest",
+                &format!("start {id}")
+            ]
+        );
+        let created = fake.state().containers.iter().find(|c| c.id == id).cloned();
+        assert!(created.is_some_and(|c| c.state.is_up() && c.name == "cache"));
+
+        // Same name again: the engine's conflict comes back unchanged.
+        let again = run_container(&engine, &spec, |_| {}).await;
+        assert!(again.is_err_and(|e| e.is_conflict()));
+
+        // A failing pull stops before create.
+        fake.state().pull_events = vec![PullEvent {
+            error: Some("pull access denied".into()),
+            ..PullEvent::default()
+        }];
+        let denied = CreateSpec {
+            image: "private/app".into(),
+            ..CreateSpec::default()
+        };
+        let failed = run_container(&engine, &denied, |_| {}).await;
+        assert!(failed.is_err_and(|e| e.to_string().contains("access denied")));
+    }
+
+    #[tokio::test]
+    async fn tags_and_lists_layers() {
+        let fake = Arc::new(FakeEngine::with_sample_data());
+        let engine: SharedEngine = fake.clone();
+        assert_eq!(
+            tag_reference("registry:5000/team/app"),
+            Some(("registry:5000/team/app".into(), "latest".into()))
+        );
+        assert_eq!(
+            tag_reference("app:v1.2"),
+            Some(("app".into(), "v1.2".into()))
+        );
+        assert_eq!(tag_reference("App:v1"), None, "repositories are lowercase");
+        assert_eq!(tag_reference("app@sha256:abc"), None);
+        assert_eq!(tag_reference("app:-x"), None);
+        assert!(engine.tag_image("sha256:img2", "app", "v1").await.is_ok());
+        let images = engine.images().await.unwrap_or_default();
+        assert!(
+            images
+                .iter()
+                .any(|i| i.id == "sha256:img2" && i.tags == ["app:v1"])
+        );
+        assert!(
+            engine
+                .tag_image("nope", "a", "b")
+                .await
+                .is_err_and(|e| e.is_not_found())
+        );
+        let layers = engine
+            .image_history("sha256:img1")
+            .await
+            .unwrap_or_default();
+        assert_eq!(layers.len(), 3);
+        assert_eq!(layers[0].tags, ["web-app:latest"]);
     }
 }

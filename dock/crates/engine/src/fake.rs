@@ -1,15 +1,17 @@
 //! In-memory [`Engine`] for tests: behaves like a small Docker engine
 //! (state transitions, 404/409 errors, prune semantics) and records calls.
 
+use crate::create::CreateSpec;
 use crate::engine::{Engine, EngineStream};
 use crate::error::{EngineError, EngineResult};
 use crate::model::{
     COMPOSE_PROJECT, COMPOSE_SERVICE, Container, ContainerAction, ContainerDetail, ContainerState,
-    EngineInfo, Image, Labels, LogChunk, LogOptions, Network, PruneReport, PullEvent, Stats,
-    Volume,
+    EngineInfo, Image, ImageLayer, Labels, LogChunk, LogOptions, Network, PruneReport, PullEvent,
+    Stats, Volume,
 };
 use async_trait::async_trait;
 use futures::StreamExt;
+use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 #[derive(Debug, Default)]
@@ -19,7 +21,11 @@ pub struct FakeState {
     pub images: Vec<Image>,
     pub volumes: Vec<Volume>,
     pub networks: Vec<Network>,
+    /// Logs of any container without its own entry in `container_logs`.
     pub logs: Vec<LogChunk>,
+    pub container_logs: HashMap<String, Vec<LogChunk>>,
+    /// Options of every `logs` call, in order.
+    pub log_requests: Vec<(String, LogOptions)>,
     pub pull_events: Vec<PullEvent>,
     /// Every mutating call, e.g. `remove container web force=true`.
     pub calls: Vec<String>,
@@ -55,6 +61,14 @@ fn not_found(what: &str, id: &str) -> EngineError {
         status: 404,
         message: format!("No such {what}: {id}"),
     }
+}
+
+/// `nginx` → `nginx:latest`, the way the engine stores tags.
+fn with_tag(reference: &str) -> String {
+    crate::pull::split_reference(reference).map_or_else(
+        || reference.to_owned(),
+        |(name, tag)| format!("{name}:{tag}"),
+    )
 }
 
 fn conflict(message: String) -> EngineError {
@@ -159,6 +173,10 @@ impl Engine for FakeEngine {
                 cpu_percent: 1.5,
                 mem_usage: 64 << 20,
                 mem_limit: 1 << 30,
+                net_rx: 2_048,
+                net_tx: 1_024,
+                blk_read: 4_096,
+                blk_write: 0,
             }
         } else {
             Stats::default()
@@ -232,9 +250,34 @@ impl Engine for FakeEngine {
         Ok(())
     }
 
-    fn logs(&self, _id: &str, _options: LogOptions) -> EngineStream<LogChunk> {
-        let chunks = self.state().logs.clone();
+    fn logs(&self, id: &str, options: LogOptions) -> EngineStream<LogChunk> {
+        let mut s = self.state();
+        s.log_requests.push((id.to_owned(), options));
+        let chunks = s.container_logs.get(id).unwrap_or(&s.logs).clone();
         futures::stream::iter(chunks.into_iter().map(Ok)).boxed()
+    }
+
+    async fn create_container(&self, spec: &CreateSpec) -> EngineResult<String> {
+        let mut s = self.guard()?;
+        let image = with_tag(&spec.image);
+        s.calls.push(format!(
+            "create {} {image}",
+            spec.name.as_deref().unwrap_or("-")
+        ));
+        if !s.images.iter().any(|i| i.tags.contains(&image)) {
+            return Err(not_found("image", &image));
+        }
+        let id = format!("new{:03}", s.containers.len() + 1);
+        let name = spec.name.clone().unwrap_or_else(|| format!("auto_{id}"));
+        if s.containers.iter().any(|c| c.name == name) {
+            return Err(conflict(format!(
+                "Conflict. The container name \"/{name}\" is already in use"
+            )));
+        }
+        let mut c = container(&id, &name, None, "created");
+        c.image = image;
+        s.containers.push(c);
+        Ok(id)
     }
 
     async fn images(&self) -> EngineResult<Vec<Image>> {
@@ -245,6 +288,19 @@ impl Engine for FakeEngine {
         let mut s = self.state();
         s.calls.push(format!("pull {reference}"));
         let events = s.pull_events.clone();
+        let tag = with_tag(reference);
+        if events.iter().all(|e| e.error.is_none())
+            && !s.images.iter().any(|i| i.tags.contains(&tag))
+        {
+            let id = format!("sha256:pulled{}", s.images.len());
+            s.images.push(Image {
+                id,
+                tags: vec![tag],
+                size: 10,
+                created: 0,
+                containers: 0,
+            });
+        }
         futures::stream::iter(events.into_iter().map(Ok)).boxed()
     }
 
@@ -263,6 +319,50 @@ impl Engine for FakeEngine {
         }
         s.images.remove(index);
         Ok(())
+    }
+
+    async fn tag_image(&self, id: &str, repo: &str, tag: &str) -> EngineResult<()> {
+        let mut s = self.guard()?;
+        s.calls.push(format!("tag {id} {repo}:{tag}"));
+        let reference = format!("{repo}:{tag}");
+        for image in &mut s.images {
+            image.tags.retain(|t| *t != reference);
+        }
+        let image = s
+            .images
+            .iter_mut()
+            .find(|i| i.id == id)
+            .ok_or_else(|| not_found("image", id))?;
+        image.tags.push(reference);
+        Ok(())
+    }
+
+    async fn image_history(&self, id: &str) -> EngineResult<Vec<ImageLayer>> {
+        let s = self.guard()?;
+        let image = s
+            .images
+            .iter()
+            .find(|i| i.id == id)
+            .ok_or_else(|| not_found("image", id))?;
+        let layer = |id: &str, by: &str, size| ImageLayer {
+            id: id.to_owned(),
+            created: 0,
+            created_by: by.to_owned(),
+            size,
+            tags: Vec::new(),
+            comment: String::new(),
+        };
+        let mut top = layer(&image.id, "CMD [\"app\"]", 0);
+        top.tags.clone_from(&image.tags);
+        Ok(vec![
+            top,
+            layer("<missing>", "COPY . /app", image.size / 2),
+            layer(
+                "<missing>",
+                "/bin/sh -c #(nop) ADD file:base in /",
+                image.size / 2,
+            ),
+        ])
     }
 
     async fn prune_images(&self) -> EngineResult<PruneReport> {

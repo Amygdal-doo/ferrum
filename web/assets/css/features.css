@@ -1,5 +1,6 @@
 /* Features page (.page-features) and its animated mock windows (.demo*).
-   Markup: src/pages/features.rs and src/pages/feature_demos.rs. Tokens only.
+   Markup: src/pages/features.rs, src/pages/feature_demos.rs and
+   src/pages/project_demos.rs. Tokens only.
    Every demo loops on the same 9s cycle. Base styles are the finished screen,
    so the reduced-motion rule in base.css leaves a sensible still frame. */
 
@@ -283,6 +284,158 @@
 .dock__logs p:nth-child(3) { animation-delay: 0.4s; }
 .dock__logs p:nth-child(4) { animation-delay: 0.8s; }
 @keyframes dock-cpu { from { transform: scaleX(0.55); transform-origin: left; } to { transform: scaleX(1); transform-origin: left; } }
+
+/* ---------- Shared project strip (FerrumPorts, Env, Editor's Logs and CI pages) ---------- */
+.ports, .env, .logs, .ci { display: flex; flex-direction: column; }
+.pstrip {
+  display: flex; flex: none; align-items: center; gap: 10px; height: 28px; padding: 0 10px;
+  border-bottom: 1px solid var(--border); background: var(--bg-elev); font-size: 11px; white-space: nowrap; overflow: hidden;
+}
+.pstrip__name { color: var(--text); font-weight: 600; }
+.pstrip__path { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text-faint); }
+.pstrip__branch { color: color-mix(in srgb, var(--app-accent) var(--ink-mix), var(--text)); }
+.pstrip__open { display: flex; gap: 4px; margin-left: auto; }
+.pstrip__open span { padding: 0 6px; border: 1px solid var(--border-strong); border-radius: 3px; }
+
+/* ---------- FerrumPorts ---------- */
+.ports__tools { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; }
+.ports__search { min-width: 70px; padding: 1px 8px; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text-faint); }
+.ports__search span, .ports__check b { color: var(--text); font-weight: 600; }
+.ports__toggle { padding: 1px 6px; border: 1px solid var(--border); border-radius: 3px; }
+.ports__check { padding: 1px 8px; border: 1px dashed var(--border-strong); border-radius: 4px; }
+.ports__tools em { margin-left: auto; }
+.ports__table { position: relative; flex: 1; padding: 8px 12px; }
+.ports__group { padding: 4px 0 !important; color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ports__group em { margin-left: 6px; font-weight: 400; }
+.ports__row {
+  display: grid; grid-template-columns: 40px 92px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 3px 6px; border-radius: 3px; color: var(--text); animation: demo-row var(--cycle) var(--ease) infinite;
+}
+.ports__row b { font-weight: 600; color: color-mix(in srgb, var(--app-accent) var(--ink-mix), var(--text)); }
+.ports__row span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ports__cmd { color: var(--text-faint); }
+.ports__row:nth-child(3) { animation-delay: 0.2s; }
+.ports__row:nth-child(4) { animation-delay: 0.4s; }
+.ports__row:nth-child(6) { animation-delay: 0.6s; }
+.ports__row.is-picked {
+  background: color-mix(in srgb, var(--app-accent) 20%, transparent);
+  animation: demo-row var(--cycle) var(--ease) infinite, ports-pick var(--cycle) var(--ease) infinite;
+}
+.ports__dialog {
+  position: absolute; left: 50%; bottom: 58px; width: min(84%, 290px); padding: 10px 12px; opacity: 0;
+  border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); color: var(--text);
+  box-shadow: var(--shadow), 0 20px 40px -20px rgba(0, 0, 0, 0.6); transform: translateX(-50%);
+  animation: ports-dialog var(--cycle) var(--ease) infinite;
+}
+.ports__dialog b { font-weight: 600; }
+.ports__dialog .ports__cmd { margin: 2px 0 8px !important; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ports__actions { display: flex; justify-content: flex-end; gap: 6px; }
+.ports__actions span { padding: 1px 8px; border: 1px solid var(--border-strong); border-radius: 4px; }
+.ports__actions .ports__stop { border-color: transparent; background: var(--app-accent); color: var(--on-color); font-weight: 600; animation: demo-press var(--cycle) var(--ease) infinite; animation-delay: 4.3s; }
+
+/* ---------- FerrumEnv ---------- */
+.env__body { flex: 1; display: grid; grid-template-columns: 110px minmax(0, 1fr); }
+.env__side { padding: 10px !important; border-right: 1px solid var(--border); background: var(--bg-elev); }
+.env__side li { display: flex; justify-content: space-between; padding: 3px 6px; border-radius: 3px; color: var(--text); }
+.env__side li.is-open { background: color-mix(in srgb, var(--app-accent) 20%, transparent); }
+.env__main { position: relative; padding: 0 12px 10px; min-width: 0; }
+.env__tabs { display: flex; margin: 0 -12px 8px !important; padding: 0 12px !important; border-bottom: 1px solid var(--border); overflow: hidden; }
+.env__tabs li { padding: 5px 10px; color: var(--text-faint); white-space: nowrap; }
+.env__tabs li.is-active { color: var(--text); box-shadow: inset 0 -2px 0 var(--app-accent); }
+.env__row {
+  display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr) auto; gap: 10px; align-items: center;
+  padding: 4px 6px; border-bottom: 1px solid var(--border); color: var(--text); animation: demo-row var(--cycle) var(--ease) infinite;
+}
+.env__row:nth-child(3) { animation-delay: 0.15s; }
+.env__row:nth-child(4) { animation-delay: 0.3s; }
+.env__row:nth-child(5) { animation-delay: 0.45s; }
+.env__key { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.env__val { display: inline-grid; min-width: 0; overflow: hidden; white-space: nowrap; }
+.env__val > span { grid-area: 1 / 1; overflow: hidden; text-overflow: ellipsis; }
+.env__mask { color: var(--text-faint); letter-spacing: 0.05em; }
+.env__plain { opacity: 0; }
+.env__lock { font-style: normal; font-size: 10px; padding: 0 6px; border-radius: 999px; color: var(--text-muted); border: 1px solid var(--border-strong); }
+.env__row.is-revealed .env__mask { animation: env-mask var(--cycle) steps(1) infinite; }
+.env__row.is-revealed .env__plain { animation: env-plain var(--cycle) steps(1) infinite; }
+.env__row.is-revealed { animation: demo-row var(--cycle) var(--ease) infinite, env-pick var(--cycle) var(--ease) infinite; }
+.env__status { margin-top: 10px !important; font-size: 11px; color: var(--text-faint); }
+
+/* ---------- Ferrum Editor's Logs page (on /ferrum-editor#logs) ---------- */
+.logs__body { flex: 1; display: grid; grid-template-columns: 130px minmax(0, 1fr); }
+.logs__side { padding: 10px !important; border-right: 1px solid var(--border); background: var(--bg-elev); }
+.logs__side li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; padding: 3px 6px; color: var(--text); }
+.logs__side li em { flex-basis: 100%; padding-left: 14px; font-size: 10px; }
+.logs__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.logs__dot--file { background: var(--app-accent); box-shadow: none; }
+.logs__suggest { margin-top: 8px; border: 1px dashed var(--border-strong); border-radius: 4px; color: color-mix(in srgb, var(--app-accent) var(--ink-mix), var(--text)) !important; }
+.logs__main { position: relative; padding: 0 12px 10px; min-width: 0; overflow: hidden; }
+.logs__tools { display: flex; gap: 6px; align-items: center; margin: 0 -12px 6px; padding: 6px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; overflow: hidden; }
+.logs__lvl { padding: 0 6px; border: 1px solid var(--border-strong); border-radius: 3px; }
+.logs__lvl.is-on { color: var(--text); background: var(--surface-2); }
+.logs__search { margin-left: auto; min-width: 80px; padding: 0 8px; border: 1px solid var(--border-strong); border-radius: 4px; }
+.logs__search span { color: var(--text); }
+.logs__line {
+  display: grid; grid-template-columns: 38px 58px 44px minmax(0, 1fr); gap: 6px; align-items: center;
+  padding: 2px 4px; border-left: 2px solid transparent; color: var(--text); white-space: nowrap;
+  animation: demo-row var(--cycle) var(--ease) infinite;
+}
+.logs__line span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.logs__line:nth-child(3) { animation-delay: 0.3s; }
+.logs__line:nth-child(4) { animation-delay: 0.6s; }
+.logs__line:nth-child(5) { animation-delay: 0.9s; }
+.logs__line:nth-child(6) { animation-delay: 1.2s; }
+.logs__chip { padding: 0 4px; border-radius: 3px; font-size: 10px; text-align: center; background: color-mix(in srgb, var(--app-accent) 22%, transparent); }
+.logs__line b { font-weight: 600; color: var(--text-faint); }
+.logs__line--warn b { color: var(--straw); }
+.logs__line--error { border-left-color: var(--bronze); background: color-mix(in srgb, var(--bronze) 14%, transparent); }
+.logs__line--error b { color: color-mix(in srgb, var(--bronze) var(--ink-mix), var(--text)); }
+.logs__jump {
+  position: absolute; right: 14px; bottom: 12px; padding: 2px 10px; border-radius: 999px;
+  background: var(--app-accent); color: var(--on-color); font-weight: 600;
+  animation: demo-toast var(--cycle) var(--ease) infinite;
+}
+
+/* ---------- Ferrum Editor's CI page (on /ferrum-editor#ci) ---------- */
+.ci__body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
+.ci__runs { padding: 8px !important; border-right: 1px solid var(--border); background: var(--bg-elev); }
+.ci__runs li { display: flex; gap: 8px; align-items: flex-start; padding: 4px 6px; border-radius: 3px; color: var(--text); }
+.ci__runs li > span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ci__runs li em { display: block; font-size: 10px; }
+.ci__runs i { font-style: normal; width: 12px; text-align: center; }
+.ci__runs .is-ok i, .ci__steps .is-ok { color: var(--ok); }
+.ci__runs .is-fail i { color: var(--bronze); }
+.ci__runs .is-run i { color: var(--straw); animation: demo-blink 1s steps(1) infinite; }
+.ci__runs li.is-fail { background: color-mix(in srgb, var(--app-accent) 18%, transparent); }
+.ci__detail { position: relative; padding: 10px 12px; min-width: 0; }
+.ci__steps li { display: flex; justify-content: space-between; padding: 2px 0; animation: demo-row var(--cycle) var(--ease) infinite; }
+.ci__steps li:nth-child(2) { animation-delay: 0.3s; }
+.ci__steps li:nth-child(3) { animation-delay: 0.6s; }
+.ci__steps .is-fail { color: color-mix(in srgb, var(--bronze) var(--ink-mix), var(--text)); font-weight: 600; }
+.ci__log { margin-top: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; color: var(--text); white-space: pre; overflow: hidden; animation: demo-row var(--cycle) var(--ease) infinite; animation-delay: 0.9s; }
+.ci__err { background: color-mix(in srgb, var(--bronze) 18%, transparent); animation: ci-err var(--cycle) var(--ease) infinite; }
+.ci__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px !important; }
+.ci__actions span { padding: 1px 8px; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text); }
+.ci__actions span:first-child { animation: demo-press var(--cycle) var(--ease) infinite; animation-delay: 3s; }
+
+@media (max-width: 640px) {
+  .env__body, .logs__body, .ci__body { grid-template-columns: minmax(0, 1fr); }
+  .env__side, .logs__side, .ci__runs, .pstrip__path, .ports__tools em { display: none; }
+  .ports__row { grid-template-columns: 40px 92px minmax(0, 1fr); }
+  .ports__row em { display: none; }
+}
+@keyframes ports-pick {
+  0%, 26%, 70%, 100% { box-shadow: 0 0 0 0 transparent; }
+  32%, 40% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 30%, transparent); }
+}
+@keyframes ports-dialog {
+  0%, 36% { opacity: 0; transform: translate(-50%, 6px); }
+  42%, 58% { opacity: 1; transform: translateX(-50%); }
+  62%, 100% { opacity: 0; transform: translate(-50%, 6px); }
+}
+@keyframes env-mask { 0% { opacity: 1; } 30% { opacity: 0; } 80% { opacity: 1; } }
+@keyframes env-plain { 0% { opacity: 0; } 30% { opacity: 1; } 80% { opacity: 0; } }
+@keyframes env-pick { 0%, 24%, 80%, 100% { background: transparent; } 30%, 74% { background: color-mix(in srgb, var(--app-accent) 16%, transparent); } }
+@keyframes ci-err { 0%, 30% { background: transparent; } 36%, 92% { background: color-mix(in srgb, var(--bronze) 18%, transparent); } 100% { background: transparent; } }
 
 /* ---------- Ferrum Editor ---------- */
 .ed { display: grid; grid-template-columns: 120px minmax(0, 1fr); grid-template-rows: 1fr auto; }

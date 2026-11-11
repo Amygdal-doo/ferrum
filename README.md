@@ -6,13 +6,17 @@ one look through `shared/ui`.
 
 | Path | Product | Stack |
 | --- | --- | --- |
-| `editor/` | Ferrum Editor: the suite's code editor, lightweight and hackable | GPUI + `ferrum-ui` |
+| `editor/` | Ferrum Editor: the suite's code editor, lightweight and hackable, with Git, CI (GitHub Actions) and Logs pages | GPUI + `ferrum-ui` |
 | `api/` | FerrumAPI: HTTP/API client | GPUI + `ferrum-ui` |
 | `git/` | FerrumGIT: Git client | GPUI + `ferrum-ui` |
 | `data/` | FerrumData: database IDE | GPUI + `ferrum-ui` |
 | `term/` | FerrumTerm: terminal server, GUI and CLI | GPUI GUI, crossterm CLI |
 | `kit/` | FerrumKit: developer utilities | GPUI + `ferrum-ui` |
 | `dock/` | FerrumDock: container manager | GPUI + `ferrum-ui` |
+| `ports/` | FerrumPorts: listening ports and their processes | GPUI + `ferrum-ui` |
+| `env/` | FerrumEnv: password-locked, shareable vault for project env variables | GPUI + `ferrum-ui` |
+| `logs/` | Library only: `ferrumlogs-core` (log sources, parsing, filtering) behind Ferrum Editor's Logs page | Rust (no UI) |
+| `ci/` | Library only: `ferrumci-core` (GitHub Actions runs, logs, dispatch, PR checks) behind Ferrum Editor's CI page | Rust (no UI) |
 | `launcher/` | Ferrum Launcher (formerly Ferrum Toolbox): installs, updates and launches the apps | GPUI + `ferrum-ui` |
 | `shared/ui` | `ferrum-ui`: shared shell and widgets | GPUI + Zed `ui`/`theme` |
 | `web/` | Marketing site | axum + maud (standalone package) |
@@ -21,7 +25,8 @@ one look through `shared/ui`.
 ## Layout
 
 - The root `Cargo.toml` is a single workspace for `shared/`, `api/`, `git/`,
-  `data/`, `term/`, `kit/`, `dock/`, `editor/` and `launcher/`. It has one `Cargo.lock` and one toolchain
+  `data/`, `term/`, `kit/`, `dock/`, `editor/`, `ports/`, `env/`, `logs/`,
+  `ci/` and `launcher/`. It has one `Cargo.lock` and one toolchain
   (`rust-toolchain.toml`).
 - `ide/` keeps its own workspace and toolchain so merges from upstream Zed
   stay easy. Nothing is built or released from it on its own. The other tools depend on its `gpui`, `gpui_platform`, `ui`,
@@ -41,6 +46,11 @@ one look through `shared/ui`.
 - `TextInput`: single-line, multi-line, masked and monospace editable
   text. It emits `Changed`, `Submit` and `Blurred`.
 - `splitter` + `DraggedSplitter` for resizable panes.
+- `ProjectBar`: the strip at the top of the windows with the current project
+  (name, path, git branch), a switcher over the recent projects shared by
+  every app (`~/.ferrum/projects.json`, ⌥⌘O) and buttons that open the project
+  in Ferrum Editor, FerrumGIT or FerrumTerm. The data side is
+  `ferrum_ui::project`.
 - `Modal`, `Notice` / `render_notice`, `toolbar`, `status_bar`,
   `section_header`, `badge`, `kbd` and `empty_state`.
 - `ferrum_ui::prelude::*` re-exports GPUI and Zed `ui` components
@@ -59,6 +69,8 @@ cargo fterm      # FerrumTerm CLI
 cargo kit        # FerrumKit
 cargo dock       # FerrumDock
 cargo editor     # Ferrum Editor
+cargo ports      # FerrumPorts
+cargo env-ui     # FerrumEnv
 cargo launcher   # Ferrum Launcher
 cargo lint       # clippy, whole workspace, -D warnings
 cargo test --workspace

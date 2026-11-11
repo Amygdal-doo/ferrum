@@ -117,6 +117,29 @@ pub const FERRUMDOCK: Product = Product {
     status: Status::Alpha,
 };
 
+pub const FERRUMPORTS: Product = Product {
+    slug: "ferrumports",
+    name: "FerrumPorts",
+    symbol: "Fp",
+    logo: "ports",
+    accent_var: "--app-ports",
+    kind: "Port inspector",
+    tagline: "Every listening port with its process and project, and a confirmed way to stop it.",
+    status: Status::Alpha,
+};
+
+pub const FERRUMENV: Product = Product {
+    slug: "ferrumenv",
+    name: "FerrumEnv",
+    symbol: "Fv",
+    logo: "env",
+    accent_var: "--app-env",
+    kind: "Environment vault",
+    tagline: "A password-locked vault for your projects' environment variables, with encrypted \
+              sharing between developers.",
+    status: Status::Alpha,
+};
+
 pub const FERRUM_EDITOR: Product = Product {
     slug: "ferrum-editor",
     name: "Ferrum Editor",
@@ -141,7 +164,7 @@ pub const FERRUM_LAUNCHER: Product = Product {
 };
 
 /// Site order: Ferrum Editor, the suite's code editor, leads.
-pub const ALL: [Product; 8] = [
+pub const ALL: [Product; 10] = [
     FERRUM_EDITOR,
     FERRUMAPI,
     FERRUMGIT,
@@ -149,6 +172,8 @@ pub const ALL: [Product; 8] = [
     FERRUMTERM,
     FERRUMKIT,
     FERRUMDOCK,
+    FERRUMPORTS,
+    FERRUMENV,
     FERRUM_LAUNCHER,
 ];
 

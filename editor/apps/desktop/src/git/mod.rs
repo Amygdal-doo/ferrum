@@ -4,7 +4,7 @@
 //! view; everything else (history graph, PRs, profiles, stashes…) stays in
 //! FerrumGIT, which "Open in FerrumGIT" launches.
 
-mod diff;
+pub(crate) mod diff;
 mod panel;
 mod view;
 

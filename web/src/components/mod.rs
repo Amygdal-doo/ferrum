@@ -7,10 +7,12 @@
 //!   `card::element_tile(symbol, number, caption, class)`, `card::feature(..)`
 //! - `card::steps(&[(title, body)])`: numbered how-to list
 //! - `nav::render(path)`, `footer::render()`
+//! - `follow::block(source, Size)`: "follow the updates" block at `#follow`
 
 pub mod badge;
 pub mod button;
 pub mod card;
+pub mod follow;
 pub mod footer;
 pub mod icons;
 pub mod nav;

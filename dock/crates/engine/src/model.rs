@@ -132,13 +132,20 @@ impl Container {
     }
 }
 
-/// One CPU/memory sample.
+/// One stats sample. Network and block I/O are cumulative counters since
+/// the container started (rates come from two samples, see `stats::IoRates`).
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Stats {
     /// 100 % = one full core (like `docker stats`).
     pub cpu_percent: f64,
     pub mem_usage: u64,
     pub mem_limit: u64,
+    /// Bytes received / sent over all interfaces.
+    pub net_rx: u64,
+    pub net_tx: u64,
+    /// Bytes read from / written to block devices.
+    pub blk_read: u64,
+    pub blk_write: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -274,6 +281,8 @@ pub struct LogOptions {
     /// Last N lines; `None` = everything.
     pub tail: Option<u32>,
     pub timestamps: bool,
+    /// Only lines after this Unix time (seconds); `None` = from the start.
+    pub since: Option<i64>,
 }
 
 impl Default for LogOptions {
@@ -282,8 +291,23 @@ impl Default for LogOptions {
             follow: true,
             tail: Some(1000),
             timestamps: true,
+            since: None,
         }
     }
+}
+
+/// One layer of `docker image history` (newest first).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImageLayer {
+    /// Layer image id, or `<missing>` for layers built elsewhere.
+    pub id: String,
+    /// Unix seconds.
+    pub created: i64,
+    /// The Dockerfile instruction, e.g. `/bin/sh -c #(nop) CMD ["nginx"]`.
+    pub created_by: String,
+    pub size: u64,
+    pub tags: Vec<String>,
+    pub comment: String,
 }
 
 /// One progress message of `POST /images/create`.

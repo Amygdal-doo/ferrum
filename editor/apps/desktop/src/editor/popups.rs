@@ -1,5 +1,6 @@
-//! The completion menu under the caret and the hover popup (problems and
-//! the server's type / docs) above the word, drawn over the editor.
+//! The completion menu under the caret, the hover popup (problems and
+//! the server's type / docs) above the word, signature help above the
+//! caret and the rename input over the symbol, drawn over the editor.
 
 use ferrumeditor_core::lsp::Severity;
 use gpui::{
@@ -18,6 +19,9 @@ const HOVER_MAX_WIDTH: Pixels = px(560.);
 const HOVER_MAX_HEIGHT: Pixels = px(320.);
 /// Longest hover text shown, in lines.
 const HOVER_LINES: usize = 40;
+const RENAME_WIDTH: Pixels = px(260.);
+/// Longest signature documentation shown, in lines.
+const SIGNATURE_DOC_LINES: usize = 6;
 
 pub(super) fn severity_token(severity: Severity) -> &'static str {
     match severity {
@@ -235,6 +239,102 @@ impl EditorView {
                 .children(problems)
                 .children(docs);
             out.push(popup(anchor, position, body.into_any_element()));
+        }
+
+        if let Some(signature) = &self.actions.signature
+            && self.lsp.hover.is_none()
+            && self.actions.rename.is_none()
+            && let Some(origin) = layout.point_for_offset(signature.anchor)
+        {
+            let help = &signature.help;
+            let label: AnyElement = match help.active_parameter.clone() {
+                Some(active) => div()
+                    .flex()
+                    .child(help.label[..active.start].to_string())
+                    .child(
+                        div()
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(ui(&theme, "accent"))
+                            .child(help.label[active.clone()].to_string()),
+                    )
+                    .child(help.label[active.end..].to_string())
+                    .into_any_element(),
+                None => div().child(help.label.clone()).into_any_element(),
+            };
+            let body = div()
+                .id("signature-help")
+                .occlude()
+                .max_w(HOVER_MAX_WIDTH)
+                .bg(surface)
+                .border_1()
+                .border_color(border)
+                .rounded_md()
+                .shadow_md()
+                .px_2()
+                .py_1()
+                .text_size(font_size * 0.92)
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .child(
+                    div()
+                        .flex()
+                        .gap_2()
+                        .font_family(font.clone())
+                        .text_color(text)
+                        .child(label)
+                        .when_some(help.overloads.clone(), |d, count| {
+                            d.child(div().text_color(muted).child(count))
+                        }),
+                )
+                .when_some(help.documentation.clone(), |d, doc| {
+                    d.child(
+                        div()
+                            .mt_1()
+                            .pt_1()
+                            .border_t_1()
+                            .border_color(border)
+                            .text_color(muted)
+                            .child(
+                                doc.lines()
+                                    .take(SIGNATURE_DOC_LINES)
+                                    .collect::<Vec<_>>()
+                                    .join("\n"),
+                            ),
+                    )
+                });
+            out.push(popup(
+                Anchor::BottomLeft,
+                point(origin.x - px(4.), origin.y - px(2.)),
+                body.into_any_element(),
+            ));
+        }
+
+        if let Some(rename) = &self.actions.rename
+            && let Some(origin) = layout.point_for_offset(rename.range.start)
+        {
+            let body = div()
+                .id("rename-input")
+                .occlude()
+                .w(RENAME_WIDTH)
+                .bg(surface)
+                .border_1()
+                .border_color(ui(&theme, "border_focused"))
+                .rounded_md()
+                .shadow_md()
+                .p_1()
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .child(rename.input.clone())
+                .child(
+                    div()
+                        .px_1()
+                        .text_size(font_size * 0.8)
+                        .text_color(muted)
+                        .child("Enter to rename · Escape to cancel"),
+                );
+            out.push(popup(
+                Anchor::TopLeft,
+                point(origin.x - px(6.), origin.y - px(4.)),
+                body.into_any_element(),
+            ));
         }
         out
     }

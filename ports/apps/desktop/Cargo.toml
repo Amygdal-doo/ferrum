@@ -1,0 +1,25 @@
+[package]
+name = "ferrumports-desktop"
+description = "FerrumPorts — listening ports and the processes behind them, GPUI desktop shell."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "ferrumports"
+path = "src/main.rs"
+
+[dependencies]
+ferrumports-core.workspace = true
+ferrum-ui.workspace = true
+gpui.workspace = true
+menu.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+# Headless GPUI test harness (TestAppContext); no window is shown.
+gpui = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

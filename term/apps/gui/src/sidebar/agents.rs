@@ -7,8 +7,16 @@ use ferrumterm_protocol::{BlockInfo, SessionInfo};
 pub const PRESETS: [(&str, &str); 2] = [("Claude Code", "claude"), ("Codex", "codex")];
 
 /// Programs shown in the Agents section even before they report a status.
-const KNOWN: [&str; 8] =
-    ["claude", "codex", "aider", "gemini", "opencode", "amp", "goose", "cursor-agent"];
+const KNOWN: [&str; 8] = [
+    "claude",
+    "codex",
+    "aider",
+    "gemini",
+    "opencode",
+    "amp",
+    "goose",
+    "cursor-agent",
+];
 
 const SHELLS: [&str; 5] = ["sh", "bash", "zsh", "fish", "dash"];
 
@@ -23,8 +31,9 @@ pub fn program_name(command: &[String]) -> Option<&str> {
     let (prog, args) = command.split_first()?;
     let prog = basename(prog);
     if SHELLS.contains(&prog)
-        && let Some(i) =
-            args.iter().position(|a| a.starts_with('-') && !a.starts_with("--") && a.contains('c'))
+        && let Some(i) = args
+            .iter()
+            .position(|a| a.starts_with('-') && !a.starts_with("--") && a.contains('c'))
         && let Some(script) = args.get(i + 1)
     {
         let script = script.trim_start();
@@ -41,7 +50,9 @@ pub fn program_name(command: &[String]) -> Option<&str> {
 #[must_use]
 pub fn is_agent(b: &BlockInfo) -> bool {
     b.status.is_some()
-        || b.label.as_deref().is_some_and(|l| l.to_ascii_lowercase().starts_with("agent"))
+        || b.label
+            .as_deref()
+            .is_some_and(|l| l.to_ascii_lowercase().starts_with("agent"))
         || program_name(&b.command).is_some_and(|p| KNOWN.contains(&p))
 }
 
@@ -58,13 +69,20 @@ pub fn unique_label(base: &str, sessions: &[SessionInfo]) -> String {
     if !taken(base) {
         return base.to_owned();
     }
-    (2..).map(|n| format!("{base}-{n}")).find(|l| !taken(l)).unwrap_or_else(|| base.to_owned())
+    (2..)
+        .map(|n| format!("{base}-{n}"))
+        .find(|l| !taken(l))
+        .unwrap_or_else(|| base.to_owned())
 }
 
 /// Label for a command line: its program name (`aider --model x` → `aider`).
 #[must_use]
 pub fn label_for(command_line: &str) -> String {
-    command_line.split_whitespace().next().map_or("agent", basename).to_owned()
+    command_line
+        .split_whitespace()
+        .next()
+        .map_or("agent", basename)
+        .to_owned()
 }
 
 /// Runs `command_line` through the user's login + interactive shell, so the
@@ -72,8 +90,10 @@ pub fn label_for(command_line: &str) -> String {
 /// FerrumTerm was opened from the Finder with a minimal environment.
 #[must_use]
 pub fn shell_command(command_line: &str) -> Vec<String> {
-    let shell =
-        std::env::var("SHELL").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| "/bin/zsh".into());
+    let shell = std::env::var("SHELL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "/bin/zsh".into());
     vec![shell, "-lic".into(), format!("exec {command_line}")]
 }
 
@@ -89,7 +109,10 @@ mod tests {
     #[test]
     fn program_names_see_through_shell_wrappers() {
         assert_eq!(program_name(&[]), None);
-        assert_eq!(program_name(&argv(&["/usr/local/bin/claude"])), Some("claude"));
+        assert_eq!(
+            program_name(&argv(&["/usr/local/bin/claude"])),
+            Some("claude")
+        );
         assert_eq!(program_name(&argv(&["npm", "run", "dev"])), Some("npm"));
         assert_eq!(
             program_name(&argv(&["/bin/zsh", "-lic", "exec codex --full-auto"])),

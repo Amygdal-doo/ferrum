@@ -56,6 +56,7 @@ impl Workspace {
     /// Editor events about language servers (from `watch_editor`).
     pub(super) fn on_editor_lsp_event(
         &mut self,
+        editor: &Entity<EditorView>,
         event: &EditorEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -66,6 +67,18 @@ impl Workspace {
                 encoding,
             } => self.navigate(locations, *encoding, window, cx),
             EditorEvent::Notice(message) => self.info(message.clone(), cx),
+            EditorEvent::ApplyEdit {
+                edit,
+                encoding,
+                label,
+                command,
+            } => self.apply_editor_edit(editor, edit, *encoding, label, command.as_ref(), cx),
+            EditorEvent::References {
+                locations,
+                encoding,
+                symbol,
+            } => self.show_references(locations, *encoding, symbol, cx),
+            EditorEvent::CodeActions(actions) => self.pick_code_action(editor, actions, window, cx),
             _ => {}
         }
     }
@@ -261,12 +274,20 @@ impl Workspace {
         event: &crate::lsp_store::LspEvent,
         cx: &mut Context<Self>,
     ) {
-        if let crate::lsp_store::LspEvent::Notice { message, error } = event {
-            if *error {
-                self.error(message.clone(), cx);
-            } else {
-                self.info(message.clone(), cx);
+        match event {
+            crate::lsp_store::LspEvent::Notice { message, error } => {
+                if *error {
+                    self.error(message.clone(), cx);
+                } else {
+                    self.info(message.clone(), cx);
+                }
             }
+            crate::lsp_store::LspEvent::ApplyEdit {
+                server_id,
+                request_id,
+                edit,
+            } => self.apply_server_edit(*server_id, request_id, edit, cx),
+            _ => {}
         }
         cx.notify();
     }

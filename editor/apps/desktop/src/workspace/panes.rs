@@ -136,6 +136,7 @@ impl Workspace {
             pane.active = at;
             if let PaneItem::Editor(editor) = &item {
                 self.watch_editor(editor, window, cx);
+                self.sync_debug_marks_for(editor, cx);
             }
         }
         self.focus_active(window, cx);
@@ -155,8 +156,19 @@ impl Workspace {
                 if *event == EditorEvent::Saved {
                     this.refresh_git(cx);
                 }
-                if matches!(event, EditorEvent::Navigate { .. } | EditorEvent::Notice(_)) {
-                    this.on_editor_lsp_event(event, window, cx);
+                if let EditorEvent::ToggleBreakpoint(line) = event {
+                    this.toggle_breakpoint_at(editor, *line, cx);
+                    return;
+                }
+                if matches!(
+                    event,
+                    EditorEvent::Navigate { .. }
+                        | EditorEvent::Notice(_)
+                        | EditorEvent::ApplyEdit { .. }
+                        | EditorEvent::References { .. }
+                        | EditorEvent::CodeActions(_)
+                ) {
+                    this.on_editor_lsp_event(editor, event, window, cx);
                     return;
                 }
                 if *event == EditorEvent::Focused

@@ -1,7 +1,10 @@
 use std::io::IsTerminal;
 
 use tracing_subscriber::EnvFilter;
-use web_ferrum::{Config, app};
+
+use web_ferrum::Config;
+use web_ferrum::releases::MacosDownload;
+use web_ferrum::routes::{AppState, router};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -19,7 +22,9 @@ async fn main() -> std::io::Result<()> {
     let listener = tokio::net::TcpListener::bind(config.bind_addr()).await?;
     tracing::info!(addr = %listener.local_addr()?, "web-ferrum listening");
 
-    axum::serve(listener, app(config))
+    let state = AppState::new(config, MacosDownload::github());
+    let service = router(state).into_make_service();
+    axum::serve(listener, service)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
     tracing::info!("web-ferrum stopped");

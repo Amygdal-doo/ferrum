@@ -3,11 +3,13 @@
 use crate::components::fields::FieldCache;
 use crate::components::response::BodyDisplay;
 use crate::state::AppState;
-use ferrum_ui::{DraggedSplitter, Notice, render_notice, splitter};
+use ferrum_ui::{
+    DraggedSplitter, Notice, ProjectBar, ToggleProjectSwitcher, render_notice, splitter,
+};
 use ferrumapi_application::AppServices;
 use gpui::{
-    App, Axis, Context, DragMoveEvent, FocusHandle, Image, KeyBinding, ScrollHandle, SharedString,
-    Task, Window, actions, div, prelude::*, px,
+    App, Axis, Context, DragMoveEvent, Entity, FocusHandle, Image, KeyBinding, ScrollHandle,
+    SharedString, Task, Window, actions, div, prelude::*, px,
 };
 use std::sync::Arc;
 use ui::{ActiveTheme as _, Color, Label, LabelCommon as _, h_flex, v_flex};
@@ -53,6 +55,8 @@ pub struct FerrumApi {
     pub body_display: Option<BodyDisplay>,
     /// Scroll position of the response body (for revealing search matches).
     pub response_scroll: ScrollHandle,
+    /// Shared Ferrum project strip above the header.
+    pub project_bar: Entity<ProjectBar>,
     focus_handle: FocusHandle,
     /// Whether focus was already moved into the open dialog.
     pub dialog_focused: bool,
@@ -65,6 +69,7 @@ impl FerrumApi {
     pub fn new(services: AppServices, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let focus_handle = cx.focus_handle();
         window.focus(&focus_handle, cx);
+        let project_bar = crate::components::shell::project::new_bar(window, cx);
         let mut this = Self {
             services,
             state: AppState::new(),
@@ -72,6 +77,7 @@ impl FerrumApi {
             image_cache: None,
             body_display: None,
             response_scroll: ScrollHandle::new(),
+            project_bar,
             focus_handle,
             dialog_focused: false,
             notice: None,
@@ -176,6 +182,7 @@ impl FerrumApi {
 impl Render for FerrumApi {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.fields.begin();
+        self.sync_project_bar(cx);
         let colors = cx.theme().colors().clone();
         let header = self.render_header(window, cx);
         let content = if self.state.loaded {
@@ -248,10 +255,15 @@ impl Render for FerrumApi {
             .on_action(cx.listener(Self::on_find))
             .on_action(cx.listener(Self::on_find_next))
             .on_action(cx.listener(Self::on_find_previous))
+            .on_action(cx.listener(|this, _: &ToggleProjectSwitcher, window, cx| {
+                this.project_bar
+                    .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
+            }))
             .relative()
             .size_full()
             .bg(colors.background)
             .text_color(colors.text)
+            .child(self.project_bar.clone())
             .child(header)
             .child(content)
             .child(status)

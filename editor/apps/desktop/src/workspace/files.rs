@@ -56,9 +56,13 @@ impl Workspace {
             store.update(cx, |store, _| store.set_project(project));
         }
         self.file_list = None;
+        let project = Some(root.clone());
+        self.debugger.update(cx, |d, cx| d.set_project(project, cx));
         self.project_find
             .update(cx, |pf, cx| pf.set_root(Some(root.clone()), cx));
-        self.refresh_branch();
+        self.sync_project_bar(cx);
+        self.sync_ci_project(cx);
+        self.sync_logs_project(cx);
         self.start_watcher(window, cx);
         if window.focused(cx).is_none() {
             self.focus_active(window, cx);
@@ -67,12 +71,16 @@ impl Workspace {
         cx.notify();
     }
 
-    pub(super) fn refresh_branch(&mut self) {
-        self.branch = self
-            .root
-            .as_deref()
-            .and_then(ferrumeditor_core::git::repo_root)
-            .and_then(|repo| ferrumeditor_core::git::current_branch(&repo));
+    /// Shows the root in the project bar, which also records it as the
+    /// most recent project of every Ferrum app (`~/.ferrum/projects.json`).
+    /// Tests skip the recording so they never touch the user's list.
+    pub(super) fn sync_project_bar(&mut self, cx: &mut Context<Self>) {
+        if cfg!(test) {
+            return;
+        }
+        let root = self.root.clone();
+        self.project_bar
+            .update(cx, |bar, cx| bar.set_project(root, cx));
     }
 
     /// Opens `path` (or activates its tab). A missing file opens as an empty

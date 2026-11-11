@@ -29,6 +29,8 @@ pub struct EditorDiagnostic {
     pub range: Range<usize>,
     pub severity: Severity,
     pub message: String,
+    /// As the server sent it (for code action requests).
+    pub raw: Value,
 }
 
 pub(super) struct LspDoc {
@@ -115,6 +117,7 @@ impl EditorView {
         self.lsp.sync_task = None;
         self.lsp.hover = None;
         self.completion = None;
+        self.actions = Default::default();
         if let Some(doc) = self.lsp.doc.take() {
             doc.client.notify(
                 "textDocument/didClose",
@@ -244,6 +247,7 @@ impl EditorView {
                     range,
                     severity: d.severity,
                     message: d.full_message(),
+                    raw: d.raw.clone(),
                 }
             })
             .collect();

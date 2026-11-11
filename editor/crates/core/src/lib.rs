@@ -1,13 +1,16 @@
 //! Ferrum Editor core: everything that does not need a window. The text
 //! buffer, multi-cursor editing, undo, motions, search, syntax highlighting,
-//! git line marks, the language server client and the user's config /
-//! keymap / theme / snippets all live here and are unit-tested without GPUI.
+//! git line marks, the language server and debug adapter clients, AI agent
+//! snapshots and diff review, and the user's config / keymap / theme /
+//! snippets all live here and are unit-tested without GPUI.
 
+pub mod agents;
 pub mod buffer;
 pub mod cli;
 pub mod commands;
 pub mod completion;
 pub mod config;
+pub mod dap;
 pub mod display;
 pub mod editor;
 pub mod file_tree;

@@ -31,6 +31,17 @@ impl EditorView {
 
     /// Runs an editor command; false if `name` is not one.
     pub fn run_command(&mut self, name: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        // Keys typed into the rename input must not edit the buffer.
+        if self.rename_focused(window, cx) {
+            if name == "editor:cancel" {
+                self.cancel_rename(window, cx);
+            }
+            return true;
+        }
+        if name == "editor:rename-symbol" {
+            self.start_rename(window, cx);
+            return true;
+        }
         if self.completion_command(name, cx) {
             return true;
         }
@@ -155,14 +166,27 @@ impl EditorView {
             "editor:show-completions" => self.trigger_completion(true, None, cx),
             "editor:go-to-definition" => self.go_to_definition(head, cx),
             "editor:show-hover" => self.show_hover_at(head, cx),
+            "editor:find-references" => self.find_references(cx),
+            "editor:show-code-actions" => self.show_code_actions(cx),
+            "editor:format-document" => {
+                self.format_document(true, cx);
+            }
+            "editor:show-signature-help" => self.request_signature_help(None, cx),
             "editor:go-to-next-problem" | "editor:go-to-previous-problem" => {
                 if self.go_to_problem(name.ends_with("next-problem"), cx) {
                     cx.emit(EditorEvent::SelectionsChanged);
                 }
             }
-            "editor:cancel" if self.lsp.hover.is_some() => self.hide_hover(cx),
+            "editor:cancel" if self.lsp.hover.is_some() || self.actions.signature.is_some() => {
+                self.hide_hover(cx);
+                self.hide_signature_help(cx);
+            }
             _ => {
                 self.hide_hover(cx);
+                // Deleting inside the call keeps signature help; moving away closes it.
+                if !matches!(name, "editor:backspace" | "editor:delete") {
+                    self.hide_signature_help(cx);
+                }
                 return false;
             }
         }

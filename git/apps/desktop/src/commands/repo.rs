@@ -67,6 +67,7 @@ impl FerrumGit {
                 {
                     app.select(id, Selection::Commit(first.oid.clone()), cx);
                 }
+                app.refresh_project_branch(id, cx);
                 app.refresh_diff(id, cx);
                 app.refresh_file_view(id, cx);
                 // New commits may match the active search.

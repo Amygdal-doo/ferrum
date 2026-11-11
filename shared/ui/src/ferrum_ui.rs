@@ -8,6 +8,8 @@ mod chrome;
 pub mod dock;
 mod modal;
 mod notice;
+pub mod project;
+mod project_bar;
 mod splitter;
 mod text_input;
 
@@ -15,6 +17,7 @@ pub use app::{AppConfig, Quit, run};
 pub use chrome::{badge, empty_state, kbd, section_header, status_bar, toolbar};
 pub use modal::Modal;
 pub use notice::{Notice, NoticeTone, render_notice};
+pub use project_bar::{ProjectBar, ProjectBarEvent, ToggleProjectSwitcher};
 pub use splitter::{DraggedSplitter, splitter};
 pub use text_input::{TextInput, TextInputEvent};
 
@@ -24,8 +27,9 @@ pub use ui;
 
 pub mod prelude {
     pub use crate::{
-        AppConfig, DraggedSplitter, Modal, Notice, NoticeTone, TextInput, TextInputEvent, badge,
-        empty_state, kbd, render_notice, section_header, splitter, status_bar, toolbar,
+        AppConfig, DraggedSplitter, Modal, Notice, NoticeTone, ProjectBar, ProjectBarEvent,
+        TextInput, TextInputEvent, ToggleProjectSwitcher, badge, empty_state, kbd, render_notice,
+        section_header, splitter, status_bar, toolbar,
     };
     pub use gpui::{
         AnyElement, App, AppContext as _, AsyncApp, ClickEvent, Context, DragMoveEvent, Entity,

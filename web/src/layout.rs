@@ -5,7 +5,7 @@
 
 use maud::{DOCTYPE, Markup, html};
 
-use crate::{components, routes::assets, site};
+use crate::{components, routes::assets, site, updates};
 
 /// Per-page metadata for `<head>` (title, description, canonical + OG tags).
 #[derive(Debug, Clone)]
@@ -19,6 +19,8 @@ pub struct PageMeta {
     pub body_class: &'static str,
     /// Emit `<meta name="robots" content="noindex">` (used by the 404 page).
     pub noindex: bool,
+    /// Publication date (`YYYY-MM-DD`) of an article; switches `og:type` to `article`.
+    pub published: Option<&'static str>,
 }
 
 impl PageMeta {
@@ -34,7 +36,14 @@ impl PageMeta {
             path: path.to_owned(),
             body_class,
             noindex: false,
+            published: None,
         }
+    }
+
+    /// Mark the page as an article published on `date` (`YYYY-MM-DD`).
+    pub fn article(mut self, date: &'static str) -> Self {
+        self.published = Some(date);
+        self
     }
 
     /// Mark the page as not indexable by search engines.
@@ -52,12 +61,13 @@ impl PageMeta {
 }
 
 /// Stylesheets in cascade order. Each file is owned by one area of the codebase.
-const STYLESHEETS: [&str; 5] = [
+const STYLESHEETS: [&str; 6] = [
     "css/tokens.css",
     "css/base.css",
     "css/components.css",
     "css/pages.css",
     "css/features.css",
+    "css/updates.css",
 ];
 
 /// Render a complete HTML document. `site_url` has no trailing slash.
@@ -80,7 +90,12 @@ pub fn page(site_url: &str, meta: &PageMeta, main: Markup) -> Markup {
                 }
                 meta name="color-scheme" content="dark light";
                 meta name="theme-color" content="#0d1520";
-                meta property="og:type" content="website";
+                @if let Some(date) = meta.published {
+                    meta property="og:type" content="article";
+                    meta property="article:published_time" content=(date);
+                } @else {
+                    meta property="og:type" content="website";
+                }
                 meta property="og:site_name" content=(site::SITE_NAME);
                 meta property="og:title" content=(title);
                 meta property="og:description" content=(meta.description);
@@ -92,6 +107,8 @@ pub fn page(site_url: &str, meta: &PageMeta, main: Markup) -> Markup {
                 meta name="twitter:card" content="summary_large_image";
                 link rel="icon" href=(assets::url("img/favicon.svg")) type="image/svg+xml";
                 link rel="apple-touch-icon" href=(assets::url("img/apple-touch-icon.png"));
+                link rel="alternate" type="application/atom+xml" title=(updates::FEED_TITLE)
+                    href=(format!("{site_url}{}", updates::FEED_PATH));
                 link rel="preconnect" href="https://fonts.googleapis.com";
                 link rel="preconnect" href="https://fonts.gstatic.com" crossorigin;
                 link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap";

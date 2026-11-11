@@ -30,6 +30,13 @@ pub enum LspEvent {
     Installed(&'static str),
     /// A message for the window's notice.
     Notice { message: String, error: bool },
+    /// A server asks to apply a `WorkspaceEdit` (often while running a
+    /// code action's command); answer with [`LspStore::reply`].
+    ApplyEdit {
+        server_id: u64,
+        request_id: Value,
+        edit: Value,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -156,6 +163,11 @@ impl LspStore {
     /// turned off).
     pub fn global(cx: &App) -> Option<Entity<Self>> {
         cx.try_global::<GlobalLsp>().map(|g| g.0.clone())
+    }
+
+    /// The login shell's PATH plus tool folders (resolves once asked).
+    pub fn path_env(&self) -> Shared<Task<String>> {
+        self.path_env.clone()
     }
 
     pub fn set_project(&mut self, root: Option<PathBuf>) {
@@ -309,6 +321,17 @@ impl LspStore {
                 if unknown_binary && cx.global::<Settings>().config.lsp.auto_install {
                     self.install(def, false, cx);
                 }
+            }
+            ServerEvent::Request {
+                id: request_id,
+                params,
+                ..
+            } => {
+                cx.emit(LspEvent::ApplyEdit {
+                    server_id: id,
+                    request_id,
+                    edit: params.get("edit").cloned().unwrap_or(Value::Null),
+                });
             }
             ServerEvent::Notification { method, params } => match method.as_str() {
                 "textDocument/publishDiagnostics" => {
@@ -477,6 +500,7 @@ impl LspStore {
                 message: p.message,
                 source: Some(source.to_string()),
                 code: None,
+                raw: Value::Null,
             });
         }
         for (path, list) in grouped {
@@ -510,6 +534,43 @@ impl LspStore {
             }
         }
         (errors, warnings)
+    }
+
+    /// The client of a running server.
+    pub fn client(&self, server_id: u64) -> Option<Client> {
+        self.servers
+            .iter()
+            .find(|s| s.id == server_id)
+            .map(|s| s.client.clone())
+    }
+
+    /// Answers a server's request (see [`LspEvent::ApplyEdit`]).
+    pub fn reply(&self, server_id: u64, request_id: Value, result: Value) {
+        if let Some(client) = self.client(server_id) {
+            client.reply(request_id, result);
+        }
+    }
+
+    /// Tells every running server that files changed on disk behind its
+    /// back (edits applied to files that are not open).
+    pub fn files_changed(&self, paths: &[PathBuf]) {
+        if paths.is_empty() {
+            return;
+        }
+        let changes: Vec<Value> = paths
+            .iter()
+            .map(
+                |p| serde_json::json!({ "uri": ferrumeditor_core::lsp::path_to_uri(p), "type": 2 }),
+            )
+            .collect();
+        for server in &self.servers {
+            if !matches!(server.state, ServerState::Stopped(_)) {
+                server.client.notify(
+                    "workspace/didChangeWatchedFiles",
+                    serde_json::json!({ "changes": changes }),
+                );
+            }
+        }
     }
 
     pub fn has_servers(&self) -> bool {

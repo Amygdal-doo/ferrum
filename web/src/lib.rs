@@ -8,6 +8,7 @@ pub mod products;
 pub mod releases;
 pub mod routes;
 pub mod site;
+pub mod updates;
 
 pub use config::Config;
 pub use routes::app;

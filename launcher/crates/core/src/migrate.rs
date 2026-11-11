@@ -305,10 +305,17 @@ mod tests {
         assert_eq!(state.active(ide), Some(&Version::new(0, 1, 0)));
         assert!(state.update_for(ide).is_none());
         assert!(state.updates().iter().all(|(app, _)| *app != ide));
-        // Toolbox 0.5.0 knew five apps: Ferrum Editor, FerrumKit and FerrumDock are new.
+        // Toolbox 0.5.0 knew five apps: Ferrum Editor, FerrumKit, FerrumDock
+        // and the apps added after them are new.
         assert_eq!(
             state.discover_apps(),
-            vec![AppId::EDITOR, AppId::KIT, AppId::DOCK]
+            vec![
+                AppId::EDITOR,
+                AppId::KIT,
+                AppId::DOCK,
+                AppId::PORTS,
+                AppId::ENV
+            ]
         );
         assert!(state.is_new(AppId::DOCK));
         state.save(&paths).expect("save");

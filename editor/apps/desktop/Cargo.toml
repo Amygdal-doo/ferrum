@@ -31,12 +31,20 @@ ferrumgit-git.workspace = true
 ferrumgit-domain.workspace = true
 tokio.workspace = true
 unicode-width.workspace = true
+# CI page: GitHub Actions through ferrumci-core on FerrumGIT's forge client.
+ferrumci-core.workspace = true
+ferrumgit-forge.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+# Logs page: log sources, parsing and filtering from ferrumlogs-core.
+ferrumlogs-core.workspace = true
 
 
 [dev-dependencies]
 # Headless GPUI test harness (TestAppContext); no window is shown.
 gpui = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
+async-trait.workspace = true
 
 [lints]
 workspace = true

@@ -1,8 +1,10 @@
 //! Colour themes as named tokens: UI tokens, syntax tokens (tree-sitter
 //! highlight names) and terminal tokens (the integrated terminal's ANSI
-//! palette). Two built-ins (`ferrum-dark`, `ferrum-light`); more are loaded
-//! from `~/.ferrum/editor/themes/` (see [`registry`]): our own TOML format
-//! ([`file`]) or VS Code colour themes ([`vscode`]).
+//! palette). Two built-ins (`ferrum-dark`, `ferrum-light`) plus the bundled
+//! Material themes ([`material`]); more are loaded from
+//! `~/.ferrum/editor/themes/` (see [`registry`]): our own TOML format
+//! ([`file`]) or VS Code colour themes ([`vscode`], imported from `.json`
+//! or `.vsix` by [`import`]).
 //!
 //! Any theme can then be overridden token by token from
 //! `~/.ferrum/editor/theme.toml`:
@@ -20,7 +22,9 @@
 
 mod builtin;
 pub mod file;
+pub mod import;
 pub(crate) mod jsonc;
+pub mod material;
 mod overrides;
 pub mod registry;
 mod textmate;
@@ -222,11 +226,12 @@ impl Theme {
         Self::builtin("ferrum-dark").unwrap_or_else(|| unreachable!("built-in theme"))
     }
 
+    /// A built-in (`ferrum-dark`, `ferrum-light`) or bundled Material theme.
     pub fn builtin(name: &str) -> Option<Self> {
         let (dark, ui, syntax, terminal) = match name {
             "ferrum-dark" | "dark" => (true, DARK_UI, DARK_SYNTAX, DARK_TERMINAL),
             "ferrum-light" | "light" => (false, LIGHT_UI, LIGHT_SYNTAX, LIGHT_TERMINAL),
-            _ => return None,
+            _ => return material::material(name),
         };
         Some(Self {
             name: if dark { "ferrum-dark" } else { "ferrum-light" }.to_string(),

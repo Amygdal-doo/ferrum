@@ -39,7 +39,7 @@ pub(super) fn builtin_registry() -> CommandRegistry {
     r.register("application:quit", |w, window, cx| w.quit(window, cx));
     r.register("core:save", |w, window, cx| {
         if let Some(editor) = w.active_editor() {
-            w.save_editor(editor, false, None, window, cx);
+            w.save_formatted(editor, window, cx);
         }
     });
     r.register("core:save-as", |w, window, cx| {
@@ -47,7 +47,9 @@ pub(super) fn builtin_registry() -> CommandRegistry {
             w.save_editor(editor, true, None, window, cx);
         }
     });
-    r.register("core:save-all", |w, window, cx| w.save_all(window, cx));
+    r.register("core:save-all", |w, window, cx| {
+        w.save_all_formatted(window, cx)
+    });
     r.register("core:close-tab", |w, window, cx| {
         w.close_active_tab(window, cx)
     });
@@ -148,6 +150,10 @@ pub(super) fn builtin_registry() -> CommandRegistry {
             Err(error) => w.error(error, cx),
         }
     });
+    super::ci::register(&mut r);
+    super::logs::register(&mut r);
+    super::agents::register(&mut r);
+    super::debug::register(&mut r);
     r.register("tasks:build", |w, window, cx| w.run_build_task(window, cx));
     r.register("tasks:run", |w, window, cx| {
         w.toggle_picker(PickerKind::Tasks, window, cx)
@@ -208,7 +214,10 @@ pub(super) fn builtin_registry() -> CommandRegistry {
         w.toggle_picker(PickerKind::Theme, window, cx)
     });
     r.register("theme:install-from-file", |w, window, cx| {
-        w.install_theme_dialog(window, cx)
+        w.install_theme_dialog(false, window, cx)
+    });
+    r.register("theme:import-vscode-theme", |w, window, cx| {
+        w.install_theme_dialog(true, window, cx)
     });
     r.register("theme:open-themes-folder", |w, _, cx| {
         w.open_theme_folder(false, cx)

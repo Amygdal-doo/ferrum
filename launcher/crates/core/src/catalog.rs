@@ -28,6 +28,8 @@ impl AppId {
     pub const KIT: AppId = AppId("kit");
     pub const DOCK: AppId = AppId("dock");
     pub const EDITOR: AppId = AppId("editor");
+    pub const PORTS: AppId = AppId("ports");
+    pub const ENV: AppId = AppId("env");
     pub const LAUNCHER: AppId = AppId("launcher");
 
     /// The launcher's id before it was renamed from Ferrum Toolbox. Tags
@@ -36,7 +38,7 @@ impl AppId {
     pub const LEGACY_LAUNCHER: &'static str = "toolbox";
 
     /// Apps this build has metadata for, in overview order.
-    pub const BUILTIN: [AppId; 8] = [
+    pub const BUILTIN: [AppId; 10] = [
         AppId::EDITOR,
         AppId::API,
         AppId::GIT,
@@ -44,6 +46,8 @@ impl AppId {
         AppId::TERM,
         AppId::KIT,
         AppId::DOCK,
+        AppId::PORTS,
+        AppId::ENV,
         AppId::LAUNCHER,
     ];
 
@@ -257,7 +261,7 @@ static RETIRED: [Builtin; 1] = [Builtin {
     order: 10,
 }];
 
-static BUILTIN: [Builtin; 8] = [
+static BUILTIN: [Builtin; 10] = [
     Builtin {
         id: AppId::EDITOR,
         name: "Ferrum Editor",
@@ -327,6 +331,26 @@ static BUILTIN: [Builtin; 8] = [
         bundle_name: "FerrumDock",
         icon: "Blocks",
         order: 70,
+    },
+    Builtin {
+        id: AppId::PORTS,
+        name: "FerrumPorts",
+        description: "Listening ports and the processes behind them: open, inspect or stop them.",
+        binary: "ferrumports",
+        extra_binaries: &[],
+        bundle_name: "FerrumPorts",
+        icon: "Server",
+        order: 80,
+    },
+    Builtin {
+        id: AppId::ENV,
+        name: "FerrumEnv",
+        description: "Password-locked vault for project environment variables, shared encrypted between developers.",
+        binary: "ferrumenv",
+        extra_binaries: &[],
+        bundle_name: "FerrumEnv",
+        icon: "Lock",
+        order: 90,
     },
     Builtin {
         id: AppId::LAUNCHER,
@@ -742,7 +766,8 @@ mod tests {
         assert_eq!(
             order,
             [
-                "editor", "api", "git", "data", "term", "kit", "forge", "dock", "launcher"
+                "editor", "api", "git", "data", "term", "kit", "forge", "dock", "ports", "env",
+                "launcher"
             ]
         );
     }

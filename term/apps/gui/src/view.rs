@@ -14,7 +14,7 @@ use ferrum_ui::gpui::{
 };
 use ferrum_ui::theme::{self, ActiveTheme};
 use ferrum_ui::ui::{StyledTypography, h_flex, v_flex};
-use ferrum_ui::{TextInput, splitter};
+use ferrum_ui::{TextInput, ToggleProjectSwitcher, splitter};
 use ferrumterm_protocol::{
     BlockId, CursorShape, Frame, ProgramState, Rect, Span, WindowInfo, flags,
 };
@@ -68,7 +68,9 @@ impl CellMetrics {
     fn grid(&self, area: Size<Pixels>) -> (u16, u16) {
         let padding = px(PADDING) * 2.;
         let cols = ((area.width - padding) / self.cell_width).floor().max(4.0);
-        let rows = ((area.height - padding) / self.cell_height).floor().max(2.0);
+        let rows = ((area.height - padding) / self.cell_height)
+            .floor()
+            .max(2.0);
         (cols as u16, rows as u16)
     }
 }
@@ -76,6 +78,8 @@ impl CellMetrics {
 pub struct TermView {
     pub(crate) app: App,
     pub(crate) focus_handle: FocusHandle,
+    /// Shared Ferrum project bar (see `project`).
+    pub(crate) project: crate::project::ProjectState,
     metrics: Option<CellMetrics>,
     grid: Option<(u16, u16)>,
     wheel: f32,
@@ -109,16 +113,21 @@ impl TermView {
         app.connect(Duration::ZERO);
         let events = cx.spawn(async move |this, cx| {
             while let Some(event) = events.next().await {
-                if this.update(cx, |view, cx| view.handle_event(event, cx)).is_err() {
+                if this
+                    .update(cx, |view, cx| view.handle_event(event, cx))
+                    .is_err()
+                {
                     break;
                 }
             }
         });
         let focus_handle = cx.focus_handle();
         window.focus(&focus_handle, cx);
+        let project = crate::project::ProjectState::new(window, cx);
         Self {
             app,
             focus_handle,
+            project,
             metrics: None,
             grid: None,
             wheel: 0.0,
@@ -147,9 +156,13 @@ impl TermView {
                 self.app.refresh_forwards();
             }
             UiEvent::Server(event) => {
-                let frame = matches!(event, ferrumterm_protocol::Event::Frame { .. });
+                let frame = match &event {
+                    ferrumterm_protocol::Event::Frame { block, .. } => Some(*block),
+                    _ => None,
+                };
                 self.app.on_event(event);
-                if frame {
+                if let Some(block) = frame {
+                    self.focused_frame(block, cx);
                     cx.notify();
                     return;
                 }
@@ -175,6 +188,7 @@ impl TermView {
     /// Resizes/subscribes the visible window and re-renders.
     pub(crate) fn after_change(&mut self, cx: &mut Context<Self>) {
         self.app.sync(self.grid);
+        self.sync_project(cx);
         if let Some((_, shown_at)) = &self.app.message
             && self.message_scheduled != Some(*shown_at)
         {
@@ -235,8 +249,9 @@ impl TermView {
         window.focus(&self.focus_handle, cx);
         let (x, y) = (f32::from(event.position.x), f32::from(event.position.y));
         self.app.click(x, y);
-        self.selection =
-            self.cell_under(x, y, None).map(|(block, cell)| Selection::new(block, cell));
+        self.selection = self
+            .cell_under(x, y, None)
+            .map(|(block, cell)| Selection::new(block, cell));
         self.selection_text = None;
         self.selecting = self.selection.is_some();
         self.after_change(cx);
@@ -284,8 +299,13 @@ impl TermView {
                 x >= px && x < px + w && y >= py && y < py + h
             }
         })?;
-        let cell =
-            cell_at(pane, x, y, f32::from(metrics.cell_width), f32::from(metrics.cell_height));
+        let cell = cell_at(
+            pane,
+            x,
+            y,
+            f32::from(metrics.cell_width),
+            f32::from(metrics.cell_height),
+        );
         Some((pane.0, cell))
     }
 
@@ -315,7 +335,12 @@ impl TermView {
         let title = self
             .app
             .window()
-            .and_then(|window| window.blocks.iter().find(|block| block.id == window.focused))
+            .and_then(|window| {
+                window
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == window.focused)
+            })
             .map(|block| block.title.clone())
             .unwrap_or_default();
         if title.is_empty() {
@@ -360,7 +385,11 @@ impl TermView {
                 ElementId::Name(format!("window-{}", window.id).into()),
                 tab_label(window),
                 active,
-                if active { colors.text } else { colors.text_muted },
+                if active {
+                    colors.text
+                } else {
+                    colors.text_muted
+                },
                 110.0,
                 TabKind::Window(window.id.to_string()),
                 cx,
@@ -401,7 +430,9 @@ impl TermView {
             .cursor_pointer()
             .hover(|style| style.bg(colors.ghost_element_hover))
             .when(active, |tab| {
-                tab.bg(colors.tab_active_background).border_b_2().border_color(colors.text_accent)
+                tab.bg(colors.tab_active_background)
+                    .border_b_2()
+                    .border_color(colors.text_accent)
             })
             .on_click(cx.listener(move |view, _, _, cx| {
                 view.app.click_tab(kind.clone());
@@ -414,7 +445,10 @@ impl TermView {
 impl Render for TermView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let font = theme::theme_settings(cx).buffer_font(cx).clone();
-        if self.metrics.is_none_or(|metrics| metrics.font_pt != self.app.font_pt) {
+        if self
+            .metrics
+            .is_none_or(|metrics| metrics.font_pt != self.app.font_pt)
+        {
             self.metrics = Some(CellMetrics::measure(self.app.font_pt, &font, window));
         }
         window.set_window_title(&self.title());
@@ -429,35 +463,54 @@ impl Render for TermView {
             .map(|(text, _)| SharedString::from(text.clone()));
         let entity = cx.entity();
 
-        let terminal = v_flex().flex_1().min_w_0().h_full().child(self.render_tab_bar(cx)).child(
-            div()
-                .id("terminal")
-                .flex_1()
-                .min_h_0()
-                .w_full()
-                .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
-                .on_scroll(cx.listener(Self::scroll_wheel))
-                .child(
-                    canvas(
-                        {
-                            let entity = entity.clone();
-                            move |bounds, _, cx| update_grid(&entity, bounds, cx)
-                        },
-                        move |bounds, _, window, cx| {
-                            paint_terminal(&entity, &font, bounds, window, cx)
-                        },
-                    )
-                    .size_full(),
-                ),
-        );
+        let terminal = v_flex()
+            .flex_1()
+            .min_w_0()
+            .h_full()
+            .child(self.render_tab_bar(cx))
+            .child(
+                div()
+                    .id("terminal")
+                    .flex_1()
+                    .min_h_0()
+                    .w_full()
+                    .on_mouse_down(MouseButton::Left, cx.listener(Self::mouse_down))
+                    .on_scroll(cx.listener(Self::scroll_wheel))
+                    .child(
+                        canvas(
+                            {
+                                let entity = entity.clone();
+                                move |bounds, _, cx| update_grid(&entity, bounds, cx)
+                            },
+                            move |bounds, _, window, cx| {
+                                paint_terminal(&entity, &font, bounds, window, cx)
+                            },
+                        )
+                        .size_full(),
+                    ),
+            );
 
         let dialog = self.render_dialog(cx);
-        h_flex()
+        let panes = h_flex()
+            .flex_1()
+            .min_h_0()
+            .w_full()
+            .when(self.app.ui.sidebar_open, |root| {
+                root.child(self.render_sidebar(cx))
+                    .child(splitter("sidebar", Axis::Horizontal, cx))
+            })
+            .child(terminal);
+        v_flex()
             .relative()
             .size_full()
             .key_context("FerrumTerm")
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(Self::key_down))
+            .on_action(cx.listener(|view, _: &ToggleProjectSwitcher, window, cx| {
+                view.project
+                    .bar
+                    .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
+            }))
             .on_drag_move(cx.listener(Self::resize_sidebar))
             // On the root so a selection drag can end (or keep going) outside the panes.
             .on_mouse_move(cx.listener(Self::mouse_move))
@@ -472,10 +525,8 @@ impl Render for TermView {
             )
             .bg(colors.terminal_background)
             .text_color(colors.terminal_foreground)
-            .when(self.app.ui.sidebar_open, |root| {
-                root.child(self.render_sidebar(cx)).child(splitter("sidebar", Axis::Horizontal, cx))
-            })
-            .child(terminal)
+            .child(self.project.bar.clone())
+            .child(panes)
             .when_some(message, |root, message| {
                 root.child(
                     div()
@@ -536,20 +587,33 @@ fn paint_terminal(
 ) {
     let view = entity.read(cx);
     let focus_handle = view.focus_handle.clone();
-    window.handle_input(&focus_handle, ElementInputHandler::new(bounds, entity.clone()), cx);
+    window.handle_input(
+        &focus_handle,
+        ElementInputHandler::new(bounds, entity.clone()),
+        cx,
+    );
 
     let view = entity.read(cx);
     let (Some(metrics), Some(info)) = (view.metrics, view.app.window()) else {
         return;
     };
-    let area = Rect { x: 0, y: 0, cols: info.cols, rows: info.rows };
+    let area = Rect {
+        x: 0,
+        y: 0,
+        cols: info.cols,
+        rows: info.rows,
+    };
     let focused_block = info.focused;
     let split = info.blocks.len() > 1;
     let panes: Vec<Pane> = info
         .layout
         .rects(area)
         .into_iter()
-        .map(|(block, rect)| Pane { block, rect, frame: view.app.frames.get(&block).cloned() })
+        .map(|(block, rect)| Pane {
+            block,
+            rect,
+            frame: view.app.frames.get(&block).cloned(),
+        })
         .collect();
     let ime_marked = view.ime_marked.clone();
     let selection = view.selection.clone().filter(|s| !s.is_empty());
@@ -572,7 +636,10 @@ fn paint_terminal(
     window.with_content_mask(Some(gpui::ContentMask { bounds }), |window| {
         for pane in &panes {
             let pane_origin = origin
-                + point(cell_width * f32::from(pane.rect.x), cell_height * f32::from(pane.rect.y));
+                + point(
+                    cell_width * f32::from(pane.rect.x),
+                    cell_height * f32::from(pane.rect.y),
+                );
             let pane_size = size(
                 cell_width * f32::from(pane.rect.cols),
                 cell_height * f32::from(pane.rect.rows),
@@ -588,7 +655,9 @@ fn paint_terminal(
             if let Some(frame) = &pane.frame {
                 let pane_bounds = Bounds::new(pane_origin, pane_size);
                 window.with_content_mask(
-                    Some(gpui::ContentMask { bounds: pane_bounds }),
+                    Some(gpui::ContentMask {
+                        bounds: pane_bounds,
+                    }),
                     |window| {
                         for (row, line) in frame.lines.iter().enumerate() {
                             let row_origin = pane_origin + point(px(0.), cell_height * row as f32);
@@ -631,7 +700,11 @@ fn paint_terminal(
                 );
             }
 
-            let divider = if focused && split { colors.accent } else { colors.divider };
+            let divider = if focused && split {
+                colors.accent
+            } else {
+                colors.divider
+            };
             if pane.rect.x + pane.rect.cols < area.cols {
                 window.paint_quad(fill(
                     Bounds::new(
@@ -713,8 +786,10 @@ fn span_run(span: &Span, len: usize, font: &Font, colors: &Colors, thin: Pixels)
             thickness: thin,
             wavy: false,
         }),
-        strikethrough: (span.f & flags::STRIKE != 0)
-            .then_some(StrikethroughStyle { color: Some(foreground), thickness: thin }),
+        strikethrough: (span.f & flags::STRIKE != 0).then_some(StrikethroughStyle {
+            color: Some(foreground),
+            thickness: thin,
+        }),
     }
 }
 
@@ -738,7 +813,10 @@ fn paint_row(
             let width = UnicodeWidthChar::width(character).unwrap_or(0);
             if width >= 2 {
                 segment.paint(origin, metrics, window, cx);
-                let mut wide = Segment { col, ..Segment::default() };
+                let mut wide = Segment {
+                    col,
+                    ..Segment::default()
+                };
                 wide.push(character, span_index, span, font, colors, thin);
                 wide.paint_unforced(origin, metrics, window, cx);
                 col += width;
@@ -823,11 +901,18 @@ impl Segment {
             return;
         }
         let shaped =
-            window.text_system().shape_line(text.into(), metrics.font_size, &runs, force_width);
+            window
+                .text_system()
+                .shape_line(text.into(), metrics.font_size, &runs, force_width);
         let position = origin + point(metrics.cell_width * self.col as f32, px(0.));
-        if let Err(error) =
-            shaped.paint(position, metrics.cell_height, gpui::TextAlign::Left, None, window, cx)
-        {
+        if let Err(error) = shaped.paint(
+            position,
+            metrics.cell_height,
+            gpui::TextAlign::Left,
+            None,
+            window,
+            cx,
+        ) {
             tracing::warn!(%error, "failed to paint terminal text");
         }
     }
@@ -858,11 +943,15 @@ fn paint_cursor(
     let beam = (cell.width / 6.0).max(px(2.));
     let quad = match shape {
         CursorShape::Block => fill(caret, colors.foreground.opacity(0.55)),
-        CursorShape::Beam => {
-            fill(Bounds::new(caret.origin, size(beam, cell.height)), colors.foreground)
-        }
+        CursorShape::Beam => fill(
+            Bounds::new(caret.origin, size(beam, cell.height)),
+            colors.foreground,
+        ),
         CursorShape::Underline => fill(
-            Bounds::new(caret.origin + point(px(0.), cell.height - beam), size(cell.width, beam)),
+            Bounds::new(
+                caret.origin + point(px(0.), cell.height - beam),
+                size(cell.width, beam),
+            ),
             colors.foreground,
         ),
     };
@@ -891,43 +980,59 @@ fn paint_marked_text(
         strikethrough: None,
     };
     let shaped =
-        window.text_system().shape_line(marked.to_owned().into(), metrics.font_size, &[run], None);
-    if let Err(error) =
-        shaped.paint(caret.origin, metrics.cell_height, gpui::TextAlign::Left, None, window, cx)
-    {
+        window
+            .text_system()
+            .shape_line(marked.to_owned().into(), metrics.font_size, &[run], None);
+    if let Err(error) = shaped.paint(
+        caret.origin,
+        metrics.cell_height,
+        gpui::TextAlign::Left,
+        None,
+        window,
+        cx,
+    ) {
         tracing::warn!(%error, "failed to paint IME composition");
     }
 }
 
 /// Label for a tab: window name, else the focused block's title / command.
 fn tab_label(w: &WindowInfo) -> String {
-    let b = w.blocks.iter().find(|b| b.id == w.focused).or(w.blocks.first());
+    let b = w
+        .blocks
+        .iter()
+        .find(|b| b.id == w.focused)
+        .or(w.blocks.first());
     let title = b.map(|b| {
-        b.label.clone().filter(|l| !l.is_empty()).unwrap_or_else(|| {
-            if b.title.is_empty() {
-                b.command.first().map_or_else(
-                    || "shell".into(),
-                    |c| c.rsplit('/').next().unwrap_or(c).to_owned(),
-                )
-            } else {
-                b.title.clone()
-            }
-        })
+        b.label
+            .clone()
+            .filter(|l| !l.is_empty())
+            .unwrap_or_else(|| {
+                if b.title.is_empty() {
+                    b.command.first().map_or_else(
+                        || "shell".into(),
+                        |c| c.rsplit('/').next().unwrap_or(c).to_owned(),
+                    )
+                } else {
+                    b.title.clone()
+                }
+            })
     });
     let name = if w.name.chars().all(|c| c.is_ascii_digit()) {
         title.unwrap_or_default()
     } else {
         w.name.clone()
     };
-    let status = w.blocks.iter().filter_map(|b| b.status.as_ref().map(|s| s.state)).max_by_key(
-        |s| match s {
+    let status = w
+        .blocks
+        .iter()
+        .filter_map(|b| b.status.as_ref().map(|s| s.state))
+        .max_by_key(|s| match s {
             ProgramState::Blocked => 4,
             ProgramState::Error => 3,
             ProgramState::Working => 2,
             ProgramState::Done => 1,
             ProgramState::Idle => 0,
-        },
-    );
+        });
     let mut label: String = name.chars().take(28).collect();
     if let Some(s) = status {
         label = format!("{} {label}", s.glyph());
@@ -952,12 +1057,20 @@ impl gpui::EntityInputHandler for TermView {
         _: &mut Window,
         _: &mut Context<Self>,
     ) -> Option<UTF16Selection> {
-        let end = self.ime_marked.as_ref().map_or(0, |marked| marked.encode_utf16().count());
-        Some(UTF16Selection { range: end..end, reversed: false })
+        let end = self
+            .ime_marked
+            .as_ref()
+            .map_or(0, |marked| marked.encode_utf16().count());
+        Some(UTF16Selection {
+            range: end..end,
+            reversed: false,
+        })
     }
 
     fn marked_text_range(&self, _: &mut Window, _: &mut Context<Self>) -> Option<Range<usize>> {
-        self.ime_marked.as_ref().map(|marked| 0..marked.encode_utf16().count())
+        self.ime_marked
+            .as_ref()
+            .map(|marked| 0..marked.encode_utf16().count())
     }
 
     fn unmark_text(&mut self, _: &mut Window, cx: &mut Context<Self>) {
@@ -977,7 +1090,10 @@ impl gpui::EntityInputHandler for TermView {
             cx.notify();
             return;
         }
-        self.act(Action::Send(ferrumterm_protocol::Input::Text(text.to_owned())), cx);
+        self.act(
+            Action::Send(ferrumterm_protocol::Input::Text(text.to_owned())),
+            cx,
+        );
     }
 
     fn replace_and_mark_text_in_range(

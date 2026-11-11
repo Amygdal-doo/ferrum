@@ -46,6 +46,7 @@ const UI_MAP: &[(&str, &[&str])] = &[
             "editorGroup.border",
             "panel.border",
             "sideBar.border",
+            "activityBar.border",
             "tab.border",
             "contrastBorder",
         ],
@@ -54,7 +55,11 @@ const UI_MAP: &[(&str, &[&str])] = &[
     ("text", &["editor.foreground", "foreground"]),
     (
         "text_muted",
-        &["descriptionForeground", "tab.inactiveForeground"],
+        &[
+            "descriptionForeground",
+            "tab.inactiveForeground",
+            "sideBar.foreground",
+        ],
     ),
     (
         "text_placeholder",
@@ -84,8 +89,18 @@ const UI_MAP: &[(&str, &[&str])] = &[
         "tab_bar",
         &["editorGroupHeader.tabsBackground", "tab.inactiveBackground"],
     ),
-    ("status_bar", &["statusBar.background"]),
-    ("title_bar", &["titleBar.activeBackground"]),
+    (
+        "status_bar",
+        &["statusBar.background", "statusBar.noFolderBackground"],
+    ),
+    (
+        "title_bar",
+        &[
+            "titleBar.activeBackground",
+            "activityBar.background",
+            "sideBar.background",
+        ],
+    ),
     ("scrollbar", &["scrollbarSlider.background"]),
     ("selection", &["editor.selectionBackground"]),
     ("cursor", &["editorCursor.foreground"]),

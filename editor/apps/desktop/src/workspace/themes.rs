@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use ferrum_ui::prelude::*;
 use ferrumeditor_core::config::set_string_value;
 use ferrumeditor_core::icons::{EntryKind, IconTheme};
+use ferrumeditor_core::theme::import;
 use ferrumeditor_core::theme::registry::{self, ThemeSource};
 use gpui::PathPromptOptions;
 
@@ -38,6 +39,7 @@ impl Workspace {
                     let appearance = if entry.dark { "dark" } else { "light" };
                     let detail = match &entry.source {
                         ThemeSource::Builtin => format!("built-in · {appearance}"),
+                        ThemeSource::Bundled => format!("bundled · {appearance}"),
                         ThemeSource::File(path) => format!(
                             "{appearance} · {}",
                             path.file_name().unwrap_or_default().to_string_lossy()
@@ -163,21 +165,33 @@ impl Workspace {
         cx.open_with_system(&dir);
     }
 
-    /// File dialog → [`Self::install_theme_file`].
-    pub(super) fn install_theme_dialog(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// File dialog → [`Self::install_theme_file`] (or, for `vscode`,
+    /// [`Self::import_vscode_theme`]).
+    pub(super) fn install_theme_dialog(
+        &mut self,
+        vscode: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let receiver = cx.prompt_for_paths(PathPromptOptions {
             files: true,
             directories: false,
             multiple: false,
-            prompt: Some("Install Theme".into()),
+            prompt: Some(if vscode { "Import" } else { "Install Theme" }.into()),
         });
         cx.spawn_in(window, async move |this, cx| {
             let Ok(Ok(Some(paths))) = receiver.await else {
                 return;
             };
             if let Some(path) = paths.into_iter().next() {
-                this.update(cx, |this, cx| this.install_theme_file(&path, cx))
-                    .ok();
+                this.update(cx, |this, cx| {
+                    if vscode {
+                        this.import_vscode_theme(&path, cx);
+                    } else {
+                        this.install_theme_file(&path, cx);
+                    }
+                })
+                .ok();
             }
         })
         .detach();
@@ -186,6 +200,14 @@ impl Workspace {
     /// Validates and copies a theme into the themes folder, reloads, and
     /// switches to it (saved to config.toml).
     pub fn install_theme_file(&mut self, path: &Path, cx: &mut Context<Self>) {
+        // An extension package is always converted.
+        if path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("vsix"))
+        {
+            self.import_vscode_theme(path, cx);
+            return;
+        }
         let Some(dir) = self.user_dir(false, cx) else {
             return;
         };
@@ -206,5 +228,55 @@ impl Workspace {
             }
             Err(error) => self.error(format!("Not a usable theme: {error}"), cx),
         }
+    }
+
+    /// "Theme: Import VS Code Theme": converts a `.json` theme or every
+    /// theme of a `.vsix` extension into the themes folder, reloads and
+    /// switches to the first one (saved to config.toml).
+    pub fn import_vscode_theme(&mut self, path: &Path, cx: &mut Context<Self>) {
+        let Some(dir) = self.user_dir(false, cx) else {
+            return;
+        };
+        let installed = match import::install_vscode(path, &dir) {
+            Ok(installed) => installed,
+            Err(error) => {
+                self.error(format!("Could not import the theme: {error}"), cx);
+                return;
+            }
+        };
+        self.reload_settings(cx);
+        // The registry renames a theme whose name is taken.
+        let names: Vec<String> = installed
+            .iter()
+            .map(|theme| {
+                cx.global::<Settings>()
+                    .themes
+                    .entries()
+                    .into_iter()
+                    .find(|e| e.source == ThemeSource::File(theme.path.clone()))
+                    .map_or_else(|| theme.name.clone(), |e| e.name.clone())
+            })
+            .collect();
+        let Some(first) = names.first() else {
+            return;
+        };
+        self.confirm_theme(PickerKind::Theme, first, cx);
+        let warnings: usize = installed.iter().map(|t| t.warnings.len()).sum();
+        let mut message = if names.len() == 1 {
+            format!("Imported “{first}”")
+        } else {
+            format!(
+                "Imported {} themes ({}); using “{first}”",
+                names.len(),
+                names.join(", ")
+            )
+        };
+        if warnings > 0 {
+            message.push_str(&format!(
+                " — {warnings} colour{} could not be mapped",
+                if warnings == 1 { "" } else { "s" }
+            ));
+        }
+        self.info(message, cx);
     }
 }

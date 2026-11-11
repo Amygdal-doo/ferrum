@@ -18,16 +18,24 @@ pub enum Dialog {
 pub(crate) fn field(label: impl Into<SharedString>, child: impl IntoElement) -> Div {
     v_flex()
         .gap_1()
-        .child(Label::new(label.into()).size(LabelSize::Small).color(Color::Muted))
+        .child(
+            Label::new(label.into())
+                .size(LabelSize::Small)
+                .color(Color::Muted),
+        )
         .child(child)
 }
 
 pub(crate) fn hint(text: impl Into<SharedString>) -> Label {
-    Label::new(text.into()).size(LabelSize::Small).color(Color::Muted)
+    Label::new(text.into())
+        .size(LabelSize::Small)
+        .color(Color::Muted)
 }
 
 pub(crate) fn error_text(text: impl Into<SharedString>) -> Label {
-    Label::new(text.into()).size(LabelSize::Small).color(Color::Error)
+    Label::new(text.into())
+        .size(LabelSize::Small)
+        .color(Color::Error)
 }
 
 impl TermView {
@@ -42,7 +50,10 @@ impl TermView {
     ) -> Entity<TextInput> {
         let (placeholder, text) = (placeholder.to_owned(), text.to_owned());
         let input = cx.new(|cx| {
-            TextInput::new(window, cx).placeholder(placeholder).with_text(text).read_only(read_only)
+            TextInput::new(window, cx)
+                .placeholder(placeholder)
+                .with_text(text)
+                .read_only(read_only)
         });
         let subscription =
             cx.subscribe_in(&input, window, |view, _, event, window, cx| match event {

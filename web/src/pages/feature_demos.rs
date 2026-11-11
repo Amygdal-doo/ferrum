@@ -7,6 +7,7 @@
 
 use maud::{Markup, html};
 
+use super::project_demos;
 use crate::products;
 
 /// The demo for a product, by slug.
@@ -18,6 +19,8 @@ pub fn for_slug(slug: &str) -> Option<Markup> {
         s if s == products::FERRUMTERM.slug => term,
         s if s == products::FERRUMKIT.slug => kit,
         s if s == products::FERRUMDOCK.slug => dock,
+        s if s == products::FERRUMPORTS.slug => project_demos::ports,
+        s if s == products::FERRUMENV.slug => project_demos::env,
         s if s == products::FERRUM_EDITOR.slug => editor,
         s if s == products::FERRUM_LAUNCHER.slug => launcher,
         _ => return None,
@@ -26,7 +29,7 @@ pub fn for_slug(slug: &str) -> Option<Markup> {
 }
 
 /// Window chrome: traffic lights, a title and the app-specific body.
-fn window(title: &str, body_class: &str, body: Markup) -> Markup {
+pub(super) fn window(title: &str, body_class: &str, body: Markup) -> Markup {
     html! {
         div class="demo" {
             div class="demo__bar" {

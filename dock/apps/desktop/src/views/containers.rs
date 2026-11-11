@@ -2,16 +2,16 @@
 
 use crate::app::FerrumDock;
 use crate::state::{Row, container_rows};
+use crate::views::compose_rows;
 use crate::views::widgets::{
     button, cell, grow_cell, header_row, icon_button, muted, row, section_bar, state_dot,
 };
-use ferrumdock_engine::compose::ComposeAction;
 use ferrumdock_engine::{Container, ContainerAction, ContainerState, format, ops};
 use gpui::{AnyElement, App, Context, Hsla, SharedString, div, prelude::*, px};
 use theme::ActiveTheme;
 use ui::{
-    Button, ButtonCommon, ButtonSize, Clickable, Color, Icon, IconName, IconSize, Label,
-    LabelCommon, LabelSize, h_flex, v_flex,
+    Button, ButtonCommon, ButtonSize, Clickable, Color, IconName, Label, LabelCommon, LabelSize,
+    h_flex, v_flex,
 };
 
 const COLUMNS: [(&str, Option<f32>); 7] = [
@@ -39,6 +39,7 @@ pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
         &app.state.containers,
         &app.state.filter,
         &app.state.collapsed,
+        app.state.project.as_ref(),
     );
     let body: AnyElement = if !app
         .state
@@ -46,7 +47,7 @@ pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
         .contains(&crate::state::Section::Containers)
     {
         ferrum_ui::empty_state("Loading containers…", "").into_any_element()
-    } else if app.state.containers.is_empty() {
+    } else if app.state.containers.is_empty() && rows.is_empty() {
         ferrum_ui::empty_state(
             "No containers",
             "Run one with `docker run` or `docker compose up`.",
@@ -64,10 +65,11 @@ pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
                     total,
                     collapsed,
                     compose,
-                } => group_row(app, &project, running, total, collapsed, compose, cx),
+                } => compose_rows::group_row(app, &project, running, total, collapsed, compose, cx),
                 Row::Container { container, grouped } => {
                     container_row(app, &container, grouped, cx)
                 }
+                Row::ComposeFile(file) => compose_rows::file_row(app, &file, cx),
             })
             .collect();
         v_flex()
@@ -78,84 +80,49 @@ pub fn render(app: &FerrumDock, cx: &mut Context<FerrumDock>) -> AnyElement {
             .children(elements)
             .into_any_element()
     };
+    let mut actions: Vec<AnyElement> = Vec::new();
+    if let Some(project) = app.state.project.as_ref() {
+        let name = project
+            .root
+            .file_name()
+            .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+        let files = project.files.len();
+        actions.push(
+            muted(format!(
+                "{} in {name} · {files} compose file{}",
+                project.count(&app.state.containers),
+                if files == 1 { "" } else { "s" }
+            ))
+            .into_any_element(),
+        );
+        let label = if project.only {
+            "Show all"
+        } else {
+            "This project only"
+        };
+        actions.push(
+            button("project-scope", label, false, cx, |app, cx| {
+                app.toggle_project_scope(cx)
+            })
+            .into_any_element(),
+        );
+    }
+    actions.push(
+        button("run-container", "Run…", false, cx, |app, cx| {
+            app.open_run_dialog(None, cx)
+        })
+        .into_any_element(),
+    );
     v_flex()
         .size_full()
         .child(section_bar(
             "Containers",
             app.state.containers.len(),
-            Vec::new(),
+            actions,
             cx,
         ))
         .child(header_row(&COLUMNS, cx))
         .child(body)
-        .into_any_element()
-}
-
-fn group_row(
-    app: &FerrumDock,
-    project: &str,
-    running: usize,
-    total: usize,
-    collapsed: bool,
-    compose: Option<ferrumdock_engine::compose::ComposeProject>,
-    cx: &mut Context<FerrumDock>,
-) -> AnyElement {
-    let theme = cx.theme().clone();
-    let colors = theme.colors();
-    let busy = app.state.busy.contains(&format!("compose:{project}"));
-    let name = project.to_owned();
-    let mut actions: Vec<AnyElement> = Vec::new();
-    if let Some(compose) = compose {
-        for (label, action) in [
-            ("Up", ComposeAction::Up),
-            ("Restart", ComposeAction::Restart),
-            ("Down", ComposeAction::Down),
-        ] {
-            let compose = compose.clone();
-            actions.push(
-                button(
-                    SharedString::from(format!("compose-{label}-{project}")),
-                    label,
-                    busy,
-                    cx,
-                    move |app, cx| {
-                        app.compose(compose.clone(), action, cx);
-                    },
-                )
-                .into_any_element(),
-            );
-        }
-    }
-    h_flex()
-        .id(SharedString::from(format!("group-{project}")))
-        .flex_none()
-        .px_3()
-        .py_1()
-        .gap_2()
-        .bg(colors.surface_background)
-        .border_b_1()
-        .border_color(colors.border_variant)
-        .cursor_pointer()
-        .child(
-            Icon::new(if collapsed {
-                IconName::ChevronRight
-            } else {
-                IconName::ChevronDown
-            })
-            .size(IconSize::Small)
-            .color(Color::Muted),
-        )
-        .child(
-            Icon::new(IconName::FileTree)
-                .size(IconSize::Small)
-                .color(Color::Muted),
-        )
-        .child(Label::new(project.to_owned()).weight(gpui::FontWeight::SEMIBOLD))
-        .child(muted(format!("{running}/{total} running")))
-        .when(busy, |d| d.child(muted("working…")))
-        .child(div().flex_1())
-        .children(actions)
-        .on_click(cx.listener(move |app, _, _, cx| app.toggle_group(&name, cx)))
         .into_any_element()
 }
 

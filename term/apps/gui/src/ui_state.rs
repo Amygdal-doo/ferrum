@@ -19,7 +19,11 @@ pub struct UiState {
 
 impl Default for UiState {
     fn default() -> Self {
-        Self { sidebar_open: true, sidebar_width: 240.0, recent_agents: Vec::new() }
+        Self {
+            sidebar_open: true,
+            sidebar_width: 240.0,
+            recent_agents: Vec::new(),
+        }
     }
 }
 
@@ -96,8 +100,11 @@ mod tests {
 
     #[test]
     fn round_trips_and_tolerates_junk() {
-        let mut s =
-            UiState { sidebar_open: false, sidebar_width: 300.0, recent_agents: Vec::new() };
+        let mut s = UiState {
+            sidebar_open: false,
+            sidebar_width: 300.0,
+            recent_agents: Vec::new(),
+        };
         s.remember_agent("aider --model sonnet");
         s.remember_agent("gemini");
         s.remember_agent("aider --model sonnet");

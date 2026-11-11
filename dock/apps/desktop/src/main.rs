@@ -3,6 +3,7 @@
 
 mod app;
 mod commands;
+mod project;
 mod services;
 mod state;
 mod views;
@@ -21,12 +22,24 @@ fn main() {
         }
     };
     let docker_cli = commands::containers::detect_cli();
+    // `ferrumdock <folder>` opens that project (like the other Ferrum apps).
+    let open_at = std::env::args_os()
+        .nth(1)
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.is_dir())
+        .map(|p| std::fs::canonicalize(&p).unwrap_or(p));
     let config = AppConfig::new("FerrumDock")
         .size(1440., 880.)
         .min_size(980., 560.);
     ferrum_ui::run(config, move |window, cx| {
         app::bind_keys(cx);
-        cx.new(|cx| app::FerrumDock::new(services, docker_cli, window, cx))
+        cx.new(|cx| {
+            let mut app = app::FerrumDock::new(services, docker_cli, window, cx);
+            if let Some(path) = open_at {
+                app.open_project(path, cx);
+            }
+            app
+        })
     });
 }
 

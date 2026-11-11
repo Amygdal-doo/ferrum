@@ -1,9 +1,10 @@
-//! The container detail panel: live log streaming and inspect.
+//! The detail panel: live log streaming (one container or a whole compose
+//! project), the since / regex / save controls, and inspect.
 
 use crate::app::FerrumDock;
 use crate::state::{DetailState, DetailTab, LOG_CAPACITY};
-use ferrumdock_engine::logs::LogBuffer;
-use ferrumdock_engine::{LogChunk, LogOptions};
+use ferrumdock_engine::logs::{LogBuffer, Since, export_file_name};
+use ferrumdock_engine::{LogChunk, LogOptions, logmux};
 use futures::StreamExt;
 use gpui::{Context, ScrollStrategy};
 use std::time::Duration;
@@ -23,6 +24,7 @@ impl FerrumDock {
             .log_search
             .update(cx, |input, cx| input.set_text("", cx));
         self.start_logs(cx);
+        self.detect_shells(cx);
         cx.notify();
     }
 
@@ -50,16 +52,33 @@ impl FerrumDock {
         detail.log_error = None;
         detail.refilter();
         let id = detail.id.clone();
+        let project = detail.project.is_some();
+        let options = LogOptions {
+            follow: true,
+            tail: Some(INITIAL_TAIL),
+            timestamps: true,
+            since: detail.since.since(chrono::Utc::now().timestamp()),
+        };
+        let sources = self.log_sources();
+        if project && sources.is_empty() {
+            if let Some(detail) = self.state.detail.as_mut() {
+                detail.streaming = false;
+                detail.log_error = Some("The project has no containers yet.".into());
+            }
+            return;
+        }
 
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Result<LogChunk, String>>();
-        let target = id.clone();
         let producer = self.services.spawn(async move {
-            let options = LogOptions {
-                follow: true,
-                tail: Some(INITIAL_TAIL),
-                timestamps: true,
+            let mut stream = if project {
+                logmux::project_logs(&engine, &sources, options)
+            } else {
+                let target = sources
+                    .first()
+                    .map(|(id, _)| id.clone())
+                    .unwrap_or_default();
+                engine.logs(&target, options)
             };
-            let mut stream = engine.logs(&target, options);
             while let Some(item) = stream.next().await {
                 if tx.send(item.map_err(|e| e.to_string())).is_err() {
                     break;
@@ -125,7 +144,16 @@ impl FerrumDock {
         let Some(detail) = &self.state.detail else {
             return;
         };
+        if detail.project.is_some() {
+            self.sync_project_panel(cx);
+            return;
+        }
         match self.state.container(&detail.id) {
+            None if detail.grace > 0 => {
+                if let Some(detail) = self.state.detail.as_mut() {
+                    detail.grace -= 1;
+                }
+            }
             None => self.close_detail(cx),
             Some(c) if c.state.is_up() && !detail.streaming && detail.log_error.is_none() => {
                 self.start_logs(cx);
@@ -141,6 +169,9 @@ impl FerrumDock {
         detail.tab = tab;
         if tab == DetailTab::Inspect && detail.inspect.is_none() {
             self.load_inspect(cx);
+        }
+        if tab == DetailTab::Services {
+            self.load_services(cx);
         }
         cx.notify();
     }
@@ -179,6 +210,66 @@ impl FerrumDock {
             }
             cx.notify();
         }
+    }
+
+    /// Re-requests the logs from the chosen point in time.
+    pub fn set_since(&mut self, since: Since, cx: &mut Context<Self>) {
+        let Some(detail) = self.state.detail.as_mut() else {
+            return;
+        };
+        if detail.since != since {
+            detail.since = since;
+            self.start_logs(cx);
+        }
+        cx.notify();
+    }
+
+    pub fn toggle_regex(&mut self, cx: &mut Context<Self>) {
+        self.update_detail(
+            |d| {
+                d.regex = !d.regex;
+                d.refilter();
+            },
+            cx,
+        );
+    }
+
+    /// "Save…": the visible lines (search applied), plain text, via the save dialog.
+    pub fn save_logs(&mut self, cx: &mut Context<Self>) {
+        let Some(detail) = self.state.detail.as_ref() else {
+            return;
+        };
+        let text = detail
+            .logs
+            .export(detail.matches.as_deref(), detail.timestamps);
+        let name = match &detail.project {
+            Some(p) => p.name.clone(),
+            None => self
+                .state
+                .container(&detail.id)
+                .map_or_else(|| detail.id.clone(), |c| c.name.clone()),
+        };
+        let file_name = export_file_name(&name, chrono::Local::now());
+        let dir = std::env::var_os("HOME")
+            .map(|h| std::path::PathBuf::from(h).join("Downloads"))
+            .filter(|d| d.is_dir())
+            .unwrap_or_else(std::env::temp_dir);
+        let receiver = cx.prompt_for_new_path(&dir, Some(&file_name));
+        cx.spawn(async move |this, cx| {
+            let Ok(Ok(Some(path))) = receiver.await else {
+                return;
+            };
+            let lines = text.lines().count();
+            let result = std::fs::write(&path, text).map_err(|e| e.to_string());
+            let _ = this.update(cx, |app, cx| {
+                app.report(
+                    &result,
+                    format!("Saved {lines} lines to {}", path.display()),
+                    cx,
+                );
+            });
+        })
+        .detach();
     }
 
     pub fn update_detail(&mut self, f: impl FnOnce(&mut DetailState), cx: &mut Context<Self>) {

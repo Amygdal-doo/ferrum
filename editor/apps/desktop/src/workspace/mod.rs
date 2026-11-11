@@ -3,11 +3,17 @@
 //! finder, go to line, theme selectors), dialogs and the status bar.
 //! Behaviour is split by topic into the submodules.
 
+mod agents;
+mod ci;
 mod commands;
+mod debug;
 mod dialogs;
+mod dock;
 mod files;
 mod git;
+mod logs;
 mod lsp;
+mod lsp_edits;
 mod overlays;
 mod panes;
 mod session;
@@ -20,7 +26,7 @@ mod watcher;
 use std::path::PathBuf;
 
 use ferrum_ui::prelude::*;
-use ferrum_ui::{Notice, render_notice};
+use ferrum_ui::{Notice, ProjectBar, ProjectBarEvent, ToggleProjectSwitcher, render_notice};
 use gpui::{Axis, DragMoveEvent};
 
 pub use panes::{Pane, PaneItem, PaneNode};
@@ -40,6 +46,8 @@ pub(crate) use terminal::find_on_path;
 pub struct Workspace {
     focus_handle: FocusHandle,
     pub root: Option<PathBuf>,
+    /// The shared project strip at the top (name, path, branch, switcher).
+    project_bar: Entity<ProjectBar>,
     tree: Option<Entity<TreeView>>,
     tree_visible: bool,
     tree_width: Pixels,
@@ -61,7 +69,6 @@ pub struct Workspace {
     dialog: Option<Dialog>,
     notice: Option<Notice>,
     notice_task: Option<Task<()>>,
-    branch: Option<String>,
     watcher: Option<watcher::Watcher>,
     file_list: Option<std::sync::Arc<Vec<PathBuf>>>,
     file_list_task: Option<Task<()>>,
@@ -69,15 +76,35 @@ pub struct Workspace {
     /// Places to return to after go to definition.
     nav_back: Vec<lsp::NavEntry>,
     nav_forward: Vec<lsp::NavEntry>,
-    /// Items for the next Locations picker.
+    /// Items for the next Locations / Code Actions picker.
     location_items: Vec<crate::picker::PickerItem>,
+    /// Code actions offered in the picker, and the editor they run on.
+    code_actions: Option<(
+        Entity<EditorView>,
+        Vec<ferrumeditor_core::lsp::features::CodeAction>,
+    )>,
     /// For tasks:rerun-last.
     last_task: Option<ferrumeditor_core::tasks::Task>,
     git: Entity<crate::git::GitState>,
     git_panel: Entity<crate::git::GitPanel>,
     git_view: Entity<crate::git::GitView>,
     mode: git::ViewMode,
+    /// The CI page, once opened (see `ci.rs`).
+    ci: Option<Entity<crate::ci::CiView>>,
+    /// Services the CI page starts with (tests inject fakes).
+    ci_services: Option<crate::ci::Services>,
+    /// The Logs page, once opened (see `logs.rs`).
+    logs: Option<Entity<crate::logs::LogsView>>,
+    /// Options the Logs page starts with (tests use temp files).
+    logs_options: Option<crate::logs::Options>,
     sidebar: git::SidebarTab,
+    agents: Entity<crate::agents::AgentSessions>,
+    agent_review: Entity<crate::agents::AgentReview>,
+    debugger: Entity<crate::debug::Debugger>,
+    debug_panel: Entity<crate::debug::DebugPanel>,
+    /// The right dock (Agents | Debug), when shown.
+    right_panel: Option<dock::RightTab>,
+    right_width: Pixels,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -86,10 +113,15 @@ impl Workspace {
         let find_bar = cx.new(|cx| FindBar::new(window, cx));
         let project_find = cx.new(|cx| ProjectFind::new(window, cx));
         let terminal = cx.new(|_| TerminalPanel::new());
+        let project_bar = cx.new(|cx| ProjectBar::new("ferrumeditor", window, cx));
         let git_state = cx.new(|cx| crate::git::GitState::new(window, cx));
         let git_panel = cx.new(|cx| crate::git::GitPanel::new(git_state.clone(), cx));
         let git_view =
             cx.new(|cx| crate::git::GitView::new(git_state.clone(), git_panel.clone(), cx));
+        let agents = cx.new(crate::agents::AgentSessions::new);
+        let agent_review = cx.new(|cx| crate::agents::AgentReview::new(agents.clone(), cx));
+        let debugger = cx.new(crate::debug::Debugger::new);
+        let debug_panel = cx.new(|cx| crate::debug::DebugPanel::new(debugger.clone(), window, cx));
         let mut subscriptions = vec![
             cx.subscribe_in(&find_bar, window, Self::on_find_bar_event),
             cx.subscribe_in(&project_find, window, Self::on_project_find_event),
@@ -102,10 +134,25 @@ impl Workspace {
                 }
             }),
             cx.subscribe(&git_state, Self::on_git_event),
+            cx.subscribe_in(&agents, window, Self::on_agents_event),
+            cx.observe(&agents, |_, _, cx| cx.notify()),
+            cx.subscribe_in(&agent_review, window, Self::on_review_event),
+            cx.subscribe_in(&debugger, window, Self::on_debugger_event),
+            cx.subscribe_in(&debug_panel, window, Self::on_debug_panel_event),
             cx.subscribe_in(&git_panel, window, |this, _, event, window, cx| {
                 this.on_git_panel_event(event, window, cx)
             }),
-            cx.observe(&git_state, |_, _, cx| cx.notify()),
+            // A checkout or commit may have moved the branch.
+            cx.observe(&git_state, |this, _, cx| {
+                this.project_bar
+                    .update(cx, |bar, cx| bar.refresh_branch(cx));
+                cx.notify();
+            }),
+            // A project picked in the switcher opens like Open Folder.
+            cx.subscribe_in(&project_bar, window, |this, _, event, window, cx| {
+                let ProjectBarEvent::Open(path) = event;
+                this.set_root(path.clone(), window, cx);
+            }),
         ];
         // Problem counts and server state live in the status bar.
         if let Some(store) = crate::lsp_store::LspStore::global(cx) {
@@ -117,6 +164,7 @@ impl Workspace {
         let mut this = Self {
             focus_handle: cx.focus_handle(),
             root: None,
+            project_bar,
             tree: None,
             tree_visible: true,
             tree_width: px(240.),
@@ -137,7 +185,6 @@ impl Workspace {
             dialog: None,
             notice: None,
             notice_task: None,
-            branch: None,
             watcher: None,
             file_list: None,
             file_list_task: None,
@@ -145,12 +192,23 @@ impl Workspace {
             nav_back: Vec::new(),
             nav_forward: Vec::new(),
             location_items: Vec::new(),
+            code_actions: None,
             last_task: None,
             git: git_state,
             git_panel,
             git_view,
             mode: git::ViewMode::Editor,
+            ci: None,
+            ci_services: None,
+            logs: None,
+            logs_options: None,
             sidebar: git::SidebarTab::Files,
+            agents,
+            agent_review,
+            debugger,
+            debug_panel,
+            right_panel: None,
+            right_width: px(320.),
             _subscriptions: subscriptions,
         };
         this.start_watcher(window, cx);
@@ -267,6 +325,10 @@ impl Workspace {
     ) {
         let drag = event.drag(cx);
         match drag.id.as_ref() {
+            "right-splitter" => {
+                self.right_width =
+                    (event.bounds.right() - event.event.position.x).clamp(px(220.), px(800.));
+            }
             "tree-splitter" => {
                 self.tree_width =
                     (event.event.position.x - event.bounds.left()).clamp(px(140.), px(600.));
@@ -315,7 +377,7 @@ impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.update_window_title(window, cx);
         let colors = cx.theme().colors().clone();
-        let git_mode = self.mode == git::ViewMode::Git;
+        let git_mode = self.mode != git::ViewMode::Editor;
         let sidebar = if git_mode {
             None
         } else {
@@ -325,7 +387,18 @@ impl Render for Workspace {
             let panel = self.terminal.read(cx);
             (panel.is_open(), panel.state.height)
         };
-        let content: AnyElement = if git_mode {
+        let ci_page = self.ci.clone().filter(|_| self.mode == git::ViewMode::Ci);
+        let logs_page = self
+            .logs
+            .clone()
+            .filter(|_| self.mode == git::ViewMode::Logs);
+        let content: AnyElement = if self.mode == git::ViewMode::Review {
+            self.agent_review.clone().into_any_element()
+        } else if let Some(ci) = ci_page {
+            ci.into_any_element()
+        } else if let Some(logs) = logs_page {
+            logs.into_any_element()
+        } else if git_mode {
             self.git_view.clone().into_any_element()
         } else {
             self.render_layout(&self.layout.clone(), window, cx)
@@ -365,6 +438,10 @@ impl Render for Workspace {
             .track_focus(&self.focus_handle)
             .key_context("FerrumWorkspace")
             .on_action(cx.listener(Self::on_run_command))
+            .on_action(cx.listener(|this, _: &ToggleProjectSwitcher, window, cx| {
+                this.project_bar
+                    .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
+            }))
             .on_drag_move(cx.listener(Self::on_drag_splitter))
             .child(self.render_top_bar(cx))
             .child(
@@ -375,7 +452,11 @@ impl Render for Workspace {
                         this.child(div().flex_none().h_full().w(self.tree_width).child(sidebar))
                             .child(splitter("tree-splitter", Axis::Horizontal, cx))
                     })
-                    .child(center),
+                    .child(center)
+                    .when_some(self.render_right_dock(cx), |this, dock| {
+                        this.child(splitter("right-splitter", Axis::Horizontal, cx))
+                            .child(div().flex_none().h_full().w(self.right_width).child(dock))
+                    }),
             )
             .child(self.render_status_bar(cx))
             .when_some(self.picker.clone(), |this, picker| {
@@ -418,12 +499,20 @@ impl Render for Workspace {
 
 #[cfg(test)]
 impl Workspace {
+    pub fn project_bar(&self) -> &Entity<ProjectBar> {
+        &self.project_bar
+    }
+
     pub fn has_dialog(&self) -> bool {
         self.dialog.is_some()
     }
 
     pub fn project_find(&self) -> &Entity<ProjectFind> {
         &self.project_find
+    }
+
+    pub fn project_find_visible(&self) -> bool {
+        self.project_find_visible
     }
 
     pub fn terminal(&self) -> &Entity<TerminalPanel> {
@@ -448,5 +537,29 @@ impl Workspace {
 
     pub fn in_git_view(&self) -> bool {
         self.mode == git::ViewMode::Git
+    }
+
+    pub fn set_mode_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.set_mode(git::ViewMode::Editor, window, cx);
+    }
+
+    pub fn in_review(&self) -> bool {
+        self.mode == git::ViewMode::Review
+    }
+
+    pub fn agents(&self) -> &Entity<crate::agents::AgentSessions> {
+        &self.agents
+    }
+
+    pub fn agent_review(&self) -> &Entity<crate::agents::AgentReview> {
+        &self.agent_review
+    }
+
+    pub fn debugger(&self) -> &Entity<crate::debug::Debugger> {
+        &self.debugger
+    }
+
+    pub fn right_panel(&self) -> Option<dock::RightTab> {
+        self.right_panel
     }
 }

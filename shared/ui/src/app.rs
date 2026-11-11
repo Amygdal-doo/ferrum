@@ -109,6 +109,7 @@ fn init(title: &'static str, cx: &mut App) {
     theme::init(LoadThemes::JustBase, cx);
 
     crate::text_input::bind_keys(cx);
+    crate::project_bar::bind_keys(cx);
     cx.bind_keys([
         KeyBinding::new("cmd-q", Quit, None),
         KeyBinding::new("escape", menu::Cancel, None),

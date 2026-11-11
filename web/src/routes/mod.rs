@@ -4,6 +4,7 @@ pub mod assets;
 pub mod health;
 pub mod middleware;
 pub mod seo;
+pub mod updates;
 
 use std::sync::Arc;
 
@@ -18,13 +19,20 @@ use maud::Markup;
 
 use crate::{Config, pages, releases::MacosDownload, site};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
     pub macos_download: Arc<MacosDownload>,
 }
 
 impl AppState {
+    pub fn new(config: Config, macos_download: MacosDownload) -> Self {
+        Self {
+            config: Arc::new(config),
+            macos_download: Arc::new(macos_download),
+        }
+    }
+
     pub fn site_url(&self) -> &str {
         &self.config.site_url
     }
@@ -37,10 +45,11 @@ pub fn app(config: Config) -> Router {
 
 /// Like [`app`], with a custom launcher download resolver (tests inject a fake fetcher).
 pub fn app_with(config: Config, macos_download: MacosDownload) -> Router {
-    let state = AppState {
-        config: Arc::new(config),
-        macos_download: Arc::new(macos_download),
-    };
+    router(AppState::new(config, macos_download))
+}
+
+/// The router for an existing state.
+pub fn router(state: AppState) -> Router {
     let router = Router::new()
         .route("/", get(home))
         .route("/ferrumdata", get(ferrumdata))
@@ -49,6 +58,8 @@ pub fn app_with(config: Config, macos_download: MacosDownload) -> Router {
         .route("/ferrumterm", get(ferrumterm))
         .route("/ferrumkit", get(ferrumkit))
         .route("/ferrumdock", get(ferrumdock))
+        .route("/ferrumports", get(ferrumports))
+        .route("/ferrumenv", get(ferrumenv))
         .route("/ferrum-editor", get(ferrum_editor))
         .route("/ferrum-launcher", get(ferrum_launcher))
         .route(
@@ -60,10 +71,23 @@ pub fn app_with(config: Config, macos_download: MacosDownload) -> Router {
             "/ferrum-ide",
             get(|| async { Redirect::permanent("/ferrum-editor") }),
         )
+        // FerrumCI and FerrumLogs are now the CI and Logs pages inside Ferrum Editor.
+        .route(
+            "/ferrumci",
+            get(|| async { Redirect::permanent(pages::ferrum_editor::CI_PATH) }),
+        )
+        .route(
+            "/ferrumlogs",
+            get(|| async { Redirect::permanent(pages::ferrum_editor::LOGS_PATH) }),
+        )
         .route(pages::features::PATH, get(features))
         .route("/download", get(download))
         .route(site::MACOS_DOWNLOAD_PATH, get(download_macos))
         .route("/about", get(about))
+        .route(crate::updates::INDEX_PATH, get(updates::index))
+        .route(crate::updates::FEED_PATH, get(updates::feed))
+        .route("/updates/{slug}", get(updates::post))
+        .route(pages::privacy::PATH, get(privacy))
         .route("/healthz", get(health::healthz))
         .route("/robots.txt", get(seo::robots))
         .route("/sitemap.xml", get(seo::sitemap))
@@ -75,6 +99,9 @@ pub fn app_with(config: Config, macos_download: MacosDownload) -> Router {
 
 async fn home(State(s): State<AppState>) -> Markup {
     pages::home::render(s.site_url())
+}
+async fn privacy(State(s): State<AppState>) -> Markup {
+    pages::privacy::render(s.site_url())
 }
 async fn ferrumdata(State(s): State<AppState>) -> Markup {
     pages::ferrumdata::render(s.site_url())
@@ -93,6 +120,12 @@ async fn ferrumkit(State(s): State<AppState>) -> Markup {
 }
 async fn ferrumdock(State(s): State<AppState>) -> Markup {
     pages::ferrumdock::render(s.site_url())
+}
+async fn ferrumports(State(s): State<AppState>) -> Markup {
+    pages::ferrumports::render(s.site_url())
+}
+async fn ferrumenv(State(s): State<AppState>) -> Markup {
+    pages::ferrumenv::render(s.site_url())
 }
 async fn ferrum_editor(State(s): State<AppState>) -> Markup {
     pages::ferrum_editor::render(s.site_url())
@@ -122,7 +155,7 @@ async fn download_macos(
 async fn about(State(s): State<AppState>) -> Markup {
     pages::about::render(s.site_url())
 }
-async fn not_found(
+pub(crate) async fn not_found(
     State(s): State<AppState>,
 ) -> (StatusCode, [(header::HeaderName, &'static str); 1], Markup) {
     (

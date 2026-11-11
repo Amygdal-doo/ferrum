@@ -59,7 +59,10 @@ pub(crate) fn spawn_env() -> Spawn {
         .iter()
         .filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v)))
         .collect();
-    Spawn { env, ..Spawn::default() }
+    Spawn {
+        env,
+        ..Spawn::default()
+    }
 }
 
 impl App {
@@ -143,7 +146,10 @@ impl App {
 
     pub fn window(&self) -> Option<&WindowInfo> {
         let s = self.session()?;
-        s.windows.iter().find(|w| w.id == s.active_window).or(s.windows.first())
+        s.windows
+            .iter()
+            .find(|w| w.id == s.active_window)
+            .or(s.windows.first())
     }
 
     pub fn focused(&self) -> Option<BlockId> {
@@ -156,13 +162,19 @@ impl App {
             self.want_newest = false;
         }
         self.sessions = sessions;
-        if self.current.is_none_or(|id| !self.sessions.iter().any(|s| s.id == id)) {
+        if self
+            .current
+            .is_none_or(|id| !self.sessions.iter().any(|s| s.id == id))
+        {
             self.current = self.sessions.first().map(|s| s.id);
         }
         if self.sessions.is_empty() {
             if !self.creating {
                 self.creating = true;
-                self.send(Request::NewSession { name: None, spawn: spawn_env() });
+                self.send(Request::NewSession {
+                    name: None,
+                    spawn: spawn_env(),
+                });
             }
         } else {
             self.creating = false;
@@ -181,7 +193,11 @@ impl App {
         if let Some((cols, rows)) = cells
             && (w.cols, w.rows) != (cols, rows)
         {
-            self.send(Request::Resize { target: w.id.to_string(), cols, rows });
+            self.send(Request::Resize {
+                target: w.id.to_string(),
+                cols,
+                rows,
+            });
         }
         let blocks = w.layout.blocks();
         if blocks != self.subscribed {
@@ -213,7 +229,10 @@ impl App {
         match action {
             Action::Send(input) => {
                 if target.is_some() {
-                    self.send(Request::Input { target, input: vec![input] });
+                    self.send(Request::Input {
+                        target,
+                        input: vec![input],
+                    });
                 }
             }
             Action::Shortcut(s) => self.shortcut(s, target),
@@ -244,12 +263,17 @@ impl App {
         let session = self.session().map(|x| x.id.to_string());
         let half = self.window().map_or(10, |w| i32::from(w.rows / 2));
         match s {
-            Shortcut::NewTab => {
-                self.send(Request::NewWindow { session, name: None, spawn: spawn_env() })
-            }
+            Shortcut::NewTab => self.send(Request::NewWindow {
+                session,
+                name: None,
+                spawn: spawn_env(),
+            }),
             Shortcut::NewSession => {
                 self.want_newest = true;
-                self.send(Request::NewSession { name: None, spawn: spawn_env() });
+                self.send(Request::NewSession {
+                    name: None,
+                    spawn: spawn_env(),
+                });
             }
             Shortcut::SplitRight => self.send(Request::Split {
                 target,
@@ -290,7 +314,10 @@ impl App {
                 if let Some(cur) = self.current
                     && let Some(i) = self.sessions.iter().position(|x| x.id == cur)
                 {
-                    self.current = self.sessions.get((i + 1) % self.sessions.len()).map(|x| x.id);
+                    self.current = self
+                        .sessions
+                        .get((i + 1) % self.sessions.len())
+                        .map(|x| x.id);
                     self.subscribed.clear();
                 }
             }
@@ -300,8 +327,12 @@ impl App {
                 let Some(c) = self.client.clone() else { return };
                 let proxy = self.proxy.clone();
                 self.rt.spawn(async move {
-                    if let Ok(Response::Text { text }) =
-                        c.request(Request::Capture { target, scrollback: false }).await
+                    if let Ok(Response::Text { text }) = c
+                        .request(Request::Capture {
+                            target,
+                            scrollback: false,
+                        })
+                        .await
                     {
                         let _ = proxy.unbounded_send(UiEvent::Clipboard(text));
                     }
@@ -314,8 +345,14 @@ impl App {
                     _ => DEFAULT_FONT_PT,
                 };
             }
-            Shortcut::ScrollPageUp => self.send(Request::Scroll { target, lines: Some(half) }),
-            Shortcut::ScrollPageDown => self.send(Request::Scroll { target, lines: Some(-half) }),
+            Shortcut::ScrollPageUp => self.send(Request::Scroll {
+                target,
+                lines: Some(half),
+            }),
+            Shortcut::ScrollPageDown => self.send(Request::Scroll {
+                target,
+                lines: Some(-half),
+            }),
             Shortcut::ToggleSidebar => self.toggle_sidebar(),
         }
     }
@@ -329,17 +366,28 @@ impl App {
         }
         if alt {
             let key = if lines > 0 { "Up" } else { "Down" };
-            let input = (0..lines.unsigned_abs().min(20)).map(|_| Input::Key(key.into())).collect();
-            self.send(Request::Input { target: Some(b.to_string()), input });
+            let input = (0..lines.unsigned_abs().min(20))
+                .map(|_| Input::Key(key.into()))
+                .collect();
+            self.send(Request::Input {
+                target: Some(b.to_string()),
+                input,
+            });
         } else {
-            self.send(Request::Scroll { target: Some(b.to_string()), lines: Some(lines) });
+            self.send(Request::Scroll {
+                target: Some(b.to_string()),
+                lines: Some(lines),
+            });
         }
     }
 
     pub fn paste(&mut self, text: String) {
         let target = self.focused().map(|b| b.to_string());
         if target.is_some() {
-            self.send(Request::Input { target, input: vec![Input::Paste(text)] });
+            self.send(Request::Input {
+                target,
+                input: vec![Input::Paste(text)],
+            });
         }
     }
 
@@ -362,7 +410,9 @@ impl App {
             self.current = Some(session);
             self.subscribed.clear();
         }
-        self.send(Request::Focus { target: block.to_string() });
+        self.send(Request::Focus {
+            target: block.to_string(),
+        });
     }
 
     /// Starts `command_line` in a new tab of the current session, labelled
@@ -398,7 +448,9 @@ impl App {
             .find(|(_, px, py, w, h)| x >= *px && x < px + w && y >= *py && y < py + h)
             && Some(*b) != self.focused()
         {
-            self.send(Request::Focus { target: b.to_string() });
+            self.send(Request::Focus {
+                target: b.to_string(),
+            });
         }
     }
 }

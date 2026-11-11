@@ -5,11 +5,12 @@ use crate::components::actions::Action;
 use crate::components::detail::{middle_column, right_column};
 use crate::components::dialogs::{self, DialogState};
 use crate::components::graph::HistoryKey;
-use crate::components::shell::toolbar;
+use crate::components::shell::{project, toolbar};
 use crate::components::{home, menu, sidebar};
 use crate::state::{AppState, Dialog, Page};
 use ferrum_ui::{
-    DraggedSplitter, Notice as UiNotice, TextInput, TextInputEvent, render_notice, splitter,
+    DraggedSplitter, Notice as UiNotice, ProjectBar, TextInput, TextInputEvent,
+    ToggleProjectSwitcher, render_notice, splitter,
 };
 use ferrumgit_application::AppServices;
 use ferrumgit_domain::RepoId;
@@ -62,6 +63,8 @@ pub struct FerrumGit {
     /// Collapsed sidebar sections / folders.
     pub collapsed: HashSet<String>,
     pub inputs: Inputs,
+    /// Shared Ferrum project strip above the toolbar.
+    pub project_bar: Entity<ProjectBar>,
     pub history: ListState,
     pub history_key: Option<HistoryKey>,
     pub(crate) notice_task: Option<Task<()>>,
@@ -94,7 +97,9 @@ impl FerrumGit {
                 .multiline(4)
         });
 
+        let (project_bar, project_events) = project::new_bar(window, cx);
         let subscriptions = vec![
+            project_events,
             cx.subscribe(&home_filter, |_, _, _, cx| cx.notify()),
             cx.subscribe(&ref_filter, |_, _, _, cx| cx.notify()),
             cx.subscribe(&search, |app: &mut Self, input, event, cx| {
@@ -154,6 +159,7 @@ impl FerrumGit {
                 search_synced: None,
                 draft_synced: None,
             },
+            project_bar,
             history: ListState::new(0, ListAlignment::Top, px(600.)),
             history_key: None,
             notice_task: None,
@@ -335,6 +341,7 @@ impl FerrumGit {
 impl Render for FerrumGit {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.sync_inputs(cx);
+        self.sync_project_bar(cx);
         let theme = cx.theme().clone();
         let colors = theme.colors();
         let notice = self.state.notice.as_ref().map(|n| {
@@ -365,11 +372,16 @@ impl Render for FerrumGit {
             .on_action(cx.listener(Self::on_reload))
             .on_action(cx.listener(Self::on_back))
             .on_action(cx.listener(Self::on_forward))
+            .on_action(cx.listener(|app, _: &ToggleProjectSwitcher, window, cx| {
+                app.project_bar
+                    .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
+            }))
             .relative()
             .size_full()
             .bg(colors.background)
             .text_color(colors.text)
             .text_sm()
+            .child(self.project_bar.clone())
             .child(toolbar::render(self, window, cx))
             .child(body)
             .children(dialog)
