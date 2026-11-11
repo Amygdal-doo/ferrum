@@ -27,6 +27,8 @@ pub enum PickerKind {
     Problems,
     /// Several definitions to choose from.
     Locations,
+    /// Build, test and run tasks.
+    Tasks,
 }
 
 #[derive(Debug, Clone)]

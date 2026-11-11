@@ -27,6 +27,8 @@ pub enum TerminalEvent {
     Changed,
     /// The shell ended.
     Exited,
+    /// A task ended with this exit code.
+    TaskFinished(i32),
     Focused,
 }
 
@@ -44,6 +46,9 @@ pub struct TerminalView {
     wheel: f32,
     pub(super) ime_marked: Option<String>,
     exited: bool,
+    /// Tasks: the label shown in the tab, and whether the end was reported.
+    pub task: Option<String>,
+    task_reported: bool,
     _reader: Task<()>,
     _focus: Subscription,
 }
@@ -90,13 +95,22 @@ impl TerminalView {
             wheel: 0.0,
             ime_marked: None,
             exited: false,
+            task: None,
+            task_reported: false,
             _reader: reader,
             _focus: focus,
         }
     }
 
     fn on_output(&mut self, cx: &mut Context<Self>) {
-        if self.session.has_exited() && !self.exited {
+        if self.task.is_some() {
+            if let Some(code) = self.session.exit_code()
+                && !self.task_reported
+            {
+                self.task_reported = true;
+                cx.emit(TerminalEvent::TaskFinished(code));
+            }
+        } else if self.session.has_exited() && !self.exited {
             self.exited = true;
             cx.emit(TerminalEvent::Exited);
         }
@@ -110,7 +124,27 @@ impl TerminalView {
     }
 
     pub fn title(&self) -> String {
-        tab_title(&self.session.title(), &self.session.shell)
+        match &self.task {
+            Some(label) => match self.session.exit_code() {
+                None => format!("▶ {label}"),
+                Some(0) => format!("✓ {label}"),
+                Some(_) => format!("✗ {label}"),
+            },
+            None => tab_title(&self.session.title(), &self.session.shell),
+        }
+    }
+
+    /// A task's exit code and output, once it has ended.
+    pub fn task_result(&self) -> Option<(i32, String)> {
+        let code = self.session.exit_code()?;
+        Some((code, self.session.captured_output().unwrap_or_default()))
+    }
+
+    /// Ends a detached test task.
+    #[cfg(test)]
+    pub fn finish_task(&mut self, output: &str, code: i32, cx: &mut Context<Self>) {
+        self.session.finish(output, code);
+        self.on_output(cx);
     }
 
     pub fn is_focused(&self, window: &Window) -> bool {

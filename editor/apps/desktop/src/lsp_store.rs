@@ -78,6 +78,8 @@ pub struct LspStore {
     /// Servers whose program was not found, by server id.
     missing: HashMap<&'static str, Vec<String>>,
     diagnostics: BTreeMap<PathBuf, (PositionEncoding, Arc<Vec<Diagnostic>>)>,
+    /// Problems from the last task's output (cargo, tsc, go…).
+    build: BTreeMap<PathBuf, Arc<Vec<Diagnostic>>>,
     path_env: Shared<Task<String>>,
 }
 
@@ -110,6 +112,7 @@ impl LspStore {
             next_id: 1,
             missing: HashMap::new(),
             diagnostics: BTreeMap::new(),
+            build: BTreeMap::new(),
             path_env,
         }
     }
@@ -295,24 +298,75 @@ impl LspStore {
         cx.emit(LspEvent::Status);
     }
 
-    pub fn diagnostics_for(&self, path: &Path) -> Option<(PositionEncoding, Arc<Vec<Diagnostic>>)> {
-        self.diagnostics.get(path).cloned()
+    /// A file's diagnostics: from its language server, then from the last
+    /// task (compiler columns count characters, close to UTF-16).
+    pub fn diagnostics_for(&self, path: &Path) -> Vec<(PositionEncoding, Arc<Vec<Diagnostic>>)> {
+        let server = self.diagnostics.get(path).cloned();
+        let build = self
+            .build
+            .get(path)
+            .map(|list| (PositionEncoding::Utf16, list.clone()));
+        server.into_iter().chain(build).collect()
     }
 
-    /// Every file's diagnostics, files in path order.
+    /// Every file's diagnostics (servers first, then the last task).
     pub fn all_diagnostics(
         &self,
     ) -> impl Iterator<Item = (&PathBuf, PositionEncoding, &Arc<Vec<Diagnostic>>)> {
         self.diagnostics
             .iter()
             .map(|(path, (encoding, list))| (path, *encoding, list))
+            .chain(
+                self.build
+                    .iter()
+                    .map(|(path, list)| (path, PositionEncoding::Utf16, list)),
+            )
+    }
+
+    /// Replaces the task problems with those of the latest run.
+    pub fn set_build_problems(
+        &mut self,
+        problems: Vec<ferrumeditor_core::tasks::BuildProblem>,
+        source: &str,
+        cx: &mut Context<Self>,
+    ) {
+        let mut touched: Vec<PathBuf> = std::mem::take(&mut self.build).into_keys().collect();
+        let mut grouped: BTreeMap<PathBuf, Vec<Diagnostic>> = BTreeMap::new();
+        for p in problems {
+            let at = ferrumeditor_core::lsp::Position::new(
+                p.line.saturating_sub(1),
+                p.column.saturating_sub(1),
+            );
+            grouped.entry(p.path).or_default().push(Diagnostic {
+                range: ferrumeditor_core::lsp::LspRange { start: at, end: at },
+                severity: p.severity,
+                message: p.message,
+                source: Some(source.to_string()),
+                code: None,
+            });
+        }
+        for (path, list) in grouped {
+            touched.push(path.clone());
+            self.build.insert(path, Arc::new(list));
+        }
+        touched.sort();
+        touched.dedup();
+        for path in touched {
+            cx.emit(LspEvent::Diagnostics(path));
+        }
+        cx.emit(LspEvent::Status);
     }
 
     /// (errors, warnings) across the project.
     pub fn counts(&self) -> (usize, usize) {
         let mut errors = 0;
         let mut warnings = 0;
-        for (_, list) in self.diagnostics.values() {
+        let lists = self
+            .diagnostics
+            .values()
+            .map(|(_, list)| list)
+            .chain(self.build.values());
+        for list in lists {
             for d in list.iter() {
                 match d.severity {
                     Severity::Error => errors += 1,

@@ -20,7 +20,7 @@
 
 mod builtin;
 pub mod file;
-mod jsonc;
+pub(crate) mod jsonc;
 mod overrides;
 pub mod registry;
 mod textmate;

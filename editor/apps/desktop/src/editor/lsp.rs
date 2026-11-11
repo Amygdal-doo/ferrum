@@ -216,32 +216,31 @@ impl EditorView {
             .path
             .as_deref()
             .zip(LspStore::global(cx))
-            .and_then(|(path, store)| store.read(cx).diagnostics_for(path));
+            .map(|(path, store)| store.read(cx).diagnostics_for(path))
+            .unwrap_or_default();
         let buffer = self.state.buffer();
-        let mut list: Vec<EditorDiagnostic> = match found {
-            Some((encoding, raw)) => raw
-                .iter()
-                .map(|d| {
-                    let mut range = range_to_offsets(buffer, d.range, encoding);
-                    if range.is_empty() {
-                        // Point diagnostics: mark the next (or previous) char.
-                        let next = buffer.next_char_offset(range.start);
-                        let row_end = buffer.line_end(buffer.row_of(range.start));
-                        range = if next <= row_end && next > range.start {
-                            range.start..next
-                        } else {
-                            buffer.prev_char_offset(range.start)..range.start
-                        };
-                    }
-                    EditorDiagnostic {
-                        range,
-                        severity: d.severity,
-                        message: d.full_message(),
-                    }
-                })
-                .collect(),
-            None => Vec::new(),
-        };
+        let mut list: Vec<EditorDiagnostic> = found
+            .iter()
+            .flat_map(|(encoding, raw)| raw.iter().map(move |d| (*encoding, d)))
+            .map(|(encoding, d)| {
+                let mut range = range_to_offsets(buffer, d.range, encoding);
+                if range.is_empty() {
+                    // Point diagnostics: mark the next (or previous) char.
+                    let next = buffer.next_char_offset(range.start);
+                    let row_end = buffer.line_end(buffer.row_of(range.start));
+                    range = if next <= row_end && next > range.start {
+                        range.start..next
+                    } else {
+                        buffer.prev_char_offset(range.start)..range.start
+                    };
+                }
+                EditorDiagnostic {
+                    range,
+                    severity: d.severity,
+                    message: d.full_message(),
+                }
+            })
+            .collect();
         list.sort_by_key(|d| (d.range.start, d.severity));
         self.lsp.diagnostics = Arc::new(list);
         if let Some(hover) = &self.lsp.hover

@@ -26,12 +26,41 @@ pub struct Session {
     exited: Arc<AtomicBool>,
     /// Shown as the tab title until the program sets one.
     pub shell: PathBuf,
+    /// Tasks: everything the program printed (capped), for problems.
+    capture: Option<Arc<Mutex<Vec<u8>>>>,
+    /// Tasks: the exit code once the program has ended.
+    finished: Arc<Mutex<Option<i32>>>,
 }
+
+/// Most task output kept for finding problems.
+const CAPTURE_LIMIT: usize = 8 * 1024 * 1024;
 
 impl Session {
     /// Starts `shell` (or `$SHELL` as a login shell when `None`) in `cwd`.
     pub fn spawn(
         shell: Option<&str>,
+        cwd: Option<&Path>,
+        cols: u16,
+        rows: u16,
+    ) -> Result<(Self, UnboundedReceiver<()>), String> {
+        Self::start(shell, None, cwd, cols, rows)
+    }
+
+    /// Runs `command` through the login shell (`$SHELL -l -c`), keeping its
+    /// output and exit code.
+    pub fn spawn_task(
+        shell: Option<&str>,
+        command: &str,
+        cwd: &Path,
+        cols: u16,
+        rows: u16,
+    ) -> Result<(Self, UnboundedReceiver<()>), String> {
+        Self::start(shell, Some(command), Some(cwd), cols, rows)
+    }
+
+    fn start(
+        shell: Option<&str>,
+        task: Option<&str>,
         cwd: Option<&Path>,
         cols: u16,
         rows: u16,
@@ -45,10 +74,16 @@ impl Session {
             })
             .map_err(|e| format!("could not open a pty: {e}"))?;
         let configured = shell.map(str::trim).filter(|s| !s.is_empty());
-        let mut cmd = match configured {
+        let mut cmd = match (task, configured) {
+            (Some(command), _) => {
+                let shell = ferrumeditor_core::terminal::shell(configured);
+                let mut cmd = CommandBuilder::new(shell);
+                cmd.args(["-l", "-c", command]);
+                cmd
+            }
             // portable-pty runs the default program as a login shell.
-            None => CommandBuilder::new_default_prog(),
-            Some(program) => CommandBuilder::new(program),
+            (None, None) => CommandBuilder::new_default_prog(),
+            (None, Some(program)) => CommandBuilder::new(program),
         };
         let home = std::env::var_os("HOME").map(PathBuf::from);
         if let Some(dir) = cwd.map(Path::to_path_buf).or(home) {
@@ -74,20 +109,35 @@ impl Session {
             killer: Some(Mutex::new(killer)),
             exited: Arc::new(AtomicBool::new(false)),
             shell: ferrumeditor_core::terminal::shell(configured),
+            capture: task.map(|_| Arc::new(Mutex::new(Vec::new()))),
+            finished: Arc::new(Mutex::new(None)),
         };
-        let (term, out, exited) = (
+        let (term, out, exited, capture) = (
             session.term.clone(),
             session.writer.clone(),
             session.exited.clone(),
+            session.capture.clone(),
         );
+        let reader_tx = tx.clone();
         std::thread::Builder::new()
             .name("ferrumeditor-pty".into())
-            .spawn(move || read_loop(reader, &term, &out, &exited, &tx))
+            .spawn(move || read_loop(reader, &term, &out, &exited, capture.as_deref(), &reader_tx))
             .map_err(|e| e.to_string())?;
+        let (term, finished, is_task) = (
+            session.term.clone(),
+            session.finished.clone(),
+            task.is_some(),
+        );
         std::thread::Builder::new()
             .name("ferrumeditor-pty-wait".into())
             .spawn(move || {
-                let _ = child.wait();
+                let code = child.wait().map_or(-1, |status| status.exit_code() as i32);
+                if is_task {
+                    let note = format!("\r\n\x1b[2m[finished with exit code {code}]\x1b[0m\r\n");
+                    lock(&term).feed(note.as_bytes());
+                }
+                *lock(&finished) = Some(code);
+                let _ = tx.unbounded_send(());
             })
             .map_err(|e| e.to_string())?;
         Ok((session, rx))
@@ -116,8 +166,22 @@ impl Session {
             killer: None,
             exited: Arc::new(AtomicBool::new(false)),
             shell: PathBuf::from("/bin/sh"),
+            capture: Some(Arc::new(Mutex::new(Vec::new()))),
+            finished: Arc::new(Mutex::new(None)),
         };
         (session, sent)
+    }
+
+    /// Ends a detached task as if its program printed `output` and exited
+    /// with `code` (tests).
+    #[cfg(test)]
+    pub fn finish(&self, output: &str, code: i32) {
+        self.feed(output.as_bytes());
+        if let Some(capture) = &self.capture {
+            lock(capture).extend_from_slice(output.as_bytes());
+        }
+        *lock(&self.finished) = Some(code);
+        self.exited.store(true, Ordering::Relaxed);
     }
 
     /// Feeds program output directly (tests and replies).
@@ -194,6 +258,18 @@ impl Session {
     pub fn has_exited(&self) -> bool {
         self.exited.load(Ordering::Relaxed)
     }
+
+    /// A task's exit code once it has ended.
+    pub fn exit_code(&self) -> Option<i32> {
+        *lock(&self.finished)
+    }
+
+    /// A task's output so far (lossy UTF-8).
+    pub fn captured_output(&self) -> Option<String> {
+        self.capture
+            .as_ref()
+            .map(|c| String::from_utf8_lossy(&lock(c)).to_string())
+    }
 }
 
 impl Drop for Session {
@@ -209,6 +285,7 @@ fn read_loop(
     term: &Mutex<Terminal>,
     writer: &Mutex<Box<dyn Write + Send>>,
     exited: &AtomicBool,
+    capture: Option<&Mutex<Vec<u8>>>,
     tx: &UnboundedSender<()>,
 ) {
     let mut buf = vec![0u8; 64 * 1024];
@@ -217,6 +294,12 @@ fn read_loop(
             Ok(0) | Err(_) => break,
             Ok(n) => n,
         };
+        if let Some(capture) = capture {
+            let mut kept = lock(capture);
+            if kept.len() + n <= CAPTURE_LIMIT {
+                kept.extend_from_slice(&buf[..n]);
+            }
+        }
         let feed = lock(term).feed(&buf[..n]);
         if !feed.reply.is_empty() {
             let _ = lock(writer).write_all(&feed.reply);
@@ -259,6 +342,27 @@ mod tests {
         }
         assert!(session.has_exited(), "the script ends");
         assert!(session.frame().line_text(0).starts_with("ferrum-"));
+    }
+
+    /// Tasks run through the login shell and report output and exit code.
+    #[test]
+    fn real_task_reports_output_and_exit_code() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (session, mut rx) =
+            Session::spawn_task(Some("/bin/sh"), "echo task-out; exit 3", dir.path(), 40, 5)
+                .expect("spawn");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        while session.exit_code().is_none() && Instant::now() < deadline {
+            while rx.try_recv().is_ok() {}
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(session.exit_code(), Some(3));
+        assert!(
+            session
+                .captured_output()
+                .expect("captured")
+                .contains("task-out")
+        );
     }
 
     #[test]

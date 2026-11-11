@@ -62,12 +62,10 @@ fn main() {
         let theme = settings.theme.clone();
         let restore = settings.config.restore_session;
         problems.extend(actions::apply_keymap(&settings.keymap, cx));
-        let lsp_enabled = settings.config.lsp.enabled;
         cx.set_global(settings);
-        if lsp_enabled {
-            let store = cx.new(lsp_store::LspStore::new);
-            cx.set_global(lsp_store::GlobalLsp(store));
-        }
+        // Also holds task problems; servers only start if `[lsp] enabled`.
+        let store = cx.new(lsp_store::LspStore::new);
+        cx.set_global(lsp_store::GlobalLsp(store));
         theme_apply::apply(&theme, cx);
         actions::set_menus(cx);
         let workspace = cx.new(|cx| {

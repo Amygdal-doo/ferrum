@@ -11,6 +11,7 @@ mod overlays;
 mod panes;
 mod session;
 mod status_bar;
+mod tasks;
 mod terminal;
 mod themes;
 mod watcher;
@@ -68,6 +69,8 @@ pub struct Workspace {
     nav_forward: Vec<lsp::NavEntry>,
     /// Items for the next Locations picker.
     location_items: Vec<crate::picker::PickerItem>,
+    /// For tasks:rerun-last.
+    last_task: Option<ferrumeditor_core::tasks::Task>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -123,6 +126,7 @@ impl Workspace {
             nav_back: Vec::new(),
             nav_forward: Vec::new(),
             location_items: Vec::new(),
+            last_task: None,
             _subscriptions: subscriptions,
         };
         this.start_watcher(window, cx);

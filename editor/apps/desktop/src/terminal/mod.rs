@@ -18,12 +18,19 @@ use ui::{IconButton, IconName, IconSize};
 use crate::settings::Settings;
 pub use view::{TerminalEvent, TerminalView};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PanelEvent {
     /// The panel hid itself (last terminal closed or exited).
     Hidden,
     /// A terminal took focus.
     Focused,
+    /// A task ended.
+    TaskFinished {
+        label: String,
+        cwd: PathBuf,
+        code: i32,
+        output: String,
+    },
 }
 
 pub struct TerminalPanel {
@@ -110,14 +117,72 @@ impl TerminalPanel {
     ) -> Result<(), String> {
         let shell = cx.global::<Settings>().config.terminal_shell.clone();
         let (session, output) = spawn_session(&shell, self.cwd.as_deref())?;
+        self.add_view(session, output, None, true, window, cx);
+        Ok(())
+    }
+
+    /// Runs a task in its own tab, replacing an earlier run of the same
+    /// task. The panel opens; focus stays where it is.
+    pub fn run_task(
+        &mut self,
+        label: &str,
+        command: &str,
+        cwd: &std::path::Path,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Result<(), String> {
+        let previous: Vec<u64> = self
+            .terminals
+            .iter()
+            .filter(|t| t.read(cx).task.as_deref() == Some(label))
+            .map(|t| t.read(cx).id)
+            .collect();
+        for id in previous {
+            self.close(id, window, cx);
+        }
+        let shell = cx.global::<Settings>().config.terminal_shell.clone();
+        let (session, output) = spawn_task_session(&shell, command, cwd)?;
+        if !self.state.open {
+            self.state.open = true;
+        }
+        let task = (label.to_string(), cwd.to_path_buf());
+        self.add_view(session, output, Some(task), false, window, cx);
+        Ok(())
+    }
+
+    fn add_view(
+        &mut self,
+        session: session::Session,
+        output: futures::channel::mpsc::UnboundedReceiver<()>,
+        task: Option<(String, PathBuf)>,
+        focus: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let id = self.state.add_tab();
         let index = self.state.active_index().unwrap_or(0);
-        let view = cx.new(|cx| TerminalView::new(id, session, output, window, cx));
-        let subscription = cx.subscribe_in(&view, window, |this, view, event, window, cx| {
+        let label = task.as_ref().map(|(label, _)| label.clone());
+        let view = cx.new(|cx| {
+            let mut view = TerminalView::new(id, session, output, window, cx);
+            view.task = label;
+            view
+        });
+        let task_cwd = task.map(|(_, cwd)| cwd);
+        let subscription = cx.subscribe_in(&view, window, move |this, view, event, window, cx| {
             match event {
                 TerminalEvent::Exited => {
                     let id = view.read(cx).id;
                     this.close(id, window, cx);
+                }
+                TerminalEvent::TaskFinished(code) => {
+                    let v = view.read(cx);
+                    let output = v.task_result().map(|(_, o)| o).unwrap_or_default();
+                    cx.emit(PanelEvent::TaskFinished {
+                        label: v.task.clone().unwrap_or_default(),
+                        cwd: task_cwd.clone().unwrap_or_default(),
+                        code: *code,
+                        output,
+                    });
                 }
                 TerminalEvent::Focused => {
                     let id = view.read(cx).id;
@@ -132,10 +197,11 @@ impl TerminalPanel {
         });
         self._subscriptions.push(subscription);
         self.terminals.insert(index, view.clone());
-        let handle = view.read(cx).focus_handle(cx);
-        window.focus(&handle, cx);
+        if focus {
+            let handle = view.read(cx).focus_handle(cx);
+            window.focus(&handle, cx);
+        }
         cx.notify();
-        Ok(())
     }
 
     /// Closes terminal `id` (killing its shell).
@@ -284,6 +350,38 @@ fn spawn_session(
     session::Session::spawn(Some(shell), cwd, 80, 24)
 }
 
+#[cfg(not(test))]
+fn spawn_task_session(
+    shell: &str,
+    command: &str,
+    cwd: &std::path::Path,
+) -> Result<
+    (
+        session::Session,
+        futures::channel::mpsc::UnboundedReceiver<()>,
+    ),
+    String,
+> {
+    session::Session::spawn_task(Some(shell), command, cwd, 80, 24)
+}
+
+/// Tests record the task's command line instead of running it.
+#[cfg(test)]
+fn spawn_task_session(
+    shell: &str,
+    command: &str,
+    cwd: &std::path::Path,
+) -> Result<
+    (
+        session::Session,
+        futures::channel::mpsc::UnboundedReceiver<()>,
+    ),
+    String,
+> {
+    test_support::TASKS.with(|t| t.borrow_mut().push(command.to_string()));
+    spawn_session(shell, Some(cwd))
+}
+
 /// Tests never start real shells: sessions are detached and record input
 /// in [`test_support::SENT`].
 #[cfg(test)]
@@ -312,6 +410,8 @@ pub mod test_support {
     thread_local! {
         /// Input captured from every detached session, in creation order.
         pub static SENT: RefCell<Vec<Arc<Mutex<Vec<u8>>>>> = const { RefCell::new(Vec::new()) };
+        /// Task command lines started on this thread.
+        pub static TASKS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
     }
 
     /// Bytes sent to the `index`-th terminal created on this thread.

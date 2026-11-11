@@ -124,6 +124,11 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("find-and-replace:use-selection-as-find", E, &["cmd-e"]),
     ("find-in-files:show", W, &["cmd-shift-f"]),
     ("markdown-preview:toggle", W, &["cmd-shift-m"]),
+    // Tasks (build, test, run) in the terminal
+    ("tasks:build", W, &["cmd-b"]),
+    ("tasks:run", W, &["cmd-shift-b"]),
+    ("tasks:test", W, &[]),
+    ("tasks:rerun-last", W, &[]),
     // Language servers
     ("problems:show", W, &["ctrl-shift-m"]),
     ("language-server:restart", W, &[]),

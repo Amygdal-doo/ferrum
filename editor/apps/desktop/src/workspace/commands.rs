@@ -118,6 +118,14 @@ pub(super) fn builtin_registry() -> CommandRegistry {
     r.register("markdown-preview:toggle", |w, window, cx| {
         w.toggle_markdown_preview(window, cx)
     });
+    r.register("tasks:build", |w, window, cx| w.run_build_task(window, cx));
+    r.register("tasks:run", |w, window, cx| {
+        w.toggle_picker(PickerKind::Tasks, window, cx)
+    });
+    r.register("tasks:test", |w, window, cx| w.run_test_task(window, cx));
+    r.register("tasks:rerun-last", |w, window, cx| {
+        w.rerun_last_task(window, cx)
+    });
     r.register("problems:show", |w, window, cx| {
         w.toggle_picker(PickerKind::Problems, window, cx)
     });

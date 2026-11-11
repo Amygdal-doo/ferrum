@@ -27,6 +27,7 @@ pub mod project_search;
 pub mod selection;
 pub mod session;
 pub mod snippets;
+pub mod tasks;
 pub mod terminal;
 pub mod text;
 pub mod theme;

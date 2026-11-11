@@ -296,3 +296,69 @@ fn missing_server_is_reported_not_fatal(cx: &mut TestAppContext) {
     cx.run_until_parked();
     editor.read_with(cx, |e, _| assert!(e.state.text().contains('x')));
 }
+
+#[gpui::test]
+fn build_task_runs_in_the_terminal_and_reports_problems(cx: &mut TestAppContext) {
+    init(cx);
+    crate::terminal::test_support::reset();
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().canonicalize().expect("canonical");
+    std::fs::write(root.join("Cargo.toml"), "[package]\nname = \"demo\"\n").expect("write");
+    std::fs::create_dir_all(root.join("src")).expect("mkdir");
+    let main = root.join("src/main.rs");
+    std::fs::write(&main, "fn main() {\n    let x: u8 = \"a\";\n}\n").expect("write");
+    cx.update(|cx| {
+        let store = cx.new(|_| LspStore::with_path(String::new()));
+        cx.set_global(GlobalLsp(store));
+    });
+    let (workspace, cx) = cx.add_window_view(Workspace::new);
+    workspace.update_in(cx, |w, window, cx| {
+        w.set_root(root.clone(), window, cx);
+        w.open_file(&main, window, cx);
+    });
+    cx.run_until_parked();
+    cx.simulate_keystrokes(&crate::tests::primary("cmd-b"));
+    cx.run_until_parked();
+    let started = crate::terminal::test_support::TASKS.with(|t| t.borrow().clone());
+    assert_eq!(started, vec!["cargo build".to_string()]);
+    let terminal = workspace.read_with(cx, |w, _| w.terminal().clone());
+    assert!(terminal.read_with(cx, |p, _| p.is_open()));
+    let view = terminal.read_with(cx, |p, _| p.active()).expect("task tab");
+    assert_eq!(view.read_with(cx, |v, _| v.title()), "▶ cargo build");
+    view.update(cx, |v, cx| {
+        v.finish_task(
+            "   Compiling demo v0.1.0\nerror[E0308]: mismatched types\n --> src/main.rs:2:17\n",
+            101,
+            cx,
+        )
+    });
+    cx.run_until_parked();
+    assert_eq!(view.read_with(cx, |v, _| v.title()), "✗ cargo build");
+    cx.update(|_, cx| {
+        let store = LspStore::global(cx).expect("store");
+        assert_eq!(store.read(cx).counts(), (1, 0));
+    });
+    let editor = active(&workspace, cx);
+    editor.read_with(cx, |e, _| {
+        let d = &e.lsp.diagnostics[0];
+        assert_eq!(
+            e.state.buffer().offset_to_point(d.range.start),
+            Point::new(1, 16)
+        );
+        assert_eq!(d.message, "mismatched types [E0308] (cargo)");
+    });
+    // A clean rerun clears the problems.
+    workspace.update_in(cx, |w, window, cx| {
+        w.run_command("tasks:rerun-last", window, cx)
+    });
+    cx.run_until_parked();
+    let view = terminal.read_with(cx, |p, _| p.active()).expect("task tab");
+    view.update(cx, |v, cx| v.finish_task("    Finished dev\n", 0, cx));
+    cx.run_until_parked();
+    assert_eq!(
+        terminal.read_with(cx, |p, _| p.len()),
+        1,
+        "reruns replace the tab"
+    );
+    editor.read_with(cx, |e, _| assert!(e.lsp.diagnostics.is_empty()));
+}

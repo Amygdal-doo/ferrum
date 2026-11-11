@@ -45,6 +45,7 @@ handling are its own; nothing from Zed's editor stack (`editor`, `language`, `pr
 | Autocomplete: as you type (and on trigger characters such as `.`) or with Ctrl+Space / Cmd+I; server items (snippets with tab stops, auto-import edits) or words from the file when there is no server; ↑/↓, Enter / Tab to insert, Escape to close; `autocomplete = false` turns off the automatic menu | ✅ ranking / snippets unit-tested; typing → menu → insert headless-tested; menu drawing not hand-tested |
 | Problems: wavy underlines and gutter dots coloured by severity, hover (or Cmd+K Cmd+I) for the message and the server's type / docs, F8 / Shift+F8 to step through, error / warning counts in the status bar, Ctrl+Shift+M lists every problem in the project | ✅ mapping and list headless-tested; drawing not hand-tested |
 | Go to definition: F12 or Cmd+click; several results open a picker; Ctrl+- / Ctrl+Shift+- go back / forward | ✅ headless-tested |
+| Tasks: build / test / run / lint tasks found from `Cargo.toml`, `go.mod`, package.json scripts (pnpm / yarn / bun / npm from the lock file; `tsc --noEmit` for TypeScript without a build script), Makefile targets and `.vscode/tasks.json`; ⌘B runs the default build, ⇧⌘B picks one; each runs in its own terminal tab (rerun replaces it) after saving edited files; errors and warnings from cargo/rustc, tsc, Go and `file:line:col` compilers become problems | ✅ detection and output parsing unit-tested; ⌘B → tab → problems headless-tested; real PTY task unit-tested |
 | CLI: `ferrumeditor [path[:line[:col]]...]`, `--help`, `--version` | ✅ tested |
 
 ## Not built yet
@@ -147,6 +148,10 @@ Ctrl+Shift off macOS) — Ctrl+G, Ctrl+Tab, Alt+Z, Escape… — go to the shell
 | `find-and-replace:use-selection-as-find` | `cmd-e` | editor |
 | `find-in-files:show` | `cmd-shift-f` | window |
 | `markdown-preview:toggle` | `cmd-shift-m` | window |
+| `tasks:build` | `cmd-b` | window |
+| `tasks:run` | `cmd-shift-b` | window |
+| `tasks:test` | — | window |
+| `tasks:rerun-last` | — | window |
 | `problems:show` | `ctrl-shift-m` | window |
 | `language-server:restart` | — | window |
 | `navigation:back` | `ctrl--` | window |
@@ -280,6 +285,22 @@ check = { command = "clippy" }
 [lsp.yaml]
 enabled = false
 ```
+
+## Tasks
+⌘B runs the project's build task and ⇧⌘B lists every task. Tasks come from the open folder:
+
+| File | Tasks (⌘B default first) |
+|------|--------------------------|
+| `.vscode/tasks.json` | its `shell` / `process` tasks; the `build` group's `isDefault` one is ⌘B |
+| `Cargo.toml` | `cargo build`, `check`, `test`, `run`, `clippy --all-targets`, `build --release` |
+| `go.mod` / `go.work` | `go build ./...`, `go test ./...`, `go vet ./...`, `go run .` |
+| `package.json` | every script as `pnpm run …` / `yarn run …` / `bun run …` / `npm run …` (from the lock file); `build` is ⌘B, or `tsc --noEmit` when there is a `tsconfig.json` but no build script |
+| `Makefile` | its targets |
+
+A task runs through your login shell in its own terminal tab (`▶`, then `✓` or `✗`), after
+edited files are saved; running it again replaces the tab. When it ends, errors and warnings in
+its output (cargo / rustc, tsc, Go, and `file:line:col: message` compilers) appear as problems
+next to the language server's, until the next run.
 
 ## Integrated terminal
 ⌃\` (or the terminal button at the right end of the status bar) opens a panel at the bottom

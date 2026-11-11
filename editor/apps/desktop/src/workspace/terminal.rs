@@ -88,8 +88,10 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if *event == PanelEvent::Hidden {
-            self.focus_active(window, cx);
+        match event {
+            PanelEvent::Hidden => self.focus_active(window, cx),
+            PanelEvent::TaskFinished { .. } => self.on_task_finished(event, cx),
+            PanelEvent::Focused => {}
         }
         cx.notify();
     }

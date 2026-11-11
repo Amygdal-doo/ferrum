@@ -54,6 +54,17 @@ impl Workspace {
                 std::mem::take(&mut self.location_items),
                 "Go to definition…",
             ),
+            PickerKind::Tasks => {
+                let items = self.task_items();
+                if items.is_empty() {
+                    self.info(
+                        "No tasks found: open a folder with Cargo.toml, go.mod, package.json, a Makefile or .vscode/tasks.json",
+                        cx,
+                    );
+                    return;
+                }
+                (items, "Run a task…")
+            }
         };
         let picker = cx.new(|cx| Picker::new(kind, items, placeholder, window, cx));
         if matches!(kind, PickerKind::Theme | PickerKind::IconTheme) {
@@ -206,6 +217,7 @@ impl Workspace {
                     });
                 }
             }
+            PickerKind::Tasks => self.run_task_payload(&payload, window, cx),
             PickerKind::Problems | PickerKind::Locations => {
                 self.open_location_payload(&payload, window, cx);
             }
