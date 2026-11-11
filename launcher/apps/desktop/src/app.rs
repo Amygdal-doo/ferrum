@@ -3,8 +3,8 @@
 use crate::components::onboarding::Onboarding;
 use crate::components::settings::{SettingsForm, SettingsFormEvent};
 use crate::services::Services;
-use ferrum_ui::prelude::*;
 use ferrum_ui::gpui::Image;
+use ferrum_ui::prelude::*;
 use ferrumlauncher_core::{AppId, State, TokenSource};
 use semver::Version;
 use std::collections::HashMap;
@@ -69,6 +69,11 @@ pub struct FerrumLauncher {
     pub new_app_notice: Option<NewAppNotice>,
     pub(crate) check_loop: Task<()>,
     progress_ticker: Option<Task<()>>,
+    pub focus_handle: FocusHandle,
+    /// Shell commands, Dock, shortcuts and the menu bar icon.
+    pub integration: crate::integration::Integration,
+    /// Subscriptions that live as long as the window.
+    kept: Vec<Subscription>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -100,6 +105,9 @@ impl FerrumLauncher {
             new_app_notice: None,
             check_loop: Task::ready(()),
             progress_ticker: None,
+            focus_handle: cx.focus_handle(),
+            integration: crate::integration::Integration::default(),
+            kept: Vec::new(),
             _subscriptions: Vec::new(),
         };
         if let Some(message) = startup_notice {
@@ -110,7 +118,12 @@ impl FerrumLauncher {
         this.announce_new_apps(cx);
         this.load_logos(cx);
         this.detect_token(window, cx);
+        this.start_integration(cx);
         this
+    }
+
+    pub fn keep_subscription(&mut self, subscription: Subscription) {
+        self.kept.push(subscription);
     }
 
     pub fn notify_user(
@@ -347,6 +360,8 @@ impl Render for FerrumLauncher {
         v_flex()
             .relative()
             .size_full()
+            .track_focus(&self.focus_handle)
+            .on_key_down(cx.listener(Self::on_key_down))
             .bg(colors.background)
             .text_color(colors.text)
             .child(self.render_toolbar(cx))

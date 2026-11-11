@@ -20,6 +20,13 @@ tokio.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+futures.workspace = true
+
+# Menu bar icon and global shortcuts (macOS).
+[target.'cfg(target_os = "macos")'.dependencies]
+tray-icon = { version = "0.21", default-features = false }
+global-hotkey = "0.7"
+png = "0.17"
 
 [lints]
 workspace = true

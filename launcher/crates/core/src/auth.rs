@@ -3,7 +3,7 @@
 //! Order: OS keychain (service `FerrumLauncher`), `GITHUB_TOKEN`, then
 //! `gh auth token`. Keychain and `gh` calls block, so run them off the UI thread.
 
-use crate::{Result, LauncherError};
+use crate::{LauncherError, Result};
 use std::fmt;
 
 pub const KEYCHAIN_SERVICE: &str = "FerrumLauncher";
@@ -230,7 +230,9 @@ mod tests {
         let store = FakeStore::default();
         assert!(!migrate_token(&store).expect("nothing to migrate"));
 
-        store.set(LEGACY_KEYCHAIN_SERVICE, "ghp_old\n").expect("seed");
+        store
+            .set(LEGACY_KEYCHAIN_SERVICE, "ghp_old\n")
+            .expect("seed");
         assert!(migrate_token(&store).expect("migrate"));
         assert_eq!(
             store.get(KEYCHAIN_SERVICE).expect("get").as_deref(),

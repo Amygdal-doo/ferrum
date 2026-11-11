@@ -2,7 +2,7 @@
 
 use crate::auth::GitHubToken;
 use crate::release::{Asset, GitHubRelease, ReleaseInfo};
-use crate::{Result, LauncherError};
+use crate::{LauncherError, Result};
 use futures::StreamExt;
 use reqwest::{Response, StatusCode, header};
 use sha2::{Digest, Sha256};

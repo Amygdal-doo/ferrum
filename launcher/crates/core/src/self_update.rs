@@ -6,7 +6,7 @@
 //! it again. Only macOS bundles are swapped; elsewhere the caller falls back
 //! to the release page.
 
-use crate::{Result, LauncherError};
+use crate::{LauncherError, Result};
 use std::path::{Path, PathBuf};
 
 /// The `.app` bundle the current executable runs from, if any. `cargo run`

@@ -23,5 +23,10 @@ unicode-segmentation.workspace = true
 # Enables `debug-embed` for `assets` (see root Cargo.toml).
 util.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# Dock icon visibility (NSApplication activation policy), safe bindings.
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSRunningApplication"] }
+
 [lints]
 workspace = true

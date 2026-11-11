@@ -14,6 +14,8 @@ pub mod platform;
 pub mod release;
 pub mod self_rename;
 pub mod self_update;
+pub mod shared_prefs;
+pub mod shell;
 pub mod store;
 
 pub use auth::{GitHubToken, TokenSource};
@@ -21,7 +23,7 @@ pub use catalog::{AppId, AppInfo, AppStatus, Catalog, CatalogEntry};
 pub use github::{DownloadProgress, GitHubClient};
 pub use platform::Platform;
 pub use release::{Asset, Channel, ReleaseInfo, UpdateChannel, current_target};
-pub use store::{InstalledVersion, Paths, Settings, State};
+pub use store::{AppPrefs, InstalledVersion, Paths, Settings, State};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LauncherError {

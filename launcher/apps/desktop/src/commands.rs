@@ -436,7 +436,10 @@ impl FerrumLauncher {
         &mut self,
         app: AppId,
         success: Option<String>,
-        operation: impl FnOnce(&mut State, &ferrumlauncher_core::Paths) -> ferrumlauncher_core::Result<()>
+        operation: impl FnOnce(
+            &mut State,
+            &ferrumlauncher_core::Paths,
+        ) -> ferrumlauncher_core::Result<()>
         + Send
         + 'static,
         cx: &mut Context<Self>,
@@ -549,13 +552,18 @@ impl FerrumLauncher {
             repo_name: settings.repo_name,
             check_interval_hours: settings.check_interval_hours,
             keep_versions: settings.keep_versions,
+            menu_bar: settings.menu_bar,
             ..self.state.settings.clone()
         };
+        let menu_bar_changed = settings.menu_bar != self.state.settings.menu_bar;
         let interval_changed =
             settings.check_interval_hours != self.state.settings.check_interval_hours;
         let repo_changed = settings.repo_owner != self.state.settings.repo_owner
             || settings.repo_name != self.state.settings.repo_name;
         self.state.settings = settings;
+        if menu_bar_changed {
+            self.refresh_menu_bar(cx);
+        }
         if repo_changed {
             self.state.releases.clear();
             self.state.last_check = None;

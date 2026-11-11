@@ -89,6 +89,19 @@ impl Session {
         if let Some(dir) = cwd.map(Path::to_path_buf).or(home) {
             cmd.cwd(dir);
         }
+        // Ferrum Launcher's shell commands (`fee`, `feg`, …) work here too.
+        if let Some(home) = std::env::var_os("HOME") {
+            let bin = Path::new(&home).join(".ferrum").join("bin");
+            let mut dirs: Vec<PathBuf> = std::env::var_os("PATH")
+                .map(|p| std::env::split_paths(&p).collect())
+                .unwrap_or_default();
+            if !dirs.contains(&bin) {
+                dirs.insert(0, bin);
+                if let Ok(path) = std::env::join_paths(dirs) {
+                    cmd.env("PATH", path);
+                }
+            }
+        }
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
         cmd.env("TERM_PROGRAM", "FerrumEditor");

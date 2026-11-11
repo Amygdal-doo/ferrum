@@ -5,7 +5,7 @@ use crate::catalog::{AppId, AppInfo, Catalog, CatalogEntry};
 use crate::github::{DownloadProgress, GitHubClient};
 use crate::platform::{self, ArchiveKind, Platform};
 use crate::release::{self, Channel, ReleaseInfo, UpdateChannel};
-use crate::{Result, LauncherError, install};
+use crate::{LauncherError, Result, install};
 use chrono::{DateTime, Utc};
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -177,6 +177,28 @@ pub struct Settings {
     /// denied keychain prompt isn't repeated on every start.
     #[serde(default)]
     pub legacy_keychain_checked: bool,
+    /// Per-app choices: shell command, Dock icon, global shortcut.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub app_prefs: BTreeMap<AppId, AppPrefs>,
+    /// Show the launcher in the macOS menu bar (and keep it running there
+    /// when its window is closed, so shortcuts keep working).
+    #[serde(default)]
+    pub menu_bar: bool,
+}
+
+/// What the user chose for one app on its page.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AppPrefs {
+    /// The shell command that opens it (`fee`); `None` when turned off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+    /// Run without a Dock icon (the app reads this when it starts).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub hide_from_dock: bool,
+    /// Global shortcut that opens it, e.g. `cmd+alt+e`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hotkey: Option<String>,
 }
 
 /// The public repo customers download from: releases only, no source, so
@@ -209,6 +231,8 @@ impl Default for Settings {
             seen_apps: None,
             new_apps: BTreeSet::new(),
             legacy_keychain_checked: false,
+            app_prefs: BTreeMap::new(),
+            menu_bar: false,
         }
     }
 }
@@ -508,7 +532,9 @@ impl State {
     /// The app's catalog entry: fetched copy first, then the embedded one.
     #[must_use]
     pub fn catalog_entry(&self, app: AppId) -> Option<&CatalogEntry> {
-        self.catalog().entry(app).or_else(|| Catalog::embedded().entry(app))
+        self.catalog()
+            .entry(app)
+            .or_else(|| Catalog::embedded().entry(app))
     }
 
     pub fn record_catalog(&mut self, catalog: Catalog) {
@@ -1215,7 +1241,12 @@ mod tests {
             .expect("catalog"),
         );
         assert!(state.managed_apps().iter().any(|info| info.id == forge));
-        assert!(state.managed_apps().iter().all(|info| info.id != AppId::LAUNCHER));
+        assert!(
+            state
+                .managed_apps()
+                .iter()
+                .all(|info| info.id != AppId::LAUNCHER)
+        );
         assert_eq!(state.discover_apps(), vec![forge]);
         assert!(state.is_new(forge));
         assert!(state.discover_apps().is_empty(), "announced once");
@@ -1255,7 +1286,12 @@ mod tests {
         std::fs::write(macos.join("fforge"), b"bin").expect("write");
         state.record_install(forge, installed("1.0.0"));
         state.activate(forge, &version, &paths).expect("activate");
-        assert!(paths.application_path(&info).expect("app").ends_with("FerrumForge.app"));
+        assert!(
+            paths
+                .application_path(&info)
+                .expect("app")
+                .ends_with("FerrumForge.app")
+        );
         assert!(paths.application_path(&info).expect("app").is_dir());
         assert!(paths.bin_dir.join("fforge").exists());
         state.record_releases(vec![tagged("forge-v1.1.0")]);
@@ -1609,7 +1645,9 @@ mod tests {
         fake_bundle_install(&mut state, &paths, AppId::TERM, "0.2.0");
         let v1 = Version::new(0, 1, 0);
         let v2 = Version::new(0, 2, 0);
-        let application = paths.application_path(&info(AppId::TERM)).expect("app path");
+        let application = paths
+            .application_path(&info(AppId::TERM))
+            .expect("app path");
         assert!(application.ends_with("Applications/Ferrum/FerrumTerm.app"));
 
         state.activate(AppId::TERM, &v2, &paths).expect("activate");
@@ -1660,7 +1698,9 @@ mod tests {
         state
             .activate(AppId::DATA, &Version::new(0, 1, 0), &paths)
             .expect("bundle");
-        let application = paths.application_path(&info(AppId::DATA)).expect("app path");
+        let application = paths
+            .application_path(&info(AppId::DATA))
+            .expect("app path");
         assert!(application.is_dir());
         state
             .activate(AppId::DATA, &Version::new(0, 2, 0), &paths)
@@ -1740,7 +1780,9 @@ mod tests {
         state
             .activate(AppId::DATA, &version, &paths)
             .expect("activate");
-        let application = paths.application_path(&info(AppId::DATA)).expect("app path");
+        let application = paths
+            .application_path(&info(AppId::DATA))
+            .expect("app path");
         assert!(application.join("Contents/MacOS/ferrumdata").is_file());
         #[cfg(unix)]
         assert!(
@@ -1872,7 +1914,10 @@ mod tests {
             CancellationToken::new(),
         )
         .await;
-        assert!(matches!(result, Err(LauncherError::ChecksumMismatch { .. })));
+        assert!(matches!(
+            result,
+            Err(LauncherError::ChecksumMismatch { .. })
+        ));
         assert!(
             !paths
                 .version_dir(AppId::API, &Version::new(0, 2, 0))

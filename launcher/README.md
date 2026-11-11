@@ -14,6 +14,19 @@ cargo launcher           # = cargo run -p ferrumlauncher-desktop (binary: ferrum
 End-user setup (DMG, GitHub sign-in, where apps land): see
 [INSTALL.md](../INSTALL.md).
 
+## Opening apps without the launcher window
+Each app's page has three choices, all off by default:
+
+| Choice | What it does |
+| --- | --- |
+| **Shell command** | Writes a small script in `~/.ferrum/bin` named as typed (suggested: `fee` Ferrum Editor, `fea` FerrumAPI, `feg` FerrumGIT, `fed` FerrumData, `fet` FerrumTerm, `fek` FerrumKit, `fec` FerrumDock, `fel` the launcher). `fee .` opens Ferrum Editor on the current folder (like `zed .`), `feg .` FerrumGIT on that repository, `fet` FerrumTerm in a session in the current folder. The first command turned on also adds `~/.ferrum/bin` to PATH in `~/.zprofile` (`~/.bash_profile` for bash, `conf.d/ferrum.fish` for fish) with one marked line; FerrumTerm and Ferrum Editor's terminal have it on PATH anyway. Scripts not written by the launcher are never replaced or removed. Enter in the name field renames an enabled command. |
+| **Hide from Dock** (macOS) | Listed in `~/.ferrum/preferences.json`, which every Ferrum app reads when it starts (`ferrum_ui::dock`); the app then runs as an accessory app (no Dock icon, not in ⌘-Tab). The launcher switches at once and moves to the menu bar. |
+| **Shortcut** (macOS) | A global shortcut (⌘, ⌃ or ⌥ plus a letter, digit, F-key or space) that opens or brings forward the app from anywhere, while the launcher runs. |
+
+**Settings → Show Ferrum Launcher in the menu bar** (macOS) adds a menu bar icon listing the
+installed apps (with their shortcuts), Open Ferrum Launcher and Quit. With it on, closing the
+window only hides the launcher, so shortcuts keep working.
+
 ## Where versions come from
 
 Every version of every app is a **GitHub Release** in one repository,

@@ -5,6 +5,7 @@
 
 mod app;
 mod chrome;
+pub mod dock;
 mod modal;
 mod notice;
 mod splitter;
@@ -29,8 +30,7 @@ pub mod prelude {
     pub use gpui::{
         AnyElement, App, AppContext as _, AsyncApp, ClickEvent, Context, DragMoveEvent, Entity,
         EventEmitter, FocusHandle, Focusable, IntoElement, KeyBinding, ParentElement, Render,
-        SharedString, Subscription, Task, WeakEntity, Window, actions, div, px, rems,
-        uniform_list,
+        SharedString, Subscription, Task, WeakEntity, Window, actions, div, px, rems, uniform_list,
     };
     pub use ui::prelude::*;
     pub use ui::{

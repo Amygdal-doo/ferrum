@@ -252,7 +252,11 @@ impl TextInput {
         cx.notify();
     }
 
-    pub fn set_placeholder(&mut self, placeholder: impl Into<SharedString>, cx: &mut Context<Self>) {
+    pub fn set_placeholder(
+        &mut self,
+        placeholder: impl Into<SharedString>,
+        cx: &mut Context<Self>,
+    ) {
         self.placeholder = placeholder.into();
         cx.notify();
     }
@@ -342,7 +346,11 @@ impl TextInput {
     }
 
     fn word_left(&mut self, _: &WordLeft, window: &mut Window, cx: &mut Context<Self>) {
-        self.move_to(self.previous_word_boundary(self.cursor_offset()), window, cx);
+        self.move_to(
+            self.previous_word_boundary(self.cursor_offset()),
+            window,
+            cx,
+        );
     }
 
     fn word_right(&mut self, _: &WordRight, window: &mut Window, cx: &mut Context<Self>) {
@@ -373,8 +381,17 @@ impl TextInput {
         self.select_to(self.vertical_offset(self.cursor_offset(), 1), window, cx);
     }
 
-    fn select_word_left(&mut self, _: &SelectWordLeft, window: &mut Window, cx: &mut Context<Self>) {
-        self.select_to(self.previous_word_boundary(self.cursor_offset()), window, cx);
+    fn select_word_left(
+        &mut self,
+        _: &SelectWordLeft,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.select_to(
+            self.previous_word_boundary(self.cursor_offset()),
+            window,
+            cx,
+        );
     }
 
     fn select_word_right(
@@ -435,12 +452,21 @@ impl TextInput {
         self.replace_text_in_range(None, "", window, cx)
     }
 
-    fn delete_word_left(&mut self, _: &DeleteWordLeft, window: &mut Window, cx: &mut Context<Self>) {
+    fn delete_word_left(
+        &mut self,
+        _: &DeleteWordLeft,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.read_only {
             return;
         }
         if self.selected_range.is_empty() {
-            self.select_to(self.previous_word_boundary(self.cursor_offset()), window, cx);
+            self.select_to(
+                self.previous_word_boundary(self.cursor_offset()),
+                window,
+                cx,
+            );
         }
         self.replace_text_in_range(None, "", window, cx)
     }
@@ -468,7 +494,12 @@ impl TextInput {
         self.replace_text_in_range(None, "  ", window, cx);
     }
 
-    fn on_mouse_down(&mut self, event: &MouseDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+    fn on_mouse_down(
+        &mut self,
+        event: &MouseDownEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.is_selecting = true;
         let offset = self.index_for_mouse_position(event.position);
         if event.click_count >= 3 {
@@ -492,7 +523,12 @@ impl TextInput {
         self.is_selecting = false;
     }
 
-    fn on_mouse_move(&mut self, event: &MouseMoveEvent, window: &mut Window, cx: &mut Context<Self>) {
+    fn on_mouse_move(
+        &mut self,
+        event: &MouseMoveEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.is_selecting {
             self.select_to(self.index_for_mouse_position(event.position), window, cx);
         }
@@ -564,7 +600,9 @@ impl TextInput {
     }
 
     fn line_start(&self, offset: usize) -> usize {
-        self.content[..offset].rfind('\n').map_or(0, |index| index + 1)
+        self.content[..offset]
+            .rfind('\n')
+            .map_or(0, |index| index + 1)
     }
 
     fn line_end(&self, offset: usize) -> usize {
@@ -599,9 +637,10 @@ impl TextInput {
 
         let target_start = line_starts[target_index];
         let target_end = self.line_end(target_start);
-        let layout = self.last_layout.as_ref().filter(|layout| {
-            layout.lines.len() == line_starts.len()
-        });
+        let layout = self
+            .last_layout
+            .as_ref()
+            .filter(|layout| layout.lines.len() == line_starts.len());
         if let Some(layout) = layout
             && let (Some(current), Some(target)) =
                 (layout.lines.get(line_index), layout.lines.get(target_index))
@@ -613,7 +652,9 @@ impl TextInput {
             return self.content_offset(target_start, target_end, display_index);
         }
 
-        let column = self.content[line_starts[line_index]..offset].chars().count();
+        let column = self.content[line_starts[line_index]..offset]
+            .chars()
+            .count();
         self.content[target_start..target_end]
             .char_indices()
             .nth(column)
@@ -1029,7 +1070,10 @@ impl Element for TextElement {
             for line_text in input.content.split('\n') {
                 let line_end = line_start + line_text.len();
                 let display: SharedString = if input.masked {
-                    MASK_CHAR.to_string().repeat(line_text.chars().count()).into()
+                    MASK_CHAR
+                        .to_string()
+                        .repeat(line_text.chars().count())
+                        .into()
                 } else {
                     line_text.to_string().into()
                 };
@@ -1110,7 +1154,9 @@ impl Element for TextElement {
             .iter()
             .map(|line| line.shaped.width)
             .fold(px(0.), |a, b| a.max(b));
-        scroll_x = scroll_x.min((widest - width + margin).max(px(0.))).max(px(0.));
+        scroll_x = scroll_x
+            .min((widest - width + margin).max(px(0.)))
+            .max(px(0.));
 
         let row_top = |row: usize| bounds.top() + line_height * row as f32;
         let selected = input.selected_range.clone();
@@ -1132,8 +1178,12 @@ impl Element for TextElement {
                 }
                 let start = selected.start.max(range.start);
                 let end = selected.end.min(range.end);
-                let x_start = line.shaped.x_for_index(input.display_offset(range.start, start));
-                let mut x_end = line.shaped.x_for_index(input.display_offset(range.start, end));
+                let x_start = line
+                    .shaped
+                    .x_for_index(input.display_offset(range.start, start));
+                let mut x_end = line
+                    .shaped
+                    .x_for_index(input.display_offset(range.start, end));
                 if selected.end > range.end {
                     x_end += px(6.);
                 }
@@ -1183,14 +1233,10 @@ impl Element for TextElement {
                     bounds.left() - scroll_x,
                     bounds.top() + line_height * row as f32,
                 );
-                if let Err(error) = line.shaped.paint(
-                    origin,
-                    line_height,
-                    gpui::TextAlign::Left,
-                    None,
-                    window,
-                    cx,
-                ) {
+                if let Err(error) =
+                    line.shaped
+                        .paint(origin, line_height, gpui::TextAlign::Left, None, window, cx)
+                {
                     eprintln!("text input: failed to paint line: {error:#}");
                 }
             }
@@ -1278,9 +1324,7 @@ impl Render for TextInput {
                     })
             })
             .when(self.read_only, |this| this.text_color(colors.text_muted))
-            .child(TextElement {
-                input: cx.entity(),
-            })
+            .child(TextElement { input: cx.entity() })
     }
 }
 

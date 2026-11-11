@@ -1,6 +1,6 @@
 //! Background runtime for network and file work.
 
-use ferrumlauncher_core::{GitHubClient, Paths, Settings, LauncherError, auth};
+use ferrumlauncher_core::{GitHubClient, LauncherError, Paths, Settings, auth};
 use std::future::Future;
 use std::sync::Arc;
 use tokio::runtime::Runtime;

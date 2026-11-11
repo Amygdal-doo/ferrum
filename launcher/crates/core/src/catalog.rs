@@ -685,7 +685,11 @@ mod tests {
             assert_eq!(merged.extra_binaries, builtin.extra_binaries, "{app}");
             assert_eq!(merged.name, builtin.name, "{app}");
         }
-        assert!(catalog.entry(AppId::new("toolbox").expect("alias")).is_some());
+        assert!(
+            catalog
+                .entry(AppId::new("toolbox").expect("alias"))
+                .is_some()
+        );
     }
 
     #[test]
@@ -726,7 +730,10 @@ mod tests {
         let info = catalog.info(forge).expect("info");
         assert_eq!(info.name, "FerrumForge");
         assert_eq!(info.description, "Build runner.");
-        assert_eq!(info.binaries().collect::<Vec<_>>(), ["ferrumforge", "fforge"]);
+        assert_eq!(
+            info.binaries().collect::<Vec<_>>(),
+            ["ferrumforge", "fforge"]
+        );
         assert_eq!(info.bundle_name, "FerrumForge");
         assert_eq!(info.icon, "Hammer");
         assert_eq!(info.order, 65);
@@ -777,7 +784,11 @@ mod tests {
             merged.entry(AppId::DATA).map(|e| e.status),
             Some(AppStatus::Stable)
         );
-        assert!(AppId::BUILTIN.iter().all(|app| merged.entry(*app).is_some()));
+        assert!(
+            AppId::BUILTIN
+                .iter()
+                .all(|app| merged.entry(*app).is_some())
+        );
         assert_eq!(AppStatus::InDevelopment.label(), "In development");
     }
 
@@ -842,8 +853,14 @@ mod tests {
             r#""term""#
         );
         assert!(serde_json::from_str::<AppId>(r#""no-pe""#).is_err());
-        assert_eq!(AppInfo::builtin(AppId::LAUNCHER).map(|i| i.bundle_name), Some("Ferrum Launcher".into()));
-        assert_eq!(AppInfo::builtin(AppId::TERM).map(|i| i.extra_binaries), Some(vec!["fterm".to_string()]));
+        assert_eq!(
+            AppInfo::builtin(AppId::LAUNCHER).map(|i| i.bundle_name),
+            Some("Ferrum Launcher".into())
+        );
+        assert_eq!(
+            AppInfo::builtin(AppId::TERM).map(|i| i.extra_binaries),
+            Some(vec!["fterm".to_string()])
+        );
         assert!(AppInfo::builtin(AppId::new("unknownapp").expect("id")).is_none());
     }
 }

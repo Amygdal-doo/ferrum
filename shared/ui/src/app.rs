@@ -88,6 +88,9 @@ pub fn run<V: Render + 'static>(
                 cx.quit();
                 return;
             }
+            if crate::dock::hidden_by_preference() {
+                crate::dock::set_dock_icon_visible(false);
+            }
             cx.activate(true);
         });
 }

@@ -4,6 +4,7 @@
 mod app;
 mod commands;
 mod components;
+mod integration;
 mod services;
 
 use ferrum_ui::AppConfig;
@@ -54,12 +55,12 @@ fn main() {
     // Started as "Ferrum Toolbox.app" (the 0.5.0 bridge update) or as
     // `ferrum-toolbox`: take the new name, relaunching if it's a bundle.
     let rename_failed = std::env::args().any(|arg| arg == RENAME_FAILED_ARG);
-    let startup_notice =
-        match self_rename::run(&paths, &state.info(AppId::LAUNCHER), rename_failed) {
-            Outcome::Relaunch => std::process::exit(0),
-            Outcome::Blocked(message) => Some(message),
-            Outcome::Nothing | Outcome::Renamed => None,
-        };
+    let startup_notice = match self_rename::run(&paths, &state.info(AppId::LAUNCHER), rename_failed)
+    {
+        Outcome::Relaunch => std::process::exit(0),
+        Outcome::Blocked(message) => Some(message),
+        Outcome::Nothing | Outcome::Renamed => None,
+    };
 
     let services = match Services::start(paths) {
         Ok(services) => services,
@@ -74,7 +75,21 @@ fn main() {
         .size(1040., 680.)
         .min_size(760., 480.);
     ferrum_ui::run(config, move |window, cx| {
-        cx.new(|cx| app::FerrumLauncher::new(services, state, startup_notice, window, cx))
+        let launcher =
+            cx.new(|cx| app::FerrumLauncher::new(services, state, startup_notice, window, cx));
+        // In the menu bar, closing the window hides it; the launcher keeps
+        // running for the menu and the app shortcuts.
+        let weak = launcher.downgrade();
+        window.on_window_should_close(cx, move |_, cx| {
+            let keep = weak
+                .upgrade()
+                .is_some_and(|l| l.read(cx).state.settings.menu_bar);
+            if keep {
+                cx.hide();
+            }
+            !keep
+        });
+        launcher
     });
 }
 

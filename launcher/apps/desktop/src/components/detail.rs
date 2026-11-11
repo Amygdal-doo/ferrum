@@ -53,7 +53,11 @@ impl FerrumLauncher {
         app == AppId::LAUNCHER && self.state.running_launcher.as_ref() == Some(version)
     }
 
-    pub fn render_detail(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    pub fn render_detail(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let app = self.selected;
         let border = cx.theme().colors().border;
         let active = self.state.active(app).cloned();
@@ -86,6 +90,7 @@ impl FerrumLauncher {
             .map(|installed| (installed.version.clone(), installed.notes));
 
         let actions = self.render_actions(app, active.clone(), latest.clone(), cx);
+        let open_from = self.render_open_from(app, window, cx);
         let download = downloading.then(|| self.render_download(app, cx));
         let version_rows: Vec<AnyElement> = rows
             .into_iter()
@@ -116,6 +121,7 @@ impl FerrumLauncher {
                     )
                     .child(self.render_header(app, cx))
                     .child(actions)
+                    .children(open_from)
                     .children(download),
             )
             .child(
@@ -150,6 +156,115 @@ impl FerrumLauncher {
                             .child(self.render_notes(notes_release, installed_notes)),
                     ),
             )
+    }
+
+    /// Shell command, Dock icon and shortcut for `app`.
+    fn render_open_from(
+        &mut self,
+        app: AppId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        use crate::integration::display_hotkey;
+        use ferrum_ui::ui::Checkbox;
+        if !app.is_builtin() {
+            return None;
+        }
+        let prefs = self
+            .state
+            .settings
+            .app_prefs
+            .get(&app)
+            .cloned()
+            .unwrap_or_default();
+        let name = self.state.info(app).name;
+        let input = self.command_input(app, window, cx);
+        let typed = input.read(cx).text().trim().to_string();
+        let checked = |on: bool| {
+            if on {
+                ToggleState::Selected
+            } else {
+                ToggleState::Unselected
+            }
+        };
+        let usage = if app == AppId::TERM {
+            format!("`{typed}` in a terminal opens FerrumTerm in that folder")
+        } else if matches!(app.as_str(), "editor" | "git") {
+            format!("`{typed} .` in a terminal opens {name} on that folder")
+        } else {
+            format!("`{typed}` in a terminal opens {name}")
+        };
+        let recording = self.integration.recording == Some(app);
+        let shortcut_label = match (&prefs.hotkey, recording) {
+            (_, true) => "Press the shortcut… (Esc cancels)".to_string(),
+            (Some(hotkey), false) => display_hotkey(hotkey),
+            (None, false) => "None".to_string(),
+        };
+        let mac = cfg!(target_os = "macos");
+        let row = |label: &'static str| {
+            h_flex().gap_3().min_h(px(28.)).child(
+                div()
+                    .w(px(120.))
+                    .flex_none()
+                    .child(Label::new(label).size(LabelSize::Small).color(Color::Muted)),
+            )
+        };
+        Some(
+            v_flex()
+                .gap_1()
+                .child(
+                    row("Shell command")
+                        .child(
+                            Checkbox::new(SharedString::from(format!("shell-command-{app}")), checked(prefs.command.is_some()))
+                                .on_click(cx.listener(move |this, state: &ToggleState, _, cx| {
+                                    this.set_shell_command(app, state.selected(), cx)
+                                })),
+                        )
+                        .child(div().w(px(110.)).child(input))
+                        .child(Label::new(usage).size(LabelSize::Small).color(Color::Muted)),
+                )
+                .when(mac, |this| {
+                    this.child(
+                        row("Dock").child(
+                            Checkbox::new(SharedString::from(format!("hide-dock-{app}")), checked(prefs.hide_from_dock))
+                                .label("Hide from Dock")
+                                .on_click(cx.listener(move |this, state: &ToggleState, _, cx| {
+                                    this.set_hide_from_dock(app, state.selected(), cx)
+                                })),
+                        ),
+                    )
+                    .child(
+                        row("Shortcut")
+                            .child(
+                                Label::new(shortcut_label)
+                                    .size(LabelSize::Small)
+                                    .color(if recording { Color::Accent } else { Color::Default }),
+                            )
+                            .child(
+                                Button::new(SharedString::from(format!("record-hotkey-{app}")), if prefs.hotkey.is_some() { "Change" } else { "Set shortcut" })
+                                    .style(ButtonStyle::Subtle)
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        this.record_hotkey(app, window, cx)
+                                    })),
+                            )
+                            .when(prefs.hotkey.is_some(), |this| {
+                                this.child(
+                                    Button::new(SharedString::from(format!("clear-hotkey-{app}")), "Clear")
+                                        .style(ButtonStyle::Subtle)
+                                        .on_click(cx.listener(move |this, _, _, cx| {
+                                            this.set_hotkey(app, None, cx)
+                                        })),
+                                )
+                            })
+                            .child(
+                                Label::new("Works anywhere while Ferrum Launcher runs (keep it in the menu bar)")
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Muted),
+                            ),
+                    )
+                })
+                .into_any_element(),
+        )
     }
 
     fn render_header(&self, app: AppId, cx: &mut Context<Self>) -> AnyElement {

@@ -113,7 +113,9 @@ pub fn run(paths: &Paths, info: &AppInfo, rename_failed: bool) -> Outcome {
         );
     }
     let result = match &rename {
-        Rename::Bundle { from, to } => rename_bundle_and_relaunch(from, to).map(|()| Outcome::Relaunch),
+        Rename::Bundle { from, to } => {
+            rename_bundle_and_relaunch(from, to).map(|()| Outcome::Relaunch)
+        }
         Rename::Binary { from, to } => rename_binary(from, to).map(|()| Outcome::Renamed),
     };
     match result {
@@ -341,12 +343,20 @@ mod tests {
         let current = Path::new("/Applications/Ferrum Launcher.app/Contents/MacOS/ferrum-launcher");
         assert_eq!(plan(current, Platform::MacOs, &info), None);
         assert_eq!(
-            plan(Path::new("/repo/target/debug/ferrum-launcher"), Platform::MacOs, &info),
+            plan(
+                Path::new("/repo/target/debug/ferrum-launcher"),
+                Platform::MacOs,
+                &info
+            ),
             None
         );
 
-        let binary = plan(Path::new("/home/me/bin/ferrum-toolbox"), Platform::Linux, &info)
-            .expect("binary rename");
+        let binary = plan(
+            Path::new("/home/me/bin/ferrum-toolbox"),
+            Platform::Linux,
+            &info,
+        )
+        .expect("binary rename");
         assert_eq!(
             binary,
             Rename::Binary {
@@ -354,8 +364,14 @@ mod tests {
                 to: "/home/me/bin/ferrum-launcher".into(),
             }
         );
-        let windows = plan(Path::new("C:/Ferrum/ferrum-toolbox.exe"), Platform::Windows, &info);
-        assert!(matches!(windows, Some(Rename::Binary { to, .. }) if to.ends_with("ferrum-launcher.exe")));
+        let windows = plan(
+            Path::new("C:/Ferrum/ferrum-toolbox.exe"),
+            Platform::Windows,
+            &info,
+        );
+        assert!(
+            matches!(windows, Some(Rename::Binary { to, .. }) if to.ends_with("ferrum-launcher.exe"))
+        );
     }
 
     #[test]
@@ -430,7 +446,10 @@ mod tests {
         std::fs::create_dir_all(to.join("Contents")).expect("to");
         // `from` is missing, so the move fails.
         assert!(!run(rename_script(&from, &to, exited_pid())));
-        assert!(to.join("Contents").is_dir(), "the existing copy is put back");
+        assert!(
+            to.join("Contents").is_dir(),
+            "the existing copy is put back"
+        );
     }
 
     #[cfg(unix)]
@@ -442,7 +461,10 @@ mod tests {
         std::fs::write(&from, b"bin").expect("write");
         rename_binary(&from, &to).expect("rename");
         assert_eq!(std::fs::read(&to).expect("read"), b"bin");
-        assert_eq!(std::fs::read_link(&from).expect("link"), Path::new("ferrum-launcher"));
+        assert_eq!(
+            std::fs::read_link(&from).expect("link"),
+            Path::new("ferrum-launcher")
+        );
     }
 
     #[cfg(unix)]
@@ -451,16 +473,27 @@ mod tests {
         let dir = tempfile::tempdir().expect("tmp");
         let bin = dir.path().join("bin");
         let info = launcher();
-        let exe = dir.path().join("Ferrum Launcher.app/Contents/MacOS/ferrum-launcher");
+        let exe = dir
+            .path()
+            .join("Ferrum Launcher.app/Contents/MacOS/ferrum-launcher");
         assert!(!fix_cli_links(&bin, Platform::MacOs, &info, &exe).expect("no links"));
         assert!(!bin.join("ferrum-launcher").exists());
 
         std::fs::create_dir_all(&bin).expect("mkdir");
-        std::os::unix::fs::symlink("/old/Ferrum Toolbox.app/Contents/MacOS/ferrum-toolbox", bin.join("ferrum-toolbox"))
-            .expect("old link");
+        std::os::unix::fs::symlink(
+            "/old/Ferrum Toolbox.app/Contents/MacOS/ferrum-toolbox",
+            bin.join("ferrum-toolbox"),
+        )
+        .expect("old link");
         assert!(fix_cli_links(&bin, Platform::MacOs, &info, &exe).expect("fix"));
-        assert_eq!(std::fs::read_link(bin.join("ferrum-launcher")).expect("new"), exe);
-        assert_eq!(std::fs::read_link(bin.join("ferrum-toolbox")).expect("kept"), exe);
+        assert_eq!(
+            std::fs::read_link(bin.join("ferrum-launcher")).expect("new"),
+            exe
+        );
+        assert_eq!(
+            std::fs::read_link(bin.join("ferrum-toolbox")).expect("kept"),
+            exe
+        );
     }
 
     #[test]
@@ -495,6 +528,10 @@ mod tests {
             .expect("new entry");
         assert!(entry.contains("Name=Ferrum Launcher\n"));
         assert!(entry.contains(&format!("Exec=\"{}\" %U", exe.display())));
-        assert!(share.join("icons/hicolor/256x256/apps/ferrum-launcher.png").is_file());
+        assert!(
+            share
+                .join("icons/hicolor/256x256/apps/ferrum-launcher.png")
+                .is_file()
+        );
     }
 }

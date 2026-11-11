@@ -61,7 +61,11 @@ pub fn render_notice(
     let colors = cx.theme().colors();
     let status = cx.theme().status();
     let (background, border, text) = match notice.tone {
-        NoticeTone::Info => (colors.elevated_surface_background, colors.border, colors.text),
+        NoticeTone::Info => (
+            colors.elevated_surface_background,
+            colors.border,
+            colors.text,
+        ),
         NoticeTone::Error => (status.error_background, status.error_border, colors.text),
     };
     div()

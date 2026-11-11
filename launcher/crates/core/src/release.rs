@@ -391,7 +391,12 @@ mod tests {
         let tags: Vec<_> = releases.iter().map(|r| r.tag.as_str()).collect();
         assert_eq!(
             tags,
-            ["api-v0.2.0", "api-v0.3.0-beta.1", "api-v0.1.0", "forge-v1.0.0"]
+            [
+                "api-v0.2.0",
+                "api-v0.3.0-beta.1",
+                "api-v0.1.0",
+                "forge-v1.0.0"
+            ]
         );
         assert_eq!(releases[1].title, "api-v0.3.0-beta.1");
         assert!(releases[1].is_prerelease());
@@ -605,14 +610,24 @@ mod tests {
     #[test]
     fn launcher_and_bridge_releases_dedupe_to_the_canonical_tag() {
         let releases = dedupe(vec![
-            launcher_release("toolbox-v0.6.0", &["toolbox-0.6.0-aarch64-apple-darwin.app.tar.gz"]),
-            launcher_release("launcher-v0.6.0", &["launcher-0.6.0-aarch64-apple-darwin.app.tar.gz"]),
+            launcher_release(
+                "toolbox-v0.6.0",
+                &["toolbox-0.6.0-aarch64-apple-darwin.app.tar.gz"],
+            ),
+            launcher_release(
+                "launcher-v0.6.0",
+                &["launcher-0.6.0-aarch64-apple-darwin.app.tar.gz"],
+            ),
             launcher_release("toolbox-v0.5.0", &[]),
             launcher_release("launcher-v0.6.0", &[]),
         ]);
         let tags: Vec<_> = releases.iter().map(|r| r.tag.as_str()).collect();
         assert_eq!(tags, ["launcher-v0.6.0", "toolbox-v0.5.0"]);
-        assert_eq!(releases[0].assets.len(), 1, "the first canonical copy is kept");
+        assert_eq!(
+            releases[0].assets.len(),
+            1,
+            "the first canonical copy is kept"
+        );
         assert!(releases.iter().all(|r| r.app == AppId::LAUNCHER));
     }
 
@@ -625,8 +640,13 @@ mod tests {
                 "toolbox-0.6.0-aarch64-apple-darwin.app.tar.gz.sha256",
             ],
         );
-        let (archive, checksum) = bridge.assets_for("aarch64-apple-darwin").expect("bridge asset");
-        assert_eq!(archive.name, "toolbox-0.6.0-aarch64-apple-darwin.app.tar.gz");
+        let (archive, checksum) = bridge
+            .assets_for("aarch64-apple-darwin")
+            .expect("bridge asset");
+        assert_eq!(
+            archive.name,
+            "toolbox-0.6.0-aarch64-apple-darwin.app.tar.gz"
+        );
         assert!(checksum.is_some());
         assert!(!bridge.has_canonical_tag());
         let launcher = launcher_release(

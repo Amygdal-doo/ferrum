@@ -27,6 +27,8 @@ pub struct SettingsForm {
     interval: Entity<TextInput>,
     keep: Entity<TextInput>,
     clear_token: bool,
+    /// Show the launcher in the menu bar (macOS).
+    menu_bar: bool,
     token_source: Option<TokenSource>,
     error: Option<SharedString>,
     _subscriptions: Vec<Subscription>,
@@ -76,7 +78,9 @@ impl SettingsForm {
             submit(cx, &interval),
             submit(cx, &keep),
         ];
+        let menu_bar = settings.menu_bar;
         Self {
+            menu_bar,
             owner,
             repo,
             token,
@@ -132,6 +136,7 @@ impl SettingsForm {
                 repo_name: repo,
                 check_interval_hours,
                 keep_versions,
+                menu_bar: self.menu_bar,
                 ..Settings::default()
             },
             token,
@@ -221,6 +226,36 @@ impl Render for SettingsForm {
                         self.keep.clone(),
                     ))),
             )
+            .when(cfg!(target_os = "macos"), |this| {
+                this.child(
+                    v_flex()
+                        .gap_1()
+                        .child(
+                            Checkbox::new(
+                                "settings-menu-bar",
+                                if self.menu_bar {
+                                    ToggleState::Selected
+                                } else {
+                                    ToggleState::Unselected
+                                },
+                            )
+                            .label("Show Ferrum Launcher in the menu bar")
+                            .on_click(cx.listener(
+                                |this: &mut Self, state: &ToggleState, _, cx| {
+                                    this.menu_bar = state.selected();
+                                    cx.notify();
+                                },
+                            )),
+                        )
+                        .child(
+                            Label::new(
+                                "Open any app from the menu bar. Closing the window keeps the launcher running there, so app shortcuts keep working.",
+                            )
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                        ),
+                )
+            })
             .child(
                 Label::new("Update channels (Stable, Beta or Alpha) are set per app on its page.")
                     .size(LabelSize::Small)

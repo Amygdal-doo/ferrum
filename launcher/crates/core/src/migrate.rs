@@ -57,7 +57,8 @@ pub fn migrate_data_dir(legacy: &Path, data_dir: &Path) -> Result<DataMigration>
             Ok(()) => DataMigration::Moved,
             Err(e) => {
                 tracing::warn!(error = %e, "could not move the toolbox data; copying it");
-                let staging = data_dir.with_extension(format!("migrating-{}", uuid::Uuid::new_v4()));
+                let staging =
+                    data_dir.with_extension(format!("migrating-{}", uuid::Uuid::new_v4()));
                 if let Err(e) = copy_tree(legacy, &staging) {
                     remove_tree(&staging).ok();
                     return Err(e.into());
@@ -157,7 +158,9 @@ fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
         std::os::unix::fs::symlink(&target, to)?;
         #[cfg(not(unix))]
         {
-            let resolved = from.parent().map_or(target.clone(), |dir| dir.join(&target));
+            let resolved = from
+                .parent()
+                .map_or(target.clone(), |dir| dir.join(&target));
             if resolved.is_dir() {
                 copy_tree(&resolved, to)?;
             } else {
@@ -240,7 +243,8 @@ mod tests {
     fn seed_toolbox(legacy: &Path) {
         std::fs::create_dir_all(legacy.join("apps/api/0.2.0")).expect("mkdir");
         std::fs::write(legacy.join("apps/api/0.2.0/ferrumapi"), b"bin").expect("bin");
-        std::fs::create_dir_all(legacy.join("apps/toolbox/0.6.0/Ferrum Launcher.app")).expect("mkdir");
+        std::fs::create_dir_all(legacy.join("apps/toolbox/0.6.0/Ferrum Launcher.app"))
+            .expect("mkdir");
         std::fs::create_dir_all(legacy.join("downloads")).expect("mkdir");
         std::fs::write(legacy.join(STATE_FILE), TOOLBOX_STATE).expect("state");
     }
@@ -256,7 +260,12 @@ mod tests {
         assert_eq!(outcome, DataMigration::Moved);
         assert!(paths.state_file().is_file());
         assert!(paths.data_dir.join("apps/api/0.2.0/ferrumapi").is_file());
-        assert!(paths.data_dir.join("apps/launcher/0.6.0/Ferrum Launcher.app").is_dir());
+        assert!(
+            paths
+                .data_dir
+                .join("apps/launcher/0.6.0/Ferrum Launcher.app")
+                .is_dir()
+        );
         assert!(!paths.data_dir.join("apps/toolbox").exists());
         #[cfg(unix)]
         assert_eq!(std::fs::read_link(&legacy).expect("link"), paths.data_dir);
@@ -269,7 +278,11 @@ mod tests {
         assert_eq!(state.active(AppId::API), Some(&Version::new(0, 2, 0)));
         let launcher = state.app(AppId::LAUNCHER);
         assert_eq!(launcher.installed[0].version, Version::new(0, 6, 0));
-        assert!(paths.bundle_path(AppId::LAUNCHER, &Version::new(0, 6, 0)).is_some());
+        assert!(
+            paths
+                .bundle_path(AppId::LAUNCHER, &Version::new(0, 6, 0))
+                .is_some()
+        );
         assert!(state.releases.iter().any(|r| r.app == AppId::LAUNCHER));
         assert_eq!(
             state.info(AppId::LAUNCHER).bundle_name,
@@ -327,7 +340,10 @@ mod tests {
             DataMigration::NotNeeded
         );
         assert_eq!(State::load(&paths).expect("load").settings.keep_versions, 9);
-        assert!(legacy.join(STATE_FILE).is_file(), "the toolbox's data is untouched");
+        assert!(
+            legacy.join(STATE_FILE).is_file(),
+            "the toolbox's data is untouched"
+        );
         assert!(legacy.join("apps/api/0.2.0/ferrumapi").is_file());
     }
 
@@ -361,12 +377,17 @@ mod tests {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755)).expect("chmod");
-            std::os::unix::fs::symlink("App.app/Contents/MacOS/app", from.join("app")).expect("link");
+            std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod");
+            std::os::unix::fs::symlink("App.app/Contents/MacOS/app", from.join("app"))
+                .expect("link");
         }
         let to = dir.path().join("to");
         copy_tree(&from, &to).expect("copy");
-        assert_eq!(std::fs::read(to.join("App.app/Contents/MacOS/app")).expect("read"), b"bin");
+        assert_eq!(
+            std::fs::read(to.join("App.app/Contents/MacOS/app")).expect("read"),
+            b"bin"
+        );
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

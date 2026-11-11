@@ -81,6 +81,17 @@ impl Block {
         for (k, v) in &spec.env {
             cmd.env(k, v);
         }
+        // Shell commands from Ferrum Launcher (`fee`, `feg`, …) work in
+        // every FerrumTerm block, even before the shell profile adds them.
+        if let Some(path) = with_ferrum_bin(
+            spec.env
+                .iter()
+                .find(|(k, _)| k == "PATH")
+                .map(|(_, v)| v.clone())
+                .or_else(|| std::env::var("PATH").ok()),
+        ) {
+            cmd.env("PATH", path);
+        }
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
         cmd.env("TERM_PROGRAM", "FerrumTerm");
@@ -209,4 +220,22 @@ impl Block {
     pub fn title(&self) -> String {
         lock(&self.term).title().to_owned()
     }
+}
+
+/// `path` with `~/.ferrum/bin` (Ferrum Launcher's commands) in front,
+/// unless it is already there.
+fn with_ferrum_bin(path: Option<String>) -> Option<String> {
+    let home = std::env::var_os("HOME")?;
+    let bin = std::path::Path::new(&home).join(".ferrum").join("bin");
+    let mut dirs: Vec<std::path::PathBuf> = path
+        .as_deref()
+        .map(|p| std::env::split_paths(p).collect())
+        .unwrap_or_default();
+    if dirs.contains(&bin) {
+        return path;
+    }
+    dirs.insert(0, bin);
+    std::env::join_paths(dirs)
+        .ok()
+        .map(|p| p.to_string_lossy().to_string())
 }

@@ -1,6 +1,6 @@
-//! App logos: the catalog's `logo` PNG once downloaded (cached under the
-//! data directory), else the brand logo compiled in for the built-in apps
-//! (`brand/png`), else the app's icon.
+//! App logos: the brand logo compiled in for the built-in apps
+//! (`brand/png`), else the catalog's `logo` PNG once downloaded (cached
+//! under the data directory), else the app's icon.
 
 use super::icon_for;
 use crate::app::FerrumLauncher;
@@ -54,11 +54,9 @@ impl FerrumLauncher {
     /// The app's logo at `size`, falling back to its icon.
     pub fn logo(&self, app: AppId, size: Pixels) -> impl IntoElement + use<> {
         let icon = icon_for(&self.state.info(app).icon);
-        let source = self
-            .logos
-            .get(&app)
-            .cloned()
-            .or_else(|| builtin_logo(app, size));
+        // Built-in apps use the logo compiled into this launcher, so a cached
+        // download never shows an old mark (it showed FeX after the rename).
+        let source = builtin_logo(app, size).or_else(|| self.logos.get(&app).cloned());
         div()
             .flex_none()
             .size(size)
@@ -87,7 +85,9 @@ impl FerrumLauncher {
             .catalog()
             .apps()
             .into_iter()
-            .filter(|info| info.logo.is_some() && !self.logos.contains_key(&info.id))
+            .filter(|info| {
+                info.logo.is_some() && !info.id.is_builtin() && !self.logos.contains_key(&info.id)
+            })
             .collect();
         if apps.is_empty() {
             return;

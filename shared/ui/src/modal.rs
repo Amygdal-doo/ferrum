@@ -82,7 +82,9 @@ impl RenderOnce for Modal {
             .occlude()
             .when_some(
                 on_dismiss.clone().filter(|_| self.dismiss_on_backdrop),
-                |this, on_dismiss| this.on_click(move |event, window, cx| on_dismiss(event, window, cx)),
+                |this, on_dismiss| {
+                    this.on_click(move |event, window, cx| on_dismiss(event, window, cx))
+                },
             )
             .child(
                 v_flex()

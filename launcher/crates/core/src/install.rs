@@ -1,7 +1,7 @@
 //! Verifying and unpacking release archives into the version store.
 
 use crate::platform::ArchiveKind;
-use crate::{Result, LauncherError};
+use crate::{LauncherError, Result};
 use flate2::read::GzDecoder;
 use std::fs::File;
 use std::path::{Component, Path, PathBuf};
@@ -102,7 +102,9 @@ fn extract(archive: &Path, into: &Path) -> Result<()> {
         let mut entry = entry?;
         let path: PathBuf = entry.path()?.into_owned();
         if !is_safe_relative(&path) {
-            return Err(LauncherError::UnsafeArchiveEntry(path.display().to_string()));
+            return Err(LauncherError::UnsafeArchiveEntry(
+                path.display().to_string(),
+            ));
         }
         let kind = entry.header().entry_type();
         if (kind.is_symlink() || kind.is_hard_link())
@@ -121,7 +123,9 @@ fn extract(archive: &Path, into: &Path) -> Result<()> {
             }
         }
         if !entry.unpack_in(into)? {
-            return Err(LauncherError::UnsafeArchiveEntry(path.display().to_string()));
+            return Err(LauncherError::UnsafeArchiveEntry(
+                path.display().to_string(),
+            ));
         }
     }
     Ok(())
@@ -444,7 +448,11 @@ pub(crate) mod tests {
         make_archive(
             &source,
             &[
-                ("Ferrum Launcher.app/Contents/Info.plist", b"<plist/>", 0o644),
+                (
+                    "Ferrum Launcher.app/Contents/Info.plist",
+                    b"<plist/>",
+                    0o644,
+                ),
                 (
                     "Ferrum Launcher.app/Contents/MacOS/ferrum-launcher",
                     b"#!/bin/sh\n",
@@ -452,7 +460,8 @@ pub(crate) mod tests {
                 ),
             ],
         );
-        let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../scripts/package-bridge.sh");
+        let script =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../scripts/package-bridge.sh");
         let out = dir.path().join("bridge");
         let status = std::process::Command::new("bash")
             .arg(&script)
@@ -470,7 +479,11 @@ pub(crate) mod tests {
         let checksum = std::fs::read_to_string(bridge.with_extension("gz.sha256")).expect("sha256");
         let actual = crate::github::to_hex(&Sha256::digest(std::fs::read(&bridge).expect("read")));
         verify_checksum("bridge", &checksum, &actual).expect("checksum matches");
-        assert!(checksum.trim_end().ends_with(&format!("toolbox-0.6.0-{target}.app.tar.gz")));
+        assert!(
+            checksum
+                .trim_end()
+                .ends_with(&format!("toolbox-0.6.0-{target}.app.tar.gz"))
+        );
 
         let toolbox_dir = dir.path().join("apps/toolbox/0.6.0");
         install_archive(&bridge, ArchiveKind::TarGz, &toolbox_dir, "ferrum-toolbox")
@@ -481,7 +494,12 @@ pub(crate) mod tests {
 
         // The launcher installs the same archive under its own binary name.
         let launcher_dir = dir.path().join("apps/launcher/0.6.0");
-        install_archive(&bridge, ArchiveKind::TarGz, &launcher_dir, "ferrum-launcher")
-            .expect("the launcher accepts it too");
+        install_archive(
+            &bridge,
+            ArchiveKind::TarGz,
+            &launcher_dir,
+            "ferrum-launcher",
+        )
+        .expect("the launcher accepts it too");
     }
 }
