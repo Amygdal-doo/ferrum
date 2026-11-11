@@ -6,14 +6,14 @@ INK = "#f1e9df"
 DARK = "#16130f"
 APPS = {
     # name: (symbol letter after "Fe", accent, glyph). The core mark is plain "Fe";
-    # every app is "Fe" + a capital in its accent: FeA, FeG, FeD, FeT, FeX,
+    # every app is "Fe" + a capital in its accent: FeA, FeG, FeD, FeT, FeL,
     # FeK (Kit), FeC (Dock: containers) and FeE (Editor).
     "ferrum":  ("e", "#E8743B", None),
     "api":     ("A", "#3FB8A0", "arrows"),
     "git":     ("G", "#F0B43C", "branch"),
     "data":    ("D", "#A07CF0", "cylinder"),
     "term":    ("T", "#7CC85A", "prompt"),
-    "launcher": ("X", "#E85A7E", "grid"),
+    "launcher": ("L", "#E85A7E", "grid"),
     "kit":     ("K", "#D46BE0", "sliders"),
     "dock":    ("C", "#38BDF8", "containers"),
     "editor":  ("E", "#C5DC3A", "caret"),
@@ -56,6 +56,7 @@ CAPITALS = {
     "D": (["M0 390 V730", "M0 390 H70 A130 170 0 0 1 70 730 H0"], 0, 200),
     "T": (["M-10 390 H210", "M100 390 V730"], -10, 210),
     "X": (["M0 390 L200 730", "M200 390 L0 730"], 0, 200),
+    "L": (["M0 390 V730 H180"], 0, 180),
     "K": (["M0 390 V730", "M195 390 L0 600", "M70 525 L205 730"], 0, 205),
     "C": (["M195 455 A105 170 0 1 0 195 665"], 5, 200),
     "E": (["M190 390 H0 V730 H190", "M0 560 H160"], 0, 190),
