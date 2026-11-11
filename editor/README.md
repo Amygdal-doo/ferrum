@@ -55,8 +55,8 @@ link detection, find in scrollback, split terminals, per-terminal font settings;
 styles (bold / italic) and semantic token colours are not imported; icon SVGs are single-colour
 masks (multi-colour icons are flattened to one tint).
 Language servers: rename, find references, code actions / quick fixes, formatting, signature
-help, inlay hints, semantic highlighting, workspace symbols, incremental document sync, and
-installing servers for you (install them yourself; the status bar says which one is missing).
+help, inlay hints, semantic highlighting, workspace symbols, incremental document sync;
+updating installed servers (Language Server: Install reinstalls the latest).
 Incremental tree-sitter reparsing (every edit reparses the whole file in the background);
 multiple windows; packages/plugins (a `Package` trait and command registry seam exist);
 cursor blinking; minimap; code folding; encodings other than UTF-8; editing files
@@ -160,6 +160,8 @@ Ctrl+Shift off macOS) — Ctrl+G, Ctrl+Tab, Alt+Z, Escape… — go to the shell
 | `tasks:rerun-last` | — | window |
 | `problems:show` | `ctrl-shift-m` | window |
 | `language-server:restart` | — | window |
+| `language-server:install` | — | window |
+| `language-server:show-install-log` | — | window |
 | `navigation:back` | `ctrl--` | window |
 | `navigation:forward` | `ctrl-shift--` | window |
 | `terminal:toggle` | `` ctrl-` `` | window |
@@ -254,26 +256,34 @@ Ctrl+Shift off macOS) — Ctrl+G, Ctrl+Tab, Alt+Z, Escape… — go to the shell
 
 ## Language servers
 Completions, problems and go to definition come from the language server for the file's
-language. Ferrum Editor doesn't ship or install servers: install the ones you use and they are
-picked up from your login shell's `PATH` (plus `~/.cargo/bin`, `~/go/bin`, `/opt/homebrew/bin`
-and similar):
+language. You don't need to install anything: the first time you open a Rust, Go, TypeScript /
+JavaScript (or Python, JSON, CSS, HTML, YAML, TOML, shell) file without its server, Ferrum
+Editor installs it into `~/.ferrum/editor/servers/` and starts it; the status bar shows
+`Installing …` meanwhile. A server you installed yourself (on your login shell's `PATH`, or
+in the project's `node_modules/.bin`) is used instead.
 
-| Id | Languages | Default program | Install |
-|----|-----------|-----------------|---------|
-| `rust` | Rust | `rust-analyzer` | `rustup component add rust-analyzer` |
-| `typescript` | JavaScript, TypeScript, TSX | `typescript-language-server --stdio` | `npm install -g typescript typescript-language-server` |
-| `python` | Python | `pyright-langserver --stdio`, else `basedpyright-langserver`, else `pylsp` | `npm install -g pyright` |
+| Id | Languages | Program | How Ferrum Editor installs it |
+|----|-----------|---------|-------------------------------|
+| `rust` | Rust | `rust-analyzer` | `rustup component add rust-analyzer`, or the official GitHub release without rustup |
+| `typescript` | JavaScript, TypeScript, TSX | `typescript-language-server --stdio` | npm: `typescript`, `typescript-language-server` |
 | `go` | Go | `gopls` | `go install golang.org/x/tools/gopls@latest` |
-| `json` / `css` / `html` | JSON, CSS, HTML | `vscode-*-language-server --stdio` | `npm install -g vscode-langservers-extracted` |
-| `toml` | TOML | `taplo lsp stdio` | `cargo install taplo-cli --locked --features lsp` |
-| `yaml` | YAML | `yaml-language-server --stdio` | `npm install -g yaml-language-server` |
-| `shell` | Shell | `bash-language-server start` | `npm install -g bash-language-server` |
+| `python` | Python | `pyright-langserver --stdio` (or `basedpyright`, `pylsp` if you have them) | npm: `pyright` |
+| `json` / `css` / `html` | JSON, CSS, HTML | `vscode-*-language-server --stdio` | npm: `vscode-langservers-extracted` |
+| `yaml` | YAML | `yaml-language-server --stdio` | npm: `yaml-language-server` |
+| `shell` | Shell | `bash-language-server start` | npm: `bash-language-server` |
+| `toml` | TOML | `taplo lsp stdio` | the official GitHub release |
+
+npm servers need Node.js and gopls needs Go: when you don't have them, the latest Node.js LTS
+(nodejs.org) or Go (go.dev) is downloaded into `servers/` as well, and used only after its
+SHA-256 matches the published one. Each install writes `servers/logs/<id>.log`; if one fails,
+the status bar says so and a click opens the log (*Language Server: Show Install Log*).
+*Language Server: Install* tries again; `auto_install = false` under `[lsp]` turns automatic
+installs off.
 
 A server starts in the open folder (or, for files outside it, the nearest folder with a root
 marker such as `Cargo.toml` or `package.json`) the first time you open one of its files. The
-status bar shows its state (`rust-analyzer`, its indexing progress, `No Rust server` with the
-install command on click, or `stopped`). After installing one, run *Language Server: Restart*.
-Override a server, or turn one off, in `config.toml`:
+status bar shows its state (`rust-analyzer`, its indexing progress, `Installing …`, or
+`stopped`, which restarts on click). Override a server, or turn one off, in `config.toml`:
 
 ```toml
 autocomplete = true          # menu while typing; Ctrl+Space always asks

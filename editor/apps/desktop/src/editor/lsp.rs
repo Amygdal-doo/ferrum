@@ -132,6 +132,12 @@ impl EditorView {
             LspEvent::Diagnostics(path) if self.path.as_ref() == Some(path) => {
                 self.refresh_diagnostics(cx);
             }
+            LspEvent::Installed(id)
+                if self.lsp.doc.is_none()
+                    && servers::server_for(self.state.language).is_some_and(|d| d.id == *id) =>
+            {
+                self.attach_lsp(cx);
+            }
             LspEvent::Restarted => {
                 // The old server is gone; don't send it didClose.
                 self.lsp.doc = None;
@@ -262,9 +268,15 @@ impl EditorView {
         let status = LspStore::global(cx)
             .and_then(|store| store.read(cx).status_for(self.server_id(), language));
         match status {
-            Some(ServerStatus::Missing { language, install }) => {
-                format!("No {language} language server found. Install it with: {install}")
+            Some(ServerStatus::Missing { language, .. }) => format!(
+                "No {language} language server yet: run \"Language Server: Install\" (or turn on [lsp] auto_install)"
+            ),
+            Some(ServerStatus::Installing { what }) => {
+                format!("Installing {what}… it starts by itself when done")
             }
+            Some(ServerStatus::InstallFailed { language, error }) => format!(
+                "Installing the {language} server failed: {error}. \"Language Server: Show Install Log\" has details."
+            ),
             Some(ServerStatus::Stopped { name, message }) => {
                 format!("{name} stopped: {message}. Run \"Language Server: Restart\".")
             }

@@ -26,6 +26,10 @@ pub enum LspEvent {
     Status,
     /// Servers were restarted: editors attach again.
     Restarted,
+    /// A server was installed (by its id): its files can attach now.
+    Installed(&'static str),
+    /// A message for the window's notice.
+    Notice { message: String, error: bool },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,6 +73,13 @@ pub enum ServerStatus {
         language: String,
         install: String,
     },
+    Installing {
+        what: String,
+    },
+    InstallFailed {
+        language: String,
+        error: String,
+    },
 }
 
 pub struct LspStore {
@@ -81,6 +92,14 @@ pub struct LspStore {
     /// Problems from the last task's output (cargo, tsc, go…).
     build: BTreeMap<PathBuf, Arc<Vec<Diagnostic>>>,
     path_env: Shared<Task<String>>,
+    /// Where servers are installed (none in tests without a home).
+    servers_dir: Option<PathBuf>,
+    /// Installs running, by server id: what is being installed.
+    installing: HashMap<&'static str, String>,
+    /// Installs tried this session (each runs once unless asked again).
+    install_tried: std::collections::HashSet<&'static str>,
+    install_failed: HashMap<&'static str, String>,
+    install_tasks: Vec<Task<()>>,
 }
 
 impl EventEmitter<LspEvent> for LspStore {}
@@ -95,18 +114,34 @@ impl LspStore {
         let path_env = cx
             .background_executor()
             .spawn(async { servers::search_path(servers::login_shell_path().as_deref()) });
-        Self::with_path_env(path_env)
+        let servers_dir = cx
+            .global::<Settings>()
+            .files
+            .as_ref()
+            .map(|f| f.servers_dir.clone());
+        Self::with_path_env(path_env, servers_dir)
     }
 
     /// A store that runs servers with `path_env` as PATH (tests).
     #[cfg(test)]
     pub fn with_path(path_env: String) -> Self {
-        Self::with_path_env(Task::ready(path_env))
+        Self::with_path_env(Task::ready(path_env), None)
     }
 
-    fn with_path_env(path_env: Task<String>) -> Self {
+    /// Like [`Self::with_path`], installing servers into `servers_dir`.
+    #[cfg(test)]
+    pub fn with_install_dir(path_env: String, servers_dir: PathBuf) -> Self {
+        Self::with_path_env(Task::ready(path_env), Some(servers_dir))
+    }
+
+    fn with_path_env(path_env: Task<String>, servers_dir: Option<PathBuf>) -> Self {
         let path_env = path_env.shared();
         Self {
+            servers_dir,
+            installing: HashMap::new(),
+            install_tried: std::collections::HashSet::new(),
+            install_failed: HashMap::new(),
+            install_tasks: Vec::new(),
             project: None,
             servers: Vec::new(),
             next_id: 1,
@@ -176,13 +211,20 @@ impl LspStore {
         }
         let config = cx.global::<Settings>().config.lsp.clone();
         let root = servers::root_for(def, path, self.project.as_deref());
-        let path_env = &servers::with_project_bins(path_env, &root, path);
+        let managed = match &self.servers_dir {
+            Some(dir) => ferrumeditor_core::lsp::install::with_managed(path_env, dir),
+            None => path_env.to_string(),
+        };
+        let path_env = &servers::with_project_bins(&managed, &root, path);
         let (program, args) = match servers::resolve(def, &config, path_env) {
             Resolved::Found { program, args } => (program, args),
             Resolved::Disabled => return None,
             Resolved::Missing { tried } => {
                 if self.missing.insert(def.id, tried).is_none() {
                     cx.emit(LspEvent::Status);
+                }
+                if config.auto_install {
+                    self.install(def, false, cx);
                 }
                 return None;
             }
@@ -251,9 +293,11 @@ impl LspStore {
             ServerEvent::Stopped { message } => {
                 let never_ready = server.state == ServerState::Starting;
                 // A rustup proxy without the component exits at once.
-                if never_ready && message.contains("Unknown binary") {
+                let def = server.def;
+                let unknown_binary = never_ready && message.contains("Unknown binary");
+                if unknown_binary {
                     self.missing
-                        .insert(server.def.id, vec![server.client.name().to_string()]);
+                        .insert(def.id, vec![server.client.name().to_string()]);
                 }
                 server.state = ServerState::Stopped(if message.is_empty() {
                     "it exited".to_string()
@@ -262,6 +306,9 @@ impl LspStore {
                 });
                 server.progress.clear();
                 cx.emit(LspEvent::Status);
+                if unknown_binary && cx.global::<Settings>().config.lsp.auto_install {
+                    self.install(def, false, cx);
+                }
             }
             ServerEvent::Notification { method, params } => match method.as_str() {
                 "textDocument/publishDiagnostics" => {
@@ -284,6 +331,93 @@ impl LspStore {
                 _ => {}
             },
         }
+    }
+
+    /// Installs `def`'s server in the background; files of its languages
+    /// attach when it is done. Runs once per session unless `again`.
+    pub fn install(&mut self, def: &'static ServerDef, again: bool, cx: &mut Context<Self>) {
+        use ferrumeditor_core::lsp::install;
+        let Some(servers_dir) = self.servers_dir.clone() else {
+            return;
+        };
+        if self.installing.contains_key(def.id)
+            || !install::can_install(def)
+            || (!again && self.install_tried.contains(def.id))
+        {
+            return;
+        }
+        self.install_tried.insert(def.id);
+        self.install_failed.remove(def.id);
+        let path_env = self.path_env.clone();
+        let log_path = Self::install_log(&servers_dir, def.id);
+        self.installing.insert(
+            def.id,
+            def.commands.first().map_or(def.id, |c| c.0).to_string(),
+        );
+        cx.emit(LspEvent::Status);
+        let task = cx.spawn(async move |this, cx| {
+            let path_env = path_env.await;
+            let what = install::describe(def, &path_env);
+            this.update(cx, |this, cx| {
+                this.installing.insert(def.id, what.clone());
+                cx.emit(LspEvent::Status);
+            })
+            .ok();
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    std::fs::create_dir_all(&servers_dir).map_err(|e| e.to_string())?;
+                    if let Some(parent) = log_path.parent() {
+                        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                    }
+                    let mut log = std::fs::File::create(&log_path).map_err(|e| e.to_string())?;
+                    install::Installer {
+                        servers: servers_dir,
+                        path_env,
+                        log: &mut log,
+                    }
+                    .install(def)
+                })
+                .await;
+            this.update(cx, |this, cx| {
+                this.installing.remove(def.id);
+                match result {
+                    Ok(()) => {
+                        this.missing.remove(def.id);
+                        cx.emit(LspEvent::Notice {
+                            message: format!(
+                                "Installed {what}: completions, problems and go to definition are on"
+                            ),
+                            error: false,
+                        });
+                        cx.emit(LspEvent::Installed(def.id));
+                    }
+                    Err(error) => {
+                        this.install_failed.insert(def.id, error.clone());
+                        cx.emit(LspEvent::Notice {
+                            message: format!(
+                                "Could not install {what}: {error}. Run \"Language Server: Show Install Log\" for details."
+                            ),
+                            error: true,
+                        });
+                    }
+                }
+                cx.emit(LspEvent::Status);
+            })
+            .ok();
+        });
+        self.install_tasks.push(task);
+    }
+
+    fn install_log(servers_dir: &Path, id: &str) -> PathBuf {
+        servers_dir.join("logs").join(format!("{id}.log"))
+    }
+
+    /// The install log of the server for `language`.
+    pub fn install_log_for(&self, language: Language) -> Option<PathBuf> {
+        let def = servers::server_for(language)?;
+        let path = Self::install_log(self.servers_dir.as_deref()?, def.id);
+        path.is_file().then_some(path)
     }
 
     /// Stops every server; open editors attach again.
@@ -387,6 +521,17 @@ impl LspStore {
     /// Status of the server that handles `path` in `language`.
     pub fn status_for(&self, server_id: Option<u64>, language: Language) -> Option<ServerStatus> {
         let def = servers::server_for(language)?;
+        if let Some(what) = self.installing.get(def.id) {
+            return Some(ServerStatus::Installing { what: what.clone() });
+        }
+        if let Some(error) = self.install_failed.get(def.id)
+            && self.missing.contains_key(def.id)
+        {
+            return Some(ServerStatus::InstallFailed {
+                language: language.name().to_string(),
+                error: error.clone(),
+            });
+        }
         if let Some(server) = server_id.and_then(|id| self.servers.iter().find(|s| s.id == id)) {
             let name = server.client.name().to_string();
             return Some(match &server.state {

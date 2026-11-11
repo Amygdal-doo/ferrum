@@ -110,7 +110,9 @@ impl Workspace {
         // Problem counts and server state live in the status bar.
         if let Some(store) = crate::lsp_store::LspStore::global(cx) {
             subscriptions.push(cx.observe(&store, |_, _, cx| cx.notify()));
-            subscriptions.push(cx.subscribe(&store, |_, _, _, cx| cx.notify()));
+            subscriptions.push(cx.subscribe(&store, |this, _, event, cx| {
+                this.on_lsp_store_event(event, cx)
+            }));
         }
         let mut this = Self {
             focus_handle: cx.focus_handle(),

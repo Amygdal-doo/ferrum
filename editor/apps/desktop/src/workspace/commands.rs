@@ -159,6 +159,12 @@ pub(super) fn builtin_registry() -> CommandRegistry {
     r.register("problems:show", |w, window, cx| {
         w.toggle_picker(PickerKind::Problems, window, cx)
     });
+    r.register("language-server:install", |w, _, cx| {
+        w.install_language_server(cx)
+    });
+    r.register("language-server:show-install-log", |w, window, cx| {
+        w.show_install_log(window, cx)
+    });
     r.register("language-server:restart", |w, _, cx| {
         w.restart_language_servers(cx)
     });

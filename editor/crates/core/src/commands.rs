@@ -142,6 +142,8 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     // Language servers
     ("problems:show", W, &["ctrl-shift-m"]),
     ("language-server:restart", W, &[]),
+    ("language-server:install", W, &[]),
+    ("language-server:show-install-log", W, &[]),
     ("navigation:back", W, &["ctrl--"]),
     ("navigation:forward", W, &["ctrl-shift--"]),
     // Integrated terminal (copy / paste become Ctrl+Shift+C / V off macOS)

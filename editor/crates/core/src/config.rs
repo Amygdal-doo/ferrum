@@ -49,6 +49,8 @@ pub struct Config {
 #[serde(default)]
 pub struct LspConfig {
     pub enabled: bool,
+    /// Install a missing server when a file needs it.
+    pub auto_install: bool,
     #[serde(flatten)]
     pub servers: BTreeMap<String, LspServerConfig>,
 }
@@ -57,6 +59,7 @@ impl Default for LspConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            auto_install: true,
             servers: BTreeMap::new(),
         }
     }
@@ -253,14 +256,14 @@ soft_tabs = false
 tab_size = 2
 
 # Language servers give completions, problems (errors and warnings) and go
-# to definition (F12 or Cmd+click). Install the ones you need, e.g.
-#   rust-analyzer: rustup component add rust-analyzer
-#   TypeScript/JS: npm install -g typescript typescript-language-server
-#   Python:        npm install -g pyright
-#   Go:            go install golang.org/x/tools/gopls@latest
+# to definition (F12 or Cmd+click). A missing one is installed the first time
+# you open a file that needs it (into servers/ next to this file; Node.js or Go
+# are downloaded too when you don't have them). Servers you installed yourself
+# are used first.
 # Server ids: rust typescript python go json css html toml yaml shell.
 [lsp]
 enabled = true
+auto_install = true
 
 # [lsp.python]
 # command = "pylsp"          # program on PATH, or a full path

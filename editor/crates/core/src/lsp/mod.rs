@@ -4,6 +4,7 @@
 //! servers and turns their answers into completions, diagnostics and jumps.
 
 pub mod client;
+pub mod install;
 pub mod position;
 pub mod servers;
 pub mod transport;

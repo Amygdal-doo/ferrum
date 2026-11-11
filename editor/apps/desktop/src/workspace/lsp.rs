@@ -221,6 +221,56 @@ impl Workspace {
         LspStore::global(cx).map_or_else(Vec::new, |store| self.problem_items_from(store.read(cx)))
     }
 
+    /// Installs the server for the active file's language (again, if an
+    /// earlier try failed).
+    pub(super) fn install_language_server(&mut self, cx: &mut Context<Self>) {
+        let Some(store) = LspStore::global(cx) else {
+            return;
+        };
+        let Some(language) = self.active_editor().map(|e| e.read(cx).language()) else {
+            self.info("Open a file to install its language server", cx);
+            return;
+        };
+        let Some(def) = ferrumeditor_core::lsp::servers::server_for(language) else {
+            self.info(
+                format!("There is no language server for {}", language.name()),
+                cx,
+            );
+            return;
+        };
+        store.update(cx, |store, cx| store.install(def, true, cx));
+    }
+
+    pub(super) fn show_install_log(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let log = LspStore::global(cx)
+            .zip(self.active_editor())
+            .and_then(|(store, editor)| {
+                let language = editor.read(cx).language();
+                store.read(cx).install_log_for(language)
+            });
+        match log {
+            Some(path) => {
+                self.open_file(&path, window, cx);
+            }
+            None => self.info("No install log for this file's language server", cx),
+        }
+    }
+
+    pub(super) fn on_lsp_store_event(
+        &mut self,
+        event: &crate::lsp_store::LspEvent,
+        cx: &mut Context<Self>,
+    ) {
+        if let crate::lsp_store::LspEvent::Notice { message, error } = event {
+            if *error {
+                self.error(message.clone(), cx);
+            } else {
+                self.info(message.clone(), cx);
+            }
+        }
+        cx.notify();
+    }
+
     pub(super) fn restart_language_servers(&mut self, cx: &mut Context<Self>) {
         match LspStore::global(cx) {
             Some(store) => {
@@ -280,29 +330,55 @@ impl Workspace {
         let Some(status) = status else {
             return out;
         };
-        let (text, color, detail): (String, Color, Option<String>) = match status {
-            ServerStatus::Starting(name) => (format!("{name}…"), Color::Muted, None),
+        /// What clicking the server label does.
+        enum Click {
+            Nothing,
+            Info(String),
+            Install,
+            ShowLog,
+            Restart,
+        }
+        let (text, color, click, tip): (String, Color, Click, &str) = match status {
+            ServerStatus::Starting(name) => (format!("{name}…"), Color::Muted, Click::Nothing, ""),
             ServerStatus::Ready { name, progress } => {
-                (progress.unwrap_or(name), Color::Muted, None)
+                (progress.unwrap_or(name), Color::Muted, Click::Nothing, "")
             }
             ServerStatus::Stopped { name, message } => (
                 format!("{name} stopped"),
                 Color::Error,
-                Some(format!(
-                    "{name} stopped: {message}. Run \"Language Server: Restart\" to start it again."
-                )),
+                Click::Restart,
+                if message.is_empty() {
+                    "Restart"
+                } else {
+                    "Click to restart"
+                },
             ),
-            ServerStatus::Missing { language, install } => (
-                format!("No {language} server"),
+            ServerStatus::Missing { language, .. } => (
+                format!("Install {language} server"),
+                Color::Accent,
+                Click::Install,
+                "Install the language server for completions, problems and go to definition",
+            ),
+            ServerStatus::Installing { what } => (
+                format!("Installing {what}…"),
                 Color::Muted,
-                Some(format!(
-                    "Install a {language} language server for completions, problems and go to definition: {install}. Then run \"Language Server: Restart\"."
-                )),
+                Click::Info(format!("Installing {what}; it starts by itself when done")),
+                "",
+            ),
+            ServerStatus::InstallFailed { language, error } => (
+                format!("{language} server install failed"),
+                Color::Error,
+                Click::ShowLog,
+                if error.is_empty() {
+                    ""
+                } else {
+                    "Click for the install log"
+                },
             ),
         };
         let mut label = div()
             .id("lsp-status")
-            .max_w(px(260.))
+            .max_w(px(280.))
             .overflow_hidden()
             .child(
                 Label::new(text)
@@ -310,10 +386,37 @@ impl Workspace {
                     .color(color)
                     .truncate(),
             );
-        if let Some(detail) = detail {
-            label = label
-                .cursor_pointer()
-                .on_click(cx.listener(move |this, _, _, cx| this.info(detail.clone(), cx)));
+        if !tip.is_empty() {
+            label = label.tooltip(Tooltip::text(tip.to_string()));
+        }
+        match click {
+            Click::Nothing => {}
+            Click::Info(message) => {
+                label = label
+                    .cursor_pointer()
+                    .on_click(cx.listener(move |this, _, _, cx| this.info(message.clone(), cx)));
+            }
+            Click::Install => {
+                label = label
+                    .cursor_pointer()
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.run_command("language-server:install", window, cx)
+                    }));
+            }
+            Click::ShowLog => {
+                label = label
+                    .cursor_pointer()
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.run_command("language-server:show-install-log", window, cx)
+                    }));
+            }
+            Click::Restart => {
+                label = label
+                    .cursor_pointer()
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.run_command("language-server:restart", window, cx)
+                    }));
+            }
         }
         out.push(label.into_any_element());
         out

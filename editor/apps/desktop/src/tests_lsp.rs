@@ -362,3 +362,70 @@ fn build_task_runs_in_the_terminal_and_reports_problems(cx: &mut TestAppContext)
     );
     editor.read_with(cx, |e, _| assert!(e.lsp.diagnostics.is_empty()));
 }
+
+#[gpui::test]
+fn missing_server_is_installed_and_started(cx: &mut TestAppContext) {
+    if !has_python() {
+        eprintln!("skipping: python3 is not installed");
+        return;
+    }
+    cx.executor().allow_parking();
+    init(cx);
+    let dir = tempfile::tempdir().expect("tempdir");
+    let root = dir.path().canonicalize().expect("canonical");
+    let server = write_server(&root);
+    let tools = root.join("tools");
+    std::fs::create_dir_all(&tools).expect("mkdir");
+    // A stand-in npm: "installs" typescript-language-server as a script
+    // that runs the scripted server.
+    let npm = tools.join("npm");
+    std::fs::write(
+        &npm,
+        format!(
+            "#!/bin/sh\nprefix=\"$3\"\nmkdir -p \"$prefix/node_modules/.bin\"\nprintf '#!/bin/sh\\nexec python3 {}\\n' > \"$prefix/node_modules/.bin/typescript-language-server\"\nchmod +x \"$prefix/node_modules/.bin/typescript-language-server\"\necho installed\n",
+            server.display()
+        ),
+    )
+    .expect("write npm");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&npm, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+    }
+    let file = root.join("app.ts");
+    std::fs::write(&file, "const x = bad;\n").expect("write");
+    let servers_dir = root.join("servers");
+    let path_env = format!(
+        "{}:{}",
+        tools.display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    // Only the stand-in npm may be found, not a real one on this machine.
+    let path_env = std::env::split_paths(&path_env)
+        .filter(|d| {
+            *d == tools || !d.join("npm").exists() && !d.join("typescript-language-server").exists()
+        })
+        .map(|d| d.display().to_string())
+        .collect::<Vec<_>>()
+        .join(":");
+    cx.update(|cx| {
+        let store = cx.new(|_| LspStore::with_install_dir(path_env, servers_dir.clone()));
+        cx.set_global(GlobalLsp(store));
+    });
+    let (workspace, cx) = cx.add_window_view(Workspace::new);
+    workspace.update_in(cx, |w, window, cx| {
+        w.set_root(root.clone(), window, cx);
+        w.open_file(&file, window, cx);
+    });
+    let editor = active(&workspace, cx);
+    wait_until(cx, "install, start and diagnostics", |cx| {
+        editor.read_with(cx, |e, _| !e.lsp.diagnostics.is_empty())
+    });
+    assert!(
+        servers_dir
+            .join("typescript-language-server/node_modules/.bin/typescript-language-server")
+            .is_file()
+    );
+    assert!(servers_dir.join("logs/typescript.log").is_file());
+    editor.read_with(cx, |e, _| assert!(e.has_language_server()));
+}

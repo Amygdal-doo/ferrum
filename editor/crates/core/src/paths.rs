@@ -22,6 +22,8 @@ pub struct UserFiles {
     pub themes_dir: PathBuf,
     /// Icon themes, one folder each with a `theme.toml`.
     pub icon_themes_dir: PathBuf,
+    /// Language servers (and Node.js / Go) installed by the editor.
+    pub servers_dir: PathBuf,
 }
 
 impl UserFiles {
@@ -35,6 +37,7 @@ impl UserFiles {
             session: dir.join("session.json"),
             themes_dir: dir.join("themes"),
             icon_themes_dir: dir.join("icon-themes"),
+            servers_dir: dir.join("servers"),
             dir,
         }
     }
