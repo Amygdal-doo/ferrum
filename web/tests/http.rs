@@ -45,7 +45,7 @@ async fn send(req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 12] = [
+const PAGES: [&str; 13] = [
     "/",
     "/features",
     "/ferrum-ide",
@@ -55,6 +55,7 @@ const PAGES: [&str; 12] = [
     "/ferrumterm",
     "/ferrumkit",
     "/ferrumdock",
+    "/ferrum-editor",
     "/ferrum-launcher",
     "/download",
     "/about",

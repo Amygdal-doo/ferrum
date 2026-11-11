@@ -1,0 +1,31 @@
+[package]
+name = "ferrumeditor-desktop"
+description = "Ferrum Editor — a small, hackable text editor. GPUI desktop shell."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "ferrumeditor"
+path = "src/main.rs"
+
+[dependencies]
+ferrumeditor-core.workspace = true
+ferrum-ui.workspace = true
+gpui.workspace = true
+ui.workspace = true
+theme.workspace = true
+menu.workspace = true
+anyhow.workspace = true
+notify.workspace = true
+trash.workspace = true
+
+
+[dev-dependencies]
+# Headless GPUI test harness (TestAppContext); no window is shown.
+gpui = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true
+
+[lints]
+workspace = true

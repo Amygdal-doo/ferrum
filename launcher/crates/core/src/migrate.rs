@@ -269,8 +269,11 @@ mod tests {
             "Ferrum Launcher",
             "the cached 0.5.0 catalog doesn't break the new metadata"
         );
-        // Toolbox 0.5.0 knew five apps: FerrumKit and FerrumDock are new.
-        assert_eq!(state.discover_apps(), vec![AppId::KIT, AppId::DOCK]);
+        // Toolbox 0.5.0 knew five apps: FerrumKit, FerrumDock and Ferrum Editor are new.
+        assert_eq!(
+            state.discover_apps(),
+            vec![AppId::KIT, AppId::DOCK, AppId::EDITOR]
+        );
         assert!(state.is_new(AppId::DOCK));
         state.save(&paths).expect("save");
         let saved = std::fs::read_to_string(paths.state_file()).expect("read");
@@ -284,6 +287,7 @@ mod tests {
         let mut reloaded = State::load(&paths).expect("reload");
         assert!(reloaded.discover_apps().is_empty());
         assert!(reloaded.is_new(AppId::KIT), "seen-state persists");
+        assert!(reloaded.is_new(AppId::EDITOR), "seen-state persists");
     }
 
     #[test]

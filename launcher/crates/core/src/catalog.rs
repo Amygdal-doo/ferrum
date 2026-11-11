@@ -28,6 +28,7 @@ impl AppId {
     pub const TERM: AppId = AppId("term");
     pub const KIT: AppId = AppId("kit");
     pub const DOCK: AppId = AppId("dock");
+    pub const EDITOR: AppId = AppId("editor");
     pub const LAUNCHER: AppId = AppId("launcher");
 
     /// The launcher's id before it was renamed from Ferrum Toolbox. Tags
@@ -36,7 +37,7 @@ impl AppId {
     pub const LEGACY_LAUNCHER: &'static str = "toolbox";
 
     /// Apps this build has metadata for, in overview order.
-    pub const BUILTIN: [AppId; 8] = [
+    pub const BUILTIN: [AppId; 9] = [
         AppId::IDE,
         AppId::API,
         AppId::GIT,
@@ -44,6 +45,7 @@ impl AppId {
         AppId::TERM,
         AppId::KIT,
         AppId::DOCK,
+        AppId::EDITOR,
         AppId::LAUNCHER,
     ];
 
@@ -215,7 +217,7 @@ struct Builtin {
     order: i32,
 }
 
-static BUILTIN: [Builtin; 8] = [
+static BUILTIN: [Builtin; 9] = [
     Builtin {
         id: AppId::IDE,
         name: "FerrumIDE",
@@ -285,6 +287,16 @@ static BUILTIN: [Builtin; 8] = [
         bundle_name: "FerrumDock",
         icon: "Blocks",
         order: 70,
+    },
+    Builtin {
+        id: AppId::EDITOR,
+        name: "Ferrum Editor",
+        description: "Lightweight, hackable text editor: tree view, tabs, fuzzy finder and command palette.",
+        binary: "ferrumeditor",
+        extra_binaries: &[],
+        bundle_name: "Ferrum Editor",
+        icon: "CursorIBeam",
+        order: 80,
     },
     Builtin {
         id: AppId::LAUNCHER,
@@ -689,7 +701,9 @@ mod tests {
         let order: Vec<_> = catalog.apps().iter().map(|a| a.id.as_str()).collect();
         assert_eq!(
             order,
-            ["ide", "api", "git", "data", "term", "kit", "forge", "dock", "launcher"]
+            [
+                "ide", "api", "git", "data", "term", "kit", "forge", "dock", "editor", "launcher"
+            ]
         );
     }
 

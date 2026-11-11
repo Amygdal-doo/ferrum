@@ -22,7 +22,7 @@ struct AppFeatures {
     demo_label: &'static str,
 }
 
-const APPS: [AppFeatures; 8] = [
+const APPS: [AppFeatures; 9] = [
     AppFeatures {
         product: products::FERRUM_IDE,
         version: "0.4.0-alpha.1",
@@ -208,10 +208,41 @@ const APPS: [AppFeatures; 8] = [
                      bars and their logs",
     },
     AppFeatures {
+        product: products::FERRUM_EDITOR,
+        version: "0.1.0-alpha.1",
+        summary: "New: a small, hackable text editor in the spirit of Atom, written from \
+                  scratch in Rust. Not the IDE: lighter, and yours to rewire.",
+        points: &[
+            (
+                "Tree view, tabs and palette",
+                "Split panes, a fuzzy file finder and a command palette that lists every \
+                 command with its keys.",
+            ),
+            (
+                "Multi-cursor",
+                "Add carets with ⌘-click or ⌘D, split a selection into lines, and type, \
+                 paste or undo on all of them at once.",
+            ),
+            (
+                "Find everywhere",
+                "Find and replace with regex in the file, and find in files that respects \
+                 .gitignore.",
+            ),
+            (
+                "Hack it in TOML",
+                "Config, keymap, theme and snippets are plain files in ~/.ferrum/editor, \
+                 applied as soon as you save them.",
+            ),
+        ],
+        demo: feature_demos::editor,
+        demo_label: "Ferrum Editor with a tree view and tabs: three cursors type at once, then \
+                     the command palette filters commands on toggle",
+    },
+    AppFeatures {
         product: products::FERRUM_LAUNCHER,
         version: "0.6.0",
         summary: "Ferrum Toolbox is now Ferrum Launcher: one window that installs, updates \
-                  and launches all eight apps.",
+                  and launches all nine apps.",
         points: &[
             (
                 "New apps show up on their own",
@@ -219,8 +250,8 @@ const APPS: [AppFeatures; 8] = [
                  badge, ready to install. No launcher update needed.",
             ),
             (
-                "FerrumKit and FerrumDock",
-                "Both new apps are ready to install from the overview, on the Alpha channel.",
+                "FerrumKit, FerrumDock and Ferrum Editor",
+                "The new apps are ready to install from the overview, on the Alpha channel.",
             ),
             (
                 "Updates itself in place",
@@ -264,7 +295,7 @@ fn hero() -> Markup {
                 p class="eyebrow" { "Every app is in alpha" }
                 h1 id="features-title" { "What's new across Ferrum" }
                 p class="lead" {
-                    "Eight native apps, written in Rust and rendered with GPUI. This is what \
+                    "Nine native apps, written in Rust and rendered with GPUI. This is what \
                      each one can do in the current alpha, and Ferrum Launcher keeps them all \
                      up to date."
                 }

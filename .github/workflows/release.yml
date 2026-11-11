@@ -67,6 +67,7 @@ jobs:
             term)    package="ferrumterm-gui ferrumterm-cli"; binaries="ferrumterm fterm" ;;
             kit)     package=ferrumkit-desktop;     binaries="ferrumkit" ;;
             dock)    package=ferrumdock-desktop;    binaries="ferrumdock" ;;
+            editor)  package=ferrumeditor-desktop;  binaries="ferrumeditor" ;;
             launcher) package=ferrumlauncher-desktop; binaries="ferrum-launcher" ;;
             toolbox) echo "::error::toolbox-v* is the Ferrum Toolbox 0.5.0 bridge; build it with scripts/package-bridge.sh"; exit 1 ;;
             *) echo "::error::unknown app id '$app'"; exit 1 ;;

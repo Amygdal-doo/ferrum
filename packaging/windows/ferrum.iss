@@ -1,6 +1,6 @@
 ; Inno Setup script shared by every Ferrum app. scripts/package-windows.ps1
 ; compiles it with /D defines:
-;   AppId          ferrum app id (ide, api, git, data, kit, dock, launcher)
+;   AppId          ferrum app id (ide, api, git, data, kit, dock, editor, launcher)
 ;   AppName        display name, e.g. "FerrumData"
 ;   AppSemver      full version, e.g. 0.2.0-beta.1
 ;   AppNumericVer  four-part numeric version for the file metadata, e.g. 0.2.0.0

@@ -31,6 +31,9 @@ ferrum_app() {
     dock)
       APP_NAME="FerrumDock"; APP_BINARIES="ferrumdock"; DEB_PACKAGE="ferrumdock"
       APP_SUMMARY="Native container manager for Docker-compatible engines" ;;
+    editor)
+      APP_NAME="Ferrum Editor"; APP_BINARIES="ferrumeditor"; DEB_PACKAGE="ferrum-editor"
+      APP_SUMMARY="Lightweight, hackable text editor: tree view, tabs, command palette" ;;
     launcher)
       APP_NAME="Ferrum Launcher"; APP_BINARIES="ferrum-launcher"; DEB_PACKAGE="ferrum-launcher"
       APP_SUMMARY="Installs, updates and rolls back the Ferrum apps" ;;

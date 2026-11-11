@@ -2,8 +2,8 @@
 
 You install **Ferrum Launcher** once. It then installs, updates and rolls back
 every other Ferrum app (Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData,
-FerrumTerm, FerrumKit, FerrumDock, and apps published later). Only the
-launcher has an installer (`.dmg`, `.exe`, `.deb`); the other apps are
+FerrumTerm, FerrumKit, FerrumDock, Ferrum Editor, and apps published later).
+Only the launcher has an installer (`.dmg`, `.exe`, `.deb`); the other apps are
 installed through it and have no separate download.
 
 Ferrum Launcher was called **Ferrum Toolbox** up to 0.5.0. See
@@ -64,7 +64,8 @@ Click an app in the overview, then **Install**. The launcher:
    so it takes no extra disk space. It's a real bundle rather than a symlink
    because Launchpad ignores symlinked apps;
 5. links its executables into **`~/.ferrum/bin`** (`ferrumapi`, `ferrumgit`,
-   `ferrumdata`, `ferrumterm`, `fterm`, `ferrumkit`, `ferrumdock`, `zed`).
+   `ferrumdata`, `ferrumterm`, `fterm`, `ferrumkit`, `ferrumdock`,
+   `ferrumeditor`, `zed`).
    Add that folder to your
    `PATH`:
    ```bash
@@ -130,7 +131,7 @@ Toolbox to v0.6.0** as usual. Then, on the first start, the launcher
   `FerrumLauncher` (macOS may ask once whether Ferrum Launcher may read it);
 - points `~/.ferrum/bin/ferrum-launcher` at itself and keeps
   `ferrum-toolbox` as a link for this release;
-- shows FerrumKit and FerrumDock, added after 0.5.0, as **New**.
+- shows FerrumKit, FerrumDock and Ferrum Editor, added after 0.5.0, as **New**.
 
 Installed apps, `~/Applications/Ferrum` and the other `~/.ferrum/bin` links
 keep working throughout. The `install.sh` one-liner installs the launcher

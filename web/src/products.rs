@@ -128,6 +128,18 @@ pub const FERRUMDOCK: Product = Product {
     status: Status::Alpha,
 };
 
+pub const FERRUM_EDITOR: Product = Product {
+    slug: "ferrum-editor",
+    name: "Ferrum Editor",
+    symbol: "Fe",
+    logo: "editor",
+    accent_var: "--app-editor",
+    kind: "Text editor",
+    tagline: "A small, hackable text editor in the spirit of Atom, written from scratch in Rust and \
+              configured in plain TOML.",
+    status: Status::Alpha,
+};
+
 pub const FERRUM_LAUNCHER: Product = Product {
     slug: "ferrum-launcher",
     name: "Ferrum Launcher",
@@ -139,7 +151,7 @@ pub const FERRUM_LAUNCHER: Product = Product {
     status: Status::Alpha,
 };
 
-pub const ALL: [Product; 8] = [
+pub const ALL: [Product; 9] = [
     FERRUM_IDE,
     FERRUMAPI,
     FERRUMGIT,
@@ -147,6 +159,7 @@ pub const ALL: [Product; 8] = [
     FERRUMTERM,
     FERRUMKIT,
     FERRUMDOCK,
+    FERRUM_EDITOR,
     FERRUM_LAUNCHER,
 ];
 

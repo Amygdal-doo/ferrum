@@ -50,6 +50,7 @@ pub fn app_with(config: Config, macos_download: MacosDownload) -> Router {
         .route("/ferrumterm", get(ferrumterm))
         .route("/ferrumkit", get(ferrumkit))
         .route("/ferrumdock", get(ferrumdock))
+        .route("/ferrum-editor", get(ferrum_editor))
         .route("/ferrum-launcher", get(ferrum_launcher))
         .route(
             "/ferrum-toolbox",
@@ -91,6 +92,9 @@ async fn ferrumkit(State(s): State<AppState>) -> Markup {
 }
 async fn ferrumdock(State(s): State<AppState>) -> Markup {
     pages::ferrumdock::render(s.site_url())
+}
+async fn ferrum_editor(State(s): State<AppState>) -> Markup {
+    pages::ferrum_editor::render(s.site_url())
 }
 async fn ferrum_launcher(State(s): State<AppState>) -> Markup {
     pages::ferrum_launcher::render(s.site_url())

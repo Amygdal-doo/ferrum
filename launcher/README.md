@@ -1,8 +1,9 @@
 # Ferrum Launcher
 
 Installs, updates, switches between and launches the Ferrum apps (FerrumIDE,
-FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock, any app
-added to the catalog later, and itself), in the style of JetBrains Toolbox.
+FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumDock, Ferrum
+Editor, any app added to the catalog later, and itself), in the style of
+JetBrains Toolbox.
 GPUI desktop app built on `ferrum-ui`. Up to 0.5.0 it was called **Ferrum
 Toolbox**; see [Migration from Ferrum Toolbox](#migration-from-ferrum-toolbox).
 
@@ -22,7 +23,7 @@ Every version of every app is a **GitHub Release** in one repository,
 | Thing | Convention | Example |
 | --- | --- | --- |
 | Tag | `<app-id>-v<semver>` | `api-v0.2.0`, `term-v1.0.0-beta.1` |
-| App ids | 1–32 of `a-z`, `0-9`, `_`, starting with a letter (no `-`). Built in: `ide`, `api`, `git`, `data`, `term`, `kit`, `dock`, `launcher`; others come from the catalog | |
+| App ids | 1–32 of `a-z`, `0-9`, `_`, starting with a letter (no `-`). Built in: `ide`, `api`, `git`, `data`, `term`, `kit`, `dock`, `editor`, `launcher`; others come from the catalog | |
 | Build | `<app-id>-<version>-<target>.tar.gz` with the binaries at the archive root | `api-0.2.0-aarch64-apple-darwin.tar.gz` |
 | macOS bundle | `<app-id>-<version>-<target>.app.tar.gz` with `<App>.app` at the root; preferred on macOS | `api-0.2.0-aarch64-apple-darwin.app.tar.gz` |
 | Windows build | `<app-id>-<version>-<target>.zip` with the `.exe` files and `<app-id>.ico` at the root; preferred on Windows | `api-0.2.0-x86_64-pc-windows-msvc.zip` |
@@ -215,7 +216,8 @@ On every start (each step is a no-op once done):
 - **State:** `toolbox` keys, releases and catalog entries read as `launcher`;
   settings, installed and active versions, channels and `channels_revision`
   are kept. A state file without the launcher's `format` marker came from the
-  toolbox: FerrumKit and FerrumDock, added after 0.5.0, are announced as new.
+  toolbox: FerrumKit, FerrumDock and Ferrum Editor, added after 0.5.0, are
+  announced as new.
 - **Token:** once, the GitHub token under keychain service `FerrumToolbox` is
   copied to `FerrumLauncher` unless that already has one; the old entry is
   kept.

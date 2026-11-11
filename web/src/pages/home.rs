@@ -11,8 +11,8 @@ use crate::layout::{PageMeta, page};
 use crate::{products, site};
 
 const DESCRIPTION: &str = "Ferrum is a family of native developer tools written in Rust and \
-     rendered with GPUI: Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit \
-     and FerrumDock, installed and updated by Ferrum Launcher.";
+     rendered with GPUI: Ferrum IDE, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, \
+     FerrumDock and Ferrum Editor, installed and updated by Ferrum Launcher.";
 
 /// (title, body) pairs for the "native" section.
 const NATIVE: [(&str, &str); 4] = [
@@ -75,8 +75,8 @@ fn hero() -> Markup {
                     span class="hero__line" { "rebuilt in Rust." }
                 }
                 p class="hero__lead" {
-                    "A code editor, API client, Git client, database IDE, terminal, container "
-                    "manager and utilities. Native apps drawn on the GPU, installed and kept up "
+                    "A code editor, a hackable text editor, API client, Git client, database IDE, "
+                    "terminal, container manager and utilities. Native apps drawn on the GPU, installed and kept up "
                     "to date by Ferrum Launcher."
                 }
                 div class="hero__ctas" {
@@ -97,7 +97,7 @@ fn showcase() -> Markup {
         section class="section showcase" id="apps" aria-labelledby="apps-title" {
             div class="container" {
                 div class="section-header" {
-                    h2 id="apps-title" { "Eight apps that work as one" }
+                    h2 id="apps-title" { "Nine apps that work as one" }
                     p class="lead" {
                         "Pick an app to see it at work. Each one is a native desktop app with the \
                          same keyboard-first feel."

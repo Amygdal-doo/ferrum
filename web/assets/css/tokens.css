@@ -52,6 +52,7 @@
   --app-launcher: #e85a7e;
   --app-kit: #d46be0;
   --app-dock: #38bdf8;
+  --app-editor: #c5dc3a;
   --app-accent: var(--straw);
   /* Syntax colours in the animated app windows. */
   --syn-kw: var(--straw);

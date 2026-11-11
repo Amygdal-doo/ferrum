@@ -159,6 +159,7 @@ pub fn icon_png(app: AppId) -> Option<&'static [u8]> {
         "term" => include_bytes!("../../../../brand/png/term-256.png"),
         "kit" => include_bytes!("../../../../brand/png/kit-256.png"),
         "dock" => include_bytes!("../../../../brand/png/dock-256.png"),
+        "editor" => include_bytes!("../../../../brand/png/editor-256.png"),
         "launcher" => include_bytes!("../../../../brand/png/launcher-256.png"),
         _ => return None,
     };

@@ -19,6 +19,7 @@ pub fn for_slug(slug: &str) -> Option<Markup> {
         s if s == products::FERRUMTERM.slug => term,
         s if s == products::FERRUMKIT.slug => kit,
         s if s == products::FERRUMDOCK.slug => dock,
+        s if s == products::FERRUM_EDITOR.slug => editor,
         s if s == products::FERRUM_LAUNCHER.slug => launcher,
         _ => return None,
     };
@@ -360,6 +361,71 @@ pub fn dock() -> Markup {
                     p { span class="t-kw" { "WARN" } " slow query 812ms" }
                 }
                 span class="demo__toast" { "Restarted shop" span { "Logs" } }
+            }
+        },
+    )
+}
+
+pub fn editor() -> Markup {
+    // Three carets type `pub ` at once (multi-cursor), then the command
+    // palette opens on "toggle".
+    let fields = [
+        ("bg", "0x14110d"),
+        ("fg", "0xf1e9df"),
+        ("accent", "0xc5dc3a"),
+    ];
+    window(
+        "theme.rs — notes",
+        "ed",
+        html! {
+            ul class="ed__tree" {
+                li { "▾ notes" }
+                li class="ed__in" { "▾ src" }
+                li class="ed__in2" { "main.rs" }
+                li class="ed__in2 is-open" { "theme.rs" }
+                li class="ed__in" { "▸ snippets" }
+                li class="ed__in" { "keymap.toml" }
+                li class="ed__in" { "README.md" }
+            }
+            div class="ed__main" {
+                ul class="ed__tabs" {
+                    li class="is-active" { "theme.rs" i class="ed__dirty" {} }
+                    li { "keymap.toml" }
+                    li { "README.md" }
+                }
+                div class="ed__code" {
+                    p { span class="t-kw" { "pub struct " } span class="t-ty" { "Theme" } " {" }
+                    @for (name, _) in fields {
+                        p class="ed__multi" {
+                            "    "
+                            span class="ed__typed" { span class="t-kw" { "pub " } }
+                            i class="ed__caret" {}
+                            (name) ": " span class="t-ty" { "Rgb" } ","
+                        }
+                    }
+                    p { "}" }
+                    p { " " }
+                    p { span class="t-kw" { "pub fn " } span class="t-fn" { "dark" } "() -> " span class="t-ty" { "Theme" } " {" }
+                    @for (name, hex) in fields {
+                        p { "    " (name) ": " span class="t-fn" { "rgb" } "(" span class="t-num" { (hex) } ")," }
+                    }
+                    p { "}" }
+                }
+                div class="ed__palette" {
+                    p class="ed__query" { "› toggle" span class="demo__caret" {} }
+                    ul {
+                        li class="ed__sel" {}
+                        li { span { "Editor: " b { "Toggle" } " Comment" } kbd { "⌘/" } }
+                        li { span { "Editor: " b { "Toggle" } " Soft Wrap" } kbd { "⌥Z" } }
+                        li { span { "Tree View: " b { "Toggle" } } kbd { "⌘\\" } }
+                        li { span { "Markdown Preview: " b { "Toggle" } } kbd { "⇧⌘M" } }
+                    }
+                }
+            }
+            div class="ed__status" {
+                span { "src/theme.rs" }
+                span class="ed__cursors" { "3 cursors" }
+                span class="ed__meta" { "Ln 2, Col 9 · Rust · LF · ⎇ main" }
             }
         },
     )
