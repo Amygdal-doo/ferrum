@@ -247,12 +247,23 @@ impl EditorView {
 
         let text_color = ui(&theme, "text");
         let highlights = self.highlights.clone();
+        let squiggles: Vec<(std::ops::Range<usize>, Hsla)> = self
+            .lsp
+            .diagnostics
+            .iter()
+            .filter(|d| d.severity != ferrumeditor_core::lsp::Severity::Hint)
+            .rev()
+            .map(|d| {
+                let token = super::popups::severity_token(d.severity);
+                (d.range.clone(), ui(&theme, token))
+            })
+            .collect();
         let rows = self.shape_rows(
             first_row..last_row,
             bounds,
             style,
             &theme,
-            text_color,
+            (text_color, &squiggles),
             &highlights,
             window,
         );
@@ -340,7 +351,7 @@ impl EditorView {
         bounds: Bounds<Pixels>,
         style: &FrameStyle,
         theme: &ferrumeditor_core::theme::Theme,
-        text_color: Hsla,
+        (text_color, squiggles): (Hsla, &[(std::ops::Range<usize>, Hsla)]),
         highlights: &[ferrumeditor_core::highlight::HighlightSpan],
         window: &mut Window,
     ) -> Vec<RowLayout> {
@@ -379,6 +390,7 @@ impl EditorView {
                     expanded,
                     display_start,
                     marked,
+                    squiggles,
                 },
                 text.len(),
             );

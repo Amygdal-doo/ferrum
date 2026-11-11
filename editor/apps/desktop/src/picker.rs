@@ -23,6 +23,10 @@ pub enum PickerKind {
     GoToLine,
     Theme,
     IconTheme,
+    /// Errors and warnings from language servers.
+    Problems,
+    /// Several definitions to choose from.
+    Locations,
 }
 
 #[derive(Debug, Clone)]
@@ -293,6 +297,9 @@ impl Render for Picker {
         let count = self.matches.len();
         let hint = match self.kind {
             PickerKind::GoToLine => Some("Line number, or line:column"),
+            PickerKind::Problems if count == 0 && self.items.is_empty() => {
+                Some("No problems. Files with a language server are checked as you edit.")
+            }
             _ if count == 0 => Some("No matches"),
             _ => None,
         };

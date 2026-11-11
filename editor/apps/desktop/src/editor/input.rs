@@ -21,13 +21,24 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         self.focus(window, cx);
+        self.hide_hover(cx);
+        self.completion = None;
         let Some(layout) = self.last_layout.clone() else {
             return;
         };
         let offset = layout.offset_at(event.position, &self.state, &self.display_map);
         let in_gutter = event.position.x < layout.bounds.left() + layout.gutter_width;
         self.marked_range = None;
-        if event.modifiers.alt && !in_gutter {
+        let m = event.modifiers;
+        if m.platform && !m.alt && !m.shift && !in_gutter && self.has_language_server() {
+            // Cmd+click: go to definition (Cmd+Alt+click adds a cursor).
+            self.state.click(offset);
+            self.drag = None;
+            self.go_to_definition(offset, cx);
+        } else if m.platform && m.alt && !in_gutter {
+            self.state.toggle_cursor_at(offset);
+            self.drag = None;
+        } else if event.modifiers.alt && !in_gutter {
             let origin = layout.display_point_at(event.position);
             self.state.column_select(origin, origin, &self.display_map);
             self.drag = Some(DragState {
@@ -82,6 +93,10 @@ impl EditorView {
         cx: &mut Context<Self>,
     ) {
         let (Some(drag), true) = (self.drag.clone(), event.dragging()) else {
+            if event.pressed_button.is_none() {
+                let offset = self.text_offset_under(event.position);
+                self.hover_moved(offset, cx);
+            }
             return;
         };
         let Some(layout) = self.last_layout.clone() else {
@@ -148,9 +163,29 @@ impl EditorView {
             self.scroll_y -= delta.y;
             self.scroll_x -= delta.x;
         }
+        self.hide_hover(cx);
+        self.completion = None;
         // Clamping happens in prepaint, which knows the viewport.
         cx.stop_propagation();
         cx.notify();
+    }
+
+    /// Buffer offset of the character under `position`, if it is over text.
+    fn text_offset_under(&self, position: Point<Pixels>) -> Option<usize> {
+        let layout = self.last_layout.as_ref()?;
+        if position.x < layout.text_left || !layout.bounds.contains(&position) {
+            return None;
+        }
+        let row = layout.display_row_at(position.y);
+        let row = layout.rows.iter().find(|r| r.display_row as isize == row)?;
+        let x = position.x - layout.text_left + layout.scroll_x;
+        if x > row.shaped.width + layout.char_width / 2. {
+            return None;
+        }
+        // The character the mouse is on, not the caret slot nearest to it.
+        let offset = row.offset_for_x(x - layout.char_width / 2.);
+        let end = row.line_start + row.segment.end;
+        (offset < end).then_some(offset)
     }
 
     fn utf16_to_offset(&self, utf16: usize) -> usize {
@@ -229,6 +264,7 @@ impl EntityInputHandler for EditorView {
         let explicit = range_utf16
             .map(|r| self.range_from_utf16(&r))
             .or(self.marked_range.take());
+        let typed = explicit.is_none();
         match explicit {
             // IME commit or a platform replacement: one range, one caret.
             Some(range) => self
@@ -240,6 +276,11 @@ impl EntityInputHandler for EditorView {
         self.marked_range = None;
         self.request_autoscroll();
         self.after_edit(cx);
+        if typed {
+            self.after_typing(text, cx);
+        } else {
+            self.completion = None;
+        }
         cx.emit(EditorEvent::SelectionsChanged);
     }
 

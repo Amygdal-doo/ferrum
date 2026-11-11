@@ -226,6 +226,35 @@ impl EditorView {
                 frame.numbers.push((shaped, point(x, row.top)));
             }
         }
+        // Problems: a dot per line, coloured by the worst one.
+        let diagnostics = &self.lsp.diagnostics;
+        if !diagnostics.is_empty() {
+            let buffer = self.state.buffer();
+            let dot = (layout.line_height * 0.32).max(px(5.));
+            for row in layout.rows.iter().filter(|r| r.segment.start == 0) {
+                let start = row.line_start;
+                let end = buffer.line_end(row.buffer_row);
+                let first = diagnostics.partition_point(|d| d.range.start < start);
+                let worst = diagnostics[first..]
+                    .iter()
+                    .take_while(|d| d.range.start <= end)
+                    .map(|d| d.severity)
+                    .min();
+                if let Some(severity) =
+                    worst.filter(|s| *s != ferrumeditor_core::lsp::Severity::Hint)
+                {
+                    let color = ui(theme, super::popups::severity_token(severity));
+                    let y = row.top + (layout.line_height - dot) / 2.;
+                    frame.gutter_marks.push(
+                        fill(
+                            Bounds::new(point(layout.bounds.left() + px(7.), y), size(dot, dot)),
+                            color,
+                        )
+                        .corner_radii(dot / 2.),
+                    );
+                }
+            }
+        }
         let marks = &self.git_marks;
         let lane_x = layout.bounds.left() + px(3.);
         for row in &layout.rows {

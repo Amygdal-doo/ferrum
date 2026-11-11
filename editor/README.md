@@ -18,7 +18,7 @@ handling are its own; nothing from Zed's editor stack (`editor`, `language`, `pr
 | Area | State |
 |------|-------|
 | Rope buffer (`ropey`), byte-offset API, LF inside / original line ending (LF/CRLF) and UTF-8 BOM restored on save, binary / non-UTF-8 files refused, atomic saves keeping permissions | ✅ tested |
-| Multi-cursor editing as single undo steps: typing, delete, newline, paste (one line per cursor when counts match), Cmd+click add/remove caret, Cmd+D next occurrence, select all occurrences, Cmd+Shift+L split into lines, add cursor above/below, Alt+drag column selection | ✅ core tested; mouse paths wired, not hand-tested |
+| Multi-cursor editing as single undo steps: typing, delete, newline, paste (one line per cursor when counts match), Cmd+click add/remove caret (Cmd+Alt+click in files with a language server, where Cmd+click goes to the definition), Cmd+D next occurrence, select all occurrences, Cmd+Shift+L split into lines, add cursor above/below, Alt+drag column selection | ✅ core tested; mouse paths wired, not hand-tested |
 | Undo/redo with grouping (typing / deleting runs within 1 s; cursor moves seal the group), dirty tracking against the saved state | ✅ tested |
 | Motions: char (grapheme-aware), word, smart home, line end, doc start/end, page up/down; vertical moves keep a goal column and follow soft-wrapped rows | ✅ tested |
 | Auto-close brackets/quotes (wrap selection, skip over closer, delete empty pair, no quote pairing inside words), auto-indent on Enter (after `{[(`, after `:` in Python/YAML, closer moved to its own line), auto-dedent when typing a closer | ✅ tested |
@@ -41,6 +41,10 @@ handling are its own; nothing from Zed's editor stack (`editor`, `language`, `pr
 | Loadable themes in `~/.ferrum/editor/themes/`: our TOML format and VS Code colour themes (`.json`, comments / trailing commas / `include` allowed; workbench `colors` → UI + terminal tokens, `tokenColors` TextMate scopes → tree-sitter names); theme selector with live preview, Enter saves to `config.toml`, Escape reverts; install from file; folder watched live; bad files → notice | ✅ parsing / mapping unit-tested; selector headless-tested |
 | File icons (own SVG set, tinted per type) in the tree view, tabs, file finder and find-in-files results; icon themes in `~/.ferrum/editor/icon-themes/<name>/`; icon theme selector with preview; `show_file_icons` | ✅ resolution unit- and headless-tested; drawing not hand-tested |
 | Integrated terminal panel (FerrumTerm's emulator on a local PTY, your login shell in the project folder): tabs, ⌃\` / status-bar toggle, resizable, keeps running while hidden, keys incl. Ctrl / Alt / arrows / paste go to the shell, mouse selection + copy, wheel scrollback, ANSI colours from the theme | ✅ input / toggle / tabs headless-tested with a detached session; real PTY unit-tested; rendering not hand-tested |
+| Language servers (LSP): one server per language and project folder, found on your login shell's `PATH` (rust-analyzer, typescript-language-server, pyright / pylsp, gopls, vscode-json/css/html, taplo, yaml-language-server, bash-language-server; override in `[lsp.<id>]`); full-text sync, UTF-8 / UTF-16 positions | ✅ client unit-tested over pipes; end to end headless-tested with a scripted server |
+| Autocomplete: as you type (and on trigger characters such as `.`) or with Ctrl+Space / Cmd+I; server items (snippets with tab stops, auto-import edits) or words from the file when there is no server; ↑/↓, Enter / Tab to insert, Escape to close; `autocomplete = false` turns off the automatic menu | ✅ ranking / snippets unit-tested; typing → menu → insert headless-tested; menu drawing not hand-tested |
+| Problems: wavy underlines and gutter dots coloured by severity, hover (or Cmd+K Cmd+I) for the message and the server's type / docs, F8 / Shift+F8 to step through, error / warning counts in the status bar, Ctrl+Shift+M lists every problem in the project | ✅ mapping and list headless-tested; drawing not hand-tested |
+| Go to definition: F12 or Cmd+click; several results open a picker; Ctrl+- / Ctrl+Shift+- go back / forward | ✅ headless-tested |
 | CLI: `ferrumeditor [path[:line[:col]]...]`, `--help`, `--version` | ✅ tested |
 
 ## Not built yet
@@ -48,9 +52,12 @@ Terminal: mouse reporting to programs (vim/htop mouse), selection beyond the vis
 link detection, find in scrollback, split terminals, per-terminal font settings; VS Code font
 styles (bold / italic) and semantic token colours are not imported; icon SVGs are single-colour
 masks (multi-colour icons are flattened to one tint).
+Language servers: rename, find references, code actions / quick fixes, formatting, signature
+help, inlay hints, semantic highlighting, workspace symbols, incremental document sync, and
+installing servers for you (install them yourself; the status bar says which one is missing).
 Incremental tree-sitter reparsing (every edit reparses the whole file in the background);
 multiple windows; packages/plugins (a `Package` trait and command registry seam exist);
-cursor blinking; minimap; code folding; autocomplete; encodings other than UTF-8; editing files
+cursor blinking; minimap; code folding; encodings other than UTF-8; editing files
 over 64 MB; a project-wide replace; drag-and-drop of tabs or files; tree view drag-to-move;
 tab overflow menu; per-project settings; Linux/Windows key defaults beyond a mechanical
 `cmd`→`ctrl` translation.
@@ -140,6 +147,10 @@ Ctrl+Shift off macOS) — Ctrl+G, Ctrl+Tab, Alt+Z, Escape… — go to the shell
 | `find-and-replace:use-selection-as-find` | `cmd-e` | editor |
 | `find-in-files:show` | `cmd-shift-f` | window |
 | `markdown-preview:toggle` | `cmd-shift-m` | window |
+| `problems:show` | `ctrl-shift-m` | window |
+| `language-server:restart` | — | window |
+| `navigation:back` | `ctrl--` | window |
+| `navigation:forward` | `ctrl-shift--` | window |
 | `terminal:toggle` | `` ctrl-` `` | window |
 | `terminal:new` | `` ctrl-shift-` `` | window |
 | `terminal:close` | — | window |
@@ -200,6 +211,11 @@ Ctrl+Shift off macOS) — Ctrl+G, Ctrl+Tab, Alt+Z, Escape… — go to the shell
 | `editor:go-to-matching-bracket` | `ctrl-m` | editor |
 | `editor:cancel` | `escape` | editor |
 | `editor:show-character-palette` | `ctrl-cmd-space` | editor |
+| `editor:show-completions` | `ctrl-space`, `cmd-i` | editor |
+| `editor:go-to-definition` | `f12` | editor |
+| `editor:show-hover` | `cmd-k cmd-i` | editor |
+| `editor:go-to-next-problem` | `f8` | editor |
+| `editor:go-to-previous-problem` | `shift-f8` | editor |
 | `editor:move-left` | `left`, `ctrl-b` | editor |
 | `editor:move-right` | `right`, `ctrl-f` | editor |
 | `editor:move-up` | `up`, `ctrl-p` | editor |
@@ -224,6 +240,46 @@ Ctrl+Shift off macOS) — Ctrl+G, Ctrl+Tab, Alt+Z, Escape… — go to the shell
 | `editor:page-down` | `pagedown` | editor |
 | `editor:select-page-up` | `shift-pageup` | editor |
 | `editor:select-page-down` | `shift-pagedown` | editor |
+
+## Language servers
+Completions, problems and go to definition come from the language server for the file's
+language. Ferrum Editor doesn't ship or install servers: install the ones you use and they are
+picked up from your login shell's `PATH` (plus `~/.cargo/bin`, `~/go/bin`, `/opt/homebrew/bin`
+and similar):
+
+| Id | Languages | Default program | Install |
+|----|-----------|-----------------|---------|
+| `rust` | Rust | `rust-analyzer` | `rustup component add rust-analyzer` |
+| `typescript` | JavaScript, TypeScript, TSX | `typescript-language-server --stdio` | `npm install -g typescript typescript-language-server` |
+| `python` | Python | `pyright-langserver --stdio`, else `basedpyright-langserver`, else `pylsp` | `npm install -g pyright` |
+| `go` | Go | `gopls` | `go install golang.org/x/tools/gopls@latest` |
+| `json` / `css` / `html` | JSON, CSS, HTML | `vscode-*-language-server --stdio` | `npm install -g vscode-langservers-extracted` |
+| `toml` | TOML | `taplo lsp stdio` | `cargo install taplo-cli --locked --features lsp` |
+| `yaml` | YAML | `yaml-language-server --stdio` | `npm install -g yaml-language-server` |
+| `shell` | Shell | `bash-language-server start` | `npm install -g bash-language-server` |
+
+A server starts in the open folder (or, for files outside it, the nearest folder with a root
+marker such as `Cargo.toml` or `package.json`) the first time you open one of its files. The
+status bar shows its state (`rust-analyzer`, its indexing progress, `No Rust server` with the
+install command on click, or `stopped`). After installing one, run *Language Server: Restart*.
+Override a server, or turn one off, in `config.toml`:
+
+```toml
+autocomplete = true          # menu while typing; Ctrl+Space always asks
+
+[lsp]
+enabled = true
+
+[lsp.python]
+command = "pylsp"            # program on PATH, or a full path
+args = []
+
+[lsp.rust.initialization_options]
+check = { command = "clippy" }
+
+[lsp.yaml]
+enabled = false
+```
 
 ## Integrated terminal
 ⌃\` (or the terminal button at the right end of the status bar) opens a panel at the bottom

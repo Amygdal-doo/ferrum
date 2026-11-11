@@ -31,6 +31,12 @@ impl EditorView {
 
     /// Runs an editor command; false if `name` is not one.
     pub fn run_command(&mut self, name: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if self.completion_command(name, cx) {
+            return true;
+        }
+        if self.run_lsp_command(name, cx) {
+            return true;
+        }
         let version = self.state.buffer().version();
         let selections = self.state.selections().to_vec();
         let page = self.page_rows();
@@ -134,7 +140,32 @@ impl EditorView {
         if self.state.selections() != selections.as_slice() {
             cx.emit(EditorEvent::SelectionsChanged);
         }
+        if matches!(name, "editor:backspace" | "editor:delete-word-left") {
+            self.refilter_completion(cx);
+        }
         self.request_autoscroll();
+        cx.notify();
+        true
+    }
+
+    /// Completion, hover, problems and go to definition.
+    fn run_lsp_command(&mut self, name: &str, cx: &mut Context<Self>) -> bool {
+        let head = self.state.primary().head;
+        match name {
+            "editor:show-completions" => self.trigger_completion(true, None, cx),
+            "editor:go-to-definition" => self.go_to_definition(head, cx),
+            "editor:show-hover" => self.show_hover_at(head, cx),
+            "editor:go-to-next-problem" | "editor:go-to-previous-problem" => {
+                if self.go_to_problem(name.ends_with("next-problem"), cx) {
+                    cx.emit(EditorEvent::SelectionsChanged);
+                }
+            }
+            "editor:cancel" if self.lsp.hover.is_some() => self.hide_hover(cx),
+            _ => {
+                self.hide_hover(cx);
+                return false;
+            }
+        }
         cx.notify();
         true
     }

@@ -1,6 +1,7 @@
 //! The status bar: file path, git branch, cursor position, selection,
-//! language, indentation, line endings, encoding, and the terminal
-//! toggle in the bottom-right corner.
+//! language, indentation, line endings, encoding, problem counts, the
+//! language server's state, and the terminal toggle in the bottom-right
+//! corner.
 
 use ferrum_ui::prelude::*;
 use ui::{Icon, IconName, IconSize};
@@ -92,6 +93,7 @@ impl Workspace {
                     .child(Label::new(branch.clone()).size(LabelSize::Small)),
             );
         }
+        right = right.children(self.render_lsp_status(cx));
         right = right.child(self.render_terminal_button(cx));
         status_bar(cx).child(left).child(right)
     }

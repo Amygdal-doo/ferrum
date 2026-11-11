@@ -124,6 +124,11 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("find-and-replace:use-selection-as-find", E, &["cmd-e"]),
     ("find-in-files:show", W, &["cmd-shift-f"]),
     ("markdown-preview:toggle", W, &["cmd-shift-m"]),
+    // Language servers
+    ("problems:show", W, &["ctrl-shift-m"]),
+    ("language-server:restart", W, &[]),
+    ("navigation:back", W, &["ctrl--"]),
+    ("navigation:forward", W, &["ctrl-shift--"]),
     // Integrated terminal (copy / paste become Ctrl+Shift+C / V off macOS)
     ("terminal:toggle", W, &["ctrl-`"]),
     ("terminal:new", W, &["ctrl-shift-`"]),
@@ -187,6 +192,11 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("editor:go-to-matching-bracket", E, &["ctrl-m"]),
     ("editor:cancel", E, &["escape"]),
     ("editor:show-character-palette", E, &["ctrl-cmd-space"]),
+    ("editor:show-completions", E, &["ctrl-space", "cmd-i"]),
+    ("editor:go-to-definition", E, &["f12"]),
+    ("editor:show-hover", E, &["cmd-k cmd-i"]),
+    ("editor:go-to-next-problem", E, &["f8"]),
+    ("editor:go-to-previous-problem", E, &["shift-f8"]),
     // Motions
     ("editor:move-left", E, &["left", "ctrl-b"]),
     ("editor:move-right", E, &["right", "ctrl-f"]),

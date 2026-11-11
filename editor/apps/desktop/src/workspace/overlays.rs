@@ -49,6 +49,11 @@ impl Workspace {
                 (Vec::new(), "Line[:column]")
             }
             PickerKind::Theme | PickerKind::IconTheme => Self::theme_items(kind, cx),
+            PickerKind::Problems => (self.problem_items(cx), "Go to problem…"),
+            PickerKind::Locations => (
+                std::mem::take(&mut self.location_items),
+                "Go to definition…",
+            ),
         };
         let picker = cx.new(|cx| Picker::new(kind, items, placeholder, window, cx));
         if matches!(kind, PickerKind::Theme | PickerKind::IconTheme) {
@@ -200,6 +205,9 @@ impl Workspace {
                         e.scroll_to_line(line, cx);
                     });
                 }
+            }
+            PickerKind::Problems | PickerKind::Locations => {
+                self.open_location_payload(&payload, window, cx);
             }
             PickerKind::Theme | PickerKind::IconTheme => {}
         }

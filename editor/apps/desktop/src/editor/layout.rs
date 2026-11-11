@@ -163,6 +163,8 @@ pub struct RunInput<'a> {
     pub expanded: &'a ExpandedLine,
     pub display_start: usize,
     pub marked: Option<Range<usize>>,
+    /// Problem ranges (buffer offsets) drawn with a wavy underline.
+    pub squiggles: &'a [(Range<usize>, Hsla)],
 }
 
 /// Text runs covering the row's display text exactly.
@@ -235,11 +237,31 @@ pub fn build_runs(input: &RunInput, display_len: usize) -> Vec<TextRun> {
         run.len = display_len - covered;
         runs.push(run);
     }
+    for (range, color) in input.squiggles {
+        if range.end <= input.row_start || range.start >= input.row_end {
+            continue;
+        }
+        let start = range.start.max(input.row_start);
+        let end = range.end.min(input.row_end);
+        runs = underline_range(
+            runs,
+            to_display(start)..to_display(end),
+            UnderlineStyle {
+                color: Some(*color),
+                thickness: px(1.),
+                wavy: true,
+            },
+        );
+    }
     if let Some(marked) = &input.marked {
         runs = underline_range(
             runs,
             to_display(marked.start)..to_display(marked.end),
-            input.text_color,
+            UnderlineStyle {
+                color: Some(input.text_color),
+                thickness: px(1.),
+                wavy: false,
+            },
         );
     }
     runs.retain(|r| r.len > 0);
@@ -252,8 +274,9 @@ pub fn build_runs(input: &RunInput, display_len: usize) -> Vec<TextRun> {
     runs
 }
 
-/// Splits runs so `range` (display bytes) is underlined (IME composition).
-fn underline_range(runs: Vec<TextRun>, range: Range<usize>, color: Hsla) -> Vec<TextRun> {
+/// Splits runs so `range` (display bytes) is underlined (IME composition,
+/// problems).
+fn underline_range(runs: Vec<TextRun>, range: Range<usize>, style: UnderlineStyle) -> Vec<TextRun> {
     if range.is_empty() {
         return runs;
     }
@@ -273,11 +296,7 @@ fn underline_range(runs: Vec<TextRun>, range: Range<usize>, color: Hsla) -> Vec<
                 let mut piece = run.clone();
                 piece.len = pair[1] - pair[0];
                 if pair[0] >= range.start && pair[1] <= range.end {
-                    piece.underline = Some(UnderlineStyle {
-                        color: Some(color),
-                        thickness: px(1.),
-                        wavy: false,
-                    });
+                    piece.underline = Some(style);
                 }
                 out.push(piece);
             }

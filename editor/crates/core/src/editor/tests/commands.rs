@@ -246,3 +246,18 @@ fn snippet_shift_tab_goes_back_and_undo_restores() {
     s.undo();
     assert_eq!(render(&s), "fn|");
 }
+
+#[test]
+fn completion_snippet_replaces_range_and_walks_stops() {
+    let mut s = editor("  v.pu|", Language::Rust);
+    let end = s.primary().head;
+    s.insert_snippet(end - 2..end, "push(${1:value})$0");
+    assert_eq!(render(&s), "  v.push(‹value›)");
+    s.insert_text("1");
+    s.tab(&[]);
+    assert_eq!(render(&s), "  v.push(1)|");
+    assert!(s.snippet_session().is_none());
+    s.undo();
+    s.undo();
+    assert_eq!(s.text(), "  v.pu");
+}

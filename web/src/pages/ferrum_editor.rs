@@ -33,6 +33,12 @@ const FEATURES: &[(&str, &str)] = &[
          from the palette and applied the moment you save.",
     ),
     (
+        "Language servers",
+        "Completions as you type, problems underlined with counts in the status bar, and \
+         go to definition with F12 or ⌘-click, from rust-analyzer, TypeScript, Pyright, gopls \
+         and more.",
+    ),
+    (
         "Its own editor core",
         "Rope buffer, undo, multi-cursor, rendering and input are written from scratch on \
          GPUI, not forked from another editor.",
@@ -49,11 +55,15 @@ const WORKS_TODAY: &[&str] = &[
     "Terminal panel from the status bar (⌃`), with tabs that keep running when hidden",
     "Theme picker with live preview; TOML themes and VS Code theme import",
     "File icons in the tree, tabs and finder; loadable icon themes",
+    "Autocomplete from language servers, or from words in the file without one",
+    "Problems underlined, listed (⌃⇧M) and stepped through with F8",
+    "Go to definition (F12 or ⌘-click), with back and forward",
 ];
 
 const NOT_BUILT_YET: &[&str] = &[
     "Packages and plugins (the seam is there)",
-    "Autocomplete, code folding and a minimap",
+    "Rename, find references and code actions from language servers",
+    "Code folding and a minimap",
     "Multiple windows and project-wide replace",
     "Encodings other than UTF-8, and files over 64 MB",
 ];

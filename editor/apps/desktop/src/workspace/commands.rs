@@ -118,6 +118,18 @@ pub(super) fn builtin_registry() -> CommandRegistry {
     r.register("markdown-preview:toggle", |w, window, cx| {
         w.toggle_markdown_preview(window, cx)
     });
+    r.register("problems:show", |w, window, cx| {
+        w.toggle_picker(PickerKind::Problems, window, cx)
+    });
+    r.register("language-server:restart", |w, _, cx| {
+        w.restart_language_servers(cx)
+    });
+    r.register("navigation:back", |w, window, cx| {
+        w.go_back(true, window, cx)
+    });
+    r.register("navigation:forward", |w, window, cx| {
+        w.go_back(false, window, cx)
+    });
     r.register("window:increase-font-size", |_, _, cx| {
         adjust_font(cx, Some(1.0))
     });

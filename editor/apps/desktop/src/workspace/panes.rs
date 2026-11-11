@@ -151,7 +151,11 @@ impl Workspace {
         let subscription = cx.subscribe_in(
             editor,
             window,
-            |this: &mut Self, editor, event: &EditorEvent, _, cx| {
+            |this: &mut Self, editor, event: &EditorEvent, window, cx| {
+                if matches!(event, EditorEvent::Navigate { .. } | EditorEvent::Notice(_)) {
+                    this.on_editor_lsp_event(event, window, cx);
+                    return;
+                }
                 if *event == EditorEvent::Focused
                     && let Some(index) = this.panes.iter().position(|p| {
                         p.items

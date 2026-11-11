@@ -45,6 +45,11 @@ const APPS: [AppFeatures; 8] = [
                  .gitignore.",
             ),
             (
+                "Completions, problems and definitions",
+                "Language servers you already have, like rust-analyzer or Pyright, power \
+                 autocomplete, underlined errors and go to definition with F12.",
+            ),
+            (
                 "Built-in terminal",
                 "Open a terminal at the bottom from the status bar or with ⌃`, with tabs \
                  that keep running while the panel is hidden.",

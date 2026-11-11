@@ -139,6 +139,40 @@ impl EditorState {
         true
     }
 
+    /// Replaces `range` with a snippet body (completion items) and starts
+    /// its tab stops at the primary caret. Other carets are dropped.
+    pub fn insert_snippet(&mut self, range: Range<usize>, body: &str) {
+        let start = self.buffer().clip(range.start.min(self.buffer().len()));
+        let end = range.end.clamp(start, self.buffer().len());
+        let row = self.buffer().row_of(start);
+        let expansion = expand(body, &self.buffer().indent_of(row));
+        self.snippet = None;
+        self.set_selections(vec![Selection::caret(end)]);
+        self.apply_transforming(
+            vec![Change::new(start..end, expansion.text.clone())],
+            EditKind::Other,
+        );
+        let mut order: Vec<u32> = Vec::new();
+        for stop in &expansion.stops {
+            if !order.contains(&stop.index) {
+                order.push(stop.index);
+            }
+        }
+        let stops: Vec<Vec<Range<usize>>> = order
+            .iter()
+            .map(|index| {
+                expansion
+                    .stops
+                    .iter()
+                    .filter(|s| s.index == *index)
+                    .map(|s| start + s.range.start..start + s.range.end)
+                    .collect()
+            })
+            .collect();
+        self.snippet = Some(SnippetSession { stops, current: 0 });
+        self.select_current_stop();
+    }
+
     fn select_current_stop(&mut self) {
         let Some(session) = &self.snippet else { return };
         let selections: Vec<Selection> = session

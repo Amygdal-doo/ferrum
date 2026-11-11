@@ -2806,6 +2806,7 @@ name = "ferrumeditor-core"
 version = "0.1.0"
 dependencies = [
  "directories",
+ "futures",
  "ignore",
  "regex",
  "ropey",
@@ -2831,6 +2832,7 @@ dependencies = [
  "tree-sitter-yaml",
  "unicode-segmentation",
  "unicode-width",
+ "url",
 ]
 
 [[package]]
@@ -2847,6 +2849,7 @@ dependencies = [
  "menu",
  "notify",
  "portable-pty",
+ "serde_json",
  "tempfile",
  "theme",
  "trash",

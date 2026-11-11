@@ -6,6 +6,7 @@
 mod commands;
 mod dialogs;
 mod files;
+mod lsp;
 mod overlays;
 mod panes;
 mod session;
@@ -62,6 +63,11 @@ pub struct Workspace {
     file_list: Option<std::sync::Arc<Vec<PathBuf>>>,
     file_list_task: Option<Task<()>>,
     window_title: String,
+    /// Places to return to after go to definition.
+    nav_back: Vec<lsp::NavEntry>,
+    nav_forward: Vec<lsp::NavEntry>,
+    /// Items for the next Locations picker.
+    location_items: Vec<crate::picker::PickerItem>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -70,7 +76,7 @@ impl Workspace {
         let find_bar = cx.new(|cx| FindBar::new(window, cx));
         let project_find = cx.new(|cx| ProjectFind::new(window, cx));
         let terminal = cx.new(|_| TerminalPanel::new());
-        let subscriptions = vec![
+        let mut subscriptions = vec![
             cx.subscribe_in(&find_bar, window, Self::on_find_bar_event),
             cx.subscribe_in(&project_find, window, Self::on_project_find_event),
             cx.subscribe_in(&terminal, window, Self::on_terminal_event),
@@ -81,6 +87,11 @@ impl Workspace {
                 }
             }),
         ];
+        // Problem counts and server state live in the status bar.
+        if let Some(store) = crate::lsp_store::LspStore::global(cx) {
+            subscriptions.push(cx.observe(&store, |_, _, cx| cx.notify()));
+            subscriptions.push(cx.subscribe(&store, |_, _, _, cx| cx.notify()));
+        }
         let mut this = Self {
             focus_handle: cx.focus_handle(),
             root: None,
@@ -109,6 +120,9 @@ impl Workspace {
             file_list: None,
             file_list_task: None,
             window_title: String::new(),
+            nav_back: Vec::new(),
+            nav_forward: Vec::new(),
+            location_items: Vec::new(),
             _subscriptions: subscriptions,
         };
         this.start_watcher(window, cx);

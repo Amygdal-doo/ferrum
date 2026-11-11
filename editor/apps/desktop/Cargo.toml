@@ -25,6 +25,7 @@ ferrumterm-emulator.workspace = true
 ferrumterm-protocol.workspace = true
 portable-pty.workspace = true
 futures.workspace = true
+serde_json.workspace = true
 unicode-width.workspace = true
 
 

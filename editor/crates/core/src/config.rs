@@ -36,7 +36,41 @@ pub struct Config {
     pub show_file_icons: bool,
     /// Shell for the integrated terminal; empty = `$SHELL` as a login shell.
     pub terminal_shell: String,
+    /// Suggest completions while typing (language server results plus
+    /// words from open files). Ctrl+Space always asks.
+    pub autocomplete: bool,
     pub languages: BTreeMap<String, LanguageConfig>,
+    pub lsp: LspConfig,
+}
+
+/// `[lsp]`: language servers for completions, problems and go to
+/// definition, with per-server overrides in `[lsp.<id>]`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LspConfig {
+    pub enabled: bool,
+    #[serde(flatten)]
+    pub servers: BTreeMap<String, LspServerConfig>,
+}
+
+impl Default for LspConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            servers: BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LspServerConfig {
+    pub enabled: Option<bool>,
+    /// Program name (looked up on PATH) or path.
+    pub command: Option<String>,
+    pub args: Option<Vec<String>>,
+    /// Sent as `initializationOptions`.
+    pub initialization_options: Option<toml::Value>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,7 +104,9 @@ impl Default for Config {
             icon_theme: crate::icons::BUILTIN_ICON_THEME.into(),
             show_file_icons: true,
             terminal_shell: String::new(),
+            autocomplete: true,
             languages: BTreeMap::new(),
+            lsp: LspConfig::default(),
         }
     }
 }
@@ -96,7 +132,9 @@ const KNOWN_KEYS: &[&str] = &[
     "icon_theme",
     "show_file_icons",
     "terminal_shell",
+    "autocomplete",
     "languages",
+    "lsp",
 ];
 
 impl Config {
@@ -115,6 +153,18 @@ impl Config {
         for language in config.languages.keys() {
             if Language::from_id(language).is_none() {
                 warnings.push(format!("unknown language `{language}` in [languages]"));
+            }
+        }
+        for id in config.lsp.servers.keys() {
+            if crate::lsp::servers::server_by_id(id).is_none() {
+                warnings.push(format!(
+                    "unknown language server `{id}` in [lsp] (ids: {})",
+                    crate::lsp::servers::SERVERS
+                        .iter()
+                        .map(|s| s.id)
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                ));
             }
         }
         if !(6.0..=72.0).contains(&config.font_size) {
@@ -175,6 +225,7 @@ theme = "ferrum-dark"        # "ferrum-light", or any theme in themes/ ("Theme: 
 icon_theme = "ferrum"        # built-in icons, or a folder in icon-themes/
 show_file_icons = true
 terminal_shell = ""          # empty: your login shell ($SHELL)
+autocomplete = true          # suggestions while typing; Ctrl+Space always works
 
 tab_size = 4
 soft_tabs = true             # insert spaces for Tab
@@ -200,6 +251,20 @@ soft_tabs = false
 
 [languages.yaml]
 tab_size = 2
+
+# Language servers give completions, problems (errors and warnings) and go
+# to definition (F12 or Cmd+click). Install the ones you need, e.g.
+#   rust-analyzer: rustup component add rust-analyzer
+#   TypeScript/JS: npm install -g typescript typescript-language-server
+#   Python:        npm install -g pyright
+#   Go:            go install golang.org/x/tools/gopls@latest
+# Server ids: rust typescript python go json css html toml yaml shell.
+[lsp]
+enabled = true
+
+# [lsp.python]
+# command = "pylsp"          # program on PATH, or a full path
+# args = []
 "#;
 
 /// Sets top-level `key` to the string `value` in a config document,
@@ -288,6 +353,23 @@ mod tests {
     fn type_errors_are_fatal() {
         assert!(Config::parse("tab_size = \"four\"").is_err());
         assert!(Config::parse("this is not toml").is_err());
+    }
+
+    #[test]
+    fn lsp_overrides_parse_and_unknown_ids_warn() {
+        let (config, warnings) = Config::parse(
+            "[lsp]\nenabled = false\n[lsp.python]\ncommand = \"pylsp\"\nargs = [\"-v\"]\n[lsp.rust.initialization_options]\ncheck = { command = \"clippy\" }\n[lsp.cobol]\nenabled = true",
+        )
+        .expect("valid");
+        assert!(!config.lsp.enabled);
+        let python = &config.lsp.servers["python"];
+        assert_eq!(python.command.as_deref(), Some("pylsp"));
+        assert_eq!(python.args.as_deref(), Some(&["-v".to_string()][..]));
+        assert!(config.lsp.servers["rust"].initialization_options.is_some());
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("cobol"));
+        assert!(Config::default().lsp.enabled);
+        assert!(Config::default().autocomplete);
     }
 
     #[test]

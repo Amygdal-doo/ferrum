@@ -2,14 +2,18 @@
 //! metadata, scroll state, syntax highlights, git marks and search
 //! matches. Rendering lives in `element`, input in `input`, command
 //! dispatch in `commands`, background work in `background`, find support
-//! in `search`.
+//! in `search`; language server features in `lsp`, `completion` and
+//! `popups`.
 
 mod background;
 mod commands;
+mod completion;
 mod decorations;
 mod element;
 mod input;
 mod layout;
+mod lsp;
+mod popups;
 mod search;
 
 use std::ops::Range;
@@ -31,6 +35,7 @@ use gpui::{
 pub use layout::LayoutSnapshot;
 pub use search::SearchState;
 
+use crate::lsp_store::LspStore;
 use crate::settings::Settings;
 
 /// Files above this size are not syntax highlighted.
@@ -44,6 +49,13 @@ pub enum EditorEvent {
     SelectionsChanged,
     Saved,
     Focused,
+    /// Go to definition found these places.
+    Navigate {
+        locations: Vec<ferrumeditor_core::lsp::Location>,
+        encoding: ferrumeditor_core::lsp::PositionEncoding,
+    },
+    /// A message for the status notice.
+    Notice(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -91,6 +103,9 @@ pub struct EditorView {
     last_layout: Option<LayoutSnapshot>,
     /// Widest line in chars (for horizontal scrolling), keyed by version.
     widest_line: (u64, usize),
+    pub(crate) lsp: lsp::LspState,
+    completion: Option<completion::CompletionMenu>,
+    completion_task: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -107,6 +122,19 @@ impl EditorView {
         let focus = cx.on_focus(&focus_handle, window, |_, _, cx| {
             cx.emit(EditorEvent::Focused)
         });
+        let mut subscriptions = vec![focus];
+        if let Some(store) = LspStore::global(cx) {
+            subscriptions
+                .push(cx.subscribe(&store, |this, _, event, cx| this.on_lsp_event(event, cx)));
+        }
+        subscriptions.push(cx.on_release(|this, _| {
+            if let Some(doc) = this.lsp.doc.take() {
+                doc.client.notify(
+                    "textDocument/didClose",
+                    serde_json::json!({ "textDocument": { "uri": doc.uri } }),
+                );
+            }
+        }));
         let first_line = text.lines().next().unwrap_or("");
         let language = path
             .as_deref()
@@ -143,11 +171,15 @@ impl EditorView {
             drag: None,
             last_layout: None,
             widest_line: (u64::MAX, 0),
-            _subscriptions: vec![focus],
+            lsp: lsp::LspState::default(),
+            completion: None,
+            completion_task: None,
+            _subscriptions: subscriptions,
         };
         this.refresh_disk_stamp();
         this.schedule_highlight(cx);
         this.load_git_base(cx);
+        this.attach_lsp(cx);
         this
     }
 
@@ -169,10 +201,14 @@ impl EditorView {
     }
 
     pub fn set_language(&mut self, language: Language, cx: &mut Context<Self>) {
+        let changed = self.state.language != language;
         self.state.language = language;
         self.apply_settings(cx);
         self.highlight_version = None;
         self.schedule_highlight(cx);
+        if changed {
+            self.attach_lsp(cx);
+        }
     }
 
     /// Re-reads per-language settings after config.toml changed.
@@ -218,6 +254,9 @@ impl EditorView {
         let bytes = ferrumeditor_core::files::encode(&self.state.text(), self.save_options(cx));
         ferrumeditor_core::files::write_atomic(&path, &bytes)?;
         let renamed = self.path.as_deref() != Some(path.as_path());
+        if renamed {
+            self.detach_lsp(cx);
+        }
         self.path = Some(path);
         if renamed {
             let language = self.path.as_deref().map_or(Language::PlainText, |p| {
@@ -228,6 +267,7 @@ impl EditorView {
                 .as_deref()
                 .and_then(ferrumeditor_core::git::repo_root);
             self.set_language(language, cx);
+            self.attach_lsp(cx);
         }
         // Applying trim / final newline to the buffer keeps it equal to disk.
         let saved = String::from_utf8_lossy(&bytes).replace("\r\n", "\n");
@@ -239,6 +279,7 @@ impl EditorView {
         self.state.mark_saved();
         self.refresh_disk_stamp();
         self.load_git_base(cx);
+        self.lsp_did_save();
         cx.emit(EditorEvent::Saved);
         cx.notify();
         Ok(())
@@ -271,6 +312,8 @@ impl EditorView {
     pub(crate) fn after_edit(&mut self, cx: &mut Context<Self>) {
         self.schedule_highlight(cx);
         self.schedule_git_diff(cx);
+        self.schedule_lsp_sync(cx);
+        self.hide_hover(cx);
         self.search.refresh(&self.state);
         cx.emit(EditorEvent::Edited);
         cx.notify();
@@ -319,6 +362,22 @@ impl EditorView {
     }
 }
 
+#[cfg(test)]
+impl EditorView {
+    pub fn completion_labels(&self) -> Option<Vec<String>> {
+        self.completion.as_ref().map(|m| {
+            m.matches
+                .iter()
+                .map(|i| m.entries[*i].label.clone())
+                .collect()
+        })
+    }
+
+    pub fn hover_popup(&self) -> Option<&lsp::HoverPopup> {
+        self.lsp.hover.as_ref()
+    }
+}
+
 impl Focusable for EditorView {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
@@ -326,8 +385,9 @@ impl Focusable for EditorView {
 }
 
 impl Render for EditorView {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.global::<Settings>().theme.clone();
+        let popups = self.render_popups(window, cx);
         div()
             .id("editor")
             .key_context("FerrumEditor")
@@ -343,6 +403,12 @@ impl Render for EditorView {
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_scroll(cx.listener(Self::on_scroll))
+            .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
+                if !hovered {
+                    this.hide_hover(cx);
+                }
+            }))
             .child(element::EditorElement::new(cx.entity()))
+            .children(popups)
     }
 }
