@@ -5,6 +5,8 @@ mod app;
 mod commands;
 mod components;
 mod state;
+#[cfg(test)]
+mod tests_render;
 
 use ferrum_ui::AppConfig;
 use ferrumapi_application::AppServices;

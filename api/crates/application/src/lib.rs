@@ -7,11 +7,14 @@
 mod cookies;
 mod load;
 mod mock;
+mod project_files;
+mod protocols;
 mod runner;
 mod send;
 mod transfer;
 
 pub use ferrumapi_domain as domain;
+pub use ferrumapi_grpc as grpc;
 pub use ferrumapi_http as http;
 pub use ferrumapi_http::CancellationToken;
 pub use ferrumapi_interop as interop;
@@ -21,6 +24,8 @@ pub use ferrumapi_server as server;
 pub use ferrumapi_server::{MockServer, ServerError, WebhookInspector};
 pub use load::{LoadEnd, LoadEvent, load_target_warning, run_load};
 pub use mock::plan_mock_routes;
+pub use project_files::{file_name as project_file_name, project_api_dir};
+pub use protocols::{WsSession, concrete};
 pub use runner::{RunEvent, RunItem, RunOutcome, plan_run, run_sequence};
 pub use send::{Prepared, code_snippet, prepare, variables_for};
 pub use transfer::TransferError;
@@ -72,6 +77,7 @@ pub struct AppServices {
     pub store: Store,
     pub http: HttpClient,
     cookies: cookies::SharedJar,
+    grpc_pools: protocols::GrpcPools,
 }
 
 impl AppServices {
@@ -90,6 +96,7 @@ impl AppServices {
             store,
             http: HttpClient::new(),
             cookies: cookies::SharedJar::default(),
+            grpc_pools: protocols::GrpcPools::default(),
         })
     }
 

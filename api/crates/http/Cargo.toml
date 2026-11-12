@@ -21,6 +21,11 @@ percent-encoding.workspace = true
 mime_guess.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+# WebSocket client (rustls; certificates checked by the OS verifier like reqwest)
+tokio-tungstenite = { workspace = true, features = ["connect", "__rustls-tls"] }
+rustls = { workspace = true, features = ["aws-lc-rs", "std", "tls12"] }
+rustls-platform-verifier.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util", "fs"] }

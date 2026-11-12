@@ -2,6 +2,8 @@
 
 use crate::auth::Auth;
 use crate::body::RequestBody;
+use crate::kind::RequestKind;
+use crate::protocol::ProtocolSpecs;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -121,6 +123,8 @@ impl Default for RequestSettings {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HttpRequest {
+    /// Protocol. Missing in older records, which are REST.
+    pub kind: RequestKind,
     pub method: HttpMethod,
     pub url: String,
     pub params: Vec<KeyValue>,
@@ -128,6 +132,10 @@ pub struct HttpRequest {
     pub body: RequestBody,
     pub auth: Auth,
     pub settings: RequestSettings,
+    /// Settings of the non-REST kinds (only the current kind's part is used).
+    #[serde(skip_serializing_if = "crate::protocol::is_default")]
+    /// Boxed: most requests are REST and the specs are large.
+    pub specs: Box<ProtocolSpecs>,
 }
 
 impl HttpRequest {
@@ -140,14 +148,49 @@ impl HttpRequest {
         }
     }
 
+    /// A new, empty request of `kind` with sensible defaults.
+    #[must_use]
+    pub fn of_kind(kind: RequestKind) -> Self {
+        let mut r = Self {
+            kind,
+            ..Self::default()
+        };
+        match kind {
+            RequestKind::Graphql => {
+                r.method = HttpMethod::Post;
+                r.specs.graphql.query = "query {\n  \n}".to_owned();
+            }
+            RequestKind::Soap => {
+                r.method = HttpMethod::Post;
+                r.specs.soap.envelope =
+                    crate::protocol::soap::envelope(crate::protocol::SoapVersion::V11, "");
+            }
+            RequestKind::Trpc => r.specs.trpc.input = String::new(),
+            RequestKind::Grpc => r.specs.grpc.message = "{}".to_owned(),
+            RequestKind::Rest | RequestKind::Odata | RequestKind::WebSocket => {}
+        }
+        r
+    }
+
     /// Short label for tabs and history, e.g. `GET example.com/users`.
     #[must_use]
     pub fn label(&self) -> String {
+        let detail = match self.kind {
+            RequestKind::Trpc => self.specs.trpc.procedure.trim(),
+            RequestKind::Grpc => self.specs.grpc.method.trim(),
+            RequestKind::Odata => self.specs.odata.entity_set.trim(),
+            _ => "",
+        };
+        if !detail.is_empty() {
+            return detail.to_owned();
+        }
         let url = self.url.trim();
-        let url = url
-            .strip_prefix("https://")
-            .or_else(|| url.strip_prefix("http://"))
-            .unwrap_or(url);
+        let url = [
+            "https://", "http://", "wss://", "ws://", "grpcs://", "grpc://",
+        ]
+        .iter()
+        .find_map(|p| url.strip_prefix(p))
+        .unwrap_or(url);
         if url.is_empty() {
             "Untitled request".to_owned()
         } else {

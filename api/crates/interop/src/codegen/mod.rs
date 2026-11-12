@@ -4,10 +4,11 @@
 mod curl;
 mod javascript;
 mod python;
+mod streaming;
 
 use base64::Engine as _;
 use ferrumapi_domain::{
-    ApiKeyLocation, Auth, HttpMethod, HttpRequest, RequestBody, RequestSettings,
+    ApiKeyLocation, Auth, HttpMethod, HttpRequest, RequestBody, RequestKind, RequestSettings,
 };
 use url::form_urlencoded;
 
@@ -32,10 +33,22 @@ impl CodeTarget {
 }
 
 /// Snippet for `request` exactly as given (the caller substitutes
-/// variables and resolves inherited auth first).
+/// variables and resolves inherited auth first). GraphQL, SOAP, OData and
+/// tRPC requests are rendered as the HTTP request they send; gRPC and
+/// WebSocket requests become a `grpcurl` / `websocat` command whatever the
+/// target.
 #[must_use]
 pub fn generate(target: CodeTarget, request: &HttpRequest) -> String {
-    let p = Prepared::new(request);
+    match request.kind {
+        RequestKind::Grpc => return streaming::grpcurl(&Prepared::new(request), request),
+        RequestKind::WebSocket => return streaming::websocat(&Prepared::new(request), request),
+        _ => {}
+    }
+    let lowered = match ferrumapi_domain::protocol::lower(request) {
+        Ok(r) => r,
+        Err(e) => return format!("# {e}"),
+    };
+    let p = Prepared::new(&lowered);
     match target {
         CodeTarget::Curl => curl::generate(&p),
         CodeTarget::PythonRequests => python::generate(&p),

@@ -41,5 +41,6 @@ pub(crate) async fn read_response(
         size_bytes: body.len() as u64,
         body,
         time_ms,
+        ..HttpResponse::default()
     })
 }

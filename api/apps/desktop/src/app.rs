@@ -63,14 +63,27 @@ pub struct FerrumApi {
     notice: Option<Notice>,
     notice_task: Option<Task<()>>,
     _autosave: Task<()>,
+    _project_events: gpui::Subscription,
 }
 
 impl FerrumApi {
     pub fn new(services: AppServices, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let mut this = Self::without_loading(services, window, cx);
+        this.bootstrap(cx);
+        this
+    }
+
+    /// The view before local data is loaded (tests render it headless
+    /// without touching the services runtime).
+    pub fn without_loading(
+        services: AppServices,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let focus_handle = cx.focus_handle();
         window.focus(&focus_handle, cx);
-        let project_bar = crate::components::shell::project::new_bar(window, cx);
-        let mut this = Self {
+        let (project_bar, project_events) = crate::components::shell::project::new_bar(window, cx);
+        Self {
             services,
             state: AppState::new(),
             fields: FieldCache::default(),
@@ -83,9 +96,8 @@ impl FerrumApi {
             notice: None,
             notice_task: None,
             _autosave: Self::autosave_loop(cx),
-        };
-        this.bootstrap(cx);
-        this
+            _project_events: project_events,
+        }
     }
 
     pub fn root_focus(&self) -> FocusHandle {

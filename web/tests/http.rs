@@ -53,8 +53,9 @@ async fn send_with(releases: Releases, req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 28] = [
+const PAGES: [&str; 29] = [
     "/",
+    "/apps",
     "/features",
     "/ferrumapi",
     "/ferrumgit",
@@ -783,4 +784,36 @@ async fn new_pages_are_linked_from_every_page() {
 fn app_constructor_is_still_available() {
     // `app` reads from GitHub when used; building it doesn't fetch anything.
     let _ = app(Config::default());
+}
+
+#[tokio::test]
+async fn apps_page_lists_every_app_and_nav_points_to_it() {
+    let res = get("/apps").await;
+    assert_eq!(res.status, StatusCode::OK);
+    let html = res.text();
+    assert!(html.contains("<title>All Ferrum apps | Ferrum</title>"));
+    assert!(html.contains(r#"href="/apps" aria-current="page""#));
+    for p in web_ferrum::products::ALL {
+        assert!(
+            html.contains(&format!(r#"href="{}""#, p.path())),
+            "{}",
+            p.slug
+        );
+        assert!(
+            html.contains(&format!(r#"id="app-{}""#, p.slug)),
+            "{}",
+            p.slug
+        );
+    }
+    let types = ld_types(&json_ld(&html));
+    assert!(types.contains(&"ItemList".to_owned()), "{types:?}");
+    assert!(types.contains(&"BreadcrumbList".to_owned()), "{types:?}");
+
+    let home = get("/").await.text();
+    assert!(home.contains(r#"href="/apps""#));
+    assert!(!home.contains(r##"href="/#apps""##));
+    assert_eq!(home.matches(r#"role="tab""#).count(), 4);
+
+    let xml = get("/sitemap.xml").await.text();
+    assert!(xml.contains("<loc>http://localhost:8080/apps</loc><lastmod>"));
 }

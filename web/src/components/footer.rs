@@ -33,6 +33,7 @@ pub fn render() -> Markup {
                     nav class="footer-col" aria-labelledby="footer-products" {
                         h2 class="footer-col__title" id="footer-products" { "Apps" }
                         ul {
+                            li { a href=(crate::pages::apps::PATH) { "All apps" } }
                             @for p in products::ALL {
                                 li { a href=(p.path()) { (p.name) } }
                             }

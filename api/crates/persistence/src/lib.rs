@@ -10,6 +10,7 @@ mod cookies;
 mod environments;
 mod history;
 mod mocks;
+mod schema_cache;
 mod workspace;
 
 use chrono::Utc;

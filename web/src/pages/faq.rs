@@ -42,7 +42,7 @@ fn faqs() -> Vec<Faq> {
                 FerrumKit, FerrumContainers, FerrumPorts and FerrumEnv. Ferrum Launcher installs and \
                 updates them."
                 .to_owned(),
-            more: Some(("See every app", "/#apps")),
+            more: Some(("See every app", super::apps::PATH)),
         },
         Faq {
             q: "How much does Ferrum cost?",

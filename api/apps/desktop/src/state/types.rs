@@ -2,7 +2,7 @@
 
 use ferrumapi_application::interop::codegen::CodeTarget;
 use ferrumapi_domain::{
-    Collection, CollectionId, CookieJar, Environment, HttpResponse, ItemId, TabId,
+    Collection, CollectionId, CookieJar, Environment, HttpResponse, ItemId, RequestKind, TabId,
 };
 use std::time::Instant;
 
@@ -20,25 +20,69 @@ pub enum RequestSection {
     Headers,
     Body,
     Settings,
+    /// GraphQL query + schema panel.
+    Query,
+    /// GraphQL variables.
+    Variables,
+    /// SOAP envelope + WSDL.
+    Envelope,
+    /// OData query builder.
+    Builder,
+    /// tRPC procedure + input.
+    Procedure,
+    /// WebSocket composer / gRPC method + message.
+    Message,
 }
 
 impl RequestSection {
-    pub const ALL: [Self; 5] = [
-        Self::Params,
-        Self::Auth,
-        Self::Headers,
-        Self::Body,
-        Self::Settings,
-    ];
+    /// The sub-tabs of a request of `kind`, in order.
+    #[must_use]
+    pub const fn for_kind(kind: RequestKind) -> &'static [Self] {
+        use RequestSection as S;
+        match kind {
+            RequestKind::Rest => &[S::Params, S::Auth, S::Headers, S::Body, S::Settings],
+            RequestKind::Graphql => &[S::Query, S::Variables, S::Auth, S::Headers, S::Settings],
+            RequestKind::Soap => &[S::Envelope, S::Auth, S::Headers, S::Settings],
+            RequestKind::Odata => &[
+                S::Builder,
+                S::Params,
+                S::Auth,
+                S::Headers,
+                S::Body,
+                S::Settings,
+            ],
+            RequestKind::Trpc => &[S::Procedure, S::Auth, S::Headers, S::Settings],
+            RequestKind::WebSocket | RequestKind::Grpc => {
+                &[S::Message, S::Headers, S::Auth, S::Settings]
+            }
+        }
+    }
+
+    /// `current` when `kind` has it, else the kind's first section.
+    #[must_use]
+    pub fn effective(current: Self, kind: RequestKind) -> Self {
+        let all = Self::for_kind(kind);
+        if all.contains(&current) {
+            current
+        } else {
+            all[0]
+        }
+    }
 
     #[must_use]
-    pub const fn label(self) -> &'static str {
+    pub const fn label(self, kind: RequestKind) -> &'static str {
         match self {
             Self::Params => "Params",
             Self::Auth => "Auth",
+            Self::Headers if matches!(kind, RequestKind::Grpc) => "Metadata",
             Self::Headers => "Headers",
             Self::Body => "Body",
             Self::Settings => "Settings",
+            Self::Query | Self::Builder => "Query",
+            Self::Variables => "Variables",
+            Self::Envelope => "Envelope",
+            Self::Procedure => "Procedure",
+            Self::Message => "Message",
         }
     }
 }
@@ -55,6 +99,8 @@ pub enum BodyMode {
     Pretty,
     Raw,
     Preview,
+    /// tRPC: `result.data` unwrapped.
+    Data,
 }
 
 /// Find-in-response (⌘F) state. Matches are recomputed from the displayed
@@ -132,6 +178,10 @@ pub enum Dialog {
     MockServer(CollectionId),
     /// The webhook inspector (`AppState::webhooks`).
     Webhooks,
+    /// Pick the kind of a new request added to (collection, folder).
+    NewRequest {
+        target: (CollectionId, Option<ItemId>),
+    },
     /// The load test (`AppState::load_test`).
     LoadTest,
 }

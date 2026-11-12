@@ -8,9 +8,12 @@ pub mod files;
 pub mod history;
 pub mod load;
 pub mod mock;
+pub mod projects;
+pub mod protocols;
 pub mod runner;
 pub mod send;
 pub mod webhook;
+pub mod websocket;
 pub mod workspace;
 
 use crate::app::FerrumApi;

@@ -7,7 +7,9 @@ use crate::app::FerrumApi;
 use crate::state::BodyMode;
 use ferrum_ui::TextInput;
 use ferrumapi_domain::highlight::{JsonToken, find_matches, json_tokens, layer_spans, line_of};
+use ferrumapi_domain::protocol::trpc::{TrpcOutcome, unwrap_response};
 use ferrumapi_domain::text::pretty_json;
+use ferrumapi_domain::xml::{XmlToken, looks_like_xml, pretty_xml, xml_tokens};
 use ferrumapi_domain::{HttpResponse, TabId};
 use gpui::{App, Context, Entity, EntityId, HighlightStyle, Window, point, px};
 use std::ops::Range;
@@ -27,7 +29,8 @@ pub struct BodyDisplay {
     key: ResponseKey,
     pub text: String,
     pub clipped: bool,
-    tokens: Vec<(Range<usize>, JsonToken)>,
+    /// Syntax spans as indexes into [`token_styles`].
+    tokens: Vec<(Range<usize>, usize)>,
     search: SearchKey,
     pub matches: Vec<Range<usize>>,
     /// Highlights last pushed: (field entity, search, current match).
@@ -46,20 +49,46 @@ fn clip(mut text: String) -> (String, bool) {
     (text, true)
 }
 
-/// Display text and whether it is pretty-printed JSON.
-fn display_text(resp: &HttpResponse, mode: BodyMode) -> (String, bool) {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Syntax {
+    Plain,
+    Json,
+    Xml,
+}
+
+/// Display text and how to colour it.
+fn display_text(resp: &HttpResponse, mode: BodyMode) -> (String, Syntax) {
     let text = resp.body_text();
     let looks_json = resp.is_json() || text.trim_start().starts_with(['{', '[']);
     match mode {
-        BodyMode::Pretty if looks_json => match pretty_json(&text) {
-            Some(pretty) => (pretty, true),
-            None => (text, false),
+        BodyMode::Data => match unwrap_response(&resp.body) {
+            Some(TrpcOutcome::Data(v)) => (
+                serde_json::to_string_pretty(&v).unwrap_or_default(),
+                Syntax::Json,
+            ),
+            Some(TrpcOutcome::Error(e)) => (
+                serde_json::to_string_pretty(&serde_json::json!({ "error": e }))
+                    .unwrap_or_default(),
+                Syntax::Json,
+            ),
+            None => (
+                "Not a tRPC response (no result.data or error). See Pretty or Raw.".to_owned(),
+                Syntax::Plain,
+            ),
         },
-        _ => (text, false),
+        BodyMode::Pretty if looks_json => match pretty_json(&text) {
+            Some(pretty) => (pretty, Syntax::Json),
+            None => (text, Syntax::Plain),
+        },
+        BodyMode::Pretty if looks_like_xml(resp.content_type(), &text) => match pretty_xml(&text) {
+            Some(pretty) => (pretty, Syntax::Xml),
+            None => (text, Syntax::Xml),
+        },
+        _ => (text, Syntax::Plain),
     }
 }
 
-fn token_styles(cx: &App) -> [HighlightStyle; 5] {
+fn token_styles(cx: &App) -> [HighlightStyle; 10] {
     let syntax = cx.theme().syntax();
     let fallback = cx.theme().colors().text;
     let style = |name: &str| HighlightStyle {
@@ -77,6 +106,11 @@ fn token_styles(cx: &App) -> [HighlightStyle; 5] {
         style("number"),
         style("boolean"),
         style("constant"),
+        style("tag"),
+        style("attribute"),
+        style("string"),
+        style("comment"),
+        style("string.special"),
     ]
 }
 
@@ -87,6 +121,16 @@ const fn token_index(kind: JsonToken) -> usize {
         JsonToken::Number => 2,
         JsonToken::Bool => 3,
         JsonToken::Null => 4,
+    }
+}
+
+const fn xml_index(kind: XmlToken) -> usize {
+    match kind {
+        XmlToken::Tag => 5,
+        XmlToken::AttrName => 6,
+        XmlToken::AttrValue => 7,
+        XmlToken::Comment => 8,
+        XmlToken::Cdata => 9,
     }
 }
 
@@ -106,10 +150,20 @@ impl FerrumApi {
             mode,
         );
         if self.body_display.as_ref().is_none_or(|d| d.key != key) {
-            let (text, json) = display_text(response, mode);
+            let (text, syntax) = display_text(response, mode);
             // The field normalizes CRLF; offsets must match what it holds.
             let (text, clipped) = clip(text.replace("\r\n", "\n"));
-            let tokens = if json { json_tokens(&text) } else { Vec::new() };
+            let tokens = match syntax {
+                Syntax::Json => json_tokens(&text)
+                    .into_iter()
+                    .map(|(r, k)| (r, token_index(k)))
+                    .collect(),
+                Syntax::Xml => xml_tokens(&text)
+                    .into_iter()
+                    .map(|(r, k)| (r, xml_index(k)))
+                    .collect(),
+                Syntax::Plain => Vec::new(),
+            };
             self.body_display = Some(BodyDisplay {
                 key,
                 text,
@@ -159,7 +213,7 @@ impl FerrumApi {
             let syntax: Vec<_> = display
                 .tokens
                 .iter()
-                .map(|(range, kind)| (range.clone(), styles[token_index(*kind)]))
+                .map(|(range, index)| (range.clone(), styles[*index]))
                 .collect();
             let colors = cx.theme().colors();
             let found: Vec<_> = display

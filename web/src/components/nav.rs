@@ -8,7 +8,7 @@ use maud::{Markup, html};
 use crate::components::{ferrum_mark, icons};
 use crate::{products, site, updates};
 
-const APPS_HREF: &str = "/#apps";
+const APPS_HREF: &str = crate::pages::apps::PATH;
 const FEATURES_HREF: &str = crate::pages::features::PATH;
 const DOCS_HREF: &str = crate::pages::docs::PATH;
 
@@ -22,9 +22,9 @@ fn nav_link(href: &str, label: &str, active: bool, extra_class: &str) -> Markup 
     }
 }
 
-/// True for product pages managed by the launcher (they live under "Apps").
+/// True for `/apps` and the product pages managed by the launcher.
 fn is_app_page(path: &str) -> bool {
-    products::apps().any(|p| p.path() == path)
+    path == APPS_HREF || products::apps().any(|p| p.path() == path)
 }
 
 pub fn render(current_path: &str) -> Markup {
@@ -76,8 +76,11 @@ mod tests {
     #[test]
     fn app_pages_mark_apps_active() {
         let html = render("/ferrumapi").into_string();
-        assert!(html.contains(r##"href="/#apps" aria-current="page""##));
+        assert!(html.contains(r#"href="/apps" aria-current="page""#));
         assert_eq!(html.matches("aria-current").count(), 1);
+        let index = render("/apps").into_string();
+        assert!(index.contains(r#"href="/apps" aria-current="page""#));
+        assert_eq!(index.matches("aria-current").count(), 1);
     }
 
     #[test]

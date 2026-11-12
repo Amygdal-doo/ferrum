@@ -136,3 +136,21 @@ fn plan_follows_tree_order_and_resolves_auth_and_variables() {
     assert_eq!(folder_only.len(), 1);
     assert!(plan_run(CollectionId::new(), None, &collections, &globals, None).is_empty());
 }
+
+#[test]
+fn plans_skip_websockets_but_keep_every_other_kind() {
+    use ferrumapi_domain::{Environment, RequestKind};
+    let mut c = Collection::new("Mixed");
+    for kind in RequestKind::ALL {
+        c.items.push(Item::Request(SavedRequest::new(
+            kind.label(),
+            HttpRequest::of_kind(kind),
+        )));
+    }
+    let plan = plan_run(c.id, None, &[c.clone()], &Environment::globals(), None);
+    let names: Vec<_> = plan.iter().map(|i| i.name.as_str()).collect();
+    assert_eq!(
+        names,
+        ["HTTP / REST", "GraphQL", "SOAP", "OData", "tRPC", "gRPC"]
+    );
+}

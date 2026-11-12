@@ -1,6 +1,7 @@
 //! Body mapping plus the shared key/value row helpers (headers, urlencoded).
 
 use super::{array, description, is_disabled, text};
+use ferrumapi_domain::protocol::GraphqlSpec;
 use ferrumapi_domain::{FormField, FormFieldKind, KeyValue, RawLanguage, RequestBody};
 use serde_json::{Value, json};
 
@@ -110,7 +111,26 @@ fn src(v: Option<&Value>) -> String {
     }
 }
 
-/// GraphQL → raw JSON `{"query", "variables"}` (Postman stores variables as text).
+/// A `graphql` body as a GraphQL request spec (Postman stores the
+/// variables as text).
+pub(super) fn graphql_spec(v: Option<&Value>) -> Option<GraphqlSpec> {
+    let body = v.filter(|b| b.get("mode").and_then(Value::as_str) == Some("graphql"))?;
+    let g = body.get("graphql");
+    let variables = match g.and_then(|g| g.get("variables")) {
+        Some(Value::String(s)) => s.trim().to_owned(),
+        Some(Value::Null) | None => String::new(),
+        Some(other) => serde_json::to_string_pretty(other).unwrap_or_default(),
+    };
+    Some(GraphqlSpec {
+        query: text(g.and_then(|g| g.get("query"))),
+        variables,
+        operation_name: String::new(),
+        use_get: false,
+    })
+}
+
+/// GraphQL body → JSON `{"query", "variables"}`. Only reached through
+/// [`import`] directly; requests use [`graphql_spec`].
 fn graphql(v: Option<&Value>) -> RequestBody {
     let query = text(v.and_then(|g| g.get("query")));
     let variables = match v.and_then(|g| g.get("variables")) {
@@ -124,6 +144,14 @@ fn graphql(v: Option<&Value>) -> RequestBody {
         language: RawLanguage::Json,
         text: serde_json::to_string_pretty(&doc).unwrap_or_default(),
     }
+}
+
+/// Postman's `graphql` body mode.
+pub(super) fn export_graphql(spec: &GraphqlSpec) -> Value {
+    json!({
+        "mode": "graphql",
+        "graphql": { "query": spec.query, "variables": spec.variables },
+    })
 }
 
 /// `None` for [`RequestBody::None`] (the field is omitted).

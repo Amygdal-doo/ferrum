@@ -1,21 +1,35 @@
 //! Domain tree → Postman Collection v2.1 JSON.
 
-use super::{SCHEMA_V2_1, auth, body, url};
-use ferrumapi_domain::{Collection, HttpRequest, Item, RequestSettings, Variable};
+use super::{SCHEMA_V2_1, append_note, auth, body, url};
+use ferrumapi_domain::{Collection, HttpRequest, Item, RequestKind, RequestSettings, Variable};
 use serde_json::{Map, Value, json};
 
 pub(super) fn collection(c: &Collection) -> Value {
     let mut out = Map::new();
+    let mut skipped = Vec::new();
+    let item = items(&c.items, &mut skipped);
+    let mut description = c.description.clone();
+    if !skipped.is_empty() {
+        append_note(
+            &mut description,
+            &format!(
+                "FerrumAPI: {} gRPC / WebSocket request(s) not exported (Postman Collection \
+                 v2.1 has no format for them): {}.",
+                skipped.len(),
+                skipped.join(", ")
+            ),
+        );
+    }
     out.insert(
         "info".into(),
         json!({
             "_postman_id": c.id.to_string(),
             "name": c.name,
-            "description": c.description,
+            "description": description,
             "schema": SCHEMA_V2_1,
         }),
     );
-    out.insert("item".into(), items(&c.items));
+    out.insert("item".into(), item);
     if let Some(a) = auth::export(&c.auth) {
         out.insert("auth".into(), a);
     }
@@ -40,11 +54,12 @@ fn variable(v: &Variable) -> Value {
     row
 }
 
-fn items(items: &[Item]) -> Value {
-    items.iter().map(item).collect()
+fn items(items: &[Item], skipped: &mut Vec<String>) -> Value {
+    items.iter().filter_map(|i| item(i, skipped)).collect()
 }
 
-fn item(item: &Item) -> Value {
+/// `None` for requests Postman cannot represent (named in `skipped`).
+fn item(item: &Item, skipped: &mut Vec<String>) -> Option<Value> {
     let mut out = Map::new();
     match item {
         Item::Folder(f) => {
@@ -52,21 +67,39 @@ fn item(item: &Item) -> Value {
             if !f.description.is_empty() {
                 out.insert("description".into(), json!(f.description));
             }
-            out.insert("item".into(), items(&f.items));
+            out.insert("item".into(), items(&f.items, skipped));
             if let Some(a) = auth::export(&f.auth) {
                 out.insert("auth".into(), a);
             }
         }
         Item::Request(r) => {
+            let (request, note) = match r.request.kind {
+                RequestKind::Grpc | RequestKind::WebSocket => {
+                    skipped.push(r.name.clone());
+                    return None;
+                }
+                RequestKind::Rest | RequestKind::Graphql => (r.request.clone(), None),
+                kind => (
+                    super::lower_keeping_variables(&r.request),
+                    Some(format!(
+                        "FerrumAPI {} request, exported as the plain HTTP request it sends.",
+                        kind.label()
+                    )),
+                ),
+            };
+            let mut description = r.description.clone();
+            if let Some(note) = note {
+                append_note(&mut description, &note);
+            }
             out.insert("name".into(), json!(r.name));
             if let Some(ppb) = protocol_profile(&r.request.settings) {
                 out.insert("protocolProfileBehavior".into(), ppb);
             }
-            out.insert("request".into(), request(&r.request, &r.description));
+            out.insert("request".into(), self::request(&request, &description));
             out.insert("response".into(), json!([]));
         }
     }
-    Value::Object(out)
+    Some(Value::Object(out))
 }
 
 fn request(r: &HttpRequest, description: &str) -> Value {
@@ -74,9 +107,16 @@ fn request(r: &HttpRequest, description: &str) -> Value {
     if let Some(a) = auth::export(&r.auth) {
         out.insert("auth".into(), a);
     }
-    out.insert("method".into(), json!(r.method.as_str()));
+    let graphql = r.kind == RequestKind::Graphql;
+    let method = if graphql { "POST" } else { r.method.as_str() };
+    out.insert("method".into(), json!(method));
     out.insert("header".into(), body::kv_export(&r.headers));
-    if let Some(b) = body::export(&r.body) {
+    let exported = if graphql {
+        Some(body::export_graphql(&r.specs.graphql))
+    } else {
+        body::export(&r.body)
+    };
+    if let Some(b) = exported {
         out.insert("body".into(), b);
     }
     out.insert("url".into(), url::export(&r.url, &r.params));

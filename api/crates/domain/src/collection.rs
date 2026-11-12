@@ -13,6 +13,9 @@ pub struct Collection {
     pub id: CollectionId,
     pub name: String,
     pub description: String,
+    /// Project folder (absolute path) the collection belongs to; `None` is
+    /// shared across projects.
+    pub project: Option<String>,
     /// Root auth. `Inherit` at the root behaves as no auth.
     pub auth: Auth,
     /// Collection variables (between globals and the active environment).

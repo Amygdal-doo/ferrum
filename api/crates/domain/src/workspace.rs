@@ -37,6 +37,8 @@ pub struct WorkspaceState {
     pub tabs: Vec<RequestTab>,
     pub active_tab: Option<TabId>,
     pub active_environment: Option<EnvironmentId>,
+    /// Current project folder (absolute path), if any.
+    pub project: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]

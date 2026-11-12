@@ -140,16 +140,13 @@ fn imports_every_body_mode() {
     );
     assert!(!fields[1].enabled);
 
-    let RequestBody::Raw {
-        language: RawLanguage::Json,
-        text,
-    } = &req(&c, "Search (GraphQL)").request.body
-    else {
-        panic!("graphql")
-    };
-    let doc: Value = serde_json::from_str(text).expect("graphql json");
-    assert!(doc["query"].as_str().is_some_and(|q| q.contains("search")));
-    assert_eq!(doc["variables"]["q"], "anvil");
+    // GraphQL bodies become GraphQL requests.
+    let gql = &req(&c, "Search (GraphQL)").request;
+    assert_eq!(gql.kind, ferrumapi_domain::RequestKind::Graphql);
+    assert_eq!(gql.body, RequestBody::None);
+    assert!(gql.specs.graphql.query.contains("search(q: $q)"));
+    let vars: Value = serde_json::from_str(&gql.specs.graphql.variables).expect("vars");
+    assert_eq!(vars["q"], "anvil");
 
     assert!(matches!(
         req(&c, "Notes (xml)").request.body,

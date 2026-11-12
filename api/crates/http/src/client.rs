@@ -41,7 +41,7 @@ impl HttpClient {
         if cancel.is_cancelled() {
             return Err(ExecError::Cancelled);
         }
-        let request = substitute(request, vars);
+        let request = ferrumapi_domain::protocol::lower(&substitute(request, vars))?;
         let timeout_ms = request.settings.timeout_ms;
         let work = async {
             if timeout_ms == 0 {

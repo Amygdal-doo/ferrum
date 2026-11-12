@@ -7,15 +7,19 @@ use sqlx::Row;
 impl Store {
     /// Ordered by name (case-insensitive). Unreadable rows are skipped.
     pub async fn list_collections(&self) -> StoreResult<Vec<Collection>> {
-        let rows = sqlx::query("SELECT id, data FROM collections ORDER BY name COLLATE NOCASE, id")
-            .fetch_all(&self.pool)
-            .await?;
+        let rows = sqlx::query(
+            "SELECT id, project, data FROM collections ORDER BY name COLLATE NOCASE, id",
+        )
+        .fetch_all(&self.pool)
+        .await?;
         let mut out = Vec::with_capacity(rows.len());
         for row in rows {
             let id: String = row.try_get("id")?;
             let json: String = row.try_get("data")?;
-            match serde_json::from_str(&json) {
-                Ok(c) => out.push(c),
+            let project: Option<String> = row.try_get("project")?;
+            match serde_json::from_str::<Collection>(&json) {
+                // The column is the source of truth for the project.
+                Ok(c) => out.push(Collection { project, ..c }),
                 Err(e) => {
                     tracing::warn!(%id, kind = ?e.classify(), line = e.line(), "skipping unreadable collection")
                 }
@@ -29,12 +33,14 @@ impl Store {
         let json = to_json(c)?;
         let ts = now();
         sqlx::query(
-            "INSERT INTO collections (id, name, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET name = excluded.name, data = excluded.data,
-                 updated_at = excluded.updated_at",
+            "INSERT INTO collections (id, name, project, data, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET name = excluded.name, project = excluded.project,
+                 data = excluded.data, updated_at = excluded.updated_at",
         )
         .bind(c.id.to_string())
         .bind(&c.name)
+        .bind(c.project.as_deref())
         .bind(json)
         .bind(&ts)
         .bind(&ts)

@@ -2,6 +2,8 @@
 
 mod body;
 mod form_data;
+mod kinds;
+mod method_picker;
 mod sections;
 mod settings;
 mod tab_bar;

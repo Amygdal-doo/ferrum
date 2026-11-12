@@ -74,7 +74,7 @@ On production-tagged profiles the same list decides when to ask for confirmation
 
 ## Not built yet (from the spec)
 Row editing / "+ Row" / column add (IDE-014), syntax highlighting/autocomplete (gated on ADR-003 spike),
-transactions UI, SSH, packaging and signing, AI. Redis (alpha) does not yet have: editing of hash/list/set/
+transactions UI, SSH, AI. Redis (alpha) does not yet have: editing of hash/list/set/
 sorted-set/stream elements (only string values, TTL and delete), pub/sub, `MONITOR`, transactions, Cluster/Sentinel,
 RESP3, key rename/create, opening keys that are not valid UTF-8 (they are listed but disabled), key tabs restored
 after a restart, a live-tested TLS connection, or separate "verify CA only" (both verify modes check chain and host). Column/index details for SurrealDB and MongoDB
@@ -121,8 +121,9 @@ icons, menus and tooltips come from Zed's `ui` crate (`../ide`). Fonts and icons
 from `../ide/assets`.
 
 ### Packaging
-Bundling, signing and notarization are **not yet set up** for the GPUI build (ADR-009,
-IDE-018).
+FerrumData is bundled with `scripts/bundle-macos.sh` like the other apps; released macOS
+builds are signed with the Developer ID and notarized, and installed through Ferrum Launcher
+(see [INSTALL.md](../INSTALL.md)).
 
 ## Layout
 ```

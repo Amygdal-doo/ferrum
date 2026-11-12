@@ -10,6 +10,7 @@ fn workspace() -> WorkspaceState {
         active_tab: Some(tab.id),
         tabs: vec![tab, RequestTab::new("Blank", HttpRequest::default())],
         active_environment: Some(EnvironmentId::new()),
+        project: Some("/code/app".into()),
     }
 }
 

@@ -22,23 +22,33 @@ impl FerrumApi {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let current = self.state.body_mode;
-        let modes = [
+        let trpc = self
+            .state
+            .tab(tab_id)
+            .is_some_and(|t| t.request.kind == ferrumapi_domain::RequestKind::Trpc);
+        let current = match self.state.body_mode {
+            BodyMode::Data if !trpc => BodyMode::Pretty,
+            mode => mode,
+        };
+        let mut modes = vec![
             (BodyMode::Pretty, "Pretty"),
             (BodyMode::Raw, "Raw"),
             (BodyMode::Preview, "Preview"),
         ];
+        if trpc {
+            modes.insert(0, (BodyMode::Data, "Data"));
+        }
         let content_type = response.content_type().unwrap_or_default().to_owned();
         let is_image = content_type.starts_with("image/");
 
         let body = match current {
-            BodyMode::Pretty | BodyMode::Raw if is_image => div()
+            BodyMode::Pretty | BodyMode::Raw | BodyMode::Data if is_image => div()
                 .p_3()
                 .child(hint(format!(
                     "Binary image body ({content_type}). Use Preview to view it."
                 )))
                 .into_any_element(),
-            BodyMode::Pretty | BodyMode::Raw => {
+            BodyMode::Pretty | BodyMode::Raw | BodyMode::Data => {
                 self.update_body_display(tab_id, response, current);
                 let (text, clipped) = self
                     .body_display
@@ -47,10 +57,10 @@ impl FerrumApi {
                     .unwrap_or_default();
                 let search_bar = self.render_search_bar(window, cx);
                 let status = cx.theme().status().clone();
-                let mode = if current == BodyMode::Pretty {
-                    "pretty"
-                } else {
-                    "raw"
+                let mode = match current {
+                    BodyMode::Pretty => "pretty",
+                    BodyMode::Data => "data",
+                    _ => "raw",
                 };
                 let view = self.field(
                     FieldSpec::new(format!("response-body:{tab_id}:{mode}"))

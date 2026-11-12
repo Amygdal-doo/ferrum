@@ -141,6 +141,20 @@ impl FerrumApi {
                     )
                     .child(div().flex_1())
                     .child(
+                        Button::new("capture-save", "Save to collection…")
+                            .style(ButtonStyle::Outlined)
+                            .tooltip(ui::Tooltip::text(
+                                "Save this webhook as a REST request in a collection (replays to the inspector)",
+                            ))
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.open_capture(id);
+                                if let Some(tab) = this.state.active_tab {
+                                    this.open_save_dialog(tab);
+                                }
+                                cx.notify();
+                            })),
+                    )
+                    .child(
                         Button::new("capture-open", "Open as request")
                             .style(ButtonStyle::Filled)
                             .on_click(cx.listener(move |this, _, _, cx| {

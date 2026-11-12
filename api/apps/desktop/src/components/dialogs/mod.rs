@@ -8,9 +8,12 @@ mod import;
 mod load_test;
 mod mock_editor;
 mod mock_server;
+mod new_request;
 mod runner;
 mod save_request;
 mod webhooks;
+
+pub use new_request::new_request_menu;
 
 use crate::app::FerrumApi;
 use crate::state::Dialog;
@@ -98,6 +101,7 @@ impl FerrumApi {
             Dialog::Runner => self.render_runner_dialog(cx),
             Dialog::MockServer(collection) => self.render_mock_dialog(collection, window, cx),
             Dialog::Webhooks => self.render_webhooks_dialog(window, cx),
+            Dialog::NewRequest { target } => self.render_new_request_dialog(target, cx),
             Dialog::LoadTest => self.render_load_test_dialog(window, cx),
             Dialog::DeleteItem {
                 collection,

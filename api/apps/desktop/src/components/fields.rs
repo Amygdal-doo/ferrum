@@ -128,6 +128,11 @@ impl FieldCache {
             .retain(|_, entry| entry.generation == generation);
     }
 
+    /// The live field for `key`, if rendered this pass or the last.
+    pub fn entity(&self, key: &str) -> Option<Entity<TextInput>> {
+        self.entries.get(key).map(|entry| entry.input.clone())
+    }
+
     pub fn text(&self, key: &str, cx: &gpui::App) -> Option<String> {
         self.entries
             .get(key)

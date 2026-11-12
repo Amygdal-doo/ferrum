@@ -1,6 +1,7 @@
 //! One module per page. Each exposes `pub fn render(site_url: &str) -> Markup`.
 
 pub mod about;
+pub mod apps;
 pub mod changelog;
 pub mod compare;
 pub mod docs;

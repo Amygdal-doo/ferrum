@@ -3,6 +3,7 @@
 
 pub mod history;
 pub mod kv;
+pub mod protocols;
 pub mod runner;
 pub mod tabs;
 pub mod tools;
@@ -27,6 +28,8 @@ pub const DEFAULT_SIDEBAR_WIDTH: f64 = 280.0;
 
 pub struct AppState {
     pub loaded: bool,
+    /// Current project folder; its collections (and the shared ones) are listed.
+    pub project: Option<String>,
     pub settings: AppSettings,
     pub collections: Vec<Collection>,
     pub environments: Vec<Environment>,
@@ -61,6 +64,9 @@ pub struct AppState {
     pub webhooks: tools::WebhookState,
     /// The current or last load test.
     pub load_test: Option<tools::LoadTestState>,
+    /// GraphQL schemas, WSDL operations, OData metadata, gRPC methods and
+    /// WebSocket sessions, per tab.
+    pub protocols: protocols::ProtocolState,
     pub results_height: f64,
     pub dialog: Option<Dialog>,
 }
@@ -70,6 +76,7 @@ impl AppState {
     pub fn new() -> Self {
         Self {
             loaded: false,
+            project: None,
             settings: AppSettings::default(),
             collections: Vec::new(),
             environments: Vec::new(),
@@ -95,6 +102,7 @@ impl AppState {
             mocks: HashMap::new(),
             webhooks: tools::WebhookState::default(),
             load_test: None,
+            protocols: protocols::ProtocolState::default(),
             results_height: 320.0,
             dialog: None,
         }

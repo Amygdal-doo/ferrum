@@ -4,7 +4,8 @@
 use crate::app::FerrumApi;
 use crate::state::{Dialog, SettingsPane, tabs};
 use ferrumapi_domain::{
-    Collection, CollectionId, Folder, HttpRequest, Item, ItemId, RequestOrigin, SavedRequest, TabId,
+    Collection, CollectionId, Folder, HttpRequest, Item, ItemId, RequestKind, RequestOrigin,
+    SavedRequest, TabId,
 };
 use gpui::Context;
 
@@ -41,8 +42,10 @@ impl FerrumApi {
         }
     }
 
+    /// New collections go into the current project (shared without one).
     pub fn create_collection(&mut self, name: &str, cx: &mut Context<Self>) -> CollectionId {
-        let c = Collection::new(name);
+        let mut c = Collection::new(name);
+        c.project.clone_from(&self.state.project);
         let id = c.id;
         self.state.collections.push(c.clone());
         self.state.expanded.insert(id.0);
@@ -62,9 +65,16 @@ impl FerrumApi {
         }
     }
 
-    /// Adds a new request and opens it in a tab.
-    pub fn add_request(&mut self, c: CollectionId, parent: Option<ItemId>, cx: &mut Context<Self>) {
-        let saved = SavedRequest::new("New Request", HttpRequest::default());
+    /// Adds a new request of `kind` and opens it in a tab.
+    pub fn add_request(
+        &mut self,
+        c: CollectionId,
+        parent: Option<ItemId>,
+        kind: RequestKind,
+        cx: &mut Context<Self>,
+    ) {
+        let name = format!("New {} Request", kind.label());
+        let saved = SavedRequest::new(name.clone(), HttpRequest::of_kind(kind));
         let item = saved.id;
         let request = saved.request.clone();
         if self.mutate_collection(c, cx, |col| col.insert(parent, Item::Request(saved)))
@@ -75,7 +85,7 @@ impl FerrumApi {
                 collection: c,
                 item,
             };
-            self.open_request("New Request".into(), request, Some(origin));
+            self.open_request(name, request, Some(origin));
         }
     }
 
@@ -210,7 +220,16 @@ impl FerrumApi {
             .tab(tab_id)
             .map(tabs::display_title)
             .unwrap_or_default();
-        let target = self.state.collections.first().map(|c| (c.id, None));
+        // Prefer the current project's collections, then shared ones.
+        let project = self.state.project.as_deref();
+        let target = self
+            .state
+            .collections
+            .iter()
+            .find(|c| project.is_some() && c.project.as_deref() == project)
+            .or_else(|| self.state.collections.iter().find(|c| c.project.is_none()))
+            .or_else(|| self.state.collections.first())
+            .map(|c| (c.id, None));
         self.state.dialog = Some(Dialog::SaveRequest {
             tab_id,
             name,

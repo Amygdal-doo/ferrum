@@ -67,6 +67,8 @@ pub fn plan_run(
     };
     c.requests_under(folder)
         .into_iter()
+        // A WebSocket is a session, not a request/response: not run.
+        .filter(|saved| saved.request.kind != ferrumapi_domain::RequestKind::WebSocket)
         .map(|saved| {
             let origin = RequestOrigin {
                 collection,

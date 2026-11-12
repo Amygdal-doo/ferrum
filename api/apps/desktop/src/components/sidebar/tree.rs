@@ -2,9 +2,11 @@
 
 use super::menu::{MenuAction, more_button, with_context_menu};
 use crate::app::FerrumApi;
-use crate::components::{MenuHandler, menu_item, method_label};
+use crate::components::{MenuHandler, menu_item, request_badge};
 use crate::state::Dialog;
-use ferrumapi_domain::{Collection, CollectionId, HttpMethod, Item, ItemId, RequestOrigin};
+use ferrumapi_domain::{
+    Collection, CollectionId, HttpMethod, Item, ItemId, RequestKind, RequestOrigin,
+};
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 use ui::{
     ActiveTheme as _, Color, Icon, IconName, IconSize, Label, LabelCommon as _, LabelSize, Tooltip,
@@ -30,7 +32,7 @@ struct RowSpec {
     name: String,
     folder: bool,
     expanded: bool,
-    method: Option<HttpMethod>,
+    badge: Option<(RequestKind, HttpMethod)>,
     actions: Vec<MenuAction>,
     active: bool,
 }
@@ -45,9 +47,11 @@ impl FerrumApi {
     ) {
         let cid = collection.id;
         let expanded = self.state.expanded.contains(&cid.0);
-        let mut actions = CONTAINER_ACTIONS.to_vec();
-        actions.insert(3, MenuAction::Settings);
-        actions.insert(1, MenuAction::MockServer);
+        let actions = super::menu::collection_actions(
+            &CONTAINER_ACTIONS,
+            self.state.project.as_deref(),
+            collection.project.as_deref(),
+        );
         let row = self.render_tree_row(
             RowSpec {
                 uid: cid.0,
@@ -57,7 +61,7 @@ impl FerrumApi {
                 name: collection.name.clone(),
                 folder: true,
                 expanded,
-                method: None,
+                badge: None,
                 actions,
                 active: false,
             },
@@ -109,7 +113,7 @@ impl FerrumApi {
                         name: f.name.clone(),
                         folder: true,
                         expanded,
-                        method: None,
+                        badge: None,
                         actions,
                         active: false,
                     },
@@ -138,7 +142,7 @@ impl FerrumApi {
                         name: r.name.clone(),
                         folder: false,
                         expanded: false,
-                        method: Some(r.request.method),
+                        badge: Some((r.request.kind, r.request.method)),
                         actions: vec![
                             MenuAction::Open,
                             MenuAction::Rename,
@@ -190,7 +194,7 @@ impl FerrumApi {
             name,
             folder,
             expanded,
-            method,
+            badge,
             actions,
             active,
         } = spec;
@@ -205,7 +209,11 @@ impl FerrumApi {
                         MenuAction::Open => this.open_tree_row(uid, cid, item, folder),
                         MenuAction::Run => this.start_run(cid, item, cx),
                         MenuAction::MockServer => this.open_mock_server(cid, cx),
-                        MenuAction::AddRequest => this.add_request(cid, item, cx),
+                        MenuAction::AddRequest => {
+                            this.state.dialog = Some(Dialog::NewRequest {
+                                target: (cid, item),
+                            });
+                        }
                         MenuAction::AddFolder => this.add_folder(cid, item, cx),
                         MenuAction::Settings => this.open_collection_settings(cid),
                         MenuAction::Rename => this.state.renaming = Some(uid),
@@ -215,6 +223,11 @@ impl FerrumApi {
                                 this.export_collection(c, cx);
                             }
                         }
+                        MenuAction::MoveToProject => {
+                            let project = this.state.project.clone();
+                            this.move_collection(cid, project, cx);
+                        }
+                        MenuAction::MakeShared => this.move_collection(cid, None, cx),
                         MenuAction::Delete => {
                             this.state.dialog = Some(Dialog::DeleteItem {
                                 collection: cid,
@@ -237,12 +250,12 @@ impl FerrumApi {
             .size(IconSize::XSmall)
             .color(Color::Muted)
             .into_any_element()
-        } else if let Some(m) = method {
+        } else if let Some((kind, m)) = badge {
             div()
                 .w(px(40.))
                 .flex()
                 .justify_end()
-                .child(method_label(m, cx))
+                .child(request_badge(kind, m, cx))
                 .into_any_element()
         } else {
             div().into_any_element()

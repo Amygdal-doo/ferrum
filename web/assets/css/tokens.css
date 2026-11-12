@@ -99,6 +99,7 @@
   --bronze: #c97b3b;
   --violet: #8257c9;
   --blue: #3e73d9;
+  --on-violet: #ffffff; /* text on a violet fill (home stack) */
   /* The temper rule: straw to blue, the way steel colours as it heats. */
   --temper: linear-gradient(90deg, var(--straw), var(--bronze) 38%, var(--violet) 70%, var(--blue));
   /* One accent per app (brand/README.md). For logos, rules, dots and glows,

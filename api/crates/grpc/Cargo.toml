@@ -1,0 +1,37 @@
+[package]
+name = "ferrumapi-grpc"
+description = "gRPC calls with dynamic messages: server reflection or .proto files (tonic + prost-reflect + protox)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrumapi-domain.workspace = true
+ferrumapi-http.workspace = true
+tonic = { workspace = true, features = ["channel", "codegen"] }
+tonic-reflection.workspace = true
+prost.workspace = true
+prost-types.workspace = true
+prost-reflect = { workspace = true, features = ["serde"] }
+protox.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+tokio-rustls.workspace = true
+hyper-util = { workspace = true, features = ["tokio"] }
+tower = { workspace = true, features = ["util"] }
+futures.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tonic = { workspace = true, features = ["transport", "router"] }
+tonic-reflection = { workspace = true, features = ["server"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tempfile.workspace = true
+http = "1"

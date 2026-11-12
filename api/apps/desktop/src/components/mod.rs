@@ -7,7 +7,7 @@ pub mod sidebar;
 pub mod widgets;
 
 use crate::app::FerrumApi;
-use ferrumapi_domain::HttpMethod;
+use ferrumapi_domain::{HttpMethod, RequestKind};
 use gpui::{App, Context, ElementId, Hsla, SharedString, Window, div, prelude::*, rgb};
 use ui::{
     ActiveTheme as _, Checkbox, ContextMenu, DropdownMenu, DropdownStyle, Label, LabelCommon as _,
@@ -25,6 +25,34 @@ pub fn method_color(m: HttpMethod, cx: &App) -> Hsla {
         HttpMethod::Delete => rgb(0xf87171).into(),
         HttpMethod::Head | HttpMethod::Options => cx.theme().colors().text_muted,
     }
+}
+
+/// Colour of a non-REST kind badge.
+#[must_use]
+pub fn kind_color(kind: RequestKind, cx: &App) -> Hsla {
+    match kind {
+        RequestKind::Rest => cx.theme().colors().text_muted,
+        RequestKind::Graphql => rgb(0xf472b6).into(),
+        RequestKind::Soap => rgb(0x38bdf8).into(),
+        RequestKind::Odata => rgb(0xfb923c).into(),
+        RequestKind::Trpc => rgb(0x818cf8).into(),
+        RequestKind::Grpc => rgb(0x2dd4bf).into(),
+        RequestKind::WebSocket => rgb(0xa3e635).into(),
+    }
+}
+
+/// The tree / tab badge: the method for REST, the kind otherwise.
+pub fn request_badge(kind: RequestKind, method: HttpMethod, cx: &App) -> gpui::AnyElement {
+    if kind == RequestKind::Rest {
+        return method_label(method, cx).into_any_element();
+    }
+    div()
+        .flex_none()
+        .text_xs()
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .text_color(kind_color(kind, cx))
+        .child(kind.badge())
+        .into_any_element()
 }
 
 /// Status-code colour (2xx success, 3xx info, 4xx warning, 5xx error).

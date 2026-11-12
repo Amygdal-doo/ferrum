@@ -15,13 +15,18 @@ ferrumapi-http.workspace = true
 ferrumapi-persistence.workspace = true
 ferrumapi-interop.workspace = true
 ferrumapi-server.workspace = true
+ferrumapi-grpc.workspace = true
 futures.workspace = true
 tokio = { workspace = true, features = ["fs"] }
 chrono.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 uuid.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 wiremock = "0.6"
+axum = "0.8"
+tokio-tungstenite = { workspace = true, features = ["connect"] }
+futures.workspace = true

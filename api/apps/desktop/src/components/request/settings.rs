@@ -3,7 +3,7 @@
 use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change};
 use crate::components::{checkbox, hint};
-use ferrumapi_domain::{RequestSettings, TabId};
+use ferrumapi_domain::{HttpRequest, RequestKind, TabId};
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 use ui::{Label, h_flex, v_flex};
 
@@ -11,10 +11,12 @@ impl FerrumApi {
     pub(super) fn render_settings_editor(
         &mut self,
         tab_id: TabId,
-        settings: RequestSettings,
+        request: &HttpRequest,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
+        let settings = request.settings;
+        let kind = request.kind;
         let timeout = self.field(
             FieldSpec::new(format!("timeout:{tab_id}")).initial(settings.timeout_ms.to_string()),
             on_change(move |this, text, _| {
@@ -58,13 +60,26 @@ impl FerrumApi {
                     .child(div().w_40().child(timeout))
                     .child(hint("0 = no timeout")),
             )
-            .child(follow)
+            .when(kind.is_http(), |this| this.child(follow))
             .child(verify)
+            .when(kind == RequestKind::Grpc, |this| {
+                let tls = request.specs.grpc.tls;
+                this.child(toggle_row(
+                    format!("grpc-tls-{tab_id}"),
+                    "Use TLS",
+                    "Also implied by a grpcs:// or https:// address.",
+                    tls,
+                    move |this, on, _| {
+                        this.state.edit_request(tab_id, |r| r.specs.grpc.tls = on);
+                    },
+                    cx,
+                ))
+            })
             .into_any_element()
     }
 }
 
-fn toggle_row(
+pub(super) fn toggle_row(
     id: String,
     label: &'static str,
     detail: &'static str,

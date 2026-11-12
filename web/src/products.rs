@@ -80,7 +80,8 @@ pub const FERRUMDATA: Product = Product {
     logo: "data",
     accent_var: "--app-data",
     kind: "Database IDE",
-    tagline: "A local-first, DataGrip-class database IDE. PostgreSQL today.",
+    tagline: "A local-first, DataGrip-class database IDE for PostgreSQL, MySQL, SQLite, \
+              SurrealDB, MongoDB and Redis.",
     status: Status::Alpha,
 };
 

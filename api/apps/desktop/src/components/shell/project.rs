@@ -1,24 +1,48 @@
 //! The shared Ferrum project bar above the header.
 //!
-//! FerrumAPI keeps collections in its own SQLite store, not in folders, so
-//! there is no project folder to show or switch to: the bar names the
-//! active tab's collection (or the workspace) and the active environment,
-//! and its switcher is off.
+//! A FerrumAPI project is a folder (usually a git repository), shared with
+//! the other Ferrum apps through the bar's recent-projects switcher.
+//! Collections belong to a project or are shared; the sidebar shows the
+//! current project's collections plus the shared ones. With no project the
+//! bar names the active tab's collection (or the workspace) instead.
 
 use crate::app::FerrumApi;
 use crate::state::AppState;
-use ferrum_ui::ProjectBar;
-use gpui::{AppContext as _, Context, Entity, SharedString, Window};
+use ferrum_ui::project::project_root;
+use ferrum_ui::{ProjectBar, ProjectBarEvent};
+use ferrumapi_domain::Collection;
+use gpui::{AppContext as _, Context, Entity, SharedString, Subscription, Window};
+use std::path::{Path, PathBuf};
 
 /// The executable name, for the shared bar.
 const APP_BINARY: &str = "ferrumapi";
 
-pub fn new_bar(window: &mut Window, cx: &mut Context<FerrumApi>) -> Entity<ProjectBar> {
-    cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx).switchable(false))
+pub fn new_bar(
+    window: &mut Window,
+    cx: &mut Context<FerrumApi>,
+) -> (Entity<ProjectBar>, Subscription) {
+    let bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx));
+    let subscription = cx.subscribe(&bar, |app: &mut FerrumApi, _, event, cx| match event {
+        ProjectBarEvent::Open(path) => app.open_project(Some(path.clone()), cx),
+    });
+    (bar, subscription)
 }
 
-/// `(name, detail)`: the active tab's collection, else the workspace, and
-/// what it holds under the active environment.
+/// Display name of a project path (its folder name).
+#[must_use]
+pub fn project_name(path: &str) -> String {
+    ferrum_ui::project::project_name(Path::new(path))
+}
+
+/// Whether `c` is listed for `project`: its own collections and shared ones.
+#[must_use]
+pub fn visible_in(c: &Collection, project: Option<&str>) -> bool {
+    c.project.is_none() || c.project.as_deref() == project
+}
+
+/// `(name, detail)` shown when there is no project folder: the active tab's
+/// collection, else the workspace, and what it holds under the active
+/// environment.
 #[must_use]
 pub fn bar_labels(state: &AppState) -> (SharedString, SharedString) {
     let env = state.active_environment().map_or_else(
@@ -39,7 +63,11 @@ pub fn bar_labels(state: &AppState) -> (SharedString, SharedString) {
             )
         }
         None => {
-            let count = state.collections.len();
+            let count = state
+                .collections
+                .iter()
+                .filter(|c| visible_in(c, state.project.as_deref()))
+                .count();
             let noun = if count == 1 {
                 "collection"
             } else {
@@ -51,20 +79,38 @@ pub fn bar_labels(state: &AppState) -> (SharedString, SharedString) {
 }
 
 impl FerrumApi {
-    /// Mirrors the active collection and environment into the bar (called on
-    /// every render; the bar ignores unchanged text).
+    /// Mirrors the project (or the active collection) into the bar; called
+    /// on every render, the bar ignores unchanged values.
     pub(crate) fn sync_project_bar(&mut self, cx: &mut Context<Self>) {
         if !self.state.loaded {
             return;
         }
+        let project = self.state.project.as_ref().map(PathBuf::from);
         let (title, detail) = bar_labels(&self.state);
+        let detail = project.is_none().then_some(detail);
         let bar = self.project_bar.read(cx);
-        if bar.title() != Some(&title) || bar.detail() != Some(&detail) {
+        if bar.project() != project.as_deref()
+            || bar.title() != Some(&title)
+            || bar.detail() != detail.as_ref()
+        {
             self.project_bar.update(cx, |bar, cx| {
+                bar.set_project(project, cx);
                 bar.set_title(Some(title), cx);
-                bar.set_detail(Some(detail), cx);
+                bar.set_detail(detail, cx);
             });
         }
+    }
+
+    /// Switches to a project folder (its git root), or to none.
+    pub fn open_project(&mut self, path: Option<PathBuf>, cx: &mut Context<Self>) {
+        let project = path.map(|p| project_root(&p).to_string_lossy().into_owned());
+        if self.state.project == project {
+            return;
+        }
+        self.state.project = project;
+        self.state.collection_filter.clear();
+        self.state.touch();
+        cx.notify();
     }
 }
 
@@ -102,5 +148,25 @@ mod tests {
         let (name, detail) = bar_labels(&state);
         assert_eq!(name.as_ref(), "Users");
         assert_eq!(detail.as_ref(), "Collection · 1 request · env: Staging");
+    }
+
+    #[test]
+    fn projects_see_their_own_and_shared_collections() {
+        let mut state = AppState::new();
+        let mut app = Collection::new("App");
+        app.project = Some("/code/app".into());
+        let mut other = Collection::new("Other");
+        other.project = Some("/code/other".into());
+        state.collections = vec![app.clone(), other.clone(), Collection::new("Shared")];
+        assert!(visible_in(&app, Some("/code/app")));
+        assert!(!visible_in(&other, Some("/code/app")));
+        assert!(visible_in(&state.collections[2], Some("/code/app")));
+        assert!(!visible_in(&app, None));
+        state.project = Some("/code/app".into());
+        assert_eq!(
+            bar_labels(&state).1.as_ref(),
+            "2 collections · No environment"
+        );
+        assert_eq!(project_name("/code/app"), "app");
     }
 }

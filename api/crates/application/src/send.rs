@@ -2,7 +2,7 @@
 
 use crate::{AppServices, DEFAULT_HISTORY_LIMIT};
 use ferrumapi_domain::{
-    Auth, Collection, Environment, ExecError, HistoryEntry, HttpRequest, HttpResponse,
+    Auth, Collection, Environment, ExecError, HistoryEntry, HttpRequest, HttpResponse, RequestKind,
     RequestOrigin, VariableSet,
 };
 use ferrumapi_http::CancellationToken;
@@ -91,6 +91,9 @@ impl AppServices {
         let mut entry = HistoryEntry::new(authored, origin);
         match &result {
             Ok(r) => {
+                if let Some(g) = r.grpc.as_ref().filter(|g| g.code != 0) {
+                    entry.error = Some(format!("gRPC {}: {}", g.name, g.message));
+                }
                 entry.status = Some(r.status);
                 entry.time_ms = Some(r.time_ms);
                 entry.size_bytes = Some(r.size_bytes);
@@ -111,6 +114,15 @@ impl AppServices {
         prepared: Prepared,
         cancel: CancellationToken,
     ) -> Result<HttpResponse, ExecError> {
+        match prepared.request.kind {
+            RequestKind::Grpc => return self.grpc_call(prepared, cancel).await,
+            RequestKind::WebSocket => {
+                return Err(ExecError::InvalidRequest(
+                    "WebSocket requests are opened with Connect, not sent".into(),
+                ));
+            }
+            _ => {}
+        }
         let Prepared {
             mut request,
             variables,
@@ -123,7 +135,7 @@ impl AppServices {
         result
     }
 
-    async fn history_limit(&self) -> usize {
+    pub(crate) async fn history_limit(&self) -> usize {
         match self.store.load_settings().await {
             Ok(s) if s.history_limit > 0 => s.history_limit as usize,
             _ => DEFAULT_HISTORY_LIMIT,

@@ -3,7 +3,7 @@
 use axum::{extract::State, http::header, response::IntoResponse};
 
 use super::AppState;
-use crate::pages::{changelog, compare, docs, faq, features, privacy, security};
+use crate::pages::{apps, changelog, compare, docs, faq, features, privacy, security};
 use crate::{products, site, updates};
 
 /// One sitemap entry: path and `lastmod` (`YYYY-MM-DD`).
@@ -35,7 +35,7 @@ pub async fn robots(State(s): State<AppState>) -> impl IntoResponse {
 pub fn sitemap_entries(changelog_date: Option<&str>) -> Vec<Entry> {
     let content = site::CONTENT_UPDATED;
     let newest_post = updates::newest_first().first().map_or(content, |p| p.date);
-    let mut entries = vec![entry("/", content)];
+    let mut entries = vec![entry("/", content), entry(apps::PATH, content)];
     entries.extend(products::ALL.iter().map(|p| entry(&p.path(), content)));
     entries.push(entry(features::PATH, content));
     entries.push(entry(site::DOWNLOAD_PATH, content));
@@ -106,6 +106,7 @@ mod tests {
         let paths = sitemap_paths();
         for p in [
             "/download",
+            "/apps",
             "/updates",
             "/docs",
             "/docs/install",

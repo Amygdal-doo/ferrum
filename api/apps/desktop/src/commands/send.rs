@@ -17,7 +17,13 @@ impl FerrumApi {
         let Some(tab_id) = self.state.active_tab else {
             return;
         };
-        if self.state.is_loading(tab_id) {
+        let websocket = self
+            .state
+            .tab(tab_id)
+            .is_some_and(|t| t.request.kind == ferrumapi_domain::RequestKind::WebSocket);
+        if websocket {
+            self.ws_toggle(tab_id, cx);
+        } else if self.state.is_loading(tab_id) {
             self.cancel(tab_id);
         } else {
             self.send(tab_id, cx);
@@ -36,6 +42,10 @@ impl FerrumApi {
         };
         if tab.request.url.trim().is_empty() {
             self.notify("Enter a URL first.", true, cx);
+            return;
+        }
+        if tab.request.kind == ferrumapi_domain::RequestKind::WebSocket {
+            self.ws_toggle(tab_id, cx);
             return;
         }
         let prepared = self.state.prepare_tab(&tab);

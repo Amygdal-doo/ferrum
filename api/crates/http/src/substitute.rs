@@ -1,7 +1,7 @@
 //! `{{variable}}` substitution and unresolved-variable detection across every
 //! user-editable field of a request.
 
-use ferrumapi_domain::{Auth, HttpRequest, KeyValue, RequestBody, VariableSet};
+use ferrumapi_domain::{Auth, HttpRequest, KeyValue, RequestBody, RequestKind, VariableSet};
 
 /// Returns a copy with `{{variables}}` substituted in URL, params, headers,
 /// body (raw text, urlencoded and form-data text fields; file paths too) and auth.
@@ -60,6 +60,7 @@ pub fn substitute(request: &HttpRequest, vars: &VariableSet) -> HttpRequest {
         },
     };
     HttpRequest {
+        kind: request.kind,
         method: request.method,
         url: r(&request.url),
         params: kvs(&request.params),
@@ -67,6 +68,7 @@ pub fn substitute(request: &HttpRequest, vars: &VariableSet) -> HttpRequest {
         body,
         auth,
         settings: request.settings,
+        specs: Box::new(request.specs.map_text(request.kind, r)),
     }
 }
 
@@ -75,6 +77,7 @@ pub fn substitute(request: &HttpRequest, vars: &VariableSet) -> HttpRequest {
 #[must_use]
 pub fn unresolved_variables(request: &HttpRequest, vars: &VariableSet) -> Vec<String> {
     let mut texts: Vec<&str> = vec![request.url.as_str()];
+    texts.extend(request.specs.texts(request.kind));
     for kv in request
         .params
         .iter()
@@ -84,7 +87,9 @@ pub fn unresolved_variables(request: &HttpRequest, vars: &VariableSet) -> Vec<St
         texts.push(&kv.key);
         texts.push(&kv.value);
     }
+    // Kinds other than REST build their own body.
     match &request.body {
+        _ if !matches!(request.kind, RequestKind::Rest | RequestKind::Odata) => {}
         RequestBody::None => {}
         RequestBody::Raw { text, .. } => texts.push(text),
         RequestBody::UrlEncoded { fields } => {

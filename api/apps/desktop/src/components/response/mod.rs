@@ -4,6 +4,7 @@ mod body_view;
 mod display;
 mod search_bar;
 mod tables;
+mod websocket;
 
 pub use display::BodyDisplay;
 
@@ -39,6 +40,16 @@ impl FerrumApi {
     ) -> AnyElement {
         let colors = cx.theme().colors().clone();
         let tab_id = self.state.active_tab;
+        if let Some(tab) = self.state.active_tab()
+            && tab.request.kind == ferrumapi_domain::RequestKind::WebSocket
+        {
+            let id = tab.id;
+            return v_flex()
+                .size_full()
+                .bg(colors.editor_background)
+                .child(self.render_ws_log(id, window, cx))
+                .into_any_element();
+        }
         let response = tab_id.and_then(|id| self.state.responses.get(&id).cloned());
         let content = match (tab_id, response) {
             (_, None) | (None, _) => centered(vec![
@@ -111,7 +122,14 @@ impl FerrumApi {
             (ResponseView::Body, "Body".to_owned()),
             (
                 ResponseView::Headers,
-                format!("Headers ({})", response.headers.len()),
+                if response.grpc.is_some() {
+                    format!(
+                        "Metadata ({})",
+                        response.headers.len() + response.trailers.len()
+                    )
+                } else {
+                    format!("Headers ({})", response.headers.len())
+                },
             ),
             (
                 ResponseView::Cookies,
@@ -121,13 +139,36 @@ impl FerrumApi {
         let copy_body = response.body_text();
         let save_bytes = response.body.clone();
         let save_name = files::response_file_name(&response);
-        let status = response.status;
-        let summary = format!("{} {}", response.status, response.status_text);
+        let (summary, status_colour) = match &response.grpc {
+            Some(g) => {
+                let s = cx.theme().status().clone();
+                let colour = if g.code == 0 { s.success } else { s.error };
+                (format!("gRPC {} {}", g.code, g.name), colour)
+            }
+            None => (
+                format!("{} {}", response.status, response.status_text),
+                status_color(response.status, cx),
+            ),
+        };
+        let grpc_message = response
+            .grpc
+            .as_ref()
+            .map(|g| g.message.clone())
+            .filter(|m| !m.is_empty());
         let time = human_duration_ms(response.time_ms);
         let size = human_size(response.size_bytes);
         let content = match current {
             ResponseView::Body => self.render_body_view(tab_id, &response, window, cx),
-            ResponseView::Headers => tables::headers_table(response.headers, cx),
+            ResponseView::Headers => {
+                let mut rows = response.headers;
+                rows.extend(
+                    response
+                        .trailers
+                        .into_iter()
+                        .map(|(k, v)| (format!("{k} (trailer)"), v)),
+                );
+                tables::headers_table(rows, cx)
+            }
             ResponseView::Cookies => tables::cookies_table(response.cookies, cx),
         };
 
@@ -154,7 +195,17 @@ impl FerrumApi {
                         }))
                     }))
                     .child(div().flex_1())
-                    .child(badge(summary, status_color(status, cx), cx))
+                    .child(badge(summary, status_colour, cx))
+                    .children(grpc_message.map(|m| {
+                        div()
+                            .id("grpc-message")
+                            .max_w(gpui::px(240.))
+                            .truncate()
+                            .text_xs()
+                            .text_color(colors.text_muted)
+                            .tooltip(Tooltip::text(m.clone()))
+                            .child(m)
+                    }))
                     .child(
                         div()
                             .id("response-time")

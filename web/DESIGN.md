@@ -44,7 +44,7 @@ The system has two halves:
 | `cta::band`, `cta::get_launcher()` | Closing call to action. The footer hides its own download button when a page ends with one. | `.cta` |
 | `button::link`, `badge::status` | Buttons (`Primary`, `Secondary`, `Ghost`) and the status badge. | `.btn`, `.badge` |
 
-Page-level CSS: `pages.css` (home, product pages, about, 404, download), `docs.css`
+Page-level CSS: `pages.css` (home, `/apps`, product pages, about, 404, download), `docs.css`
 (docs, changelog, FAQ, security, compare), `features.css` (animated demo windows),
 `updates.css` (posts).
 
@@ -61,3 +61,13 @@ Page-level CSS: `pages.css` (home, product pages, about, 404, download), `docs.c
   captions and `scope`. Check pages at 390px and 1440px in both themes.
 - **Copy is factual.** Every claim about an app comes from its README or code. Say
   what isn't built yet.
+
+## Home and `/apps`
+
+- Home, below the hero: the four main apps (`pages::apps::MAIN`) as tabs over a large
+  demo with their features beside it, then one row linking the other six and `/apps`;
+  "native" drawn as two software stacks (Ferrum's three layers against a browser's
+  four); install as a four-node track on the temper rule, closed by the follow line.
+- `/apps` (`pages/apps.rs`) is the one list of every app: logo, one line, key
+  features, link. The nav's "Apps" item points there. Facts come from each app's
+  README and `catalog.json`; don't list FerrumAPI protocols that haven't shipped.

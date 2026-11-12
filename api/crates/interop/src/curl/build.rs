@@ -86,6 +86,7 @@ pub(super) fn request(p: Parsed) -> Result<HttpRequest, InteropError> {
         body: req_body,
         auth,
         settings,
+        ..HttpRequest::default()
     })
 }
 

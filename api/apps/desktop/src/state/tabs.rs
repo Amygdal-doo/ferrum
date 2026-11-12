@@ -120,6 +120,7 @@ mod tests {
             tabs: three(),
             active_tab: Some(TabId::new()),
             active_environment: None,
+            project: None,
         };
         let first = ws.tabs[0].id;
         assert_eq!(restore(ws).1, Some(first));

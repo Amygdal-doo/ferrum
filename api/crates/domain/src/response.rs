@@ -34,6 +34,10 @@ pub struct HttpResponse {
     pub time_ms: u64,
     /// Body size in bytes (decoded).
     pub size_bytes: u64,
+    /// gRPC calls: the call status (the HTTP status is the transport's).
+    pub grpc: Option<crate::protocol::grpc::GrpcStatus>,
+    /// gRPC calls: trailing metadata.
+    pub trailers: Vec<(String, String)>,
 }
 
 impl HttpResponse {

@@ -1,6 +1,7 @@
 //! Left sidebar: Collections | Environments | History.
 
 mod environments;
+mod groups;
 mod history;
 mod menu;
 mod tree;
@@ -109,10 +110,18 @@ impl FerrumApi {
             })
             .cloned()
             .collect();
+        let groups = groups::group_collections(list, self.state.project.as_deref());
 
         let header = section_header(
             "Collections",
             vec![
+                icon_action(
+                    "webhook-inspector",
+                    IconName::Server,
+                    "Webhook inspector",
+                    cx,
+                    |this, _| this.state.dialog = Some(crate::state::Dialog::Webhooks),
+                ),
                 icon_action(
                     "import-collection",
                     IconName::Download,
@@ -146,8 +155,13 @@ impl FerrumApi {
         });
 
         let mut rows = Vec::new();
-        for c in &list {
-            self.render_collection_node(c, &mut rows, window, cx);
+        for group in &groups {
+            if let Some(header) = self.render_group_header(group, cx) {
+                rows.push(header);
+            }
+            for c in &group.collections {
+                self.render_collection_node(c, &mut rows, window, cx);
+            }
         }
 
         v_flex()

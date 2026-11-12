@@ -19,6 +19,8 @@ pub enum MenuAction {
     Rename,
     Duplicate,
     Export,
+    MoveToProject,
+    MakeShared,
     Delete,
 }
 
@@ -29,15 +31,37 @@ impl MenuAction {
             Self::Open => "Open in tab",
             Self::Run => "Run…",
             Self::MockServer => "Mock server…",
-            Self::AddRequest => "Add request",
+            Self::AddRequest => "Add request…",
             Self::AddFolder => "Add folder",
             Self::Settings => "Auth & variables…",
             Self::Rename => "Rename",
             Self::Duplicate => "Duplicate",
             Self::Export => "Export…",
+            Self::MoveToProject => "Move to current project",
+            Self::MakeShared => "Make shared (all projects)",
             Self::Delete => "Delete…",
         }
     }
+}
+
+/// A collection's menu: the container actions plus mock server, settings
+/// and moving between the current project and shared.
+#[must_use]
+pub fn collection_actions(
+    container: &[MenuAction],
+    project: Option<&str>,
+    owner: Option<&str>,
+) -> Vec<MenuAction> {
+    let mut actions = container.to_vec();
+    actions.insert(3, MenuAction::Settings);
+    actions.insert(1, MenuAction::MockServer);
+    if project.is_some() && owner != project {
+        actions.insert(actions.len() - 1, MenuAction::MoveToProject);
+    }
+    if owner.is_some() {
+        actions.insert(actions.len() - 1, MenuAction::MakeShared);
+    }
+    actions
 }
 
 /// "⋯" button that opens `entries` as a popover menu.

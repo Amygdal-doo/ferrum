@@ -1,4 +1,5 @@
-//! Params | Auth | Headers | Body | Settings sub-tabs.
+//! The request's sub-tabs: Params | Auth | Headers | Body | Settings for
+//! REST, and each kind's own sections (see `RequestSection::for_kind`).
 
 use crate::app::FerrumApi;
 use crate::components::widgets::{AuthTarget, AuthView, RowEditor};
@@ -28,16 +29,21 @@ impl FerrumApi {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let colors = cx.theme().colors().clone();
-        let current = self.state.section;
         let r = &tab.request;
+        let kind = r.kind;
+        let current = RequestSection::effective(self.state.section, kind);
         let auth_on = usize::from(!matches!(r.auth, Auth::None | Auth::Inherit));
-        let counts = [
-            active_count(&r.params),
-            auth_on,
-            active_count(&r.headers),
-            body_count(&r.body),
-            0,
-        ];
+        let count = |section: RequestSection| match section {
+            RequestSection::Params => active_count(&r.params),
+            RequestSection::Auth => auth_on,
+            RequestSection::Headers => active_count(&r.headers),
+            RequestSection::Body => body_count(&r.body),
+            RequestSection::Variables => usize::from(!r.specs.graphql.variables.trim().is_empty()),
+            RequestSection::Builder => {
+                ferrumapi_domain::protocol::odata::options(&r.specs.odata).len()
+            }
+            _ => 0,
+        };
         h_flex()
             .flex_none()
             .h_9()
@@ -46,13 +52,14 @@ impl FerrumApi {
             .border_b_1()
             .border_color(colors.border)
             .children(
-                RequestSection::ALL
-                    .into_iter()
-                    .zip(counts)
-                    .map(|(section, n)| {
+                RequestSection::for_kind(kind)
+                    .iter()
+                    .copied()
+                    .map(|section| {
+                        let n = count(section);
                         tab_button(
-                            SharedString::from(section.label()),
-                            section.label(),
+                            SharedString::from(format!("section-{section:?}")),
+                            section.label(kind),
                             section == current,
                             cx,
                         )
@@ -76,7 +83,8 @@ impl FerrumApi {
     ) -> AnyElement {
         let id = tab.id;
         let r = tab.request.clone();
-        let content = match self.state.section {
+        let section = RequestSection::effective(self.state.section, r.kind);
+        let content = match section {
             RequestSection::Params => {
                 let on_edit: RowEditor = Rc::new(move |this, i, edit, _| {
                     this.state.edit_request(id, |r| {
@@ -127,7 +135,13 @@ impl FerrumApi {
                 )
             }
             RequestSection::Body => self.render_body_editor(id, r.body, vars, window, cx),
-            RequestSection::Settings => self.render_settings_editor(id, r.settings, window, cx),
+            RequestSection::Settings => self.render_settings_editor(id, &r, window, cx),
+            RequestSection::Query
+            | RequestSection::Variables
+            | RequestSection::Envelope
+            | RequestSection::Builder
+            | RequestSection::Procedure
+            | RequestSection::Message => self.render_kind_section(tab, section, vars, window, cx),
         };
         div()
             .id("request-section")

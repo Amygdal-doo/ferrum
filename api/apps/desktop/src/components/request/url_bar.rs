@@ -2,13 +2,13 @@
 
 use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_request_edit};
-use crate::components::{method_color, select};
 use crate::state::Dialog;
+use crate::state::protocols::WsStatus;
 use ferrum_ui::kbd;
 use ferrumapi_application::interop::codegen::CodeTarget;
 use ferrumapi_domain::urlparams::params_from_url;
 use ferrumapi_domain::vars::Segment;
-use ferrumapi_domain::{HttpMethod, RequestTab, VariableSet};
+use ferrumapi_domain::{RequestKind, RequestTab, VariableSet};
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 use std::collections::HashSet;
 use ui::{
@@ -28,22 +28,12 @@ impl FerrumApi {
     ) -> AnyElement {
         let colors = cx.theme().colors().clone();
         let id = tab.id;
-        let method = tab.request.method;
-        let method_select = select(
-            SharedString::from(format!("method-{id}")),
-            method.to_string(),
-            HttpMethod::ALL
-                .into_iter()
-                .map(|m| (SharedString::from(m.to_string()), m))
-                .collect(),
-            move |this, m, _| this.state.edit_request(id, |r| r.method = m),
-            window,
-            cx,
-        );
+        let kind = tab.request.kind;
+        let (method_select, method_colour) = self.render_method_picker(tab, window, cx);
         let url = self.field(
             FieldSpec::new(format!("url:{id}"))
                 .value(tab.request.url.clone())
-                .placeholder("Enter URL, e.g. https://api.example.com/users")
+                .placeholder(kind.url_placeholder())
                 .mono()
                 .borderless()
                 .autofocus(),
@@ -59,7 +49,30 @@ impl FerrumApi {
         let segments = vars.segments(&tab.request.url);
         let has_vars = segments.iter().any(|s| matches!(s, Segment::Var { .. }));
 
-        let send = if loading {
+        let ws_status = self.state.protocols.ws_status(id);
+        let send = if kind == RequestKind::WebSocket {
+            let connected = matches!(ws_status, Some(WsStatus::Open | WsStatus::Connecting));
+            h_flex()
+                .gap_1()
+                .child(
+                    Button::new(
+                        "ws-connect",
+                        if connected { "Disconnect" } else { "Connect" },
+                    )
+                    .style(if connected {
+                        ButtonStyle::Outlined
+                    } else {
+                        ButtonStyle::Filled
+                    })
+                    .tooltip(Tooltip::text("Connect / disconnect (⌘/Ctrl+Enter)"))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.ws_toggle(id, cx);
+                        cx.notify();
+                    })),
+                )
+                .child(kbd("⌘↵", cx))
+                .into_any_element()
+        } else if loading {
             Button::new("cancel-request", "Cancel")
                 .style(ButtonStyle::Outlined)
                 .tooltip(Tooltip::text("Cancel the request (⌘/Ctrl+Enter)"))
@@ -72,13 +85,20 @@ impl FerrumApi {
             h_flex()
                 .gap_1()
                 .child(
-                    Button::new("send-request", "Send")
-                        .style(ButtonStyle::Filled)
-                        .tooltip(Tooltip::text("Send (⌘/Ctrl+Enter)"))
-                        .on_click(cx.listener(move |this, _, _, cx| {
-                            this.send(id, cx);
-                            cx.notify();
-                        })),
+                    Button::new(
+                        "send-request",
+                        if kind == RequestKind::Grpc {
+                            "Invoke"
+                        } else {
+                            "Send"
+                        },
+                    )
+                    .style(ButtonStyle::Filled)
+                    .tooltip(Tooltip::text("Send (⌘/Ctrl+Enter)"))
+                    .on_click(cx.listener(move |this, _, _, cx| {
+                        this.send(id, cx);
+                        cx.notify();
+                    })),
                 )
                 .child(kbd("⌘↵", cx))
                 .into_any_element()
@@ -110,7 +130,7 @@ impl FerrumApi {
                                     .px_1()
                                     .border_r_1()
                                     .border_color(colors.border)
-                                    .text_color(method_color(method, cx))
+                                    .text_color(method_colour)
                                     .child(method_select),
                             )
                             .child(div().flex_1().min_w_0().px_3().child(url)),
@@ -125,15 +145,17 @@ impl FerrumApi {
                                 cx.notify();
                             })),
                     )
-                    .child(
-                        Button::new("load-test", "Load")
-                            .style(ButtonStyle::Subtle)
-                            .tooltip(Tooltip::text("Load test this request"))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.open_load_test(id);
-                                cx.notify();
-                            })),
-                    )
+                    .when(kind.is_http(), |this| {
+                        this.child(
+                            Button::new("load-test", "Load")
+                                .style(ButtonStyle::Subtle)
+                                .tooltip(Tooltip::text("Load test this request"))
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    this.open_load_test(id);
+                                    cx.notify();
+                                })),
+                        )
+                    })
                     .child(
                         Button::new("generate-code", "</>")
                             .style(ButtonStyle::Subtle)

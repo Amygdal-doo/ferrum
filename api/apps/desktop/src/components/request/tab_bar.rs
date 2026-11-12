@@ -2,7 +2,7 @@
 
 use crate::app::FerrumApi;
 use crate::components::fields::{FieldEvent, FieldSpec};
-use crate::components::method_label;
+use crate::components::request_badge;
 use crate::state::tabs::display_title;
 use gpui::{AnyElement, ClickEvent, Context, SharedString, Window, div, prelude::*, px};
 use ui::{
@@ -84,7 +84,7 @@ impl FerrumApi {
                         }
                         cx.notify();
                     }))
-                    .child(method_label(tab.request.method, cx))
+                    .child(request_badge(tab.request.kind, tab.request.method, cx))
                     .child(label)
                     .when(tab.dirty, |this| {
                         this.child(
@@ -126,15 +126,21 @@ impl FerrumApi {
             .border_color(colors.border)
             .children(tabs)
             .child(
-                div().mb_1().child(
-                    IconButton::new("new-tab", IconName::Plus)
-                        .icon_size(IconSize::Small)
-                        .tooltip(Tooltip::text("New request tab"))
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.new_tab();
-                            cx.notify();
-                        })),
-                ),
+                h_flex()
+                    .mb_1()
+                    .child(
+                        IconButton::new("new-tab", IconName::Plus)
+                            .icon_size(IconSize::Small)
+                            .tooltip(Tooltip::text("New HTTP request tab"))
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.new_tab();
+                                cx.notify();
+                            })),
+                    )
+                    .child(crate::components::dialogs::new_request_menu(
+                        "new-tab-kind",
+                        cx,
+                    )),
             )
             .into_any_element()
     }

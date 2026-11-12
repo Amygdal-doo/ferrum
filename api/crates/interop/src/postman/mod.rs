@@ -65,6 +65,32 @@ fn array(v: Option<&Value>) -> &[Value] {
     v.and_then(Value::as_array).map_or(&[], Vec::as_slice)
 }
 
+/// [`ferrumapi_domain::protocol::lower`] without breaking `{{variables}}`:
+/// they are swapped for digit tokens (which survive percent-encoding and
+/// are valid both inside JSON strings and as bare JSON values) and put
+/// back afterwards. Falls back to the request as authored.
+fn lower_keeping_variables(r: &ferrumapi_domain::HttpRequest) -> ferrumapi_domain::HttpRequest {
+    let lowered = (|| {
+        let mut text = serde_json::to_string(r).ok()?;
+        let mut vars: Vec<String> = Vec::new();
+        while let Some(start) = text.find("{{") {
+            let end = text[start..].find("}}").map(|e| start + e + 2)?;
+            let var = text[start..end].to_owned();
+            let token = format!("9876543210{:04}", vars.len());
+            text = text.replace(&var, &token);
+            vars.push(var);
+        }
+        let parsed: ferrumapi_domain::HttpRequest = serde_json::from_str(&text).ok()?;
+        let mut out =
+            serde_json::to_string(&ferrumapi_domain::protocol::lower(&parsed).ok()?).ok()?;
+        for (i, var) in vars.iter().enumerate().rev() {
+            out = out.replace(&format!("9876543210{i:04}"), var);
+        }
+        serde_json::from_str(&out).ok()
+    })();
+    lowered.unwrap_or_else(|| r.clone())
+}
+
 /// Appends a human-readable import note to a description.
 fn append_note(desc: &mut String, note: &str) {
     if !desc.is_empty() {

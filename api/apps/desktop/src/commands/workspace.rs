@@ -57,6 +57,7 @@ impl FerrumApi {
                     }
                     Err(e) => errors.push(e),
                 }
+                state.project = ws.project.clone();
                 state.active_env = ws
                     .active_environment
                     .filter(|id| state.environments.iter().any(|e| e.id == *id));
@@ -94,6 +95,7 @@ impl FerrumApi {
                                 tabs: s.tabs.clone(),
                                 active_tab: s.active_tab,
                                 active_environment: s.active_env,
+                                project: s.project.clone(),
                             },
                         )
                     })
@@ -145,6 +147,11 @@ impl FerrumApi {
         self.push_tab(tabs::blank_tab());
     }
 
+    /// A new, unsaved tab with an empty request of `kind`.
+    pub fn new_tab_of_kind(&mut self, kind: ferrumapi_domain::RequestKind) {
+        self.push_tab(RequestTab::new(String::new(), HttpRequest::of_kind(kind)));
+    }
+
     pub fn push_tab(&mut self, tab: RequestTab) {
         let id = tab.id;
         self.state.tabs.push(tab);
@@ -175,6 +182,7 @@ impl FerrumApi {
             token.cancel();
         }
         state.responses.remove(&id);
+        state.protocols.forget(id);
         let next = tabs::close(&mut state.tabs, state.active_tab, id);
         state.active_tab = next;
         state.touch();

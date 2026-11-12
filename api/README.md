@@ -25,9 +25,9 @@ the Ferrum monorepo — sibling of [FerrumData](../data), [FerrumGIT](../git) an
 | Environments + globals CRUD, active-environment selector | ✅ persistence tested; UI wired (not hand-tested) |
 | History of sent requests (authored request + status/time/size; pruned to 500), reopen in a tab | ✅ recorded end-to-end in tests; UI wired (not hand-tested) |
 | Multiple request tabs, restored after restart (debounced autosave) | ✅ reducers unit-tested; autosave observed writing to SQLite on smoke launch |
-| Postman Collection v2.1 import/export (v2.0 import), Postman environment import | ✅ fixture + round-trip tested; file import/export end-to-end tested |
+| Postman Collection v2.1 import/export (v2.0 import), Postman environment import. GraphQL bodies import as GraphQL requests and export in Postman's `graphql` mode; SOAP / OData / tRPC export as the plain HTTP request they send (noted in the description, `{{variables}}` kept); gRPC / WebSocket requests are skipped and listed in the collection description | ✅ fixture + round-trip tested; file import/export end-to-end tested; kind mapping tested |
 | cURL import (incl. Chrome "Copy as cURL", `$'…'`, `-sSL`, `-F`, `-u`, `-G`) | ✅ tested |
-| Code generation: cURL, Python `requests`, JavaScript `fetch` | ✅ snapshot + cURL round-trip tested |
+| Code generation: cURL, Python `requests`, JavaScript `fetch` (GraphQL / SOAP / OData / tRPC as the HTTP request they send); `grpcurl` for gRPC and `websocat` for WebSocket | ✅ snapshot + cURL round-trip tested; kind commands tested |
 | Response body search (⌘F / Ctrl+F): highlight all matches, current-match highlight, count, next/previous (Enter, ⌘G / ⇧⌘G, buttons), match-case toggle, Esc closes; scrolls to the match. Works in Pretty and Raw | ✅ matching unit-tested (case folding, Unicode offsets, non-overlap, 10 000-match cap); UI wired (not hand-tested) |
 | JSON syntax colouring in Pretty view (keys, strings, numbers, booleans, null) from the theme's syntax colours; the pretty text is cached per response instead of re-parsed every frame | ✅ tokenizer + span layering unit-tested; UI wired (not hand-tested) |
 | Cookie jar: `Set-Cookie` cookies stored for the workspace (SQLite, migration `0002_cookies`), sent on later requests to matching domain/path (host-only vs `Domain`, default path, `Secure` only over https, `Expires`/`Max-Age` expiry, deletion via past expiry); an explicit `Cookie` header wins per name. **Cookies** button in the header lists cookies by domain with delete / clear domain / clear all | ✅ matching + expiry unit-tested, persistence tested, end-to-end tested against a mock (login cookie → authenticated request → clear); dialog wired (not hand-tested) |
@@ -35,13 +35,22 @@ the Ferrum monorepo — sibling of [FerrumData](../data), [FerrumGIT](../git) an
 | Mock server: **Mock server…** on a collection (tree menu). Each saved request can have several mock responses (status, headers, body, delay ≤ 60 s, enable toggle) with optional query-param / header conditions. Routes come from the request's method and URL path (a leading `{{baseUrl}}` or `scheme://host` is dropped, the query ignored); `:id`, `{id}` and `{{id}}` segments match any value. The most specific match wins (more literal segments, then more conditions, then order). Unmatched requests get a 404 JSON body listing every route. Start/Stop per collection on a chosen port (default 4010, **127.0.0.1 only**, clear error when the port is taken); edits apply to the running server immediately; live log of requests and which mock answered. Definitions are stored per collection (SQLite, migration `0003_mocks`, deleted with the collection) | ✅ matching/route paths unit-tested, persistence tested, server tested over real sockets (match, conditions, delay, 404 listing, live route swap, port-in-use); dialog wired (not hand-tested) |
 | Webhook inspector: **Webhooks** in the header. Listens on 127.0.0.1 at a chosen port (default 9000), any path; records time, method, path, query, headers, body (pretty JSON when it parses; first 1 MB kept) and size; configurable reply (status, Content-Type, body; editable while running). List + detail, Clear, **Open as request** (new tab, hop-by-hop headers dropped, URL pointing back at the listener so it can be replayed). Captures live in memory only (last 500). Public webhooks need a tunnel (`cloudflared` / `ngrok`) — the dialog says so; none is built in | ✅ capture formatting, replay conversion and the 500-cap log unit-tested; listener tested over real sockets; dialog wired (not hand-tested) |
 | Load test: **Load** next to Send. N requests (≤ 10 000) at C concurrency (≤ 100), optional duration limit (≤ 600 s), using the tab's request as Send would (inherited auth, variables; no cookie jar, no history). Live progress, requests/s, OK / HTTP-error / failed counts by status and error kind, latency min/avg/p50/p90/p99/max (nearest-rank) and a 12-bar histogram; Cancel; closing the dialog keeps it running (status bar reopens it). Non-localhost targets show a warning and the button reads "Start anyway" | ✅ percentiles, histogram, caps and runner (exact count, bounded concurrency, cancel, duration limit) unit-tested; end-to-end against a local mock server (2xx, 5xx, connection refused); dialog wired (not hand-tested) |
+| Request kinds: every saved request has a kind — HTTP/REST, GraphQL, SOAP, OData, tRPC, WebSocket, gRPC. Older records (no `kind`) load as REST; SQLite migration `0004_projects_kinds` adds the project column and a schema cache. Collections / folders hold any mix of kinds; the tree and tab strip show the method (REST) or a kind badge (GQL, SOAP, ODATA, TRPC, WS, GRPC). **Add request…** on a collection / folder picks the kind; the chevron next to **+** in the tab strip opens a new tab of any kind (or the webhook inspector). Each kind keeps its own settings, so switching kinds loses nothing | ✅ domain (serde defaults, lowering), persistence (old-database upgrade test), mixed-kind round trip tested; headless GPUI render of every kind / section tested; not hand-tested |
+| `{{variables}}`, inherited auth, cookie jar, history, runner and timeouts apply to every HTTP-based kind (GraphQL, SOAP, OData, tRPC): each is "lowered" to the plain HTTP request it sends after substitution. WebSocket and gRPC use the same headers / auth (as handshake headers / metadata) and variables in URL, metadata and messages | ✅ end-to-end tested against a local axum server (env variables + collection-inherited Bearer auth for each kind) |
+| Projects: the shared Ferrum project bar now switches projects (recent projects from every Ferrum app, folder → git root). Collections belong to a project or are shared; the sidebar shows **Project · name** and **No project / shared** groups (with no project open: shared plus one group per project). New collections go into the current project; **Move to current project** / **Make shared** on a collection. **Save to repo** writes the project's collections to `<project>/.ferrum/api/<name>-<id>.json` (FerrumAPI JSON, all kinds; secret variable values left out); **Load** reads them back | ✅ grouping, visibility and repo export / import (rename, secrets, broken files) tested; UI not hand-tested |
+| GraphQL: query editor, variables (JSON object, Beautify), operation name, POST JSON or GET (query string). **Schema** panel: introspection with the request's headers / auth, cached in SQLite per endpoint (**Reload** refetches), types with fields / args / input fields / enum values, filter. Field completion: chips under the editor list the fields of the selection set at the caret (click inserts). Pretty JSON response; cURL / Python / fetch code generation; Postman `graphql` body mode on import and export | ✅ lowering, introspection parsing, completion context, POST / GET / introspection / cache end-to-end tested; panel and chips not hand-tested |
+| SOAP: SOAP 1.1 / 1.2 envelope editor, action (1.1 `SOAPAction` header, 1.2 `action` content-type parameter), default content types (a user `Content-Type` wins). **WSDL** (1.1): load from a URL, list operations per SOAP binding with action, version and address; picking one fills the action, version, URL (if empty) and a sample envelope generated from the XML Schema (elements, named / inline complex types, refs, nested up to 4 levels). Responses (and any XML body) are pretty-printed and syntax-coloured (tags, attributes, values, comments, CDATA) | ✅ envelope / headers, WSDL parsing + samples, XML pretty-printer and tokens unit-tested; WSDL load + call end-to-end tested |
+| OData: service root URL + entity set / resource path and a query builder for `$filter`, `$select`, `$expand`, `$orderby`, `$top`, `$skip`, `$search`, `$count` (values percent-encoded, `$ , ( ) ' /` kept readable), live URL preview, `Accept: application/json` by default. **$metadata** (OData v2–v4 CSDL): lists entity sets (keys, properties, navigation in the tooltip); click to use one | ✅ URL building, metadata parsing, end-to-end tested |
+| tRPC: base URL + procedure path, Query (GET `?input=`) or Mutation (POST JSON), batch toggle (`?batch=1`, `{"0": input}`). The response view adds a **Data** mode showing `result.data` unwrapped (a superjson-style `{json}` envelope is unwrapped too) or the `error` object | ✅ lowering and unwrapping unit-tested; query / batch / mutation / error end-to-end tested |
+| WebSocket: **Connect / Disconnect** (⌘/Ctrl+Enter), ws / wss (tokio-tungstenite + rustls with the OS verifier; "Verify TLS" off accepts self-signed), handshake headers + auth, subprotocols. Composer for text, JSON (validated) and binary (base64); messages saved as templates on the request (send / edit / delete). Live log in the response panel: direction, time, frame type, size, events (connected, closed with code / reason, errors), click a row for the full (pretty) payload, Clear. The connection is recorded in history (101) | ✅ client tested against a local echo server (headers, auth, subprotocol, text / JSON / binary, server close, drop-close, refused); session log unit-tested; UI not hand-tested |
+| gRPC: unary and server-streaming calls with dynamic messages (prost-reflect): schema from **server reflection** (`grpc.reflection.v1`, falling back to `v1alpha`) or a local **.proto** file compiled in pure Rust (protox) with import folders. Method picker with shape and types, message template (every field at its default), JSON message → protobuf, metadata from the Metadata table + auth, TLS (grpcs:// / https:// or the toggle; "Verify TLS" off works), timeout and cancel. Response: JSON (an array for streams), gRPC status code / name / message in the badge, headers and trailers under Metadata. Calls go through history and the collection runner. `grpcurl` command in Code | ✅ tested against a local tonic server with reflection (methods, template, metadata + Bearer, headers / trailers, stream, NOT_FOUND status, client-streaming refused, bad JSON, .proto file, refused connection, cancel) |
+| Webhooks: the inspector is also in the sidebar header and the "New request" menu; **Save to collection…** on a capture saves it as a REST request (pointing back at the inspector) | ✅ capture → request conversion tested (existing); button not hand-tested |
 | UI (GPUI): request builder with two-way URL ↔ params sync, header/param enable toggles, body/auth/settings editors, unresolved-variable highlighting, response Pretty/Raw/Preview (images inline; HTML opens in the default browser), headers/cookies tables, copy + save to file, sidebar (Collections/Environments/History) with context menus, import + code dialogs, resizable panes | ⚠️ builds, lints clean, launches; not yet clicked through |
 
 ## Not built yet
 OAuth 1/2, Digest, AWS and other auth types (imported as "Inherit" with a note); pre-request /
 test scripts (the runner's pass/fail is 2xx only); runner options (iterations, delay, data
-files, run report export); WebSocket, GraphQL editor (GraphQL bodies import as raw JSON), gRPC;
-cookie jar gaps: cookies set on intermediate redirect responses are not captured (only the
+files, run report export); cookie jar gaps: cookies set on intermediate redirect responses are not captured (only the
 final response's), cookies are chosen for the request URL before redirects, no public-suffix
 list, session cookies persist until cleared, no per-request "don't use the jar" switch, one jar
 per workspace (not per collection), and cookies are not editable in the dialog; syntax
@@ -60,6 +69,27 @@ persisted, cannot be exported, and binary bodies are not replayable byte-for-byt
 the lossy text); no built-in tunnel; load tests run one request (not a collection or scenario),
 have no ramp-up / rate limit / think time, do not use the cookie jar, and results are not saved
 or exportable.
+Protocol gaps:
+- GraphQL: no subscriptions (graphql-ws / SSE); completion covers fields only (no arguments,
+  variables, fragments or directives) and refreshes while typing, not on caret moves; no syntax
+  colouring in the query editor; cached schemas never expire (use Reload).
+- SOAP: WSDL 1.1 only (no WSDL 2.0); the sample generator ignores attributes, `choice`,
+  type extension and external `xsd:import`s; no WS-Security / WS-Addressing, no MTOM; the
+  envelope editor is not syntax-coloured (responses are).
+- OData: no `$batch`, `$apply` or `$compute`; `$filter` is free text (no expression builder);
+  JSON responses only get JSON colouring (Atom XML gets XML colouring).
+- tRPC: no transformers on input (superjson inputs are sent as plain JSON), no subscriptions,
+  a batch holds one call; no procedure discovery (tRPC has no standard introspection).
+- WebSocket: no auto-reconnect or interval pings, no cookie jar on the handshake, the log is in
+  memory only (2 000 entries kept, newest 500 shown), no Socket.IO / STOMP framing; the runner
+  skips WebSocket requests.
+- gRPC: no client-streaming or bidi-streaming calls; server-streamed messages appear when the
+  stream ends (not live); no gRPC-Web, compression or mTLS client certificates; `-bin` metadata
+  is not decoded; descriptor pools are cached in memory per endpoint / .proto (not in SQLite);
+  the load test is offered for HTTP-based kinds only.
+- Projects: repository files are written / read on demand (Save to repo / Load), not watched or
+  synced automatically; environments are global, not per project; mock-server routes are
+  meaningful for REST requests only.
 
 ## Prerequisites
 - Rust via rustup. `rust-toolchain.toml` installs **1.99.1** automatically.
@@ -71,7 +101,7 @@ or exportable.
 Run from the monorepo root (`ferrum/`).
 ```bash
 cargo api                        # run the app (alias for: cargo run -p ferrumapi-desktop)
-cargo test -p 'ferrumapi-*'      # unit + integration tests (local mock servers, no internet)
+cargo test -p 'ferrumapi-*'      # unit + integration tests (local axum / tonic / WebSocket servers, no internet)
 cargo lint                       # clippy, warnings are errors
 cargo fmt --all
 
@@ -93,12 +123,18 @@ crates/domain/           pure serde types: HttpRequest, RequestBody, Auth, HttpR
                          Environment, VariableSet ({{var}} scan/resolve), URL ↔ params sync, history, workspace,
                          CookieJar (RFC 6265 storage/matching), highlight (find matches, JSON tokens, span layering),
                          mock (route paths + matching), webhook (captures, replay), load (caps, percentiles, histogram)
+                         protocol (request kinds: GraphQL / SOAP / OData / tRPC lowering, GraphQL schema + completion,
+                         WebSocket log, gRPC method info), xml (pretty-print, tokens)
 crates/server/           hyper HTTP/1.1 servers bound to 127.0.0.1: mock server, webhook inspector
-crates/http/             reqwest + rustls execution: substitution, auth, bodies, cookies, cancellation, error mapping
-crates/persistence/      SQLite app state + migrations (collections, environments, globals, history, tabs, settings, cookies, mocks)
-crates/interop/          Postman v2.1 import/export, Postman environments, cURL import, code generation
+crates/http/             reqwest + rustls execution: substitution, auth, bodies, cookies, cancellation, error mapping;
+                         WebSocket client (tokio-tungstenite), shared rustls config
+crates/grpc/             gRPC with dynamic messages: reflection client, .proto compilation (protox), unary / server streaming (tonic)
+crates/persistence/      SQLite app state + migrations (collections + project, environments, globals, history, tabs, settings,
+                         cookies, mocks, schema cache)
+crates/interop/          Postman v2.1 import/export, Postman environments, cURL import, code generation, WSDL, OData $metadata
 crates/application/      AppServices runtime, prepare (auth inheritance + variable layers), send + history, cookie jar,
-                         collection runner, mock route planning, load-test runner, file transfer
+                         collection runner, mock route planning, load-test runner, file transfer, protocol services
+                         (introspection, WSDL, $metadata, gRPC, WebSocket), project repository files
 docs/                    ARCHITECTURE
 ```
 

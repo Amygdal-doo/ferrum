@@ -3,8 +3,8 @@
 use super::{append_note, array, auth, body, description, text, url};
 use crate::InteropError;
 use ferrumapi_domain::{
-    Collection, Folder, HttpMethod, HttpRequest, Item, KeyValue, RequestSettings, SavedRequest,
-    Variable,
+    Collection, Folder, HttpMethod, HttpRequest, Item, KeyValue, RequestBody, RequestKind,
+    RequestSettings, SavedRequest, Variable,
 };
 use serde_json::Value;
 
@@ -114,12 +114,17 @@ fn request(v: &Value, notes: &mut String) -> HttpRequest {
     };
     let (url, params) = url::import(v.get("url"));
     let headers = headers(v.get("header"));
-    let body = body::import(v.get("body"), &headers);
+    let graphql = body::graphql_spec(v.get("body"));
+    let body = if graphql.is_some() {
+        RequestBody::None
+    } else {
+        body::import(v.get("body"), &headers)
+    };
     let (auth, note) = auth::import(v.get("auth"));
     if let Some(note) = note {
         append_note(notes, &note);
     }
-    HttpRequest {
+    let mut request = HttpRequest {
         method,
         url,
         params,
@@ -127,7 +132,13 @@ fn request(v: &Value, notes: &mut String) -> HttpRequest {
         headers,
         auth,
         settings: RequestSettings::default(),
+        ..HttpRequest::default()
+    };
+    if let Some(spec) = graphql {
+        request.kind = RequestKind::Graphql;
+        request.specs.graphql = spec;
     }
+    request
 }
 
 /// Header rows, or the v2.0 `"Key: value\n..."` string form.

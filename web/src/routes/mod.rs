@@ -54,6 +54,7 @@ pub fn app_with(config: Config, releases: Releases) -> Router {
 pub fn router(state: AppState) -> Router {
     let router = Router::new()
         .route("/", get(home))
+        .route(pages::apps::PATH, get(apps))
         .route("/ferrumdata", get(ferrumdata))
         .route("/ferrumapi", get(ferrumapi))
         .route("/ferrumgit", get(ferrumgit))
@@ -120,6 +121,9 @@ pub fn router(state: AppState) -> Router {
 
 async fn home(State(s): State<AppState>) -> Markup {
     pages::home::render(s.site_url())
+}
+async fn apps(State(s): State<AppState>) -> Markup {
+    pages::apps::render(s.site_url())
 }
 async fn privacy(State(s): State<AppState>) -> Markup {
     pages::privacy::render(s.site_url())

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<edmx:Edmx Version="4.0" xmlns:edmx="http://docs.oasis-open.org/odata/ns/edmx">
+  <edmx:DataServices>
+    <Schema Namespace="Trippin" xmlns="http://docs.oasis-open.org/odata/ns/edm">
+      <EntityType Name="Person">
+        <Key><PropertyRef Name="UserName"/></Key>
+        <Property Name="UserName" Type="Edm.String" Nullable="false"/>
+        <Property Name="Age" Type="Edm.Int32"/>
+        <NavigationProperty Name="Friends" Type="Collection(Trippin.Person)"/>
+      </EntityType>
+      <EntityType Name="Airport">
+        <Key><PropertyRef Name="IcaoCode"/></Key>
+        <Property Name="IcaoCode" Type="Edm.String"/>
+      </EntityType>
+      <EntityContainer Name="Container">
+        <EntitySet Name="People" EntityType="Trippin.Person"/>
+        <EntitySet Name="Airports" EntityType="Trippin.Airport"/>
+      </EntityContainer>
+    </Schema>
+  </edmx:DataServices>
+</edmx:Edmx>

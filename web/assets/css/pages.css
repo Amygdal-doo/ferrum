@@ -40,54 +40,182 @@
 }
 @keyframes hero-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 
-/* ---------- Home: app showcase ---------- */
-.showcase__body { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-8); align-items: start; }
-@media (min-width: 960px) {
-  .showcase__body { grid-template-columns: 280px minmax(0, 1fr); gap: var(--sp-12); }
+/* ---------- Home: the four main apps ----------
+   Tabs run across the top; the demo is large, its features sit beside it. */
+.showcase .section-header { max-width: none; margin-bottom: var(--sp-8); }
+.showcase__tabs {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--border-strong); margin-bottom: var(--sp-12);
 }
-.showcase__tabs { display: grid; gap: 2px; }
 .showcase__tab {
-  position: relative; display: grid; grid-template-columns: auto 1fr; column-gap: var(--sp-3); align-items: center;
-  width: 100%; padding: var(--sp-3) var(--sp-4); border: 0; border-radius: var(--radius);
-  background: transparent; color: var(--text-muted); text-align: left; font: inherit; cursor: pointer;
+  position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--sp-4); align-items: center;
+  width: 100%; padding: var(--sp-4) var(--sp-4) var(--sp-6); border: 0; background: transparent;
+  color: var(--text-muted); text-align: left; font: inherit; cursor: pointer;
   transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
 }
-.showcase__tab .app-logo { grid-row: span 2; opacity: 0.7; transition: opacity 0.2s var(--ease); }
-.showcase__name { font-weight: 600; color: var(--text); }
+.showcase__tab .app-logo { grid-row: span 2; opacity: 0.6; filter: saturate(0.4); transition: opacity 0.2s var(--ease), filter 0.2s var(--ease); }
+.showcase__name { font: 700 clamp(1.25rem, 1rem + 0.7vw, 1.6rem)/1 var(--font-display); letter-spacing: 0.01em; color: var(--text-muted); }
 .showcase__kind { font-size: var(--fs-sm); }
-.showcase__tab::before {
-  content: ""; position: absolute; left: 0; top: 18%; bottom: 18%; width: 3px; border-radius: 2px;
-  background: var(--app-accent); transform: scaleY(0); transition: transform 0.3s var(--ease);
+/* The accent bar sits on the rule under the tabs. */
+.showcase__tab::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px;
+  background: var(--app-accent); transform: scaleX(0); transform-origin: left; transition: transform 0.35s var(--ease);
 }
-.showcase__tab:hover { background: color-mix(in srgb, var(--surface) 70%, transparent); }
-.showcase__tab[aria-selected="true"] { background: var(--surface); }
-.showcase__tab[aria-selected="true"]::before { transform: scaleY(1); }
-.showcase__tab[aria-selected="true"] .app-logo, .showcase__tab:hover .app-logo { opacity: 1; }
-.showcase__panel { min-width: 0; }
+.showcase__tab:hover .showcase__name { color: var(--text); }
+.showcase__tab[aria-selected="true"] { background: linear-gradient(0deg, color-mix(in srgb, var(--app-accent) 10%, transparent), transparent 80%); }
+.showcase__tab[aria-selected="true"] .showcase__name { color: var(--text); }
+.showcase__tab[aria-selected="true"]::after { transform: scaleX(1); }
+.showcase__tab[aria-selected="true"] .app-logo, .showcase__tab:hover .app-logo { opacity: 1; filter: none; }
+
+.showcase__panel { display: grid; gap: var(--sp-8); align-items: center; min-width: 0; }
+@media (min-width: 960px) { .showcase__panel { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: var(--sp-12); } }
+.showcase__panel[hidden] { display: none; }
+.showcase__demo { min-width: 0; }
+.showcase__demo .demo__body { min-height: 400px; }
 .js .showcase__panel:not([hidden]) { animation: panel-in 0.45s var(--ease) both; }
-@keyframes panel-in { from { opacity: 0; transform: translateY(8px) scale(0.99); } to { opacity: 1; transform: none; } }
-html:not(.js) .showcase__panel[hidden] { display: block; margin-top: var(--sp-12); }
-.showcase__info { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--sp-2) var(--sp-6); margin-top: var(--sp-6); }
-.showcase__info p { margin: 0; color: var(--text-muted); max-width: 56ch; }
-.showcase__info a { font-weight: 600; white-space: nowrap; }
-@media (max-width: 959px) {
-  .showcase__tabs { grid-auto-flow: column; grid-auto-columns: max-content; overflow-x: auto; padding-bottom: var(--sp-2); scrollbar-width: thin; }
+@keyframes panel-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+html:not(.js) .showcase__panel[hidden] { display: grid; margin-top: var(--sp-16); }
+.showcase__info { min-width: 0; }
+.showcase__summary { font-size: var(--fs-lg); color: var(--text); margin-bottom: var(--sp-6); }
+.showcase__features { list-style: none; margin: 0 0 var(--sp-6); padding: 0; border-top: 1px solid var(--border); }
+.showcase__features li {
+  position: relative; padding: var(--sp-3) 0 var(--sp-3) var(--sp-6);
+  border-bottom: 1px solid var(--border); color: var(--text-muted); font-size: var(--fs-sm);
+}
+.showcase__features li::before {
+  content: ""; position: absolute; left: 0; top: calc(var(--sp-3) + 0.62em); width: 10px; height: 2px; background: var(--app-accent);
+}
+.showcase__more { font-weight: 600; }
+
+/* The other six apps: a title line, then one row of logos. */
+.more-apps {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--sp-4) var(--sp-8); align-items: baseline;
+  margin-top: var(--sp-16); padding-top: var(--sp-6); border-top: 1px solid var(--border);
+}
+.more-apps__title { margin: 0; font-size: var(--fs-base); color: var(--text-muted); }
+.more-apps__all { font-weight: 600; white-space: nowrap; }
+.more-apps .app-strip { grid-column: 1 / -1; grid-row: 2; margin: 0; grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr)); }
+@media (min-width: 1100px) { .more-apps .app-strip { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+.more-apps .app-strip__link { padding: var(--sp-3); font-size: var(--fs-sm); white-space: nowrap; }
+@media (max-width: 559px) { .more-apps .app-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } .more-apps .app-strip__link { white-space: normal; line-height: 1.25; } }
+
+@media (max-width: 759px) {
+  .showcase__tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: var(--sp-8); border-bottom: 0; }
+  .showcase__tab { padding: var(--sp-3); column-gap: var(--sp-3); border-bottom: 1px solid var(--border-strong); }
+  .showcase__tab .app-logo { width: 32px; height: 32px; }
   .showcase__kind { display: none; }
-  .showcase__tab .app-logo { grid-row: auto; }
-  .showcase__tab::before { left: 18%; right: 18%; top: auto; bottom: 0; width: auto; height: 3px; transform: scaleX(0); }
-  .showcase__tab[aria-selected="true"]::before { transform: scaleX(1); }
+  .showcase__name { font-size: 1.2rem; }
+  .showcase__demo .demo__body { min-height: 300px; }
 }
 
-/* ---------- Home: native ---------- */
+/* ---------- Home: native, drawn as two software stacks ---------- */
 .native { border-block: 1px solid var(--border); background: var(--bg-elev); }
-.native__inner { display: grid; gap: var(--sp-8) var(--sp-16); }
-@media (min-width: 960px) { .native__inner { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); } }
-.native h2 { font-size: var(--fs-3xl); max-width: 10ch; }
-.native__list { margin: 0; display: grid; gap: var(--sp-8) var(--sp-12); grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
-.native__list div { padding-top: var(--sp-4); border-top: 1px solid var(--border-strong); }
-.native__list dt { font-weight: 600; margin-bottom: var(--sp-2); }
-.native__list dd { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
-.page-home .install-flow__cta { margin-top: var(--sp-12); }
+.native__inner { display: grid; gap: var(--sp-12) var(--sp-16); align-items: center; }
+@media (min-width: 960px) { .native__inner { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.native h2 { font-size: var(--fs-3xl); max-width: 11ch; }
+.native__facts { margin: var(--sp-8) 0 0; display: grid; gap: var(--sp-6) var(--sp-8); grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.native__facts div { padding-top: var(--sp-4); border-top: 1px solid var(--border-strong); }
+.native__facts dt { font-weight: 600; margin-bottom: var(--sp-2); }
+.native__facts dd { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
+
+.stack { margin: 0; min-width: 0; }
+.stack__cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); align-items: end; }
+.stack__name { margin: 0 0 var(--sp-3); font-weight: 600; font-size: var(--fs-sm); }
+.stack__layers { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.stack__layers li {
+  display: flex; align-items: center; min-height: 3.5rem; padding: 0 var(--sp-4);
+  border-radius: var(--radius-sm); font-size: var(--fs-sm); line-height: 1.25;
+}
+/* Ferrum: three layers, heated through the temper colours. */
+.stack__col--ferrum .stack__name { color: var(--text); }
+.stack__col--ferrum li { color: var(--on-color); font-weight: 600; }
+.stack__col--ferrum li:nth-child(1) { background: var(--straw); }
+.stack__col--ferrum li:nth-child(2) { background: color-mix(in srgb, var(--bronze) 85%, var(--straw)); }
+.stack__col--ferrum li:nth-child(3) { background: color-mix(in srgb, var(--violet) 80%, var(--bronze)); color: var(--on-violet); }
+/* The browser stack: cold, outlined, one layer taller. */
+.stack__col--web .stack__name { color: var(--text-muted); }
+.stack__col--web li { border: 1px dashed var(--border-strong); color: var(--text-muted); background: color-mix(in srgb, var(--surface) 55%, transparent); }
+.stack__base {
+  margin: 6px 0 0; padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--text); font-weight: 600; font-size: var(--fs-sm); text-align: center;
+}
+.stack figcaption { margin-top: var(--sp-4); font-size: var(--fs-sm); color: var(--text-muted); }
+
+/* ---------- Home: install, a four-step track ---------- */
+.install-flow__head { display: grid; gap: var(--sp-4) var(--sp-16); align-items: end; margin-bottom: var(--sp-16); }
+@media (min-width: 960px) { .install-flow__head { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.install-flow__head h2 { margin: 0; max-width: 18ch; }
+.install-flow__head .lead { margin: 0; }
+.track { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-8); counter-reset: track; }
+.track__step { position: relative; counter-increment: track; min-width: 0; }
+.track__step::before {
+  content: counter(track); display: grid; place-items: center; width: 3rem; height: 3rem; margin-bottom: var(--sp-6);
+  border-radius: 50%; border: 2px solid var(--straw); background: var(--bg);
+  font: 800 1.5rem/1 var(--font-display); color: var(--straw);
+  position: relative; z-index: 1;
+}
+.track__step:first-child::before { background: var(--straw); color: var(--accent-text); }
+:root[data-theme="light"] .track__step::before { border-color: var(--link); color: var(--link); }
+:root[data-theme="light"] .track__step:first-child::before { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.track__title { margin-bottom: var(--sp-2); }
+.track__step p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); max-width: 30ch; }
+@media (min-width: 760px) {
+  /* The temper rule runs from the first step's node to the last one's. */
+  .track {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    background: var(--temper) no-repeat 1.5rem calc(1.5rem - 1px) / calc(75% + 0.75 * var(--sp-8)) 2px;
+  }
+}
+@media (max-width: 759px) {
+  .track { gap: var(--sp-6); }
+  .track__step { display: grid; grid-template-columns: 3rem minmax(0, 1fr); column-gap: var(--sp-4); }
+  .track__step::before { grid-row: span 2; margin: 0; }
+  .track__step:not(:last-child)::after {
+    content: ""; position: absolute; left: calc(1.5rem - 1px); top: 3rem; bottom: calc(-1 * var(--sp-6)); width: 2px;
+    background: linear-gradient(var(--straw), var(--bronze));
+  }
+}
+.page-home .install-flow__cta { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-12); }
+/* Follow the updates: a quiet line closing the page, not another card. */
+.page-home .follow {
+  margin-top: var(--sp-16); padding: var(--sp-8) 0 0; border: 0; border-top: 1px solid var(--border);
+  border-radius: 0; background: none;
+}
+.page-home .follow__title { font-size: var(--fs-xl); }
+.page-home .follow__lead { font-size: var(--fs-sm); }
+.page-home .install-flow { padding-bottom: var(--sp-16); }
+
+/* ---------- Apps index (/apps) ---------- */
+.app-group { padding-block: var(--sp-16) 0; }
+.app-group__head { display: grid; gap: var(--sp-2) var(--sp-12); align-items: baseline; margin-bottom: var(--sp-8); }
+@media (min-width: 960px) { .app-group__head { grid-template-columns: minmax(0, auto) minmax(0, 1fr); } }
+.app-group__head h2 { margin: 0; font-size: var(--fs-2xl); }
+.app-group__head p { margin: 0; color: var(--text-muted); }
+.app-row {
+  position: relative; display: grid; gap: var(--sp-4) var(--sp-12);
+  padding: var(--sp-8) 0; border-top: 1px solid var(--border);
+  scroll-margin-top: var(--header-h);
+}
+.app-row::before {
+  content: ""; position: absolute; left: 0; top: -1px; width: 4rem; height: 2px; background: var(--app-accent);
+}
+@media (min-width: 960px) {
+  .app-row { grid-template-columns: 17rem minmax(0, 0.9fr) minmax(0, 1.2fr); align-items: start; }
+}
+.app-row__id { display: flex; gap: var(--sp-4); align-items: center; }
+.app-row__logo { width: 56px; height: 56px; }
+.app-row__name { margin: 0 0 var(--sp-1); font: 800 1.9rem/1 var(--font-display); letter-spacing: 0.01em; }
+.app-row__name a { color: var(--text); text-decoration: none; }
+.app-row__name a:hover { text-decoration: underline; text-decoration-color: var(--app-accent); text-decoration-thickness: 2px; }
+.app-row__kind { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--text-muted); }
+.app-row__summary { margin: 0 0 var(--sp-3); color: var(--text); }
+.app-row__more { font-weight: 600; font-size: var(--fs-sm); }
+.app-row__features { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.app-row__features li { position: relative; padding-left: var(--sp-6); color: var(--text-muted); font-size: var(--fs-sm); }
+.app-row__features li::before {
+  content: ""; position: absolute; left: 0; top: 0.68em; width: 10px; height: 2px; background: var(--app-accent);
+}
+.page-apps .cta { margin-top: var(--sp-16); }
 
 /* ---------- Product pages (header: .page-header--app in components.css) ---------- */
 .page-product .product-preview { padding-top: var(--sp-12); }
