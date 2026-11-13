@@ -36,6 +36,7 @@ pub fn default_command(app: AppId) -> Option<&'static str> {
         "dock" => "fec",
         "ports" => "fep",
         "env" => "fev",
+        "agentic" => "fex",
         "launcher" => "fel",
         _ => return None,
     })
@@ -253,6 +254,7 @@ mod tests {
             Some("fev"),
             "fee is the Editor's"
         );
+        assert_eq!(default_command(AppId::AGENTIC), Some("fex"), "FeX");
         let mut seen = std::collections::HashSet::new();
         for app in AppId::BUILTIN {
             let command = default_command(app).expect("default");

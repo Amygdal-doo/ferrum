@@ -214,9 +214,9 @@ pub fn render(site_url: &str) -> Markup {
                 .lead(html! {
                     p {
                         "The launcher is the only thing you download by hand. Ferrum Editor, \
-                         FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers, \
-                         FerrumPorts and FerrumEnv have no separate installers: install, update \
-                         and remove them from the launcher."
+                         FerrumAgentic, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, \
+                         FerrumContainers, FerrumPorts and FerrumEnv have no separate installers: \
+                         install, update and remove them from the launcher."
                     }
                 })
                 .render(html! {

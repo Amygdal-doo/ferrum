@@ -1,8 +1,8 @@
 # Installing Ferrum
 
 You install **Ferrum Launcher** once. It then installs, updates and rolls back
-every other Ferrum app (Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData,
-FerrumTerm, FerrumKit, FerrumContainers, and apps published later).
+every other Ferrum app (Ferrum Editor, FerrumAgentic, FerrumAPI, FerrumGIT,
+FerrumData, FerrumTerm, FerrumKit, FerrumContainers, and apps published later).
 Only the launcher has an installer (`.dmg`, `.exe`, `.deb`); the other apps are
 installed through it and have no separate download.
 

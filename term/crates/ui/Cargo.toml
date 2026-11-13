@@ -1,0 +1,27 @@
+[package]
+name = "ferrumterm-ui"
+description = "FerrumTerm's terminal UI as an embeddable GPUI view (tabs, splits, agents and SSH sidebar, dialogs)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+ferrumterm-protocol.workspace = true
+ferrumterm-client.workspace = true
+ferrumterm-net.workspace = true
+# Private in-process server when the shared one can't be reached or started.
+ferrumterm-server.workspace = true
+ferrum-ui.workspace = true
+# Named for `gpui::actions!` (which refers to `gpui::…` paths).
+gpui.workspace = true
+futures.workspace = true
+unicode-width.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }

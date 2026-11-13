@@ -37,12 +37,12 @@ handling are its own; nothing from Zed's editor stack (`editor`, `language`, `pr
 | Session restore (folder, pane layout, tabs, cursor and scroll) | ✅ headless-tested |
 | User dir `~/.ferrum/editor/`: `config.toml`, `keymap.toml`, `theme.toml`, `snippets.toml` created with documented defaults, watched and applied live (problems shown as a notice) | ✅ parsing tested; live reload headless-tested |
 | Snippets with `$1`, `${1:placeholder}`, mirrored stops, `$0`, Tab / Shift+Tab navigation | ✅ tested |
-| Project bar at the top of the window (the shared Ferrum `ProjectBar`): project name with a switcher of recent projects from every Ferrum app (⌥⌘O, or click the name; picking one opens it like *Open Folder*), the path (click a segment to reveal it, right-click copies), the git branch (kept current after checkouts), buttons to open the project in FerrumGIT / FerrumTerm; the Editor \| Git \| CI \| Logs switch sits at its right end | ✅ open-from-switcher headless-tested; drawing not hand-tested |
+| Project bar at the top of the window (the shared Ferrum `ProjectBar`): project name with a switcher of recent projects from every Ferrum app (⌥⌘O, or click the name; picking one opens it like *Open Folder*), the path (click a segment to reveal it, right-click copies), the git branch (kept current after checkouts), buttons to open the project in FerrumGIT / FerrumTerm; the **[Git] [Agent] [Term]** pane toggles sit at its right end (see [Tool panes](#tool-panes)) | ✅ open-from-switcher headless-tested; drawing not hand-tested |
 | Built-in `ferrum-dark` / `ferrum-light` themes applied to the whole UI, plus bundled Material themes (Default, Darker, Palenight, Ocean, Deep Ocean, Lighter) | ✅ token tables unit-tested; selector headless-tested; not hand-tested |
 | Loadable themes in `~/.ferrum/editor/themes/`: our TOML format and VS Code colour themes (`.json`, comments / trailing commas / `include` allowed; workbench `colors` → UI + terminal tokens, `tokenColors` TextMate scopes → tree-sitter names); theme selector with live preview, Enter saves to `config.toml`, Escape reverts; install from file; folder watched live; bad files → notice | ✅ parsing / mapping unit-tested; selector headless-tested |
 | *Theme: Import VS Code Theme…*: a `.json` theme (its `include` chain resolved) or a `.vsix` extension (every theme in `package.json` → `contributes.themes`, light/dark from `uiTheme`) converted to Ferrum TOML in `themes/` and applied | ✅ fixtures unit-tested (JSONC, include, vsix); import headless-tested |
 | File icons (own SVG set, tinted per type) in the tree view, tabs, file finder and find-in-files results; a bundled `material` icon theme (solid Material-style glyphs, folders coloured by role: `src`, `tests`, `docs`, `node_modules`, `.github`, `dist`/`target`…); icon themes in `~/.ferrum/editor/icon-themes/<name>/`; icon theme selector with preview; `show_file_icons` | ✅ resolution unit- and headless-tested; drawing not hand-tested |
-| Integrated terminal panel (FerrumTerm's emulator on a local PTY, your login shell in the project folder): tabs, ⌃\` / status-bar toggle, resizable, keeps running while hidden, keys incl. Ctrl / Alt / arrows / paste go to the shell, mouse selection + copy, wheel scrollback, ANSI colours from the theme | ✅ input / toggle / tabs headless-tested with a detached session; real PTY unit-tested; rendering not hand-tested |
+| Tool panes inside the window: Git (FerrumGIT's `GitView`), Agent (FerrumChat's `ChatView`), Term (FerrumTerm's `TermView`), CI, Logs and Debug as split panes docked right / left / bottom; several open at once; drag a pane's header or use its ⋯ menu to move it, drag dividers to resize, close from the header; layout saved per project | ✅ open-all / move / resize / close / restore and event wiring headless-tested; drawing and dragging not hand-tested |
 | Language servers (LSP): one server per language and project folder, found on your login shell's `PATH` (rust-analyzer, typescript-language-server, pyright / pylsp, gopls, vscode-json/css/html, taplo, yaml-language-server, bash-language-server; override in `[lsp.<id>]`); full-text sync, UTF-8 / UTF-16 positions | ✅ client unit-tested over pipes; end to end headless-tested with a scripted server |
 | Autocomplete: as you type (and on trigger characters such as `.`) or with Ctrl+Space / Cmd+I; server items (snippets with tab stops, auto-import edits) or words from the file when there is no server; ↑/↓, Enter / Tab to insert, Escape to close; `autocomplete = false` turns off the automatic menu | ✅ ranking / snippets unit-tested; typing → menu → insert headless-tested; menu drawing not hand-tested |
 | Problems: wavy underlines and gutter dots coloured by severity, hover (or Cmd+K Cmd+I) for the message and the server's type / docs, F8 / Shift+F8 to step through, error / warning counts in the status bar, Ctrl+Shift+M lists every problem in the project | ✅ mapping and list headless-tested; drawing not hand-tested |
@@ -52,18 +52,18 @@ handling are its own; nothing from Zed's editor stack (`editor`, `language`, `pr
 | Code actions / quick fixes (Cmd+.): actions for the selection and the problems under it (preferred and quick fixes first) in a picker; edits applied, commands run with `workspace/executeCommand`, edits the server sends back (`workspace/applyEdit`) applied and answered; `codeAction/resolve` when needed | ✅ parsing unit-tested; edit and command actions headless-tested |
 | Format document (Shift+Alt+F) and format on save (`format_on_save`, on for Rust / Go / TypeScript / JavaScript when the server can format; per language under `[languages.<id>]`); saving waits at most 1.5 s, and a slow or failing server only skips formatting with a notice | ✅ headless-tested (command and on save) |
 | Signature help: typing `(` / `,` (the server's trigger characters) shows the signature above the caret with the current parameter highlighted; `)`, Escape or moving away closes it; Cmd+Shift+Space asks | ✅ parsing unit-tested; typing → popup → Escape headless-tested; drawing not hand-tested |
-| Tasks: build / test / run / lint tasks found from `Cargo.toml`, `go.mod`, package.json scripts (pnpm / yarn / bun / npm from the lock file; `tsc --noEmit` for TypeScript without a build script), Makefile targets and `.vscode/tasks.json`; ⌘B runs the default build, ⇧⌘B picks one; each runs in its own terminal tab (rerun replaces it) after saving edited files; errors and warnings from cargo/rustc, tsc, Go and `file:line:col` compilers become problems | ✅ detection and output parsing unit-tested; ⌘B → tab → problems headless-tested; real PTY task unit-tested |
-| Git (FerrumGIT's git layer, not its UI): Files / Git tabs in the sidebar (⌃⇧G) with branch ↑↓, fetch / pull / push, commit message (⌘↵; Commit All when nothing is staged), staged and unstaged files with stage / unstage / discard (confirmed); an Editor \| Git switch at the top right (⌥⌘G) for the changes, recent history and the diff of a file or commit; refreshes after saves and when the window comes back; everything else opens FerrumGIT | ✅ headless-tested on a real repository; drawing not hand-tested |
-| CI page (`ferrumci-core`, formerly the FerrumCI app): GitHub Actions of the open project's GitHub remote — runs with filters, run detail with jobs and steps, finished job logs with ANSI colours, folding and search, re-run / cancel / notify when done, workflow dispatch form, pull requests with their checks; token from FerrumGIT's keychain entry, `gh auth token` or `GH_TOKEN` / `GITHUB_TOKEN`, or pasted on the sign-in screen; ⇧⌘I or the CI button of the Editor \| Git \| CI \| Logs switch | ✅ headless-tested against recorded GitHub responses; drawing not hand-tested |
-| Logs page (`ferrumlogs-core`, formerly the FerrumLogs app): live logs of the open project — log files and globs (rotation-aware tails), dev-server commands, Docker containers and compose services — merged into one view with source chips, ANSI colours, level detection, JSON lines, level / text / regex filters, follow tail, selection and copy, export; sources saved per project, suggestions for a project without sources; sources keep running when the editor switches folders; ⌥⌘L or the Logs button | ✅ core unit-tested; page headless-tested with real `/bin/sh` commands and temp files; drawing not hand-tested |
-| AI agent sessions: Claude Code, Codex, Gemini CLI or any CLI from `[[agents]]` run in terminal tabs (several at once; start / stop / restart; optional first prompt with the current file or selection); found on the login shell's PATH, `~/.ferrum/bin`, `~/.local/bin`, npm's global bin; missing ones show their install command (one-click npm install); per-agent `env` for API keys, masked in the panel and never logged | ✅ snapshot / review / config unit-tested; a fake agent end to end headless-tested; real CLIs not run |
-| AI Diff Review: a snapshot when a session starts (a git tree incl. untracked files, or the folder's text files), changed files with +/- counts, per-file diffs; accept / reject per hunk, per file, or all; open buffers reload as one undo step; stale hunks refused while the agent keeps writing | ✅ core tested on real git; accept / reject / undo headless-tested; drawing not hand-tested |
-| Debugger (DAP): `lldb-dap` / CodeLLDB (Rust, C), `dlv dap` (Go), js-debug (JS/TS); `.vscode/launch.json` or defaults; gutter / F9 breakpoints (saved per project, verified vs not), current line, F5 / F10 / F11 / ⇧F11 / ⇧F5, call stack, lazy variables, watches, debug console with evaluate, `runInTerminal` in a terminal tab | ✅ protocol + state machine tested against a scripted adapter; real `lldb-dap` on a C program (ignored test); F9 → stop → F10 → F5 headless-tested; dlv / js-debug not run here |
+| Tasks: build / test / run / lint tasks found from `Cargo.toml`, `go.mod`, package.json scripts (pnpm / yarn / bun / npm from the lock file; `tsc --noEmit` for TypeScript without a build script), Makefile targets and `.vscode/tasks.json`; ⌘B runs the default build, ⇧⌘B picks one; each runs in a tab of the Term pane after saving edited files; errors and warnings from cargo/rustc, tsc, Go and `file:line:col` compilers become problems | ✅ detection and output parsing unit-tested; ⌘B → Term pane → problems headless-tested; output capture unit-tested with `/bin/sh` |
+| Git pane: FerrumGIT's own interface embedded (`ferrumgit-ui`, compact layout) — changes, staging, commit, history, branches, diffs; ⌥⌘G / ⌃⇧G or the Git button; *Open* in a diff opens the file in the editor at that line | ✅ embedding headless-tested; FerrumGIT's view is tested in `git/crates/ui` |
+| CI page (`ferrumci-core`, formerly the FerrumCI app): GitHub Actions of the open project's GitHub remote — runs with filters, run detail with jobs and steps, finished job logs with ANSI colours, folding and search, re-run / cancel / notify when done, workflow dispatch form, pull requests with their checks; token from FerrumGIT's keychain entry, `gh auth token` or `GH_TOKEN` / `GITHUB_TOKEN`, or pasted on the sign-in screen; a tool pane: ⇧⌘I, *View → CI Pane* or the palette | ✅ headless-tested against recorded GitHub responses; drawing not hand-tested |
+| Logs page (`ferrumlogs-core`, formerly the FerrumLogs app): live logs of the open project — log files and globs (rotation-aware tails), dev-server commands, Docker containers and compose services — merged into one view with source chips, ANSI colours, level detection, JSON lines, level / text / regex filters, follow tail, selection and copy, export; sources saved per project, suggestions for a project without sources; sources keep running when the editor switches folders; a tool pane: ⌥⌘L, *View → Logs Pane* or the palette | ✅ core unit-tested; page headless-tested with real `/bin/sh` commands and temp files; drawing not hand-tested |
+| Agent pane: FerrumChat (`ferrumagent-ui`) — threads, agent / model picker (its own models, or Claude Code, Codex, Gemini… over ACP), modes, @-mentions, tool cards with permission prompts, change review with accept / reject and checkpoints; ⌥⌘A or the Agent button. *Agents: New Session* still runs a CLI agent from `[[agents]]` in a Term pane tab | ✅ embedding and events headless-tested; the chat itself is tested in `agent/crates/ui` |
+| Debugger (DAP): `lldb-dap` / CodeLLDB (Rust, C), `dlv dap` (Go), js-debug (JS/TS); `.vscode/launch.json` or defaults; gutter / F9 breakpoints (saved per project, verified vs not), current line, F5 / F10 / F11 / ⇧F11 / ⇧F5, call stack, lazy variables, watches, debug console with evaluate, `runInTerminal` in a Term pane tab | ✅ protocol + state machine tested against a scripted adapter; real `lldb-dap` on a C program (ignored test); F9 → stop → F10 → F5 headless-tested; dlv / js-debug not run here |
 | CLI: `ferrumeditor [path[:line[:col]]...]`, `--help`, `--version` | ✅ tested |
 
 ## Not built yet
-Terminal: mouse reporting to programs (vim/htop mouse), selection beyond the visible screen,
-link detection, find in scrollback, split terminals, per-terminal font settings; VS Code font
+Tool panes: dropping a pane on another always puts it after that pane (no before / beside
+choice by drop position), docks cannot be nested beyond left / right / bottom, and the Term
+pane's tab titles come from FerrumTerm (a task's tab shows `sh`, its OSC title aside). VS Code font
 styles (bold / italic) and semantic token colours are not imported; icon SVGs are single-colour
 masks (multi-colour icons are flattened to one tint).
 Language servers: range / on-type formatting, a lightbulb or gutter hint for code actions,
@@ -78,9 +78,8 @@ cursor blinking; minimap; code folding; encodings other than UTF-8; editing file
 over 64 MB; a project-wide replace; drag-and-drop of tabs or files; tree view drag-to-move;
 tab overflow menu; per-project settings; Linux/Windows key defaults beyond a mechanical
 `cmd`→`ctrl` translation.
-Agents: no chat UI of our own (the agent's own TUI runs in the terminal); undo of a rejection
-in a file that is not open; reviewing a session after the editor restarts (snapshots live in
-memory). Debugger: conditional / log breakpoints, function and exception breakpoints (the
+Agents: CLI agents started with *Agents: New Session* are plain terminal tabs (no snapshot /
+diff review of their own; FerrumChat's review covers chat sessions). Debugger: conditional / log breakpoints, function and exception breakpoints (the
 exception filters are sent empty), hover evaluate, data breakpoints, multiple simultaneous
 sessions, breakpoints moving with edits (they stay on their line number); dlv and js-debug
 are wired but were not run against the real adapters in tests.
@@ -118,10 +117,12 @@ Saving any of them applies the change immediately.
 
 Every action has a stable `namespace:command` name used by the palette, the keymap and the
 menus. Default bindings (macOS; elsewhere `cmd` becomes `ctrl`, Cmd+arrow motions are dropped,
-Alt word motions become Ctrl, and terminal-scope `cmd` keys become `ctrl-shift`, e.g.
-`ctrl-shift-c` to copy). While a terminal has focus, window-wide keys without Cmd (without
-Ctrl+Shift off macOS) — Ctrl+G, Ctrl+Tab, Alt+Z, Escape… — go to the shell instead; the
-`terminal:*` keys always work:
+Alt word motions become Ctrl, and terminal-scope `cmd` keys become `ctrl-shift`). While the
+Term pane has focus, window-wide keys without Cmd (without Ctrl+Shift off macOS) — Ctrl+G,
+Ctrl+Tab, Alt+Z, Escape… — go to the shell instead, and FerrumTerm's own keys (⌘T, ⌘D, ⌘W,
+⌘C / ⌘V…) apply; the `terminal:*` keys always work. The Git and Agent panes have their own keys
+while focused too (FerrumGIT: ⌘P quick open, ⌘R reload; FerrumChat: ↵ send, ⇧Tab mode, ⌘.
+stop…):
 
 | Command | Default keys | Active in |
 |---------|--------------|-----------|
@@ -171,25 +172,21 @@ Ctrl+Shift off macOS) — Ctrl+G, Ctrl+Tab, Alt+Z, Escape… — go to the shell
 | `find-and-replace:use-selection-as-find` | `cmd-e` | editor |
 | `find-in-files:show` | `cmd-shift-f` | window |
 | `markdown-preview:toggle` | `cmd-shift-m` | window |
-| `git:toggle-view` | `cmd-alt-g` | window |
-| `git:show-panel` | `ctrl-shift-g` | window |
-| `git:refresh` / `git:commit` / `git:stage-all` | — | window |
-| `git:fetch` / `git:pull` / `git:push` | — | window |
-| `git:open-in-ferrumgit` | — | window |
-| `ci:toggle-view` | `cmd-shift-i` | window |
-| `ci:refresh` | `cmd-r` on the CI page | window |
-| `ci:search-log` | `cmd-f` on the CI page | window |
-| `logs:toggle-view` | `cmd-alt-l` | window |
+| `git:toggle-view` (Git pane) | `cmd-alt-g` | window |
+| `git:show-panel` (Git pane) | `ctrl-shift-g` | window |
+| `git:open-in-ferrumgit` (the FerrumGIT app) | — | window |
+| `tools:close-all` / `tools:reset-layout` | — | window |
+| `ci:toggle-view` (CI pane) | `cmd-shift-i` | window |
+| `ci:refresh` | `cmd-r` in the CI pane | window |
+| `ci:search-log` | `cmd-f` in the CI pane | window |
+| `logs:toggle-view` (Logs pane) | `cmd-alt-l` | window |
 | `logs:add-source` / `logs:stop-all` | — | window |
 | `tasks:build` | `cmd-b` | window |
 | `tasks:run` | `cmd-shift-b` | window |
 | `tasks:test` | — | window |
 | `tasks:rerun-last` | — | window |
-| `agents:toggle-panel` | `cmd-alt-a` | window |
-| `agents:new-session` | — | window |
-| `agents:stop-session` / `agents:restart-session` | — | window |
-| `agents:review-changes` | `cmd-alt-r` | window |
-| `agents:accept-all` / `agents:reject-all` | — | window |
+| `agents:toggle-panel` (Agent pane) | `cmd-alt-a` | window |
+| `agents:new-session` (CLI agent in the Term pane) | — | window |
 | `debug:start` | — | window |
 | `debug:continue` | `f5` | window |
 | `debug:stop` | `shift-f5` | window |
@@ -200,7 +197,7 @@ Ctrl+Shift off macOS) — Ctrl+G, Ctrl+Tab, Alt+Z, Escape… — go to the shell
 | `debug:step-out` | `shift-f11` | window |
 | `debug:toggle-breakpoint` | `f9` | window |
 | `debug:remove-all-breakpoints` | — | window |
-| `debug:toggle-panel` | `cmd-shift-y` | window |
+| `debug:toggle-panel` (Debug pane) | `cmd-shift-y` | window |
 | `debug:add-watch` / `debug:install-adapter` | — | window |
 | `problems:show` | `ctrl-shift-m` | window |
 | `language-server:restart` | — | window |
@@ -208,15 +205,9 @@ Ctrl+Shift off macOS) — Ctrl+G, Ctrl+Tab, Alt+Z, Escape… — go to the shell
 | `language-server:show-install-log` | — | window |
 | `navigation:back` | `ctrl--` | window |
 | `navigation:forward` | `ctrl-shift--` | window |
-| `terminal:toggle` | `` ctrl-` `` | window |
-| `terminal:new` | `` ctrl-shift-` `` | window |
-| `terminal:close` | — | window |
-| `terminal:next-tab` | `cmd-shift-]` | terminal |
-| `terminal:previous-tab` | `cmd-shift-[` | terminal |
-| `terminal:copy` | `cmd-c` | terminal |
-| `terminal:paste` | `cmd-v` | terminal |
-| `terminal:clear` | — | terminal |
-| `terminal:open-in-ferrumterm` | — | window |
+| `terminal:toggle` (Term pane) | `` ctrl-` `` | window |
+| `terminal:new` (new tab in the Term pane) | `` ctrl-shift-` `` | window |
+| `terminal:open-in-ferrumterm` (the FerrumTerm app) | — | window |
 | `window:increase-font-size` | `cmd-=`, `cmd-+` | window |
 | `window:decrease-font-size` | `cmd--` | window |
 | `window:reset-font-size` | `cmd-0` | window |
@@ -358,22 +349,45 @@ check = { command = "clippy" }
 enabled = false
 ```
 
-## Git
-The sidebar has two tabs, Files and Git (⌃⇧G). The Git tab shows the branch (with commits
-ahead ↑ and behind ↓), fetch / pull (fast-forward only) / push, a commit message box (⌘↵
-commits; with nothing staged it commits every change), and the staged and changed files:
-`+` stages, `−` unstages, `↺` discards after asking. Clicking a file opens it; its gutter marks
-the changed lines.
+## Tool panes
+The **[Git] [Agent] [Term]** buttons at the right end of the top bar open their tool *inside*
+the window as a split pane (tooltips show the shortcut); clicking again closes it. All of them
+can be open at once, together with the CI, Logs and Debug panes (*View* menu, command palette
+or their shortcuts). By default Git, Agent, CI and Debug open in the **right** column, stacked
+top to bottom in that order, and Term and Logs in the **bottom** row under the editor.
 
-The **Editor | Git** switch at the top right (⌥⌘G) fills the window with the same changes,
-the last 200 commits and the diff of the selected file or commit. Ferrum Editor uses
-FerrumGIT's git layer for all of this and stops there: history graph, branches, rebase and
-conflicts, stashes, tags, pull requests and SSH profiles are in FerrumGIT (the ↗ button).
-Push and pull use your normal git setup (SSH agent, credential helper).
+| Pane | Button | Shortcut | What it is |
+|------|--------|----------|------------|
+| Git | ⎇ | ⌥⌘G, ⌃⇧G | FerrumGIT's interface (`ferrumgit-ui`, compact): changes, staging, commit, history, branches, diffs |
+| Agent | ✦ | ⌥⌘A | FerrumChat (`ferrumagent-ui`): agentic chat on the project, change review, CLI agents over ACP |
+| Term | ⌨ | ⌃\` | FerrumTerm (`ferrumterm-ui`): tabs, splits, agents sidebar; session `editor:<folder>` on the shared `fterm` server |
+| CI | — | ⇧⌘I | GitHub Actions of the project (see [CI](#ci)) |
+| Logs | — | ⌥⌘L | live logs of the project (see [Logs](#logs)) |
+| Debug | — | ⇧⌘Y | the debugger's toolbar, stack, variables and console |
+
+The shortcuts open the pane and focus it, focus it when it is open elsewhere, and close it when
+it already has focus. Each pane has a small header: drag it (the grab cursor) onto another
+pane to share that pane's place, or onto the **Move to Left / Right / Bottom** zones that appear
+at the window's edges while dragging; the header's ⋯ menu has the same moves and **Close**
+(and *Open in FerrumGIT app* / *Open in FerrumTerm app* for Git and Term — also on right-click
+of their top-bar buttons). Drag the divider between the editor and a dock to resize the dock
+and the dividers between panes to share it; docks keep the panes' minimum widths (Git and Term
+320 px, Agent and CI 360 px). *Tools: Close All* and *Tools: Reset Layout* do what they say.
+
+The layout — which panes are open, their dock and order, the dock sizes and the shares — is
+saved in `session.json` **per project folder** and restored at start; a folder seen for the
+first time keeps the current layout. A closed pane keeps its view (a terminal keeps running, a
+chat keeps its thread) and comes back where it was.
+
+Events from the panes: *Open* in Git or a file link in the chat opens the file at that line in
+the editor; the chat's *Run in terminal* opens the Term pane and runs the command in a new tab;
+when the agent changes files, open buffers reload (or ask, when edited); a commit refreshes the
+branch and gutter marks; opening another folder moves Git (`set_repo`), Term (`set_cwd`) and a
+new chat to it.
 
 ## CI
-The **CI** button of the Editor | Git | CI | Logs switch (or ⇧⌘I, *View → CI*, or `CI: Toggle View`
-in the command palette) fills the window with the GitHub Actions of the open folder's
+The **CI** pane (⇧⌘I, *View → CI Pane*, or `CI: Toggle View` in the command palette) shows
+the GitHub Actions of the open folder's
 repository: its `origin` remote (else the first remote), read from `.git/config`. Opening
 another folder moves the page to it; with no folder open, or a folder without a GitHub
 remote, the page says so and lists recent Ferrum projects that are on GitHub (a click opens
@@ -435,19 +449,24 @@ see `logs/README.md`).
 | `package.json` | every script as `pnpm run …` / `yarn run …` / `bun run …` / `npm run …` (from the lock file); `build` is ⌘B, or `tsc --noEmit` when there is a `tsconfig.json` but no build script |
 | `Makefile` | its targets |
 
-A task runs through your login shell in its own terminal tab (`▶`, then `✓` or `✗`), after
-edited files are saved; running it again replaces the tab. When it ends, errors and warnings in
+A task runs in a new tab of the Term pane (through `/bin/sh`, its output copied to a temp file),
+after edited files are saved. When it ends, errors and warnings in
 its output (cargo / rustc, tsc, Go, and `file:line:col: message` compilers) appear as problems
 next to the language server's, until the next run.
 
 ## AI agents
-⌥⌘A opens the Agents tab of the right dock; *Agents: New Session* (or **New Session…**) picks
-an agent. Built in: `claude` (Claude Code), `codex` (OpenAI Codex), `gemini` (Gemini CLI). An
-agent is found on your login shell's `PATH`, `~/.ferrum/bin`, `~/.local/bin`, npm's global bin
-(`npm prefix -g`) or `servers/agent-<id>/` (installed by the editor). A missing one shows its
-install command (`npm i -g @anthropic-ai/claude-code`, `npm i -g @openai/codex`,
-`npm i -g @google/gemini-cli`); **Install** runs it into `servers/` with the same npm / Node.js
-installer as the language servers. Agents use their own login unless you give them keys:
+⌥⌘A (or the **Agent** button) opens the Agent pane: FerrumChat on the project, with its own
+threads, agent / model picker — its providers, or Claude Code, Codex, Gemini CLI and other ACP
+agents — modes, @-mentions, tool cards with permission prompts and a review of the agent's
+changes with accept / reject and checkpoints. Its settings live in `~/.ferrum/agent` (see
+`agent/`). When the chat changes files, open buffers reload; *Run in terminal* runs in the Term
+pane.
+
+*Agents: New Session* still starts a CLI agent from config.toml in a Term pane tab. Built in:
+`claude` (Claude Code), `codex` (OpenAI Codex), `gemini` (Gemini CLI); others via `[[agents]]`.
+An agent is found on `PATH`, `~/.ferrum/bin`, `~/.local/bin` or npm's global bin; a missing
+one offers its install command (`npm i -g …` runs in the Term pane). *Start … with the current
+file / selection* passes `I'm looking at <file>, lines a-b: …` as the first prompt.
 
 ```toml
 agent_idle_seconds = 5        # top level: no output this long = "waiting for input"
@@ -465,28 +484,8 @@ name = "claude"
 env = { ANTHROPIC_API_KEY = "sk-ant-…" }
 ```
 
-`env` values go to the agent's process only: they are never logged, `Debug`-printed or shown
-(the panel lists the names with `••••••••`). Each session runs the agent's CLI on a real PTY in
-the project folder, in a terminal tab titled `✦ <agent> · <status>` — running, waiting for input
-(no output for `agent_idle_seconds`), exited (code) or stopped. Several sessions can run at once;
-Stop kills the program (the tab stays), Restart starts it again in a new tab. *Start … with the
-current file / selection* passes `I'm looking at <file>, lines a-b: …` as the first prompt
-(Claude Code and Codex take it as an argument, Gemini CLI with `-i`).
-
-When a session starts, the project is snapshotted: in a git repository a tree object written
-from a copy of the index after `git add -A` (like `git stash create`, but including untracked
-files; the real index, stash and branches are not touched), elsewhere the content of the
-folder's text files (`.gitignore` respected; files over 1 MB, binary files and anything past
-64 MB are skipped and never reported). The file watcher triggers a rescan whenever the agent
-writes. ⌥⌘R (*Agents: Review Changes*) opens the **AI Diff Review**: changed files (A / M / D,
-+/−) on the left, the selected file's diff against the snapshot on the right (the Git view's
-colours). **Accept** keeps a hunk / file (the snapshot's baseline moves, the file is not
-touched); **Reject** writes the snapshot's version back (a created file is deleted, a deleted
-one restored); **Accept All** / **Reject All** do every file. An open file reloads as one undo
-step, so ⌘Z in it brings the agent's version back; a file with unsaved edits must be saved or
-reverted first. While the agent keeps writing, the files it touched show **stale** until the
-rescan, and an action on content that changed underneath is refused and refreshes the review.
-Click a line to open the file there.
+`env` values go to the agent's process only (as `env K=V …` in front of its command line).
+`agent_idle_seconds` is no longer used.
 
 ## Debugger
 F5 starts debugging (a picker of configurations: `.vscode/launch.json` first, then defaults
@@ -494,7 +493,7 @@ for the project and the current file), and continues when paused. F9 or a click 
 gutter's left edge toggles a breakpoint (red dot; faded until the adapter verifies it);
 breakpoints are saved per project in `~/.ferrum/editor/breakpoints.json`. The paused line is
 highlighted with an arrow. F10 / F11 / ⇧F11 step over / into / out, F6 pauses, ⇧F5 stops,
-⇧⌘F5 restarts. The Debug tab of the right dock (⇧⌘Y) has the toolbar, the call stack (click a
+⇧⌘F5 restarts. The Debug pane (⇧⌘Y) has the toolbar, the call stack (click a
 frame), variables (expand to load children), watch expressions, the breakpoints list and the
 debug console (program output; type an expression to evaluate it in the paused frame).
 
@@ -511,7 +510,7 @@ per package.json script (`npm run …` with the project's package manager). In l
 `${workspaceFolder}`, `${file}`, `${fileDirname}`, `${relativeFile}`, `${env:NAME}` … are
 substituted; a CodeLLDB-style `"cargo": {"args": [...], "filter": {"name": …, "kind": …}}`
 builds first; `"debugAdapterPath"` (+ `"debugAdapterArgs"`) runs your own stdio adapter build.
-A `runInTerminal` request from the adapter runs the program in a terminal tab.
+A `runInTerminal` request from the adapter runs the program in a Term pane tab.
 
 ```jsonc
 {
@@ -528,15 +527,13 @@ On macOS, F11 may be taken by *Show Desktop* (System Settings → Keyboard → S
 `debug:step-into` in `keymap.toml` if so.
 
 ## Integrated terminal
-⌃\` (or the terminal button at the right end of the status bar) opens a panel at the bottom
-with your login shell (`$SHELL -l`, or `terminal_shell` from `config.toml`) in the project
-folder. ⌃\` again focuses it, and hides it when it already has focus; the button just shows /
-hides. Drag the divider to resize. `+` adds a terminal tab; closing the last tab (or `exit`)
-hides the panel. Shells keep running while the panel is hidden. The emulator is FerrumTerm's
-(`ferrumterm-emulator`, VT parsing by `alacritty_terminal`, 10 000 lines of scrollback) on a
-local PTY (`portable-pty`); nothing goes through the FerrumTerm server. Colours come from the
-theme's `[terminal]` tokens. *Terminal: Open in FerrumTerm* starts `fterm new <folder> -c
-<folder>` and/or the `ferrumterm` app when they are on `PATH`.
+The Term pane is FerrumTerm's view (`ferrumterm-ui`): ⌃\` or the **Term** button (or the
+terminal button at the right end of the status bar) opens it at the bottom, in the project
+folder, as the session `editor:<folder>` of the shared `fterm` server — so shells outlive the
+editor and also show in FerrumTerm (a private in-process server is used when the shared one
+can't start). ⌃⇧\` opens another tab. Tabs, splits (⌘D), the agents / sessions / SSH sidebar
+and the rest are FerrumTerm's; colours follow the theme's `[terminal]` tokens. *Terminal:
+Open in FerrumTerm App* starts `fterm new <folder> -c <folder>` and/or the `ferrumterm` app when they are on `PATH`.
 
 ## Themes
 Theme files live in `~/.ferrum/editor/themes/` (`$FERRUM_EDITOR_HOME/themes/`), are watched,
@@ -713,26 +710,24 @@ apps/desktop/      GPUI app (binary `ferrumeditor`)
                    signature help)
   workspace/       root view: panes/tabs, files (open/save/close/reload/quit), overlays
                    (palette, finder, go to line, find bar, find in files, preview), themes
-                   (selectors, preview, install, VS Code import), terminal (commands,
-                   status bar button), lsp / lsp_edits (workspace edits, references panel,
-                   code action picker, format on save), the project bar (git.rs top bar),
-                   agents / debug (commands, pickers, glue), dock (right dock: Agents | Debug),
-                   dialogs, watcher, session, status bar
-  terminal/        terminal panel (tabs), view (keys, mouse, scroll), session (PTY + emulator),
-                   paint (grid renderer), selection, ime
-  agents/          agent sessions (snapshot, rescans, accept / reject), review (AI Diff Review)
-  debug/           debugger (session driver over the core DAP client), panel (Debug tab)
+                   (selectors, preview, install, VS Code import), tools/ (the tool panes:
+                   views, docks, headers, drag & drop, events from Git / Agent / Term,
+                   commands run in the terminal), top_bar (project bar + [Git] [Agent]
+                   [Term]), git / terminal / agents / debug (commands, pickers, glue), lsp /
+                   lsp_edits (workspace edits, references panel, code action picker, format
+                   on save), dialogs, watcher, session, status bar
+  debug/           debugger (session driver over the core DAP client), panel (Debug pane)
   ci/              CI page over `ferrumci-core`: CiView (project → GitHub repo, tabs, status
                    line), load (requests), runs, detail, logview, dispatch, pulls, signin,
-                   services (tokio runtime, HTTP, tokens, notifier); workspace/ci.rs hooks it
-                   into the Editor | Git | CI | Logs switch and the `ci:*` commands
+                   services (tokio runtime, HTTP, tokens, notifier); workspace/ci.rs makes it
+                   a tool pane and adds the `ci:*` commands
   logs/            Logs page over `ferrumlogs-core`: LogsView (event pump, projects, keys),
-                   commands, sidebar, log_view, dialog; workspace/logs.rs hooks it into
-                   the switch and the `logs:*` commands
+                   commands, sidebar, log_view, dialog; workspace/logs.rs makes it a tool
+                   pane and adds the `logs:*` commands
   file_icons.rs    icon theme → SVG elements
   tree_view/ markdown_preview.rs picker.rs find_bar.rs project_find.rs
-  tests.rs tests_terminal.rs tests_themes.rs tests_git.rs tests_lsp.rs
-  tests_agents.rs tests_debug.rs tests_ci.rs tests_logs.rs   headless GPUI tests
+  tests.rs tests_tools.rs tests_themes.rs tests_lsp.rs tests_debug.rs
+  tests_ci.rs tests_logs.rs   headless GPUI tests
 crates/core/       pure logic, no GPUI: buffer, selection, history, editor/ (all editing
                    commands), text (boundaries), display (tabs, wrap, display map), find,
                    project_search, fuzzy, language, highlight, git, config, keymap,
@@ -740,8 +735,8 @@ crates/core/       pure logic, no GPUI: buffer, selection, history, editor/ (all
                    .vsix, registry, overrides), icons/ (built-in and Material sets,
                    manifests, registry), lsp/ (client, edits, features, installers),
                    agents/ (presets, snapshot, review hunks), dap/ (client, state, launch
-                   configs, adapters, breakpoints), terminal (panel
-                   state, key translation), snippets, commands (catalogue), files,
+                   configs, adapters, breakpoints), tool_layout (docks of the
+                   tool panes), terminal (key translation), snippets, commands (catalogue), files,
                    file_tree, session, markdown, cli, paths
 ```
 

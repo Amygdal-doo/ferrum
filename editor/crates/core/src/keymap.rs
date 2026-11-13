@@ -388,11 +388,10 @@ mod tests {
         );
         assert_eq!(map.keys_for("editor:move-to-line-start"), vec!["home"]);
         assert_eq!(map.keys_for("editor:select-all"), vec!["ctrl-a"]);
-        assert_eq!(map.keys_for("terminal:copy"), vec!["ctrl-shift-c"]);
-        assert_eq!(map.keys_for("terminal:next-tab"), vec!["ctrl-shift-]"]);
         assert_eq!(map.keys_for("terminal:toggle"), vec!["ctrl-`"]);
+        assert_eq!(map.keys_for("git:toggle-view"), vec!["ctrl-alt-g"]);
         let mac = Keymap::defaults(&builtin_commands(), true);
-        assert_eq!(mac.keys_for("terminal:copy"), vec!["cmd-c"]);
+        assert_eq!(mac.keys_for("agents:toggle-panel"), vec!["alt-cmd-a"]);
     }
 
     #[test]

@@ -1,29 +1,29 @@
-//! CI in the workspace: the CI page (Editor | Git | CI | Logs switch, ⇧⌘I),
-//! `ci:*` commands, and keeping the page on the editor's project. The
-//! page and its background runtime are created the first time it opens.
+//! CI in the workspace: the CI pane (⇧⌘I, View menu, palette), `ci:*`
+//! commands, and keeping the pane on the editor's project. The view and
+//! its background runtime are created the first time it opens.
 
 use ferrum_ui::prelude::*;
+use ferrumeditor_core::tool_layout::ToolKind;
 
 use super::Workspace;
-use super::git::ViewMode;
 use crate::ci::{CiEvent, CiView, Services};
 use crate::registry::CommandRegistry;
 
 pub(super) fn register(r: &mut CommandRegistry) {
     r.register("ci:toggle-view", |w, window, cx| {
-        w.toggle_ci_view(window, cx)
+        w.toggle_tool_focus(ToolKind::Ci, window, cx)
     });
     r.register("ci:refresh", |w, window, cx| {
-        if w.mode != ViewMode::Ci {
-            w.set_mode(ViewMode::Ci, window, cx);
+        if !w.tool_open(ToolKind::Ci) {
+            w.open_tool(ToolKind::Ci, window, cx);
         }
         if let Some(ci) = w.ci.clone() {
             ci.update(cx, |ci, cx| ci.refresh_all(cx));
         }
     });
     r.register("ci:search-log", |w, window, cx| {
-        let Some(ci) = w.ci.clone().filter(|_| w.mode == ViewMode::Ci) else {
-            w.info("Open a job log on the CI page to search it (⇧⌘I)", cx);
+        let Some(ci) = w.ci.clone().filter(|_| w.tool_open(ToolKind::Ci)) else {
+            w.info("Open a job log in the CI pane to search it (⇧⌘I)", cx);
             return;
         };
         if !ci.update(cx, |ci, cx| ci.focus_log_search(window, cx)) {
@@ -58,35 +58,23 @@ impl Workspace {
         Some(ci)
     }
 
-    /// Entering the CI page: point it at the project and focus it.
-    pub(super) fn show_ci(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// The CI pane is opening: its view exists and shows the project.
+    /// False when CI could not start.
+    pub(super) fn show_ci(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let Some(ci) = self.ensure_ci(window, cx) else {
-            self.mode = ViewMode::Editor;
-            return;
+            return false;
         };
         let root = self.root.clone();
         ci.update(cx, |ci, cx| ci.set_project(root, cx));
-        ci.read(cx).focus_handle(cx).focus(window, cx);
+        true
     }
 
-    /// The editor opened another folder: an open CI page follows it.
+    /// The editor opened another folder: the CI view follows it.
     pub(super) fn sync_ci_project(&mut self, cx: &mut Context<Self>) {
-        if self.mode != ViewMode::Ci {
-            return;
-        }
         if let Some(ci) = self.ci.clone() {
             let root = self.root.clone();
             ci.update(cx, |ci, cx| ci.set_project(root, cx));
         }
-    }
-
-    pub(super) fn toggle_ci_view(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let next = if self.mode == ViewMode::Ci {
-            ViewMode::Editor
-        } else {
-            ViewMode::Ci
-        };
-        self.set_mode(next, window, cx);
     }
 }
 
@@ -102,6 +90,6 @@ impl Workspace {
     }
 
     pub fn in_ci_view(&self) -> bool {
-        self.mode == ViewMode::Ci
+        self.tool_open(ToolKind::Ci)
     }
 }

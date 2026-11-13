@@ -4,7 +4,7 @@
 
 use maud::{Markup, html};
 
-use super::{feature_demos, project_demos};
+use super::{feature_demos, project_demos, tool_demos};
 use crate::components::{breadcrumb::Crumb, page_header::PageHeader};
 use crate::layout::{PageMeta, page};
 use crate::products::{self, Product};
@@ -23,12 +23,12 @@ struct AppFeatures {
     demo_label: &'static str,
 }
 
-const APPS: [AppFeatures; 9] = [
+const APPS: [AppFeatures; 10] = [
     AppFeatures {
         product: products::FERRUM_EDITOR,
-        version: "0.3.0-alpha.1",
+        version: "0.5.0-alpha.1",
         summary: "The suite's code editor: small, hackable and in the spirit of Atom, written \
-                  from scratch in Rust. Light, fast to start, and yours to rewire.",
+                  from scratch in Rust. New: Git, Agent and Term open inside the window.",
         points: &[
             (
                 "Tree view, tabs and palette",
@@ -52,14 +52,15 @@ const APPS: [AppFeatures; 9] = [
                  time you open a file.",
             ),
             (
-                "Build and Git built in",
-                "⌘B builds with cargo, go or npm in the terminal and lists the errors. \
-                 Stage, commit and push from the sidebar, and switch to a Git view for diffs.",
+                "Git, Agent and Term panes",
+                "The buttons at the top right open FerrumGIT, FerrumChat and FerrumTerm as \
+                 split panes, all at once if you like. Move them left, right or bottom from \
+                 the ⋯ menu or by dragging; the layout is saved per project.",
             ),
             (
-                "Built-in terminal",
-                "Open a terminal at the bottom from the status bar or with ⌃`, with tabs \
-                 that keep running while the panel is hidden.",
+                "Builds in the Term pane",
+                "⌘B builds with cargo, go or npm in a Term pane tab and lists the errors as \
+                 problems.",
             ),
             (
                 "Logs page",
@@ -80,6 +81,37 @@ const APPS: [AppFeatures; 9] = [
         demo: feature_demos::editor,
         demo_label: "Ferrum Editor with a tree view and tabs: three cursors type at once, then \
                      the command palette filters commands on toggle",
+    },
+    AppFeatures {
+        product: products::FERRUMAGENTIC,
+        version: "0.1.0-alpha.1",
+        summary: "New: FerrumChat, FerrumGIT and FerrumTerm side by side on one project, in one \
+                  window for working with coding agents.",
+        points: &[
+            (
+                "Three columns",
+                "Close any of them and bring it back with ⌥⌘1, ⌥⌘2 or ⌥⌘3, drag to resize or \
+                 reorder, and get the same layout next time you open the project.",
+            ),
+            (
+                "Any model or agent",
+                "Anthropic, OpenAI or Ollama models, or Claude Code, Codex and Gemini CLI over \
+                 ACP, in Ask, Agent or Plan mode, with MCP tools and your rules files.",
+            ),
+            (
+                "Review and checkpoints",
+                "Accept or reject agent edits per hunk or per file, and restore the files to \
+                 how they were before any turn.",
+            ),
+            (
+                "Chat, Git and Term together",
+                "Run in terminal runs the chat's command in the terminal column, and agent \
+                 edits show up in the git column right away.",
+            ),
+        ],
+        demo: tool_demos::agentic,
+        demo_label: "FerrumAgentic with three columns: the chat edits a file, the git column \
+                     shows the change, and the terminal column runs the tests",
     },
     AppFeatures {
         product: products::FERRUMAPI,
@@ -316,8 +348,9 @@ const APPS: [AppFeatures; 9] = [
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Features of every Ferrum app"),
-        "What every Ferrum app can do in the current alpha: Ferrum Editor, FerrumAPI, \
-         FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumEnv.",
+        "What every Ferrum app can do in the current alpha: Ferrum Editor, FerrumAgentic, \
+         FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts \
+         and FerrumEnv.",
         PATH,
         "page-features",
     )
@@ -338,7 +371,7 @@ fn hero(trail: &[Crumb]) -> Markup {
     PageHeader::new(trail, "What's new across Ferrum")
         .lead(html! {
             p {
-                "Nine native developer apps, written in Rust and rendered with GPUI. This \
+                "Ten native developer apps, written in Rust and rendered with GPUI. This \
                  is what each one can do in the current alpha. "
                 a href=(site::DOWNLOAD_PATH) { "Ferrum Launcher" }
                 " installs them and keeps them up to date."

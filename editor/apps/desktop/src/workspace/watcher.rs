@@ -103,7 +103,6 @@ impl Workspace {
                 tree.update(cx, |tree, cx| tree.refresh(cx));
             }
         }
-        self.agents.update(cx, |a, cx| a.files_changed(&paths, cx));
         let open_changed = self
             .all_editors()
             .iter()

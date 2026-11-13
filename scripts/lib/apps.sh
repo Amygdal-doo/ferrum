@@ -31,6 +31,11 @@ ferrum_app() {
     editor)
       APP_NAME="Ferrum Editor"; APP_BINARIES="ferrumeditor"; DEB_PACKAGE="ferrum-editor"
       APP_SUMMARY="Lightweight, hackable text editor: tree view, tabs, command palette" ;;
+    agentic)
+      APP_NAME="FerrumAgentic"; APP_BINARIES="ferrumagentic"; DEB_PACKAGE="ferrumagentic"
+      APP_SUMMARY="FerrumChat, FerrumGIT and FerrumTerm side by side for agentic development"
+      # Embeds FerrumTerm, whose server uses Unix sockets; no Windows build yet.
+      APP_WINDOWS=no ;;
     ports)
       APP_NAME="FerrumPorts"; APP_BINARIES="ferrumports"; DEB_PACKAGE="ferrumports"
       APP_SUMMARY="Listening ports and the processes behind them" ;;

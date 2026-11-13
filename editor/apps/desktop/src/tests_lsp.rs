@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use ferrumeditor_core::buffer::Point;
 use ferrumeditor_core::config::LspServerConfig;
+use ferrumeditor_core::tool_layout::ToolKind;
 use gpui::{AppContext as _, Entity, TestAppContext, VisualTestContext};
 
 use crate::editor::EditorView;
@@ -389,7 +390,6 @@ fn missing_server_is_reported_not_fatal(cx: &mut TestAppContext) {
 #[gpui::test]
 fn build_task_runs_in_the_terminal_and_reports_problems(cx: &mut TestAppContext) {
     init(cx);
-    crate::terminal::test_support::reset();
     let dir = tempfile::tempdir().expect("tempdir");
     let root = dir.path().canonicalize().expect("canonical");
     std::fs::write(root.join("Cargo.toml"), "[package]\nname = \"demo\"\n").expect("write");
@@ -408,21 +408,19 @@ fn build_task_runs_in_the_terminal_and_reports_problems(cx: &mut TestAppContext)
     cx.run_until_parked();
     cx.simulate_keystrokes(&crate::tests::primary("cmd-b"));
     cx.run_until_parked();
-    let started = crate::terminal::test_support::TASKS.with(|t| t.borrow().clone());
-    assert_eq!(started, vec!["cargo build".to_string()]);
-    let terminal = workspace.read_with(cx, |w, _| w.terminal().clone());
-    assert!(terminal.read_with(cx, |p, _| p.is_open()));
-    let view = terminal.read_with(cx, |p, _| p.active()).expect("task tab");
-    assert_eq!(view.read_with(cx, |v, _| v.title()), "▶ cargo build");
-    view.update(cx, |v, cx| {
-        v.finish_task(
+    let ran = |cx: &mut VisualTestContext| {
+        workspace.read_with(cx, |w, _| w.tools().dry_run.clone().unwrap_or_default())
+    };
+    assert_eq!(ran(cx), vec!["cargo build".to_string()]);
+    assert!(workspace.read_with(cx, |w, _| w.tool_open(ToolKind::Term)));
+    workspace.update(cx, |w, cx| {
+        w.finish_last_task(
             "   Compiling demo v0.1.0\nerror[E0308]: mismatched types\n --> src/main.rs:2:17\n",
             101,
             cx,
         )
     });
     cx.run_until_parked();
-    assert_eq!(view.read_with(cx, |v, _| v.title()), "✗ cargo build");
     cx.update(|_, cx| {
         let store = LspStore::global(cx).expect("store");
         assert_eq!(store.read(cx).counts(), (1, 0));
@@ -441,14 +439,9 @@ fn build_task_runs_in_the_terminal_and_reports_problems(cx: &mut TestAppContext)
         w.run_command("tasks:rerun-last", window, cx)
     });
     cx.run_until_parked();
-    let view = terminal.read_with(cx, |p, _| p.active()).expect("task tab");
-    view.update(cx, |v, cx| v.finish_task("    Finished dev\n", 0, cx));
+    assert_eq!(ran(cx).len(), 2);
+    workspace.update(cx, |w, cx| w.finish_last_task("    Finished dev\n", 0, cx));
     cx.run_until_parked();
-    assert_eq!(
-        terminal.read_with(cx, |p, _| p.len()),
-        1,
-        "reruns replace the tab"
-    );
     editor.read_with(cx, |e, _| assert!(e.lsp.diagnostics.is_empty()));
 }
 

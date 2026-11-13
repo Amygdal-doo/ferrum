@@ -17,17 +17,14 @@ gpui.workspace = true
 anyhow.workspace = true
 notify.workspace = true
 trash.workspace = true
-# Integrated terminal: FerrumTerm's emulator + a local PTY.
-ferrumterm-emulator.workspace = true
-ferrumterm-protocol.workspace = true
-portable-pty.workspace = true
 futures.workspace = true
 serde_json.workspace = true
-# Git panel and view: FerrumGIT's git layer (runs on a small tokio runtime).
-ferrumgit-git.workspace = true
-ferrumgit-domain.workspace = true
 tokio.workspace = true
-unicode-width.workspace = true
+# Tool panes inside the window: FerrumGIT, FerrumTerm and FerrumChat as
+# embedded views (split panes next to the editor).
+ferrumgit-ui.workspace = true
+ferrumterm-ui.workspace = true
+ferrumagent-ui.workspace = true
 # CI page: GitHub Actions through ferrumci-core on FerrumGIT's forge client.
 ferrumci-core.workspace = true
 ferrumgit-forge.workspace = true
@@ -42,6 +39,8 @@ ferrumlogs-core.workspace = true
 gpui = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
 async-trait.workspace = true
+# Tokens for the CI tests' fake forge.
+ferrumgit-domain.workspace = true
 
 [lints]
 workspace = true

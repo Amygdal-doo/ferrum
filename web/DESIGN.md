@@ -65,7 +65,7 @@ Page-level CSS: `pages.css` (home, `/apps`, product pages, about, 404, download)
 ## Home and `/apps`
 
 - Home, below the hero: the four main apps (`pages::apps::MAIN`) as tabs over a large
-  demo with their features beside it, then one row linking the other six and `/apps`;
+  demo with their features beside it, then one row linking the other seven and `/apps`;
   "native" drawn as two software stacks (Ferrum's three layers against a browser's
   four); install as a four-node track on the temper rule, closed by the follow line.
 - `/apps` (`pages/apps.rs`) is the one list of every app: logo, one line, key

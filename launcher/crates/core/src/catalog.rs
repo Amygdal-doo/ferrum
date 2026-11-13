@@ -30,6 +30,7 @@ impl AppId {
     pub const EDITOR: AppId = AppId("editor");
     pub const PORTS: AppId = AppId("ports");
     pub const ENV: AppId = AppId("env");
+    pub const AGENTIC: AppId = AppId("agentic");
     pub const LAUNCHER: AppId = AppId("launcher");
 
     /// The launcher's id before it was renamed from Ferrum Toolbox. Tags
@@ -38,8 +39,9 @@ impl AppId {
     pub const LEGACY_LAUNCHER: &'static str = "toolbox";
 
     /// Apps this build has metadata for, in overview order.
-    pub const BUILTIN: [AppId; 10] = [
+    pub const BUILTIN: [AppId; 11] = [
         AppId::EDITOR,
+        AppId::AGENTIC,
         AppId::API,
         AppId::GIT,
         AppId::DATA,
@@ -270,7 +272,7 @@ static RETIRED: [Builtin; 1] = [Builtin {
     order: 10,
 }];
 
-static BUILTIN: [Builtin; 10] = [
+static BUILTIN: [Builtin; 11] = [
     Builtin {
         id: AppId::EDITOR,
         name: "Ferrum Editor",
@@ -281,6 +283,17 @@ static BUILTIN: [Builtin; 10] = [
         former_names: &[],
         icon: "CursorIBeam",
         order: 10,
+    },
+    Builtin {
+        id: AppId::AGENTIC,
+        name: "FerrumAgentic",
+        description: "Agentic development window: FerrumChat, FerrumGIT and FerrumTerm side by side.",
+        binary: "ferrumagentic",
+        extra_binaries: &[],
+        bundle_name: "FerrumAgentic",
+        former_names: &[],
+        icon: "Sparkle",
+        order: 15,
     },
     Builtin {
         id: AppId::API,
@@ -805,8 +818,8 @@ mod tests {
         assert_eq!(
             order,
             [
-                "editor", "api", "git", "data", "term", "kit", "forge", "dock", "ports", "env",
-                "launcher"
+                "editor", "agentic", "api", "git", "data", "term", "kit", "forge", "dock", "ports",
+                "env", "launcher"
             ]
         );
     }

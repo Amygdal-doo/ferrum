@@ -10,7 +10,7 @@ use super::feature_demos::window;
 
 /// The project strip every one of these apps has on top: name, path, branch,
 /// and buttons to open the project in Editor, Git or Term.
-fn project_strip(name: &str, path: &str, branch: &str) -> Markup {
+pub(super) fn project_strip(name: &str, path: &str, branch: &str) -> Markup {
     html! {
         div class="pstrip" {
             span class="pstrip__name" { (name) " ▾" }

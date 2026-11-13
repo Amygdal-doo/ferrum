@@ -14,12 +14,6 @@ name = "ferrumterm"
 path = "src/main.rs"
 
 [dependencies]
-ferrumterm-protocol.workspace = true
-ferrumterm-client.workspace = true
-ferrumterm-net.workspace = true
+ferrumterm-ui.workspace = true
 ferrum-ui.workspace = true
-futures.workspace = true
-unicode-width.workspace = true
-tokio.workspace = true
-tracing.workspace = true
 tracing-subscriber.workspace = true

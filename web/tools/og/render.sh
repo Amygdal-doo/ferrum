@@ -34,6 +34,7 @@ PY
   echo "$OUT/$slug.png"
 done <<'ROWS'
 ferrum-editor|Ferrum Editor|Code editor|editor|#c5dc3a|A small, hackable code editor written from scratch in Rust.
+ferrumagentic|FerrumAgentic|Agentic development|agentic|#4CD97B|FerrumChat, FerrumGIT and FerrumTerm side by side on one project.
 ferrumapi|FerrumAPI|API client|api|#3fb8a0|A native, local-first API client. No account, no webview.
 ferrumgit|FerrumGIT|Git client|git|#f0b43c|Commit graph, line staging and per-project SSH profiles.
 ferrumdata|FerrumData|Database IDE|data|#a07cf0|A local-first database IDE. PostgreSQL today.

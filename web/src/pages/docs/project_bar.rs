@@ -15,8 +15,9 @@ pub const PATH: &str = "/docs/project-bar";
 pub const TITLE: &str = "The project bar";
 
 /// Apps whose project bar switches projects with ⌥⌘O.
-const SWITCHING: [Product; 6] = [
+const SWITCHING: [Product; 7] = [
     products::FERRUM_EDITOR,
+    products::FERRUMAGENTIC,
     products::FERRUMGIT,
     products::FERRUMTERM,
     products::FERRUMCONTAINERS,

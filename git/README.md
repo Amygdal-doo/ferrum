@@ -81,8 +81,8 @@ Run from the monorepo root (`..`):
 ```bash
 cargo git-ui                      # run the app (cargo run -p ferrumgit-desktop)
 cargo test -p 'ferrumgit-*'       # unit + integration tests (real git, temp dirs, no network)
-cargo clippy -p ferrumgit-desktop --all-targets -- -D warnings
-cargo fmt -p ferrumgit-desktop
+cargo clippy -p ferrumgit-ui -p ferrumgit-desktop --all-targets -- -D warnings
+cargo fmt -p ferrumgit-ui -p ferrumgit-desktop
 
 FERRUMGIT_DATA_DIR=/tmp/fg cargo git-ui        # isolated local state
 cargo test -p ferrumgit-credentials -- --ignored   # real OS keychain round trip
@@ -93,12 +93,15 @@ cargo test -p ferrumgit-forge     # GitHub / GitLab mapping from recorded fixtur
 No CSS: views are GPUI elements styled with the Ferrum theme (`ferrum_ui::theme::ActiveTheme`)
 and built from `ferrum-ui` components (buttons, labels, menus, text inputs, modal, splitter,
 notices). App-only
-widgets live in `apps/desktop/src/components/widgets.rs`.
+widgets live in `crates/ui/src/components/widgets.rs`.
 
 ## Layout
 ```
-apps/desktop/        GPUI app: root view in app.rs; components/{shell,sidebar,graph,detail,diff,split,file_panel,dialogs,home,widgets},
-                     state/ (plain data owned by the root view), commands/ (methods on the root view)
+apps/desktop/        thin binary: window, menus, data dir / askpass, and one `ferrumgit_ui::GitView`
+crates/ui/           the whole interface as an embeddable view (`GitView`): root view in app.rs, embed.rs (options,
+                     events, init, shared services); components/{shell (toolbar, compact toolbar, layout),sidebar,graph,
+                     detail,diff,split,file_panel,dialogs,home,widgets}, state/ (plain data owned by the view),
+                     commands/ (methods on the view)
 crates/domain/       pure types: Commit, GitRef, WorkingStatus, FileDiff/Hunk (+ side-by-side pairing), Stash,
                      FileCommit/Blame, Undo (planned from the reflog), commit search, Profile/SshAuth, RepoEntry, RepoOp
 crates/git/          git CLI runner (non-interactive env, cancellation), porcelain/log/refs/diff/blame/reflog parsers,
@@ -112,6 +115,47 @@ crates/credentials/  OS keychain (keyring) + session fallback for passphrases an
 crates/application/  AppServices runtime; applies each repo's profile to every operation
 docs/                ARCHITECTURE
 ```
+
+## Embedding FerrumGIT in another Ferrum app
+`ferrumgit-ui` is the complete client (graph, hunk/line staging, blame, branches, merge/rebase,
+stash, conflicts, pull requests, profiles…) as one GPUI view. The FerrumGIT app uses it with
+`GitViewOptions::desktop()`; Ferrum Editor and FerrumAgentic show it as a split pane:
+
+```rust
+use ferrumgit_ui::{GitView, GitViewEvent, GitViewOptions};
+
+fn main() {
+    // The host binary is ssh's SSH_ASKPASS for passphrase prompts.
+    if let Some(code) = ferrumgit_ui::askpass_main() {
+        std::process::exit(code);
+    }
+    // … inside the GPUI app, once:
+    // ferrumgit_ui::init(cx);
+}
+
+// Opening the pane (window: &mut Window, cx: &mut Context<Host>):
+let git = GitView::new(Some(project_root), GitViewOptions::embedded(), window, cx);
+cx.subscribe(&git, |host, _, event, cx| match event {
+    GitViewEvent::OpenFile { path, line } => host.open_file(path, *line, cx),
+    GitViewEvent::RepoChanged { .. } | GitViewEvent::CommitCreated { .. } => {}
+})
+.detach();
+// When the host's project changes:
+git.update(cx, |git, cx| git.set_repo(&new_root, cx));
+```
+
+- `GitViewOptions { compact, show_repo_tabs, show_project_bar, open_files_in_host }`;
+  `embedded()` = compact, one repository, no project bar, "Open" buttons that emit `OpenFile`.
+  Compact mode works from 320 px (`MIN_WIDTH`): changes/history list over the diff, side by side
+  from 720 px (`WIDE_LAYOUT_MIN_WIDTH`); branches, tags and remotes open in a drawer from the
+  branch button.
+- Key bindings are registered by `init` and scoped to the `FerrumGit` key context, so they only
+  apply while the view has focus (quick open is left to the host without repository tabs).
+- Background services (Tokio runtime, SQLite store, forge state) are one `GitServices` global per
+  process, started by the first view (`init_with_services` passes pre-started ones). Every view
+  shares them; each view polls only its own repository. Embedded views never overwrite the
+  FerrumGIT app's saved tabs.
+- The view does not grab focus; the host focuses it via `Focusable`.
 
 ## Local data
 `~/Library/Application Support/dev.FerrumGIT.FerrumGIT/ferrumgit.db` (OS-appropriate elsewhere).

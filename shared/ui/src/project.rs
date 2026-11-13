@@ -284,6 +284,45 @@ pub fn open_in(app: FerrumApp, folder: &Path) -> Result<(), String> {
     spawn(Command::new(&exe).arg(folder))
 }
 
+/// The Editor's command-line form of `file` at a 1-based `line`
+/// (`src/main.rs:42`).
+#[must_use]
+pub fn editor_target(file: &Path, line: Option<u32>) -> std::ffi::OsString {
+    let mut target = file.as_os_str().to_owned();
+    if let Some(line) = line {
+        target.push(format!(":{line}"));
+    }
+    target
+}
+
+/// Opens `file` in Ferrum Editor (at a 1-based `line`), with `project` as
+/// its folder: `ferrumeditor <project> <file>:<line>`.
+pub fn open_file_in_editor(
+    project: Option<&Path>,
+    file: &Path,
+    line: Option<u32>,
+) -> Result<(), String> {
+    let app = FerrumApp::Editor;
+    let Some(exe) = find_binary(app.binary(), home_dir().as_deref()) else {
+        return Err(format!(
+            "{} is not installed. Install it in Ferrum Launcher.",
+            app.name()
+        ));
+    };
+    let mut command = Command::new(&exe);
+    if let Some(project) = project {
+        command.current_dir(project).arg(project);
+    }
+    command
+        .arg(editor_target(file, line))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map(drop)
+        .map_err(|e| format!("Could not start {}: {e}", app.name()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -367,5 +406,12 @@ mod tests {
     fn apps_by_binary() {
         assert_eq!(FerrumApp::from_binary("ferrumgit"), Some(FerrumApp::Git));
         assert_eq!(FerrumApp::from_binary("ferrumapi"), None);
+    }
+
+    #[test]
+    fn editor_targets_carry_the_line() {
+        let file = Path::new("/p/src/main.rs");
+        assert_eq!(editor_target(file, Some(42)), "/p/src/main.rs:42");
+        assert_eq!(editor_target(file, None), "/p/src/main.rs");
     }
 }

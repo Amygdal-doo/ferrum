@@ -1,22 +1,22 @@
-//! Logs in the workspace: the Logs page (Editor | Git | CI | Logs switch,
-//! ⌥⌘L), `logs:*` commands, and keeping the page on the editor's project.
-//! The page is created the first time it opens; its sources keep running
-//! while the editor shows something else.
+//! Logs in the workspace: the Logs pane (⌥⌘L, View menu, palette),
+//! `logs:*` commands, and keeping the pane on the editor's project. The
+//! view is created the first time it opens; its sources keep running while
+//! the pane is closed.
 
 use ferrum_ui::prelude::*;
+use ferrumeditor_core::tool_layout::ToolKind;
 
 use super::Workspace;
-use super::git::ViewMode;
 use crate::logs::{LogsEvent, LogsView, Options};
 use crate::registry::CommandRegistry;
 
 pub(super) fn register(r: &mut CommandRegistry) {
     r.register("logs:toggle-view", |w, window, cx| {
-        w.toggle_logs_view(window, cx)
+        w.toggle_tool_focus(ToolKind::Logs, window, cx)
     });
     r.register("logs:add-source", |w, window, cx| {
-        if w.mode != ViewMode::Logs {
-            w.set_mode(ViewMode::Logs, window, cx);
+        if !w.tool_open(ToolKind::Logs) {
+            w.open_tool(ToolKind::Logs, window, cx);
         }
         if w.root.is_none() {
             w.info("Open a folder to add log sources to it (⌘⇧O)", cx);
@@ -50,32 +50,19 @@ impl Workspace {
         logs
     }
 
-    /// Entering the Logs page: point it at the project and focus it.
+    /// The Logs pane is opening: its view exists and shows the project.
     pub(super) fn show_logs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let logs = self.ensure_logs(window, cx);
         let root = self.root.clone();
         logs.update(cx, |logs, cx| logs.set_project(root, cx));
-        logs.read(cx).focus_handle(cx).focus(window, cx);
     }
 
-    /// The editor opened another folder: an open Logs page follows it.
+    /// The editor opened another folder: the Logs view follows it.
     pub(super) fn sync_logs_project(&mut self, cx: &mut Context<Self>) {
-        if self.mode != ViewMode::Logs {
-            return;
-        }
         if let Some(logs) = self.logs.clone() {
             let root = self.root.clone();
             logs.update(cx, |logs, cx| logs.set_project(root, cx));
         }
-    }
-
-    pub(super) fn toggle_logs_view(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let next = if self.mode == ViewMode::Logs {
-            ViewMode::Editor
-        } else {
-            ViewMode::Logs
-        };
-        self.set_mode(next, window, cx);
     }
 }
 
@@ -91,6 +78,6 @@ impl Workspace {
     }
 
     pub fn in_logs_view(&self) -> bool {
-        self.mode == ViewMode::Logs
+        self.tool_open(ToolKind::Logs)
     }
 }

@@ -1,7 +1,7 @@
 # web-ferrum
 
 Server-rendered marketing site for the **Ferrum** family of Rust developer tools
-(Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers,
+(Ferrum Editor, FerrumAgentic, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers,
 FerrumPorts, FerrumEnv and Ferrum Launcher). Project logs and GitHub Actions live
 in Ferrum Editor's Logs and CI pages, presented as sections of `/ferrum-editor`.
 It is a single Rust binary built with
@@ -44,7 +44,7 @@ There is no mailing list: news goes on `/updates` and its Atom feed.
 
 | Path | Notes |
 |------|-------|
-| `/`, `/features`, `/ferrum-editor`, `/ferrumapi`, `/ferrumgit`, `/ferrumdata`, `/ferrumterm`, `/ferrumkit`, `/ferrumcontainers`, `/ferrumports`, `/ferrumenv`, `/ferrum-launcher`, `/download`, `/about` | HTML pages, `Cache-Control: public, max-age=300` |
+| `/`, `/features`, `/ferrum-editor`, `/ferrumapi`, `/ferrumgit`, `/ferrumdata`, `/ferrumterm`, `/ferrumkit`, `/ferrumcontainers`, `/ferrumports`, `/ferrumenv`, `/ferrumagentic`, `/ferrum-launcher`, `/download`, `/about` | HTML pages, `Cache-Control: public, max-age=300` |
 | `/docs`, `/docs/install`, `/docs/shell-commands`, `/docs/project-bar`, `/docs/shortcuts` | Guides (`src/pages/docs/`), with a shared index rail. Shortcuts and shell commands are taken from the apps' code (`shell.rs`, each app's key bindings) |
 | `/changelog` | Every release of every app, newest first, from the same cached GitHub releases list as `/download/macos`. If GitHub fails, the last good list is still served. If GitHub has never answered, the page says so and links the releases page |
 | `/faq`, `/security` | FAQ (with `FAQPage` JSON-LD) and the security model (signing, checksums, the FerrumEnv vault and its limits) |

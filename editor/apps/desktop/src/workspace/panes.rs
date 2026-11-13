@@ -153,9 +153,6 @@ impl Workspace {
             editor,
             window,
             |this: &mut Self, editor, event: &EditorEvent, window, cx| {
-                if *event == EditorEvent::Saved {
-                    this.refresh_git(cx);
-                }
                 if let EditorEvent::ToggleBreakpoint(line) = event {
                     this.toggle_breakpoint_at(editor, *line, cx);
                     return;

@@ -7,6 +7,8 @@ one look through `shared/ui`.
 | Path | Product | Stack |
 | --- | --- | --- |
 | `editor/` | Ferrum Editor: the suite's code editor, lightweight and hackable, with Git, CI (GitHub Actions) and Logs pages | GPUI + `ferrum-ui` |
+| `agentic/` | FerrumAgentic: FerrumChat, FerrumGIT and FerrumTerm side by side in one window for agentic development | GPUI + `ferrum-ui` |
+| `agent/` | Library only: FerrumChat (`ferrumagent-core`, `ferrumagent-ui`), the agentic coding chat embedded in Ferrum Editor and FerrumAgentic | GPUI + `ferrum-ui` |
 | `api/` | FerrumAPI: HTTP/API client | GPUI + `ferrum-ui` |
 | `git/` | FerrumGIT: Git client | GPUI + `ferrum-ui` |
 | `data/` | FerrumData: database IDE | GPUI + `ferrum-ui` |
@@ -26,7 +28,7 @@ one look through `shared/ui`.
 
 - The root `Cargo.toml` is a single workspace for `shared/`, `api/`, `git/`,
   `data/`, `term/`, `kit/`, `dock/`, `editor/`, `ports/`, `env/`, `logs/`,
-  `ci/` and `launcher/`. It has one `Cargo.lock` and one toolchain
+  `ci/`, `agent/`, `agentic/` and `launcher/`. It has one `Cargo.lock` and one toolchain
   (`rust-toolchain.toml`).
 - `ide/` keeps its own workspace and toolchain so merges from upstream Zed
   stay easy. Nothing is built or released from it on its own. The other tools
@@ -103,6 +105,7 @@ cargo dock       # FerrumContainers
 cargo editor     # Ferrum Editor
 cargo ports      # FerrumPorts
 cargo env-ui     # FerrumEnv
+cargo agentic    # FerrumAgentic (cargo agentic <folder>)
 cargo launcher   # Ferrum Launcher
 cargo lint       # clippy, whole workspace, -D warnings
 cargo test --workspace

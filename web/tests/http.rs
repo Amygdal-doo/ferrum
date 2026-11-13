@@ -53,7 +53,7 @@ async fn send_with(releases: Releases, req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 30] = [
+const PAGES: [&str; 32] = [
     "/",
     "/apps",
     "/features",
@@ -65,6 +65,7 @@ const PAGES: [&str; 30] = [
     "/ferrumcontainers",
     "/ferrumports",
     "/ferrumenv",
+    "/ferrumagentic",
     "/ferrum-editor",
     "/ferrum-launcher",
     "/download",
@@ -81,6 +82,7 @@ const PAGES: [&str; 30] = [
     "/compare/ferrumapi-vs-postman",
     "/updates",
     "/updates/ferrum-public-alpha",
+    "/updates/ferrum-editor-0-5-and-ferrumagentic",
     "/about",
     "/licenses",
     "/privacy",
@@ -180,6 +182,7 @@ async fn new_app_pages_show_their_logo_demo_and_status() {
     for (path, name, logo) in [
         ("/ferrumports", "FerrumPorts", "ports"),
         ("/ferrumenv", "FerrumEnv", "env"),
+        ("/ferrumagentic", "FerrumAgentic", "agentic"),
     ] {
         let html = get(path).await.text();
         assert!(html.contains(&format!(">{name}</h1>")), "{path}");
@@ -532,7 +535,20 @@ async fn feed_is_valid_atom() {
         .filter(|n| n.has_tag_name("entry"))
         .collect();
     assert_eq!(entries.len(), web_ferrum::updates::POSTS.len());
-    let first = entries[0];
+    let newest = web_ferrum::updates::newest_first()[0];
+    let title_of = |entry: &roxmltree::Node| {
+        entry
+            .children()
+            .find(|n| n.has_tag_name("title"))
+            .and_then(|n| n.text())
+            .unwrap_or_default()
+            .to_owned()
+    };
+    assert_eq!(title_of(&entries[0]), newest.title);
+    let first = *entries
+        .iter()
+        .find(|e| title_of(e) == "Ferrum is in public alpha")
+        .unwrap();
     let text = |name: &str| {
         first
             .children()

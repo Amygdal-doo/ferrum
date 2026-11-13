@@ -74,7 +74,6 @@ impl Workspace {
             }
         }
         // The project folder and git branch are in the project bar above.
-        left = left.children(self.render_agent_status(cx));
         left = left.children(self.render_debug_status(cx));
         right = right.children(self.render_lsp_status(cx));
         right = right.child(self.render_terminal_button(cx));

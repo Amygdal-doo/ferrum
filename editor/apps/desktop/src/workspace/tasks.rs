@@ -9,7 +9,6 @@ use ferrumeditor_core::tasks::{self, Task, TaskGroup};
 use super::Workspace;
 use crate::lsp_store::LspStore;
 use crate::picker::{PickerItem, PickerKind};
-use crate::terminal::PanelEvent;
 
 impl Workspace {
     fn tasks(&self) -> Vec<Task> {
@@ -89,31 +88,22 @@ impl Workspace {
                 return;
             }
         }
-        let result = self.terminal.update(cx, |panel, cx| {
-            panel.run_task(&task.label, &task.command, &task.cwd, window, cx)
-        });
-        match result {
-            Ok(()) => {
-                self.info(format!("Running {}", task.label), cx);
-                self.last_task = Some(task);
-            }
-            Err(error) => self.error(format!("Could not run {}: {error}", task.label), cx),
-        }
+        self.run_task_in_terminal(&task.label, &task.command, &task.cwd, window, cx);
+        self.info(format!("Running {}", task.label), cx);
+        self.last_task = Some(task);
         cx.notify();
     }
 
     /// A task ended: its problems replace the previous run's, and a notice
     /// sums it up.
-    pub(super) fn on_task_finished(&mut self, event: &PanelEvent, cx: &mut Context<Self>) {
-        let PanelEvent::TaskFinished {
-            label,
-            cwd,
-            code,
-            output,
-        } = event
-        else {
-            return;
-        };
+    pub(super) fn on_task_finished(
+        &mut self,
+        label: &str,
+        cwd: &std::path::Path,
+        code: i32,
+        output: &str,
+        cx: &mut Context<Self>,
+    ) {
         let problems = tasks::parse_problems(output, cwd);
         let errors = problems
             .iter()
@@ -139,7 +129,7 @@ impl Workspace {
             (0, w) => format!(": {w} warning{}", plural(w)),
             (e, w) => format!(": {e} error{}, {w} warning{}", plural(e), plural(w)),
         };
-        if *code == 0 {
+        if code == 0 {
             self.info(format!("{label} finished{counts}"), cx);
         } else {
             self.error(

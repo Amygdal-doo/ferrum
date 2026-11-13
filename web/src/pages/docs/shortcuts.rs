@@ -51,8 +51,9 @@ const EDITOR: &[Shortcut] = &[
     (&["F2"], "Rename symbol"),
     (&["⌘."], "Code actions"),
     (&["⌃Space", "⌘I"], "Show completions"),
-    (&["⌃`"], "Show or hide the terminal panel"),
-    (&["⌥⌘G"], "Git view"),
+    (&["⌥⌘G"], "Git pane (FerrumGIT)"),
+    (&["⌥⌘A"], "Agent pane (FerrumChat)"),
+    (&["⌃`"], "Term pane (FerrumTerm)"),
     (&["⇧⌘I"], "CI page (GitHub Actions)"),
     (&["⌥⌘L"], "Logs page"),
     (&["⌘B", "⇧⌘B"], "Run the build task / pick a task"),
@@ -106,6 +107,24 @@ const TERM: &[Shortcut] = &[
     (&["⌥⌘O"], "Project switcher"),
 ];
 
+const AGENTIC: &[Shortcut] = &[
+    (&["⌥⌘1"], "Show or hide the chat column"),
+    (&["⌥⌘2"], "Show or hide the git column"),
+    (&["⌥⌘3"], "Show or hide the terminal column"),
+    (&["⌥⌘O"], "Project switcher"),
+    (&["↩", "⇧↩"], "Send / new line (in the chat)"),
+    (&["⇧⇥"], "Switch between Agent, Ask and Plan (in the chat)"),
+    (&["⌘."], "Stop the agent's turn"),
+    (
+        &["⌥⌘N", "⌥⌘J", "⌥⌘R"],
+        "New thread / threads / changes (in the chat)",
+    ),
+    (
+        &["⇧⌘↩", "⇧⌘⌫"],
+        "Accept all / reject all changes (in the chat)",
+    ),
+];
+
 const KIT: &[Shortcut] = &[
     (&["⌘K"], "Search the tools"),
     (&["↩"], "Open the first match (in the search box)"),
@@ -133,8 +152,9 @@ const ENV: &[Shortcut] = &[
 ];
 
 /// Every app with its shortcuts, in site order.
-pub const APPS: [(Product, &[Shortcut]); 9] = [
+pub const APPS: [(Product, &[Shortcut]); 10] = [
     (products::FERRUM_EDITOR, EDITOR),
+    (products::FERRUMAGENTIC, AGENTIC),
     (products::FERRUMAPI, API),
     (products::FERRUMGIT, GIT),
     (products::FERRUMDATA, DATA),
@@ -172,8 +192,8 @@ fn table(caption: &str, rows: &[Shortcut]) -> Markup {
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Keyboard shortcuts for every Ferrum app"),
-        "macOS keyboard shortcuts for Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, \
-         FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumEnv.",
+        "macOS keyboard shortcuts for Ferrum Editor, FerrumAgentic, FerrumAPI, FerrumGIT, \
+         FerrumData, FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumEnv.",
         PATH,
         "page-docs",
     )

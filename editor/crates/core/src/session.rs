@@ -1,10 +1,13 @@
 //! Session restore: the last folder, pane layout, open tabs and cursors,
 //! stored as JSON (normally `~/.ferrum/editor/session.json`).
 
+use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
+
+use crate::tool_layout::ToolLayout;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -15,6 +18,16 @@ pub struct Session {
     pub active_pane: usize,
     pub tree_visible: bool,
     pub tree_width: f32,
+    /// Tool pane layout (Git, Agent, Term… docks) per project folder, keyed
+    /// by [`tools_key`].
+    pub tools: BTreeMap<String, ToolLayout>,
+}
+
+/// The [`Session::tools`] key of a project folder (`""` without one).
+pub fn tools_key(folder: Option<&Path>) -> String {
+    folder
+        .map(|f| f.to_string_lossy().to_string())
+        .unwrap_or_default()
 }
 
 impl Default for Session {
@@ -25,6 +38,7 @@ impl Default for Session {
             active_pane: 0,
             tree_visible: true,
             tree_width: 240.,
+            tools: BTreeMap::new(),
         }
     }
 }
@@ -152,6 +166,11 @@ mod tests {
             active_pane: 2,
             tree_visible: false,
             tree_width: 300.,
+            tools: BTreeMap::from([(tools_key(Some(Path::new("/project"))), {
+                let mut tools = ToolLayout::default();
+                tools.set_open(crate::tool_layout::ToolKind::Term, true);
+                tools
+            })]),
         }
     }
 

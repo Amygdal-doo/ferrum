@@ -1,29 +1,22 @@
-//! FerrumGIT desktop entry point.
+//! FerrumGIT desktop entry point: one window around `ferrumgit_ui::GitView`.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
-mod app;
-mod commands;
-mod components;
-mod state;
-
 use ferrum_ui::AppConfig;
-use ferrumgit_application::AppServices;
-use gpui::AppContext as _;
+use ferrumgit_ui::{AppServices, GitView, GitViewOptions};
+use gpui::Focusable as _;
 use tracing_subscriber::EnvFilter;
 
 fn main() {
     // The same binary answers ssh's passphrase prompts (SSH_ASKPASS).
-    if let Some(code) = ferrumgit_application::askpass_main() {
+    if let Some(code) = ferrumgit_ui::askpass_main() {
         std::process::exit(code);
     }
     init_tracing();
-    let Some(dirs) = directories::ProjectDirs::from("dev", "FerrumGIT", "FerrumGIT") else {
+    // `FERRUMGIT_DATA_DIR` isolates local state (tests, demos, multiple setups).
+    let Some(data_dir) = ferrumgit_ui::default_data_dir() else {
         eprintln!("FerrumGIT: could not determine a home directory for local state");
         std::process::exit(1);
     };
-    // `FERRUMGIT_DATA_DIR` isolates local state (tests, demos, multiple setups).
-    let data_dir = std::env::var_os("FERRUMGIT_DATA_DIR")
-        .map_or_else(|| dirs.data_dir().to_path_buf(), std::path::PathBuf::from);
     let services = match AppServices::start(&data_dir) {
         Ok(s) => s,
         Err(e) => {
@@ -38,14 +31,10 @@ fn main() {
         .size(1440., 900.)
         .min_size(980., 600.);
     ferrum_ui::run(config, move |window, cx| {
-        app::bind_keys(cx);
-        cx.new(|cx| {
-            let mut app = app::FerrumGit::new(services, window, cx);
-            if let Some(path) = open_at {
-                app.open_path(path, cx);
-            }
-            app
-        })
+        ferrumgit_ui::init_with_services(services, cx);
+        let view = GitView::new(open_at, GitViewOptions::desktop(), window, cx);
+        window.focus(&view.focus_handle(cx), cx);
+        view
     });
 }
 

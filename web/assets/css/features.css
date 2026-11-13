@@ -507,6 +507,67 @@
   .tb__chan, .tb__ver { display: none; }
 }
 
+/* ---------- Embedded tools: FerrumAgentic columns, Ferrum Editor panes ---------- */
+.ax, .edp { display: flex; flex-direction: column; }
+.ax__top { display: flex; flex: none; align-items: stretch; border-bottom: 1px solid var(--border); background: var(--bg-elev); }
+.ax__top .pstrip { flex: 1; min-width: 0; border-bottom: 0; }
+/* The editor's bar has no "open in Editor" button; its toggles take that place. */
+.edp .pstrip__open { display: none; }
+.ax__toggles { display: flex; gap: 4px; align-items: center; padding: 0 10px; font-size: 11px; }
+.ax__toggles span { padding: 0 6px; border: 1px solid var(--border-strong); border-radius: 3px; }
+.ax__toggles .is-on { border-color: var(--app-accent); background: color-mix(in srgb, var(--app-accent) 18%, transparent); color: var(--text); }
+.ax__cols { flex: 1; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr); }
+.ax__col { position: relative; padding: 0 10px 10px; overflow: hidden; }
+.ax__col + .ax__col { border-left: 1px solid var(--border); }
+.ax__head, .edp__head {
+  display: flex; gap: 8px; align-items: baseline; margin: 0 -10px 8px !important; padding: 4px 10px !important;
+  border-bottom: 1px solid var(--border); background: var(--surface); white-space: nowrap; overflow: hidden;
+}
+.ax__head b, .edp__head b { color: var(--text); }
+.ax__head em, .edp__head em { overflow: hidden; text-overflow: ellipsis; }
+.ax__head span, .edp__head span { margin-left: auto; color: var(--text-faint); }
+.ax__msg { margin-bottom: 8px !important; color: var(--text); animation: demo-row var(--cycle) var(--ease) infinite; }
+.ax__msg--you { padding: 4px 8px; border-radius: 4px; background: var(--surface-2); animation: none; }
+.ax__tool { display: flex; gap: 6px; align-items: center; margin-bottom: 8px !important; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; color: var(--text); white-space: nowrap; overflow: hidden; animation: demo-row var(--cycle) var(--ease) infinite; animation-delay: 0.4s; }
+.ax__tool em, .ax__file em { margin-left: auto; }
+.ax__col .ax__msg:nth-of-type(4) { animation-delay: 1s; }
+.ax__run { display: inline-block; padding: 1px 8px; border: 1px solid var(--app-accent); border-radius: 4px; color: var(--text); animation: demo-press var(--cycle) var(--ease) infinite; animation-delay: 2.4s; }
+.ax__mode { position: absolute; left: 10px; right: 10px; bottom: 10px; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 10px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ax__file { display: flex; gap: 6px; padding: 2px 4px; border-radius: 3px; color: var(--text); white-space: nowrap; overflow: hidden; animation: demo-row var(--cycle) var(--ease) infinite; animation-delay: 0.6s; }
+.ax__file b { color: var(--app-git); }
+.ax__diff { margin-top: 8px; font-size: 11px; }
+.ax__diff p { padding: 1px 6px; white-space: pre; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.ax__commit { position: absolute; left: 10px; right: 10px; bottom: 10px; padding: 3px 6px; border-radius: 4px; background: var(--app-git); color: var(--on-color); font-weight: 600; text-align: center; }
+.ax__col--term { background: var(--bg-elev); }
+.ax__line, .ax__out { white-space: pre; overflow: hidden; color: var(--text); }
+.ax__out { animation: demo-row var(--cycle) var(--ease) infinite; animation-delay: 3s; }
+.ax__out:nth-of-type(4) { animation-delay: 3.4s; }
+.ax__out:nth-of-type(5) { animation-delay: 3.8s; }
+.edp__main { flex: 1; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+.edp__code { padding: 0 12px 10px; white-space: pre; overflow: hidden; color: var(--text); }
+.edp__tab { display: inline-block; margin-bottom: 8px !important; padding: 3px 10px; border-bottom: 2px solid var(--app-accent); color: var(--text); }
+.edp__changed { background: color-mix(in srgb, var(--app-term) 16%, transparent); }
+.edp__dock { position: relative; display: flex; flex-direction: column; border-left: 1px solid var(--border); }
+.edp__pane { flex: 1; padding: 0 10px 8px; overflow: hidden; }
+.edp__pane + .edp__pane { border-top: 1px solid var(--border); }
+.edp__review { display: flex; gap: 6px; }
+.edp__review span { padding: 0 8px; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text); }
+.edp__review span:first-child { animation: demo-press var(--cycle) var(--ease) infinite; animation-delay: 1.6s; }
+.edp__menu {
+  position: absolute; right: 10px; top: 30px; padding: 4px !important; min-width: 130px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
+  animation: data-menu var(--cycle) var(--ease) infinite;
+}
+.edp__menu li { padding: 2px 8px; border-radius: 3px; color: var(--text); }
+.edp__menu li:first-child { background: color-mix(in srgb, var(--app-accent) 24%, transparent); }
+.edp__bottom { flex: none; padding: 0 10px 8px; border-top: 1px solid var(--border); background: var(--bg-elev); }
+@media (max-width: 640px) {
+  .ax__cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ax__col--term, .ax__top .pstrip__open, .ax__top .pstrip__branch { display: none; }
+  .edp__main { grid-template-columns: minmax(0, 1fr); }
+  .edp__code { display: none; }
+}
+
 /* ---------- Keyframes (percentages of the 9s cycle) ---------- */
 @keyframes demo-blink { 50% { opacity: 0; } }
 @keyframes demo-pulse {

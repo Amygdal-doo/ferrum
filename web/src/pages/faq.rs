@@ -38,9 +38,9 @@ fn faqs() -> Vec<Faq> {
         Faq {
             q: "What is Ferrum?",
             a: "A family of native developer tools for macOS, written in Rust and drawn on the \
-                GPU with GPUI: Ferrum Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, \
-                FerrumKit, FerrumContainers, FerrumPorts and FerrumEnv. Ferrum Launcher installs and \
-                updates them."
+                GPU with GPUI: Ferrum Editor, FerrumAgentic, FerrumAPI, FerrumGIT, FerrumData, \
+                FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumEnv. Ferrum \
+                Launcher installs and updates them."
                 .to_owned(),
             more: Some(("See every app", super::apps::PATH)),
         },
@@ -70,7 +70,9 @@ fn faqs() -> Vec<Faq> {
             q: "Do I need an account?",
             a: "No. Builds are public GitHub releases, and the launcher installs every app \
                 without signing in. Ferrum Editor's CI page asks for a GitHub token only when \
-                you open it, and can reuse the GitHub CLI's."
+                you open it, and can reuse the GitHub CLI's. The agent chat in Ferrum Editor and \
+                FerrumAgentic uses your own API key, a local Ollama or an agent you already \
+                have, such as Claude Code."
                 .to_owned(),
             more: None,
         },
@@ -86,8 +88,8 @@ fn faqs() -> Vec<Faq> {
         Faq {
             q: "Do the apps collect telemetry?",
             a: "No. The apps contain no analytics or telemetry. They connect to what you use \
-                them with: GitHub for releases and the CI page, and your own APIs, databases \
-                and container engine. This website sets no cookies and runs no analytics."
+                them with: GitHub for releases and the CI page, the model provider or agent you \
+                pick for the agent chat, and your own APIs, databases and container engine. This website sets no cookies and runs no analytics."
                 .to_owned(),
             more: Some(("Website privacy", "/privacy")),
         },

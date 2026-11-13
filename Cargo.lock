@@ -2440,6 +2440,60 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrumagent-core"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "directories",
+ "futures",
+ "globset",
+ "ignore",
+ "keyring",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "similar",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "url",
+ "uuid",
+]
+
+[[package]]
+name = "ferrumagent-ui"
+version = "0.1.0"
+dependencies = [
+ "ferrum-ui",
+ "ferrumagent-core",
+ "futures",
+ "gpui",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "ferrumagentic-desktop"
+version = "0.1.0"
+dependencies = [
+ "ferrum-ui",
+ "ferrumagent-ui",
+ "ferrumgit-ui",
+ "ferrumterm-ui",
+ "gpui",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ferrumapi-application"
 version = "0.1.0"
 dependencies = [
@@ -2841,6 +2895,7 @@ name = "ferrumeditor-core"
 version = "0.1.0"
 dependencies = [
  "directories",
+ "ferrumagent-core",
  "flate2",
  "futures",
  "ignore",
@@ -2882,24 +2937,22 @@ dependencies = [
  "async-trait",
  "chrono",
  "ferrum-ui",
+ "ferrumagent-ui",
  "ferrumci-core",
  "ferrumeditor-core",
  "ferrumgit-domain",
  "ferrumgit-forge",
- "ferrumgit-git",
+ "ferrumgit-ui",
  "ferrumlogs-core",
- "ferrumterm-emulator",
- "ferrumterm-protocol",
+ "ferrumterm-ui",
  "futures",
  "gpui",
  "notify",
- "portable-pty",
  "serde_json",
  "tempfile",
  "tokio",
  "tracing",
  "trash",
- "unicode-width 0.2.2",
 ]
 
 [[package]]
@@ -2967,18 +3020,11 @@ dependencies = [
 name = "ferrumgit-desktop"
 version = "0.1.0"
 dependencies = [
- "chrono",
- "directories",
  "ferrum-ui",
- "ferrumgit-application",
- "ferrumgit-domain",
- "futures",
+ "ferrumgit-ui",
  "gpui",
- "syntect",
- "tokio",
  "tracing",
  "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]
@@ -3041,6 +3087,21 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "ferrumgit-ui"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "directories",
+ "ferrum-ui",
+ "ferrumgit-application",
+ "ferrumgit-domain",
+ "gpui",
+ "syntect",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -3195,14 +3256,8 @@ name = "ferrumterm-gui"
 version = "0.1.0"
 dependencies = [
  "ferrum-ui",
- "ferrumterm-client",
- "ferrumterm-net",
- "ferrumterm-protocol",
- "futures",
- "tokio",
- "tracing",
+ "ferrumterm-ui",
  "tracing-subscriber",
- "unicode-width 0.2.2",
 ]
 
 [[package]]
@@ -3242,6 +3297,22 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "ferrumterm-ui"
+version = "0.1.0"
+dependencies = [
+ "ferrum-ui",
+ "ferrumterm-client",
+ "ferrumterm-net",
+ "ferrumterm-protocol",
+ "ferrumterm-server",
+ "futures",
+ "gpui",
+ "tokio",
+ "tracing",
+ "unicode-width 0.2.2",
 ]
 
 [[package]]

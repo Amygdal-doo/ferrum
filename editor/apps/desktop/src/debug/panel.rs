@@ -1,4 +1,4 @@
-//! The Debug tab of the right dock: the toolbar (continue F5, step over
+//! The Debug pane (a tool pane, ⇧⌘Y): the toolbar (continue F5, step over
 //! F10, into F11, out ⇧F11, restart, stop ⇧F5), threads and the call stack
 //! (click a frame), variables (expand lazily), watch expressions, the
 //! breakpoints list and the debug console with an evaluate input.

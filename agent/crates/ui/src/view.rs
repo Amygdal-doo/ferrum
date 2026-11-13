@@ -1,0 +1,608 @@
+//! [`ChatView`]: state, the session event pump and the top-level layout.
+
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
+
+use ferrum_ui::prelude::*;
+use ferrum_ui::{Notice, TextInput, TextInputEvent, render_notice};
+use ferrumagent_core::context::{Mention, Suggestion};
+use ferrumagent_core::modes::Mode;
+use ferrumagent_core::permissions::{Decision, PermissionRequest};
+use ferrumagent_core::review::FileChange;
+use ferrumagent_core::session::{
+    AgentChoice, ChatSession, McpServerStatus, SessionConfig, SessionEvent,
+};
+use ferrumagent_core::store::ThreadSummary;
+use ferrumagent_core::thread::Thread;
+use futures::StreamExt;
+use gpui::{
+    Context, Entity, EventEmitter, FocusHandle, Focusable, ScrollHandle, Subscription, Task, Window,
+};
+
+use crate::actions::*;
+use crate::settings::SettingsSheet;
+
+/// What the host learns from the chat.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChatEvent {
+    /// Open `path` (absolute), at a 1-based line when known.
+    OpenFile { path: PathBuf, line: Option<u32> },
+    /// The user asked to run a command in the host's terminal.
+    RunInTerminal { cmd: String, cwd: PathBuf },
+    /// The agent's pending changes changed (`files` still to review).
+    ChangesUpdated { files: usize },
+}
+
+/// How the view starts.
+#[derive(Default)]
+pub struct ChatOptions {
+    /// The whole session configuration; `None` loads it from
+    /// `~/.ferrum/agent` and the keychain.
+    pub config: Option<SessionConfig>,
+    /// `PATH` for external agents and MCP servers (GUI apps should pass
+    /// the login shell's).
+    pub path_env: Option<String>,
+    /// Start in this mode.
+    pub mode: Option<Mode>,
+}
+
+pub(crate) struct Picker {
+    /// Byte offset of the `@` in the composer.
+    pub start: usize,
+    pub query: String,
+    pub items: Vec<Suggestion>,
+    pub selected: usize,
+}
+
+pub struct ChatView {
+    pub(crate) project: PathBuf,
+    pub(crate) focus: FocusHandle,
+    pub(crate) session: Option<ChatSession>,
+    pub(crate) load_error: Option<String>,
+    pub(crate) thread: Thread,
+    pub(crate) busy: bool,
+    pub(crate) queue: Vec<String>,
+    pub(crate) permissions: Vec<PermissionRequest>,
+    pub(crate) changes: Vec<FileChange>,
+    pub(crate) can_undo_restore: bool,
+    scanning: bool,
+    rescan: bool,
+    pub(crate) expanded_files: HashSet<PathBuf>,
+    pub(crate) show_changes: bool,
+    pub(crate) show_threads: bool,
+    pub(crate) threads: Vec<ThreadSummary>,
+    pub(crate) settings: Option<SettingsSheet>,
+    pub(crate) expanded_tools: HashSet<String>,
+    pub(crate) expanded_thinking: HashSet<(u64, usize)>,
+    pub(crate) composer: Entity<TextInput>,
+    pub(crate) mentions: Vec<Mention>,
+    pub(crate) picker: Option<Picker>,
+    picker_task: Option<Task<()>>,
+    pub(crate) notice: Option<Notice>,
+    notice_task: Option<Task<()>>,
+    pub(crate) scroll: ScrollHandle,
+    pub(crate) follow: bool,
+    pub(crate) mcp_status: Vec<McpServerStatus>,
+    /// The agent selector's menu and what it was built for.
+    pub(crate) agent_menu: Option<(String, Entity<ferrum_ui::components::ContextMenu>)>,
+    tasks: Vec<Task<()>>,
+    _subscriptions: Vec<Subscription>,
+}
+
+impl EventEmitter<ChatEvent> for ChatView {}
+
+impl Focusable for ChatView {
+    fn focus_handle(&self, _: &gpui::App) -> FocusHandle {
+        self.focus.clone()
+    }
+}
+
+impl ChatView {
+    /// The chat for `project_root`. The session (snapshot of the project)
+    /// opens in the background.
+    pub fn new(
+        project_root: impl AsRef<Path>,
+        options: ChatOptions,
+        window: &mut Window,
+        cx: &mut gpui::App,
+    ) -> Entity<Self> {
+        let project = project_root.as_ref().to_path_buf();
+        cx.new(|cx| Self::build(project, options, window, cx))
+    }
+
+    pub(crate) fn build(
+        project: PathBuf,
+        options: ChatOptions,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let composer = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .multiline(2)
+                .borderless()
+                .placeholder("Ask anything — @ to add context, ⇧Tab to switch mode")
+        });
+        let subscription =
+            cx.subscribe_in(
+                &composer,
+                window,
+                |this, input, event, window, cx| match event {
+                    TextInputEvent::Changed => this.composer_changed(input.clone(), window, cx),
+                    TextInputEvent::Submit => this.send(&Send, window, cx),
+                    TextInputEvent::Blurred => {}
+                },
+            );
+        let mut config = options
+            .config
+            .unwrap_or_else(|| SessionConfig::load(&project));
+        if options.path_env.is_some() {
+            config.path_env = options.path_env;
+        }
+        if let Some(mode) = options.mode {
+            config.mode = mode;
+        }
+        let mut thread = Thread::new(project.clone(), "", config.mode);
+        thread.title = "Starting…".into();
+        let open = cx.background_spawn(async move { ChatSession::new(config) });
+        let load = cx.spawn(async move |this, cx| {
+            let result = open.await;
+            let rx = this
+                .update(cx, |this, cx| match result {
+                    Ok((session, rx)) => {
+                        this.thread = session.thread();
+                        this.threads = session.threads();
+                        this.session = Some(session);
+                        this.refresh_changes(cx);
+                        cx.notify();
+                        Some(rx)
+                    }
+                    Err(error) => {
+                        this.load_error = Some(error);
+                        cx.notify();
+                        None
+                    }
+                })
+                .ok()
+                .flatten();
+            let Some(mut rx) = rx else { return };
+            while let Some(event) = rx.next().await {
+                let mut batch = vec![event];
+                // Coalesce bursts (streamed deltas) into one update.
+                while let Ok(more) = rx.try_recv() {
+                    batch.push(more);
+                    if batch.len() >= 256 {
+                        break;
+                    }
+                }
+                if this
+                    .update(cx, |this, cx| {
+                        for event in batch {
+                            this.on_session_event(event, cx);
+                        }
+                        cx.notify();
+                    })
+                    .is_err()
+                {
+                    return;
+                }
+            }
+        });
+        Self {
+            project,
+            focus: cx.focus_handle(),
+            session: None,
+            load_error: None,
+            thread,
+            busy: false,
+            queue: Vec::new(),
+            permissions: Vec::new(),
+            changes: Vec::new(),
+            can_undo_restore: false,
+            scanning: false,
+            rescan: false,
+            expanded_files: HashSet::new(),
+            show_changes: true,
+            show_threads: false,
+            threads: Vec::new(),
+            settings: None,
+            expanded_tools: HashSet::new(),
+            expanded_thinking: HashSet::new(),
+            composer,
+            mentions: Vec::new(),
+            picker: None,
+            picker_task: None,
+            notice: None,
+            notice_task: None,
+            scroll: ScrollHandle::new(),
+            follow: true,
+            mcp_status: Vec::new(),
+            agent_menu: None,
+            tasks: vec![load],
+            _subscriptions: vec![subscription],
+        }
+    }
+
+    /// The session, once open.
+    pub fn session(&self) -> Option<&ChatSession> {
+        self.session.as_ref()
+    }
+
+    /// The view's copy of the current thread.
+    pub fn thread(&self) -> &Thread {
+        &self.thread
+    }
+
+    pub fn is_busy(&self) -> bool {
+        self.busy
+    }
+
+    pub fn pending_changes(&self) -> &[FileChange] {
+        &self.changes
+    }
+
+    pub fn open_permission_requests(&self) -> &[PermissionRequest] {
+        &self.permissions
+    }
+
+    /// Adds context from the host (an editor selection, terminal output).
+    pub fn add_mention(&mut self, mention: Mention, cx: &mut Context<Self>) {
+        if !self.mentions.contains(&mention) {
+            self.mentions.push(mention);
+            cx.notify();
+        }
+    }
+
+    /// Fills the composer (e.g. "Explain this").
+    pub fn set_draft(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.composer
+            .update(cx, |input, cx| input.set_text(text, cx));
+        self.composer
+            .update(cx, |input, cx| input.focus(window, cx));
+    }
+
+    fn on_session_event(&mut self, event: SessionEvent, cx: &mut Context<Self>) {
+        match event {
+            SessionEvent::Thread(event) => {
+                self.thread.apply(&event);
+                if self.follow {
+                    self.scroll.scroll_to_bottom();
+                }
+            }
+            SessionEvent::Permission(request) => {
+                self.permissions.push(request);
+                self.scroll.scroll_to_bottom();
+            }
+            SessionEvent::PermissionClosed(id) => self.permissions.retain(|p| p.id != id),
+            SessionEvent::ChangesUpdated => self.refresh_changes(cx),
+            SessionEvent::Busy(busy) => {
+                self.busy = busy;
+                if !busy {
+                    self.permissions.clear();
+                    if let Some(session) = &self.session {
+                        self.threads = session.threads();
+                    }
+                }
+            }
+            SessionEvent::Queue(queue) => self.queue = queue,
+            SessionEvent::ThreadSwitched => {
+                if let Some(session) = &self.session {
+                    self.thread = session.thread();
+                    self.threads = session.threads();
+                }
+                self.permissions.clear();
+                self.expanded_tools.clear();
+                self.follow = true;
+                self.scroll.scroll_to_bottom();
+            }
+            SessionEvent::AgentChanged(_) => {
+                if let Some(session) = &self.session {
+                    self.thread.agent = session.thread().agent;
+                }
+            }
+            SessionEvent::Notice(message) => self.show_notice(Notice::info(message), cx),
+            SessionEvent::Mcp(status) => {
+                let failed: Vec<String> = status
+                    .iter()
+                    .filter_map(|s| s.result.as_ref().err().map(|e| format!("{}: {e}", s.name)))
+                    .collect();
+                if !failed.is_empty() {
+                    self.show_notice(
+                        Notice::error(format!("MCP servers failed — {}", failed.join("; "))),
+                        cx,
+                    );
+                }
+                self.mcp_status = status;
+            }
+        }
+    }
+
+    pub(crate) fn show_notice(&mut self, notice: Notice, cx: &mut Context<Self>) {
+        self.notice = Some(notice);
+        self.notice_task = Some(Notice::dismiss_later(cx, |this, _| this.notice = None));
+        cx.notify();
+    }
+
+    /// Recomputes the review list in the background.
+    pub(crate) fn refresh_changes(&mut self, cx: &mut Context<Self>) {
+        let Some(session) = self.session.clone() else {
+            return;
+        };
+        if self.scanning {
+            self.rescan = true;
+            return;
+        }
+        self.scanning = true;
+        let task = cx.spawn(async move |this, cx| {
+            let scan = cx
+                .background_spawn(async move { (session.changes(), session.can_undo_restore()) })
+                .await;
+            this.update(cx, |this, cx| {
+                this.scanning = false;
+                match scan.0 {
+                    Ok(changes) => this.changes = changes,
+                    Err(e) => this.show_notice(Notice::error(e), cx),
+                }
+                this.can_undo_restore = scan.1;
+                cx.emit(ChatEvent::ChangesUpdated {
+                    files: this.changes.len(),
+                });
+                if std::mem::take(&mut this.rescan) {
+                    this.refresh_changes(cx);
+                }
+                cx.notify();
+            })
+            .ok();
+        });
+        self.tasks.retain(|t| !t.is_ready());
+        self.tasks.push(task);
+    }
+
+    /// Runs a blocking session call off the UI thread, then refreshes.
+    pub(crate) fn run_blocking(
+        &mut self,
+        cx: &mut Context<Self>,
+        f: impl FnOnce(&ChatSession) -> Result<(), String> + std::marker::Send + 'static,
+    ) {
+        let Some(session) = self.session.clone() else {
+            return;
+        };
+        let task = cx.spawn(async move |this, cx| {
+            let result = cx.background_spawn(async move { f(&session) }).await;
+            this.update(cx, |this, cx| {
+                if let Err(e) = result {
+                    this.show_notice(Notice::error(e), cx);
+                }
+                this.refresh_changes(cx);
+            })
+            .ok();
+        });
+        self.tasks.retain(|t| !t.is_ready());
+        self.tasks.push(task);
+    }
+
+    // Actions
+
+    pub(crate) fn send(&mut self, _: &Send, window: &mut Window, cx: &mut Context<Self>) {
+        if self.picker.as_ref().is_some_and(|p| !p.items.is_empty()) {
+            self.accept_mention(&AcceptMention, window, cx);
+            return;
+        }
+        let text = self.composer.read(cx).text().to_string();
+        if text.trim().is_empty() && self.mentions.is_empty() {
+            return;
+        }
+        let Some(session) = &self.session else {
+            self.show_notice(Notice::error("The chat is still starting."), cx);
+            return;
+        };
+        session.send(&text, std::mem::take(&mut self.mentions));
+        self.composer.update(cx, |input, cx| input.set_text("", cx));
+        self.picker = None;
+        self.follow = true;
+        self.scroll.scroll_to_bottom();
+        cx.notify();
+    }
+
+    fn new_line(&mut self, _: &NewLine, window: &mut Window, cx: &mut Context<Self>) {
+        self.composer
+            .update(cx, |input, cx| input.insert("\n", window, cx));
+    }
+
+    pub(crate) fn set_mode(&mut self, mode: Mode, cx: &mut Context<Self>) {
+        if let Some(session) = &self.session {
+            session.set_mode(mode);
+        }
+        self.thread.mode = mode;
+        cx.notify();
+    }
+
+    fn cycle_mode(&mut self, _: &CycleMode, _: &mut Window, cx: &mut Context<Self>) {
+        self.set_mode(self.thread.mode.next(), cx);
+    }
+
+    pub(crate) fn stop(&mut self, _: &Stop, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(session) = &self.session {
+            session.cancel();
+        }
+        cx.notify();
+    }
+
+    fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
+        let closed_overlay =
+            self.settings.take().is_some() || std::mem::take(&mut self.show_threads);
+        if self.picker.take().is_some() {
+            // The picker closes first.
+        } else if closed_overlay {
+            self.refocus(window, cx);
+        } else if self.busy {
+            self.stop(&Stop, window, cx);
+        } else {
+            cx.propagate();
+        }
+        cx.notify();
+    }
+
+    pub(crate) fn new_thread(
+        &mut self,
+        _: &NewThread,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(session) = &self.session {
+            session.new_thread();
+        }
+        self.show_threads = false;
+        self.refocus(window, cx);
+        cx.notify();
+    }
+
+    pub(crate) fn toggle_threads(
+        &mut self,
+        _: &ToggleThreads,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.show_threads = !self.show_threads;
+        if let Some(session) = &self.session {
+            self.threads = session.threads();
+        }
+        self.refocus(window, cx);
+        cx.notify();
+    }
+
+    /// Keeps keyboard focus inside the chat when the composer is hidden
+    /// (thread list, settings sheet) and returns it to the composer after.
+    pub(crate) fn refocus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.show_threads || self.settings.is_some() {
+            window.focus(&self.focus, cx);
+        } else {
+            self.composer
+                .update(cx, |input, cx| input.focus(window, cx));
+        }
+    }
+
+    pub(crate) fn toggle_changes(
+        &mut self,
+        _: &ToggleChanges,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.show_changes = !self.show_changes;
+        cx.notify();
+    }
+
+    pub(crate) fn accept_all(&mut self, _: &AcceptAll, _: &mut Window, cx: &mut Context<Self>) {
+        self.run_blocking(cx, |s| s.accept_all().map(|_| ()));
+    }
+
+    pub(crate) fn reject_all(&mut self, _: &RejectAll, _: &mut Window, cx: &mut Context<Self>) {
+        self.run_blocking(cx, |s| s.reject_all().map(|_| ()));
+    }
+
+    pub(crate) fn build_plan(&mut self, _: &BuildPlan, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(session) = &self.session {
+            session.build_plan();
+            self.thread.mode = Mode::Agent;
+        }
+        cx.notify();
+    }
+
+    pub(crate) fn set_agent(&mut self, choice: AgentChoice, cx: &mut Context<Self>) {
+        if let Some(session) = &self.session {
+            session.set_agent(choice.clone());
+            self.thread.agent = choice.key();
+        }
+        cx.notify();
+    }
+
+    pub(crate) fn respond(&mut self, id: u64, decision: Decision, cx: &mut Context<Self>) {
+        if let Some(session) = &self.session {
+            session.respond_permission(id, decision);
+        }
+        self.permissions.retain(|p| p.id != id);
+        cx.notify();
+    }
+
+    pub(crate) fn open_file(&mut self, rel: &Path, line: Option<u32>, cx: &mut Context<Self>) {
+        cx.emit(ChatEvent::OpenFile {
+            path: self.project.join(rel),
+            line,
+        });
+    }
+
+    pub(crate) fn picker_task(&mut self, task: Option<Task<()>>) {
+        self.picker_task = task;
+    }
+}
+
+impl Render for ChatView {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
+        let body = if let Some(error) = &self.load_error {
+            v_flex()
+                .flex_1()
+                .p_4()
+                .gap_2()
+                .child(Label::new("FerrumChat could not start").color(Color::Error))
+                .child(
+                    Label::new(error.clone())
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+                .into_any_element()
+        } else if self.show_threads {
+            self.render_threads(window, cx).into_any_element()
+        } else {
+            v_flex()
+                .flex_1()
+                .min_h_0()
+                .child(self.render_messages(window, cx))
+                .when(self.show_changes && !self.changes.is_empty(), |this| {
+                    this.child(self.render_changes(window, cx))
+                })
+                .child(self.render_composer(window, cx))
+                .into_any_element()
+        };
+        v_flex()
+            .id("ferrum-chat")
+            .key_context(crate::KEY_CONTEXT)
+            .track_focus(&self.focus)
+            .on_action(cx.listener(Self::send))
+            .on_action(cx.listener(Self::new_line))
+            .on_action(cx.listener(Self::cycle_mode))
+            .on_action(cx.listener(Self::stop))
+            .on_action(cx.listener(Self::dismiss))
+            .on_action(cx.listener(Self::new_thread))
+            .on_action(cx.listener(Self::toggle_threads))
+            .on_action(cx.listener(Self::toggle_changes))
+            .on_action(cx.listener(Self::accept_all))
+            .on_action(cx.listener(Self::reject_all))
+            .on_action(cx.listener(Self::build_plan))
+            .on_action(cx.listener(Self::mention_next))
+            .on_action(cx.listener(Self::mention_prev))
+            .on_action(cx.listener(Self::accept_mention))
+            .on_action(
+                cx.listener(|this, _: &OpenSettings, window, cx| this.open_settings(window, cx)),
+            )
+            .relative()
+            .size_full()
+            .min_w(px(320.))
+            .bg(colors.panel_background)
+            .text_color(colors.text)
+            .child(self.render_header(window, cx))
+            .child(body)
+            .when_some(self.settings.is_some().then_some(()), |this, _| {
+                this.child(self.render_settings(window, cx))
+            })
+            .when_some(self.notice.clone(), |this, notice| {
+                this.child(render_notice(
+                    &notice,
+                    cx.listener(|this, _, _, cx| {
+                        this.notice = None;
+                        cx.notify();
+                    }),
+                    cx,
+                ))
+            })
+    }
+}

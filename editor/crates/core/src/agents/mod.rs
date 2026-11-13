@@ -2,13 +2,14 @@
 //! (Claude Code, Codex, Gemini CLI) and custom CLIs from `[[agents]]`,
 //! finding their programs, the command line a session starts with, and its
 //! status. [`snapshot`] records the working tree when a session starts and
-//! [`review`] turns what changed since into hunks to accept or reject.
+//! [`review`] turns what changed since into hunks to accept or reject (both
+//! live in `ferrumagent-core`, shared with FerrumChat, and are re-exported
+//! here).
 //!
 //! API keys in `env` go to the agent's process only: they are never
 //! logged, and [`masked`] is all a UI may show of them.
 
-pub mod review;
-pub mod snapshot;
+pub use ferrumagent_core::{review, snapshot};
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

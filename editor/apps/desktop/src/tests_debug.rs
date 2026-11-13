@@ -10,7 +10,6 @@ use std::time::Duration;
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
 use crate::debug::Debugger;
-use crate::terminal::test_support;
 use crate::tests::init;
 use crate::workspace::Workspace;
 
@@ -118,7 +117,6 @@ fn breakpoints_stepping_and_console_with_a_fake_adapter(cx: &mut TestAppContext)
     }
     cx.executor().allow_parking();
     init(cx);
-    test_support::reset();
     let dir = tempfile::tempdir().expect("tempdir");
     let root = dir.path().canonicalize().expect("canonical");
     let source = root.join("main.rs");
@@ -198,9 +196,14 @@ fn breakpoints_stepping_and_console_with_a_fake_adapter(cx: &mut TestAppContext)
             })
         })
     });
-    // runInTerminal ran the program in a terminal tab.
-    wait_until(cx, "runInTerminal", |_| {
-        test_support::TASKS.with(|t| t.borrow().iter().any(|c| c == "echo hi"))
+    // runInTerminal ran the program in a Term pane tab.
+    wait_until(cx, "runInTerminal", |cx| {
+        workspace.read_with(cx, |w, _| {
+            w.tools()
+                .dry_run
+                .as_ref()
+                .is_some_and(|ran| ran.iter().any(|c| c == "echo hi"))
+        })
     });
 
     // F10 steps to the next line.

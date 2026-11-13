@@ -45,6 +45,7 @@ pub(crate) fn init(cx: &mut TestAppContext) {
     cx.update(|cx| {
         bind_text_input_keys(cx);
         ferrum_ui::init_for_tests(cx);
+        crate::init_tools(cx);
         actions::capture_base_bindings(cx);
         let settings = Settings::load(None, Settings::default_commands());
         assert!(actions::apply_keymap(&settings.keymap, cx).is_empty());

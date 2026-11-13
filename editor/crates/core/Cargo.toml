@@ -8,6 +8,8 @@ publish.workspace = true
 
 [dependencies]
 directories.workspace = true
+# Agent snapshot + hunk review, shared with FerrumChat.
+ferrumagent-core.workspace = true
 flate2.workspace = true
 futures.workspace = true
 ignore.workspace = true

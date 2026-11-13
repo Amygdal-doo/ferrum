@@ -113,14 +113,14 @@ fn showcase() -> Markup {
     }
 }
 
-/// The other six apps as one compact row, ending in the full list.
+/// The other seven apps as one compact row, ending in the full list.
 fn more_apps() -> Markup {
     let others = apps::MORE.iter().chain(std::iter::once(&apps::LAUNCHER));
     html! {
         nav class="more-apps" aria-labelledby="more-apps-title" {
             h3 class="more-apps__title" id="more-apps-title" { "Also in the launcher" }
             (card::app_strip(others.map(|e| &e.product), false))
-            a class="more-apps__all" href=(apps::PATH) { "All ten apps" }
+            a class="more-apps__all" href=(apps::PATH) { "All eleven apps" }
         }
     }
 }
@@ -274,7 +274,7 @@ mod tests {
         assert!(html.contains(r#"href="/apps""#));
         assert!(html.contains(r#"id="apps""#));
         assert_eq!(html.matches("<h1").count(), 1);
-        assert_eq!(crate::products::ALL.len(), 10);
+        assert_eq!(crate::products::ALL.len(), 11);
     }
 
     #[test]

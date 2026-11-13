@@ -570,9 +570,10 @@ fn the_ci_page_opens_from_the_workspace_on_the_project(cx: &mut TestAppContext) 
     assert!(workspace.read_with(cx, |w, _| w.in_ci_view()));
     ci.read_with(cx, |a, _| assert_eq!(a.runs.len(), 3));
 
-    // ⌥⌘G goes from CI to the Git view.
-    cx.simulate_keystrokes(&primary("cmd-alt-g"));
-    assert!(workspace.read_with(cx, |w, _| w.in_git_view()));
+    // Other panes open beside it: ⇧⌘Y adds the Debug pane.
+    cx.simulate_keystrokes(&primary("cmd-shift-y"));
+    assert!(workspace.read_with(cx, |w, _| w.in_ci_view()
+        && w.tool_open(ferrumeditor_core::tool_layout::ToolKind::Debug)));
 }
 
 #[gpui::test]

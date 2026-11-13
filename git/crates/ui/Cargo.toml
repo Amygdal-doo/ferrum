@@ -1,0 +1,24 @@
+[package]
+name = "ferrumgit-ui"
+description = "FerrumGIT's full GPUI interface as an embeddable view (GitView), shared by the FerrumGIT app and other Ferrum hosts."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+ferrumgit-domain.workspace = true
+ferrumgit-application.workspace = true
+ferrum-ui.workspace = true
+gpui.workspace = true
+tracing.workspace = true
+directories.workspace = true
+chrono.workspace = true
+syntect = { version = "5", default-features = false, features = ["default-fancy"] }
+
+[dev-dependencies]
+gpui = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true
+
+[lints]
+workspace = true

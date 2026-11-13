@@ -15,6 +15,16 @@ impl Workspace {
             .map(|f| f.session.clone())
     }
 
+    /// The per-project tool pane layouts stored in the session file.
+    pub(super) fn saved_tool_layouts(
+        &self,
+        cx: &App,
+    ) -> std::collections::BTreeMap<String, ferrumeditor_core::tool_layout::ToolLayout> {
+        Self::session_path(cx)
+            .map(|path| session::load(&path).tools)
+            .unwrap_or_default()
+    }
+
     pub fn save_session(&self, cx: &App) {
         let Some(path) = Self::session_path(cx) else {
             return;
@@ -30,6 +40,12 @@ impl Workspace {
                 .unwrap_or(0),
             tree_visible: self.tree_visible,
             tree_width: f32::from(self.tree_width),
+            // Other windows' / earlier runs' projects keep their layouts.
+            tools: {
+                let mut tools = session::load(&path).tools;
+                tools.extend(self.tool_layouts());
+                tools
+            },
         };
         if let Err(error) = session::save(&path, &session) {
             eprintln!("ferrumeditor: could not save the session: {error}");
@@ -61,6 +77,8 @@ impl Workspace {
             return false;
         }
         let saved = session::load(&path);
+        self.tools.saved = saved.tools.clone();
+        self.load_tool_layout(cx);
         if let Some(folder) = saved.folder.clone().filter(|f| f.is_dir()) {
             self.set_root(folder, window, cx);
         }
@@ -79,6 +97,7 @@ impl Workspace {
             .get(saved.active_pane)
             .and_then(|id| self.pane_index(*id))
             .unwrap_or(0);
+        self.sync_tool_views(window, cx);
         self.focus_active(window, cx);
         cx.notify();
         true

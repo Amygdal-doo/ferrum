@@ -5,7 +5,7 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::pages::feature_demos;
-use crate::products::{self, FERRUM_LAUNCHER};
+use crate::products::{self, FERRUM_LAUNCHER, FERRUMAGENTIC, Product};
 use crate::site;
 use crate::updates::Post;
 
@@ -51,6 +51,12 @@ const NOT_BUILT_YET: [(&str, &str); 9] = [
     ("FerrumEnv", "unlocking with Touch ID, and per-person keys"),
 ];
 
+/// The apps this post announced. FerrumAgentic came two days later, in
+/// [`super::editor_panes_agentic`].
+fn announced() -> impl Iterator<Item = &'static Product> {
+    products::apps().filter(|p| p.slug != FERRUMAGENTIC.slug)
+}
+
 fn body() -> Markup {
     html! {
         p class="post__intro" {
@@ -88,7 +94,7 @@ fn body() -> Markup {
              page, which lists what works today and what isn't built yet."
         }
         ul class="post-apps" {
-            @for p in products::apps() {
+            @for p in announced() {
                 (product_row(p, p.tagline))
             }
         }
@@ -208,7 +214,11 @@ mod tests {
     #[test]
     fn presents_every_product_with_logo_and_link() {
         let html = body().into_string();
-        for p in products::ALL {
+        assert_eq!(announced().count(), 9);
+        for p in products::ALL
+            .iter()
+            .filter(|p| p.slug != FERRUMAGENTIC.slug)
+        {
             assert!(
                 html.contains(&format!(r#"href="{}""#, p.path())),
                 "{}",

@@ -9,7 +9,8 @@ APPS = {
     # every app is "Fe" + a capital in its accent: FeA, FeG, FeD, FeT, FeL,
     # FeK (Kit), FeC (FerrumContainers), FeE (Editor), FeP (Ports) and
     # FeE (Env: the vault; same letter as the Editor, told apart by the
-    # vermilion accent and the padlock badge).
+    # vermilion accent and the padlock badge), FeX (Agentic: chat, git and
+    # terminal side by side; aurora accent, spark badge).
     "ferrum":  ("e", "#E8743B", None),
     "api":     ("A", "#3FB8A0", "arrows"),
     "git":     ("G", "#F0B43C", "branch"),
@@ -21,6 +22,7 @@ APPS = {
     "editor":  ("E", "#C5DC3A", "caret"),
     "ports":   ("P", "#5B8DEF", "plug"),
     "env":     ("E", "#F2665A", "lock"),
+    "agentic": ("X", "#4CD97B", "spark"),
 }
 SW = 62  # letter stroke width
 
@@ -126,6 +128,14 @@ def glyph(kind):
     if kind == "lock":
         return (f'<path {common} d="M-40 -12 V-42 Q-40 -82 0 -82 Q40 -82 40 -42 V-12"/>'
                 f'<rect x="-66" y="-14" width="132" height="96" rx="16" fill="{DARK}"/>')
+    if kind == "spark":
+        # A four-point sparkle with a small one beside it.
+        def star(cx, cy, r, k):
+            q = r * k
+            return (f"M{cx} {cy-r} Q{cx+q} {cy-q} {cx+r} {cy} Q{cx+q} {cy+q} {cx} {cy+r} "
+                    f"Q{cx-q} {cy+q} {cx-r} {cy} Q{cx-q} {cy-q} {cx} {cy-r} Z")
+        return (f'<path fill="{DARK}" d="{star(-14, 14, 74, 0.14)}"/>'
+                f'<path fill="{DARK}" d="{star(52, -52, 30, 0.14)}"/>')
     if kind == "grid":
         r = 18
         return "".join(f'<rect x="{x-30}" y="{y-30}" width="60" height="60" rx="{r}" fill="{DARK}"/>' for x in (-38, 38) for y in (-38, 38))

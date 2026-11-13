@@ -120,36 +120,12 @@ pub(super) fn builtin_registry() -> CommandRegistry {
     r.register("markdown-preview:toggle", |w, window, cx| {
         w.toggle_markdown_preview(window, cx)
     });
-    r.register("git:toggle-view", |w, window, cx| {
-        w.toggle_git_view(window, cx)
+    super::git::register(&mut r);
+    super::terminal::register(&mut r);
+    r.register("tools:close-all", |w, window, cx| {
+        w.close_all_tools(window, cx)
     });
-    r.register("git:show-panel", |w, window, cx| {
-        w.toggle_git_panel(window, cx)
-    });
-    r.register("git:refresh", |w, _, cx| {
-        w.git.update(cx, |g, cx| g.refresh(false, cx))
-    });
-    r.register("git:commit", |w, _, cx| {
-        w.git.update(cx, |g, cx| g.commit(cx))
-    });
-    r.register("git:stage-all", |w, _, cx| {
-        w.git.update(cx, |g, cx| g.stage_all(cx))
-    });
-    r.register("git:fetch", |w, _, cx| {
-        w.git.update(cx, |g, cx| g.fetch(cx))
-    });
-    r.register("git:pull", |w, _, cx| w.git.update(cx, |g, cx| g.pull(cx)));
-    r.register("git:push", |w, _, cx| w.git.update(cx, |g, cx| g.push(cx)));
-    r.register("git:open-in-ferrumgit", |w, _, cx| {
-        let Some(root) = w.root.clone() else {
-            w.info("Open a folder first", cx);
-            return;
-        };
-        match crate::git::open_in_ferrumgit(&root) {
-            Ok(()) => w.info("Opened in FerrumGIT", cx),
-            Err(error) => w.error(error, cx),
-        }
-    });
+    r.register("tools:reset-layout", |w, _, cx| w.reset_tool_layout(cx));
     super::ci::register(&mut r);
     super::logs::register(&mut r);
     super::agents::register(&mut r);
@@ -187,29 +163,6 @@ pub(super) fn builtin_registry() -> CommandRegistry {
         adjust_font(cx, Some(-1.0))
     });
     r.register("window:reset-font-size", |_, _, cx| adjust_font(cx, None));
-    r.register("terminal:toggle", |w, window, cx| {
-        w.toggle_terminal(window, cx)
-    });
-    r.register("terminal:new", |w, window, cx| w.new_terminal(window, cx));
-    r.register("terminal:close", |w, window, cx| {
-        w.close_terminal(window, cx)
-    });
-    r.register("terminal:next-tab", |w, window, cx| {
-        w.cycle_terminal(1, window, cx)
-    });
-    r.register("terminal:previous-tab", |w, window, cx| {
-        w.cycle_terminal(-1, window, cx)
-    });
-    for name in ["terminal:copy", "terminal:paste", "terminal:clear"] {
-        r.register(name, move |w, _, cx| {
-            if let Some(view) = w.terminal.read(cx).active() {
-                view.update(cx, |view, cx| view.run_command(name, cx));
-            }
-        });
-    }
-    r.register("terminal:open-in-ferrumterm", |w, _, cx| {
-        w.open_in_ferrumterm(cx)
-    });
     r.register("theme:select", |w, window, cx| {
         w.toggle_picker(PickerKind::Theme, window, cx)
     });

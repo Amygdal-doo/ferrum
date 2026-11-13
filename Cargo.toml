@@ -31,6 +31,8 @@ members = [
     "env/crates/*",
     "logs/crates/*",
     "ci/crates/*",
+    "agent/crates/*",
+    "agentic/apps/*",
 ]
 exclude = ["ide", "web"]
 
@@ -68,6 +70,7 @@ ferrumgit-persistence = { path = "git/crates/persistence" }
 ferrumgit-credentials = { path = "git/crates/credentials" }
 ferrumgit-forge = { path = "git/crates/forge" }
 ferrumgit-application = { path = "git/crates/application" }
+ferrumgit-ui = { path = "git/crates/ui" }
 
 # FerrumData
 ferrumdata-domain = { path = "data/crates/domain" }
@@ -90,6 +93,7 @@ ferrumterm-emulator = { path = "term/crates/emulator" }
 ferrumterm-server = { path = "term/crates/server" }
 ferrumterm-client = { path = "term/crates/client" }
 ferrumterm-net = { path = "term/crates/net" }
+ferrumterm-ui = { path = "term/crates/ui" }
 
 # Ferrum Launcher
 ferrumlauncher-core = { path = "launcher/crates/core" }
@@ -117,6 +121,12 @@ ferrumlogs-core = { path = "logs/crates/core" }
 
 # CI (library behind the Editor's CI page)
 ferrumci-core = { path = "ci/crates/core" }
+
+# FerrumChat (agentic coding chat: core + GPUI view)
+ferrumagent-core = { path = "agent/crates/core" }
+ferrumagent-ui = { path = "agent/crates/ui" }
+# Rule globs (`.cursor/rules/*.mdc`); already in the graph through `ignore`.
+globset = "0.4"
 
 # Ferrum Editor
 ferrumeditor-core = { path = "editor/crates/core" }

@@ -27,8 +27,9 @@ pub const MAIN: [AppEntry; 4] = [
             "Tree view, tabs, split panes, a fuzzy file finder and a command palette",
             "Multi-cursor editing, regex find and replace, and find in files that respects \
              .gitignore",
-            "Completions, problems and go to definition for Rust, Go, TypeScript and JavaScript",
-            "A built-in terminal, ⌘B builds, and Git staging in the sidebar",
+            "Completions, problems, go to definition and rename for Rust, Go, TypeScript and \
+             JavaScript",
+            "Git, Agent and Term open inside the window as panes you can move and resize",
             "CI and Logs pages: GitHub Actions runs, and live logs of dev servers and containers",
         ],
     },
@@ -70,7 +71,21 @@ pub const MAIN: [AppEntry; 4] = [
 ];
 
 /// The tools around the main four.
-pub const MORE: [AppEntry; 5] = [
+pub const MORE: [AppEntry; 6] = [
+    AppEntry {
+        product: products::FERRUMAGENTIC,
+        summary: "FerrumChat, FerrumGIT and FerrumTerm side by side on one project, for working \
+                  with coding agents.",
+        features: &[
+            "Three columns you can close, reopen (⌥⌘1, ⌥⌘2, ⌥⌘3), resize and reorder, saved \
+             per project",
+            "Chat with Anthropic, OpenAI or Ollama models, or with Claude Code, Codex or Gemini \
+             CLI over ACP",
+            "Review agent edits per hunk, and restore a checkpoint from any turn",
+            "Run in terminal sends a command from the chat to the terminal column",
+            "Agent edits show up in the git column right away",
+        ],
+    },
     AppEntry {
         product: products::FERRUMAPI,
         summary: "A native, local-first API client for REST, GraphQL, gRPC and more, minus the \
@@ -143,7 +158,8 @@ pub const LAUNCHER: AppEntry = AppEntry {
 };
 
 const DESCRIPTION: &str = "Every Ferrum app in one list: code editor, Git client, terminal, \
-     database IDE, API client, utilities, containers, ports, env vault and the launcher.";
+     database IDE, agentic workspace, API client, utilities, containers, ports, env vault and \
+     the launcher.";
 
 pub fn render(site_url: &str) -> Markup {
     let trail = vec![Crumb::new("Apps", PATH)];
@@ -157,7 +173,7 @@ pub fn render(site_url: &str) -> Markup {
             (PageHeader::new(&trail, "Every Ferrum app")
                 .lead(html! {
                     p {
-                        "Ten native macOS apps, written in Rust and drawn on the GPU. All of \
+                        "Eleven native macOS apps, written in Rust and drawn on the GPU. All of \
                          them are free and in alpha, and Ferrum Launcher installs any of them \
                          and keeps it up to date."
                     }
@@ -166,7 +182,7 @@ pub fn render(site_url: &str) -> Markup {
             (group("main", "Write it, commit it, run it, query it",
                 "The four apps most of a working day happens in.", &MAIN))
             (group("more", "Tools for the rest of the job",
-                "APIs, containers, ports, secrets, and the small conversions in between.", &MORE))
+                "Agents, APIs, containers, ports, secrets, and the small conversions in between.", &MORE))
             (group("launcher", "The launcher",
                 "One free download that installs every other app.", std::slice::from_ref(&LAUNCHER)))
             (cta::get_launcher())

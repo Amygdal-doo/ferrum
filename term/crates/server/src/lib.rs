@@ -195,6 +195,26 @@ impl Server {
 
 /// Runs the server until `Shutdown` or a termination signal.
 pub async fn run(config: ServerConfig) -> Result<(), ServerError> {
+    let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    // Survive the terminal that started us closing: handling SIGHUP replaces its default (exit).
+    let mut hup = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())?;
+    tokio::spawn(async move { while hup.recv().await.is_some() {} });
+    run_until(config, async move {
+        tokio::select! {
+            _ = term.recv() => {}
+            _ = tokio::signal::ctrl_c() => {}
+        }
+    })
+    .await
+}
+
+/// Runs the server until `Shutdown` or until `stop` completes, without
+/// touching the process's signal handlers. For hosting a server inside
+/// another program (the embedded terminal's private fallback server).
+pub async fn run_until(
+    config: ServerConfig,
+    stop: impl std::future::Future<Output = ()>,
+) -> Result<(), ServerError> {
     std::fs::create_dir_all(&config.state_dir)?;
     let token = load_or_create_token(&config.state_dir)?;
     let (internal, mut internal_rx) = mpsc::unbounded_channel();
@@ -225,14 +245,9 @@ pub async fn run(config: ServerConfig) -> Result<(), ServerError> {
         }
     });
 
-    let mut term = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-    // Survive the terminal that started us closing: handling SIGHUP replaces its default (exit).
-    let mut hup = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::hangup())?;
-    tokio::spawn(async move { while hup.recv().await.is_some() {} });
     tokio::select! {
         () = server.shutdown.notified() => {}
-        _ = term.recv() => {}
-        _ = tokio::signal::ctrl_c() => {}
+        () = stop => {}
     }
     tracing::info!("shutting down");
     server.emit(Event::Bye);

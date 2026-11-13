@@ -68,6 +68,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/ferrumports", get(ferrumports))
         .route("/ferrumenv", get(ferrumenv))
+        .route("/ferrumagentic", get(ferrumagentic))
         .route("/ferrum-editor", get(ferrum_editor))
         .route("/ferrum-launcher", get(ferrum_launcher))
         .route(
@@ -159,6 +160,9 @@ async fn ferrumports(State(s): State<AppState>) -> Markup {
 }
 async fn ferrumenv(State(s): State<AppState>) -> Markup {
     pages::ferrumenv::render(s.site_url())
+}
+async fn ferrumagentic(State(s): State<AppState>) -> Markup {
+    pages::ferrumagentic::render(s.site_url())
 }
 async fn ferrum_editor(State(s): State<AppState>) -> Markup {
     pages::ferrum_editor::render(s.site_url())

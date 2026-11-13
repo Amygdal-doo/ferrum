@@ -68,6 +68,7 @@ forwards after the server restarts, seeing other users' listeners without `sudo`
 cargo term                         # GPUI window (starts the server if needed)
 cargo fterm -- ls                  # CLI via cargo; or use target/debug/fterm directly
 cargo test --workspace             # real PTYs, temp dirs, no network
+cargo test -p ferrumterm-ui        # incl. a headless embedded TermView on a private server
 cargo lint && cargo fmt --all
 cargo build --release              # target/release/{ferrumterm,fterm}: put both on PATH
 ```
@@ -107,9 +108,7 @@ any address that isn't loopback or in Tailscale's ranges.
 
 ## Layout
 ```
-apps/gui/            FerrumTerm window: GPUI view painting frames as quads + shaped text (view, input, app),
-                     sidebar (model, agents, hosts), dialogs (host form, ports), ssh, mouse selection,
-                     persisted window state (ui_state)
+apps/gui/            FerrumTerm window: a thin binary showing `ferrumterm_ui::TermView` (standalone options)
 apps/cli/            fterm: commands, server management + LaunchAgent, attach (crossterm), skill, hosts,
                      ssh, forward, port(s)
 crates/protocol/     wire types, length-prefixed JSON framing, layouts, OSC 7501 parser/scanner,
@@ -120,8 +119,65 @@ crates/server/       daemon: state/targets, PTY blocks, connections, listeners, 
 crates/client/       async client, endpoints, default paths, auto-start
 crates/net/          ~/.ssh/config parser, saved SSH hosts + forwards store, ssh argv building,
                      lsof / ss / ps parsers and port lookup, process signalling
+crates/ui/           ferrumterm-ui, the embeddable terminal UI: `TermView` (view/: state + events, render,
+                     public api, IME), paint (frames as quads + shaped text), actions (key bindings in the
+                     `FerrumTerm` key context), input, app (server state and requests), connection (shared
+                     server or private in-process one), sidebar (model, agents, hosts), dialogs (host form,
+                     ports), ssh, mouse selection, project bar, persisted window state (ui_state)
 docs/                ARCHITECTURE
 ```
+
+## Embedding the terminal (Ferrum Editor, FerrumAgentic)
+`ferrumterm-ui` is the whole FerrumTerm UI as one GPUI view; the desktop app is a thin binary
+around it. A host adds `ferrumterm-ui.workspace = true` and:
+
+```rust
+use ferrumterm_ui::{TermView, TermViewEvent, TermViewOptions};
+
+ferrumterm_ui::init(cx);                       // once: key bindings, in the `FerrumTerm` key context
+let term = TermView::new(
+    TermViewOptions::embedded()                // compact, sidebar collapsed
+        .cwd(&project_root)                    // first session, new tabs/splits/commands
+        .session_name("editor:my-app"),        // its own server session, created when missing
+    window,
+    cx,
+);
+cx.subscribe(&term, |this, _, event, cx| match event {
+    TermViewEvent::AgentStatus { title, status, .. } => { /* working / blocked / done (OSC 7501) */ }
+    TermViewEvent::CommandFinished { command: Some(id), exit_code, .. } => { /* run_command ended */ }
+    TermViewEvent::TitleChanged(title) => { /* pane header */ }
+    _ => {}
+}).detach();
+// render it as a child element: `div().size_full().child(term.clone())`
+
+term.update(cx, |term, cx| {
+    let id = term.run_command("cargo test", None, cx); // own tab, stays open, exit code in the event
+    term.split(Axis::Horizontal, cx);                  // new pane to the right (Vertical: below)
+    term.new_tab(Some(path), cx);
+    term.set_cwd(new_root, cx);                        // for later tabs; running shells stay put
+});
+term.read(cx).focus_active(window, cx);
+```
+
+| `TermViewOptions` field | Default | Meaning |
+|---|---|---|
+| `cwd` | `None` | Directory for the first session and for tabs / splits / commands opened without one |
+| `compact` | `false` (`embedded()`: `true`) | 12 pt font, 28 px tab bar, scrollable tabs, sidebar drawn *over* the terminal (closes when you pick something). Usable from 320 px wide |
+| `show_sidebar` | `true` (`embedded()`: `false`) | Sidebar (agents, sessions, SSH hosts, ports) open at start; ⌘B or the tab-bar button toggles it |
+| `attach_to_server` | `true` | Use the shared `fterm` server, starting it (`fterm server start`, `fterm` next to the host binary or on `PATH`) if needed, so terminals survive the host closing and show up in FerrumTerm / `fterm attach`. If it can't be reached or started, or with `false`, a **private server runs inside the host process** (same PTYs and features; terminals end with the host) |
+| `session_name` | `None` | Show this server session (created when missing) instead of the first one, so the host's terminals stay apart from FerrumTerm's own. Its events are filtered to that session |
+| `standalone` | `false` | The desktop window only: sets the window title, shows the project bar, takes focus, saves the sidebar's state (embedded views only save recent agent commands), and keeps retrying the shared server instead of falling back to a private one (as before) |
+
+Events (`TermViewEvent`): `Connected(Backend::Server \| Local)`, `TitleChanged(String)`,
+`AgentStatus { block, title, status }` (from OSC 7501 / `fterm status` / Claude Code hooks; `status: None` = cleared),
+`CommandStarted { command, block }`, `CommandFinished { block, command: Option<CommandId>, exit_code }`
+(any pane's process exiting; `command` set for `run_command` tabs), `Bell { block }`.
+
+Keys: `init` binds ⌘T ⌘N ⌘D ⌘⇧D ⌘W ⌘[ ⌘] ⌘⇧[ ⌘⇧] ⌘1–9 ⌘C ⌘V ⌘⇧C ⌘= ⌘- ⌘0 ⌘⇧S ⌘B ⌘PgUp/PgDn as actions
+(`ferrum_term::NewTab`, `ClosePane`, …) in the `FerrumTerm` key context: while the terminal has focus they
+win over the host's global bindings, elsewhere they do nothing. Hosts with their own keymap can register
+`ferrumterm_ui::key_bindings()` (or a subset) instead. Calls made before the view is connected
+(`run_command` right after `new`) are queued until its session exists.
 
 ## Local data
 `~/Library/Application Support/dev.FerrumTerm.FerrumTerm/` holds `token` (0600), `server.log`

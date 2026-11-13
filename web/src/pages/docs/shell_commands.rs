@@ -15,11 +15,16 @@ pub const PATH: &str = "/docs/shell-commands";
 pub const TITLE: &str = "Shell commands";
 
 /// Suggested command per app (`shell::default_command`), with what it does.
-pub const COMMANDS: [(&str, Product, &str); 10] = [
+pub const COMMANDS: [(&str, Product, &str); 11] = [
     (
         "fee",
         products::FERRUM_EDITOR,
         "Opens Ferrum Editor; `fee .` opens the current folder",
+    ),
+    (
+        "fex",
+        products::FERRUMAGENTIC,
+        "Opens FerrumAgentic; `fex .` opens it on the current folder",
     ),
     ("fea", products::FERRUMAPI, "Opens FerrumAPI"),
     (
@@ -53,7 +58,8 @@ pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Shell commands: fee, feg, fet and more"),
         "Open Ferrum apps from a terminal: fee for Ferrum Editor, feg for FerrumGIT, fet for \
-         FerrumTerm, and fea, fed, fek, fec, fep, fev and fel for the rest.",
+         FerrumTerm, fex for FerrumAgentic, and fea, fed, fek, fec, fep, fev and fel for the \
+         rest.",
         PATH,
         "page-docs",
     )
@@ -119,7 +125,7 @@ pub fn render(site_url: &str) -> Markup {
             }
             p {
                 "So the commands work in Terminal, in editor and IDE terminals, in tmux, and in \
-                 FerrumTerm and Ferrum Editor's terminal."
+                 FerrumTerm and Ferrum Editor's Term pane."
             }
             (callout::render(Kind::Note, Some("Your own files are safe"), html! {
                 p {
@@ -154,6 +160,7 @@ mod tests {
             assert!(html.contains(&format!(r#"href="{}""#, p.path())));
         }
         assert!(html.contains("<code>fee .</code>"));
+        assert!(html.contains("<code>fex</code>"));
         assert_eq!(COMMANDS.len(), products::ALL.len());
     }
 }

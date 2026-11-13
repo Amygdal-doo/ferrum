@@ -77,7 +77,8 @@ pub fn render(site_url: &str) -> Markup {
                 .lead(html! {
                     p {
                         "Ferrum is a family of native developer tools written in Rust: a code \
-                         editor with CI and logs built in, an API client, a Git client, a \
+                         editor with CI and logs built in, a window for working with coding \
+                         agents, an API client, a Git client, a \
                          database IDE, a terminal, a container manager, developer utilities, and \
                          tools for ports and environment variables, plus Ferrum Launcher to \
                          install and update them. They are local-first, share one GPUI-based \

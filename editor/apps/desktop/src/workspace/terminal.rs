@@ -1,103 +1,35 @@
-//! Workspace side of the integrated terminal: the `terminal:*` commands,
-//! focus moves between editor and terminal, the status bar toggle and
-//! "Open in FerrumTerm".
+//! The `terminal:*` commands for the Term pane (FerrumTerm's view), the
+//! status bar toggle, and "Open in FerrumTerm app".
 
 use std::path::{Path, PathBuf};
 
 use ferrum_ui::components::{IconButton, IconName, IconSize};
 use ferrum_ui::prelude::*;
 
+use ferrumeditor_core::tool_layout::ToolKind;
+
 use super::Workspace;
-use crate::terminal::PanelEvent;
+use crate::registry::CommandRegistry;
+
+pub(super) fn register(r: &mut CommandRegistry) {
+    r.register("terminal:toggle", |w, window, cx| {
+        w.toggle_tool_focus(ToolKind::Term, window, cx)
+    });
+    r.register("terminal:new", |w, window, cx| w.new_terminal(window, cx));
+    r.register("terminal:open-in-ferrumterm", |w, _, cx| {
+        w.open_in_ferrumterm(cx)
+    });
+}
 
 impl Workspace {
-    /// `terminal:toggle` (VS Code style): closed → open and focus; open but
-    /// not focused → focus; focused → hide and return to the editor.
-    pub(super) fn toggle_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let panel = self.terminal.clone();
-        let (open, focused) = {
-            let p = panel.read(cx);
-            (p.is_open(), p.is_focused(window, cx))
-        };
-        match (open, focused) {
-            (true, true) => self.hide_terminal(window, cx),
-            (true, false) => panel.update(cx, |p, cx| p.focus_active(window, cx)),
-            (false, _) => self.show_terminal(window, cx),
+    /// A new shell tab in the Term pane (opened and focused).
+    fn new_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let existed = self.tools.term.is_some();
+        self.open_tool(ToolKind::Term, window, cx);
+        if existed && let Some(term) = self.tools.term.clone() {
+            let cwd = self.root.clone();
+            term.update(cx, |t, cx| t.new_tab(cwd, cx));
         }
-        cx.notify();
-    }
-
-    /// The status bar button: a plain open / hide switch.
-    pub(super) fn toggle_terminal_panel(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.terminal.read(cx).is_open() {
-            self.hide_terminal(window, cx);
-        } else {
-            self.show_terminal(window, cx);
-        }
-        cx.notify();
-    }
-
-    fn show_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let root = self.root.clone();
-        let result = self.terminal.update(cx, |p, cx| {
-            p.cwd = root;
-            p.show(window, cx)?;
-            p.focus_active(window, cx);
-            Ok::<(), String>(())
-        });
-        if let Err(error) = result {
-            self.error(format!("Could not start a terminal: {error}"), cx);
-        }
-    }
-
-    fn hide_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.terminal.update(cx, |p, cx| p.hide(cx));
-        self.focus_active(window, cx);
-    }
-
-    pub(super) fn new_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let root = self.root.clone();
-        let result = self.terminal.update(cx, |p, cx| {
-            p.cwd = root;
-            p.new_terminal(window, cx)
-        });
-        if let Err(error) = result {
-            self.error(format!("Could not start a terminal: {error}"), cx);
-        }
-        cx.notify();
-    }
-
-    pub(super) fn close_terminal(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.terminal.update(cx, |p, cx| p.close_active(window, cx));
-        cx.notify();
-    }
-
-    pub(super) fn cycle_terminal(
-        &mut self,
-        delta: isize,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.terminal.update(cx, |p, cx| p.cycle(delta, window, cx));
-    }
-
-    pub(super) fn on_terminal_event(
-        &mut self,
-        _: &Entity<crate::terminal::TerminalPanel>,
-        event: &PanelEvent,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        match event {
-            PanelEvent::Hidden => self.focus_active(window, cx),
-            PanelEvent::TaskFinished { .. } => self.on_task_finished(event, cx),
-            PanelEvent::AgentExited { terminal, code } => {
-                let (terminal, code) = (*terminal, *code);
-                self.agents.update(cx, |a, cx| a.exited(terminal, code, cx));
-            }
-            PanelEvent::Focused => {}
-        }
-        cx.notify();
     }
 
     /// Launches FerrumTerm in the project folder, if installed.
@@ -141,9 +73,9 @@ impl Workspace {
         self.info(format!("Opened {} in FerrumTerm", dir.display()), cx);
     }
 
-    /// Bottom-right status bar button; highlighted while the panel is open.
+    /// Bottom-right status bar button; highlighted while the pane is open.
     pub(super) fn render_terminal_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let open = self.terminal.read(cx).is_open();
+        let open = self.tool_open(ToolKind::Term);
         div()
             .debug_selector(|| "status-terminal-toggle".into())
             .child(
@@ -156,9 +88,9 @@ impl Workspace {
                     } else {
                         "Show Terminal"
                     }))
-                    .on_click(
-                        cx.listener(|this, _, window, cx| this.toggle_terminal_panel(window, cx)),
-                    ),
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.toggle_tool(ToolKind::Term, window, cx)
+                    })),
             )
     }
 }

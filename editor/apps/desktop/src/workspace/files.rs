@@ -48,9 +48,7 @@ impl Workspace {
         self._subscriptions.push(subscription);
         self.tree = Some(tree);
         self.tree_visible = true;
-        self.root = Some(root.clone());
-        let git_root = Some(root.clone());
-        self.git.update(cx, |g, cx| g.set_root(git_root, cx));
+        let old = self.root.replace(root.clone());
         if let Some(store) = crate::lsp_store::LspStore::global(cx) {
             let project = Some(root.clone());
             store.update(cx, |store, _| store.set_project(project));
@@ -63,6 +61,7 @@ impl Workspace {
         self.sync_project_bar(cx);
         self.sync_ci_project(cx);
         self.sync_logs_project(cx);
+        self.tools_follow_root(old, window, cx);
         self.start_watcher(window, cx);
         if window.focused(cx).is_none() {
             self.focus_active(window, cx);

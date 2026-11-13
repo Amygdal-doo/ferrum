@@ -1,13 +1,15 @@
-//! Sections of the Ferrum Editor page for its built-in pages that used to be
-//! separate apps: Logs (formerly FerrumLogs, at `#logs`) and CI (formerly
-//! FerrumCI, at `#ci`). Each reuses its animated demo from `project_demos`
-//! and the `.feature-app` styles of the features page.
+//! Sections of the Ferrum Editor page: the Git, Agent and Term panes (at
+//! `#tools`), and the built-in pages that used to be separate apps: Logs
+//! (formerly FerrumLogs, at `#logs`) and CI (formerly FerrumCI, at `#ci`).
+//! Each has an animated demo from `tool_demos` or `project_demos` and uses
+//! the `.feature-app` styles of the features page.
 //!
-//! Logs claims follow the FerrumLogs README ("What works today").
+//! Tool pane claims follow the editor README ("Tool panes"); Logs claims
+//! follow the FerrumLogs README ("What works today").
 
 use maud::{Markup, html};
 
-use super::project_demos;
+use super::{project_demos, tool_demos};
 use crate::products::FERRUM_EDITOR;
 
 /// One built-in page, shown as a section with copy on one side and its demo
@@ -24,6 +26,41 @@ pub struct EditorPage {
     /// Text alternative for the animated demo.
     pub demo_label: &'static str,
 }
+
+pub const TOOLS: EditorPage = EditorPage {
+    anchor: "tools",
+    title: "Git, Agent and Term, inside the editor",
+    meta: "FerrumGIT, FerrumChat and FerrumTerm · tool panes",
+    lead: "The Git, Agent and Term buttons at the top right open each tool inside the window \
+           as a split pane. Each is the tool's own view, from the same library the FerrumGIT \
+           and FerrumTerm apps and FerrumAgentic are built on.",
+    points: &[
+        (
+            "All of them at once",
+            "Git and Agent open on the right and Term at the bottom, next to the CI, Logs and \
+             Debug panes. Click a button again, or press its shortcut, to close the pane.",
+        ),
+        (
+            "Put them where you want",
+            "Move a pane to the left, right or bottom from its ⋯ menu or by dragging its \
+             header, and drag the dividers to resize. The layout is saved per project.",
+        ),
+        (
+            "Wired to the editor",
+            "Open in a diff or a file link in the chat opens the file at that line. Run in \
+             terminal runs the chat's command in a new Term tab, and open files reload when the \
+             agent changes them.",
+        ),
+        (
+            "Nothing stops when you close one",
+            "A closed pane keeps its view: the terminal keeps running and the chat keeps its \
+             thread. Open in FerrumGIT app and Open in FerrumTerm app are in the ⋯ menu.",
+        ),
+    ],
+    demo: tool_demos::editor_panes,
+    demo_label: "Ferrum Editor with the Git and Agent panes docked on the right, the Terminal \
+                 pane at the bottom, and a pane menu offering Move to Left and Move to Bottom",
+};
 
 pub const LOGS: EditorPage = EditorPage {
     anchor: "logs",
@@ -134,6 +171,10 @@ mod tests {
 
     #[test]
     fn sections_carry_their_anchor_and_demo() {
+        let tools = section(&TOOLS).into_string();
+        assert!(tools.contains(r#"id="tools""#));
+        assert!(tools.contains("Move to Left"));
+        assert_eq!(path(&TOOLS), "/ferrum-editor#tools");
         let logs = section(&LOGS).into_string();
         assert!(logs.contains(r#"id="logs""#));
         assert!(logs.contains("Ferrum Editor · Logs"));

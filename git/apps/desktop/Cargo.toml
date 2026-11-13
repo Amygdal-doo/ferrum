@@ -1,6 +1,6 @@
 [package]
 name = "ferrumgit-desktop"
-description = "FerrumGIT Git client — GPUI desktop shell."
+description = "FerrumGIT Git client — GPUI desktop shell around ferrumgit-ui."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,18 +11,11 @@ name = "ferrumgit"
 path = "src/main.rs"
 
 [dependencies]
-ferrumgit-domain.workspace = true
-ferrumgit-application.workspace = true
+ferrumgit-ui.workspace = true
 ferrum-ui.workspace = true
 gpui.workspace = true
-tokio.workspace = true
-futures.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-directories.workspace = true
-uuid.workspace = true
-chrono.workspace = true
-syntect = { version = "5", default-features = false, features = ["default-fancy"] }
 
 [lints]
 workspace = true

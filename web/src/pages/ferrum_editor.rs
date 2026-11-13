@@ -1,9 +1,10 @@
 //! Ferrum Editor product page. Claims follow the Ferrum Editor README
 //! ("What works today" / "Not built yet") and nothing beyond it.
 //!
-//! The Logs and CI pages (formerly the FerrumLogs and FerrumCI apps) have
-//! their own sections, defined in `editor_pages`; `/ferrumlogs` and
-//! `/ferrumci` redirect to [`LOGS_PATH`] and [`CI_PATH`].
+//! The tool panes (Git, Agent and Term, `editor_pages::TOOLS`) and the Logs
+//! and CI pages (formerly the FerrumLogs and FerrumCI apps) have their own
+//! sections, defined in `editor_pages`; `/ferrumlogs` and `/ferrumci`
+//! redirect to [`LOGS_PATH`] and [`CI_PATH`].
 
 use maud::{Markup, html};
 
@@ -21,6 +22,11 @@ const FEATURES: &[(&str, &str)] = &[
         "The Atom layout",
         "Tree view, tabs with a dirty dot, split panes, a fuzzy file finder (⌘P), a command \
          palette (⇧⌘P) with every command and its keys, and go to line.",
+    ),
+    (
+        "Git, Agent and Term inside",
+        "The Git, Agent and Term buttons open FerrumGIT, FerrumChat and FerrumTerm as split \
+         panes in the window, all at once if you like. The layout is saved per project.",
     ),
     (
         "Multi-cursor editing",
@@ -44,9 +50,9 @@ const FEATURES: &[(&str, &str)] = &[
     ),
     (
         "Language servers",
-        "Completions as you type, problems underlined with counts in the status bar, and \
-         go to definition with F12 or ⌘-click. rust-analyzer, gopls, TypeScript and the \
-         others install themselves the first time you open a file.",
+        "Completions as you type, problems underlined, go to definition, rename, find \
+         references and code actions. rust-analyzer, gopls, TypeScript and the others \
+         install themselves the first time you open a file.",
     ),
     (
         "Its own editor core",
@@ -62,21 +68,23 @@ const WORKS_TODAY: &[&str] = &[
     "Find and replace, find in files, fuzzy finder and command palette",
     "Git line marks and branch, Markdown preview, reload on change, session restore",
     "Snippets with tab stops; ferrumeditor path:line:col",
-    "Terminal panel from the status bar (⌃`), with tabs that keep running when hidden",
+    "Git (⌥⌘G), Agent (⌥⌘A) and Term (⌃`) panes, docked left, right or bottom",
+    "Pane layout saved per project; a closed pane keeps its terminal or chat",
     "Theme picker with live preview; TOML themes and VS Code theme import",
     "File icons in the tree, tabs and finder; loadable icon themes",
     "Autocomplete from language servers, or from words in the file without one",
     "Language servers install themselves (rust-analyzer, gopls, TypeScript and more)",
-    "Build tasks with ⌘B and their errors as problems; Git panel and Git view",
+    "Build tasks with ⌘B in the Term pane, with their errors as problems",
     "Problems underlined, listed (⌃⇧M) and stepped through with F8",
-    "Go to definition (F12 or ⌘-click), with back and forward",
+    "Go to definition (F12 or ⌘-click), rename (F2), references and code actions",
     "Logs page: files, commands and containers of a project tailed in one filtered view",
     "CI page: GitHub Actions runs, live logs, workflow dispatch and pull request checks",
 ];
 
 const NOT_BUILT_YET: &[&str] = &[
     "Packages and plugins (the seam is there)",
-    "Rename, find references and code actions from language servers",
+    "Inlay hints, semantic highlighting and workspace symbols",
+    "Choosing where a dropped pane lands: it always goes after the pane you drop it on",
     "Code folding and a minimap",
     "Multiple windows and project-wide replace",
     "Encodings other than UTF-8, and files over 64 MB",
@@ -85,8 +93,8 @@ const NOT_BUILT_YET: &[&str] = &[
 const PAGE: ProductPage = ProductPage {
     product: FERRUM_EDITOR,
     meta_description: "Ferrum Editor is a small, hackable code editor written in Rust and \
-                       configured in plain TOML, with LSP, a debugger, AI sessions and GitHub \
-                       Actions built in.",
+                       configured in plain TOML, with Git, an agent chat and a terminal as \
+                       panes, plus LSP and a debugger.",
     intro: "Tree view, tabs, fuzzy finder and command palette, with config, keymap, theme and \
             snippets in plain files you edit in the editor itself. Lighter than an IDE, and \
             built from scratch rather than forked.",
@@ -113,13 +121,17 @@ const PAGE: ProductPage = ProductPage {
         ("Install", "Ferrum Launcher (free, see Download)"),
         (
             "Network",
-            "None, except the CI page, which talks to GitHub with your own token",
+            "Only for what you use: language server downloads, the CI page (GitHub, with your \
+             own token) and the Agent pane (the model or agent you pick)",
         ),
         (
             "Builds",
             "macOS (Apple Silicon and Intel), Linux x86_64 and Windows",
         ),
-        ("Built with", "Rust, GPUI, ropey, tree-sitter"),
+        (
+            "Built with",
+            "Rust, GPUI, ropey, tree-sitter, and the FerrumGIT, FerrumChat and FerrumTerm views",
+        ),
         ("Tested on", "macOS (automated tests)"),
     ],
     specs_note: "Key bindings are designed for macOS; on Linux and Windows ⌘ becomes Ctrl.",
@@ -127,6 +139,7 @@ const PAGE: ProductPage = ProductPage {
 
 pub fn render(site_url: &str) -> Markup {
     let extra = html! {
+        (editor_pages::section(&editor_pages::TOOLS))
         (editor_pages::section(&editor_pages::LOGS))
         (editor_pages::section(&editor_pages::CI))
     };
@@ -150,6 +163,7 @@ mod tests {
     #[test]
     fn has_logs_and_ci_sections_with_their_demos() {
         let html = render("https://example.test").into_string();
+        assert!(html.contains(r#"id="tools""#));
         assert!(html.contains(r#"id="logs""#));
         assert!(html.contains(r#"id="ci""#));
         assert!(html.contains("Ferrum Editor · Logs"));

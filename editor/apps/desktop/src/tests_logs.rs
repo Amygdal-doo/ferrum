@@ -329,13 +329,14 @@ fn the_logs_page_opens_from_the_workspace_on_the_project(cx: &mut TestAppContext
         assert_eq!(l.sessions.len(), 2, "a's session stays open");
     });
 
-    // The palette command toggles back to the editor, and ⌥⌘G to Git.
+    // The palette command closes the pane; ⇧⌘Y opens Debug beside it.
     workspace.update_in(cx, |w, window, cx| {
         w.run_command("logs:toggle-view", window, cx)
     });
     assert!(!workspace.read_with(cx, |w, _| w.in_logs_view()));
     cx.simulate_keystrokes(&primary("cmd-alt-l"));
     assert!(workspace.read_with(cx, |w, _| w.in_logs_view()));
-    cx.simulate_keystrokes(&primary("cmd-alt-g"));
-    assert!(workspace.read_with(cx, |w, _| w.in_git_view()));
+    cx.simulate_keystrokes(&primary("cmd-shift-y"));
+    assert!(workspace.read_with(cx, |w, _| w.in_logs_view()
+        && w.tool_open(ferrumeditor_core::tool_layout::ToolKind::Debug)));
 }

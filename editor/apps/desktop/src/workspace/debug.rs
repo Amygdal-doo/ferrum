@@ -10,11 +10,11 @@ use ferrum_ui::prelude::*;
 use ferrumeditor_core::dap::{AdapterKind, LaunchConfig};
 
 use super::Workspace;
-use super::dock::RightTab;
 use crate::debug::{DebugPanel, DebugPanelEvent, Debugger, DebuggerEvent, configurations};
 use crate::editor::{DebugMarks, EditorView};
 use crate::picker::{PickerItem, PickerKind};
 use crate::registry::CommandRegistry;
+use ferrumeditor_core::tool_layout::ToolKind;
 
 pub(super) fn register(r: &mut CommandRegistry) {
     r.register("debug:start", |w, window, cx| {
@@ -42,7 +42,7 @@ pub(super) fn register(r: &mut CommandRegistry) {
         w.debugger.update(cx, |d, cx| d.stop(cx))
     });
     r.register("debug:restart", |w, _, cx| {
-        w.show_right(RightTab::Debug, cx);
+        w.show_debug_pane(cx);
         w.debugger.update(cx, |d, cx| d.restart(cx));
     });
     r.register("debug:toggle-breakpoint", |w, _, cx| {
@@ -55,10 +55,10 @@ pub(super) fn register(r: &mut CommandRegistry) {
         w.debugger.update(cx, |d, cx| d.remove_all_breakpoints(cx))
     });
     r.register("debug:toggle-panel", |w, window, cx| {
-        w.toggle_right(RightTab::Debug, window, cx)
+        w.toggle_tool_focus(ToolKind::Debug, window, cx)
     });
     r.register("debug:add-watch", |w, window, cx| {
-        w.show_right(RightTab::Debug, cx);
+        w.show_debug_pane(cx);
         let input = w.debug_panel.read(cx).watch_input();
         input.update(cx, |i, cx| i.focus(window, cx));
     });
@@ -141,11 +141,17 @@ impl Workspace {
         }
     }
 
+    /// Opens the Debug pane (it always exists) without moving focus.
+    fn show_debug_pane(&mut self, cx: &mut Context<Self>) {
+        self.tools.layout.set_open(ToolKind::Debug, true);
+        cx.notify();
+    }
+
     pub fn start_debugging(&mut self, config: LaunchConfig, cx: &mut Context<Self>) {
         let Some(root) = self.root.clone() else {
             return;
         };
-        self.show_right(RightTab::Debug, cx);
+        self.show_debug_pane(cx);
         self.debugger.update(cx, |d, cx| d.start(config, root, cx));
     }
 
@@ -211,12 +217,7 @@ impl Workspace {
                 } else {
                     cwd.clone()
                 };
-                let result = self.terminal.update(cx, |p, cx| {
-                    p.run_task(title, command, Path::new(&cwd), window, cx)
-                });
-                if let Err(error) = result {
-                    self.error(format!("Could not run the program: {error}"), cx);
-                }
+                self.run_task_in_terminal(title, command, Path::new(&cwd), window, cx);
             }
             DebuggerEvent::Notice(message) => self.info(message.clone(), cx),
             DebuggerEvent::Error(message) => self.error(message.clone(), cx),
@@ -244,7 +245,7 @@ impl Workspace {
                 .cursor_pointer()
                 .on_click(
                     cx.listener(|this, _, window, cx| {
-                        this.toggle_right(RightTab::Debug, window, cx)
+                        this.toggle_tool(ToolKind::Debug, window, cx)
                     }),
                 )
                 .child(

@@ -15,7 +15,7 @@ pub enum Scope {
     Editor,
     /// Only while the tree view has focus.
     TreeView,
-    /// Only while an integrated terminal has focus.
+    /// Only while the Term pane (FerrumTerm's view) has focus.
     Terminal,
 }
 
@@ -26,7 +26,7 @@ impl Scope {
             Scope::Workspace => None,
             Scope::Editor => Some("FerrumEditor"),
             Scope::TreeView => Some("FerrumTreeView"),
-            Scope::Terminal => Some("FerrumTerminal"),
+            Scope::Terminal => Some("FerrumTerm"),
         }
     }
 }
@@ -75,7 +75,7 @@ pub fn title_for(name: &str) -> String {
     }
 }
 
-use Scope::{Editor as E, Terminal as X, TreeView as T, Workspace as W};
+use Scope::{Editor as E, TreeView as T, Workspace as W};
 
 /// (name, scope, default keys).
 const BUILTIN: &[(&str, Scope, &[&str])] = &[
@@ -128,16 +128,12 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("find-and-replace:use-selection-as-find", E, &["cmd-e"]),
     ("find-in-files:show", W, &["cmd-shift-f"]),
     ("markdown-preview:toggle", W, &["cmd-shift-m"]),
-    // Git (FerrumGIT's git layer; the rest opens FerrumGIT)
+    // Tool panes inside the window (Git, Agent, Term, CI, Logs, Debug)
     ("git:toggle-view", W, &["cmd-alt-g"]),
     ("git:show-panel", W, &["ctrl-shift-g"]),
-    ("git:refresh", W, &[]),
-    ("git:commit", W, &[]),
-    ("git:stage-all", W, &[]),
-    ("git:fetch", W, &[]),
-    ("git:pull", W, &[]),
-    ("git:push", W, &[]),
     ("git:open-in-ferrumgit", W, &[]),
+    ("tools:close-all", W, &[]),
+    ("tools:reset-layout", W, &[]),
     // CI page: GitHub Actions runs, logs and PR checks (ferrumci-core)
     ("ci:toggle-view", W, &["cmd-shift-i"]),
     ("ci:refresh", W, &[]),
@@ -151,14 +147,9 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("tasks:run", W, &["cmd-shift-b"]),
     ("tasks:test", W, &[]),
     ("tasks:rerun-last", W, &[]),
-    // AI agent sessions and their diff review
+    // The Agent pane (FerrumChat) and CLI agents in the terminal
     ("agents:toggle-panel", W, &["cmd-alt-a"]),
     ("agents:new-session", W, &[]),
-    ("agents:stop-session", W, &[]),
-    ("agents:restart-session", W, &[]),
-    ("agents:review-changes", W, &["cmd-alt-r"]),
-    ("agents:accept-all", W, &[]),
-    ("agents:reject-all", W, &[]),
     // Debugger (DAP)
     ("debug:start", W, &[]),
     ("debug:continue", W, &["f5"]),
@@ -180,15 +171,9 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("language-server:show-install-log", W, &[]),
     ("navigation:back", W, &["ctrl--"]),
     ("navigation:forward", W, &["ctrl-shift--"]),
-    // Integrated terminal (copy / paste become Ctrl+Shift+C / V off macOS)
+    // The Term pane (FerrumTerm); its own keys apply while it has focus
     ("terminal:toggle", W, &["ctrl-`"]),
     ("terminal:new", W, &["ctrl-shift-`"]),
-    ("terminal:close", W, &[]),
-    ("terminal:next-tab", X, &["cmd-shift-]"]),
-    ("terminal:previous-tab", X, &["cmd-shift-["]),
-    ("terminal:copy", X, &["cmd-c"]),
-    ("terminal:paste", X, &["cmd-v"]),
-    ("terminal:clear", X, &[]),
     ("terminal:open-in-ferrumterm", W, &[]),
     // View
     ("window:increase-font-size", W, &["cmd-=", "cmd-+"]),
@@ -370,6 +355,6 @@ mod tests {
     fn scopes_map_to_key_contexts() {
         assert_eq!(Scope::Workspace.key_context(), None);
         assert_eq!(Scope::Editor.key_context(), Some("FerrumEditor"));
-        assert_eq!(Scope::Terminal.key_context(), Some("FerrumTerminal"));
+        assert_eq!(Scope::Terminal.key_context(), Some("FerrumTerm"));
     }
 }
