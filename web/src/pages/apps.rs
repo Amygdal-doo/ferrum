@@ -73,14 +73,17 @@ pub const MAIN: [AppEntry; 4] = [
 pub const MORE: [AppEntry; 5] = [
     AppEntry {
         product: products::FERRUMAPI,
-        summary: "A native, local-first API client with the Postman basics, minus the bloat.",
+        summary: "A native, local-first API client for REST, GraphQL, gRPC and more, minus the \
+                  bloat.",
         features: &[
-            "Every HTTP method; JSON, form, multipart and binary bodies; Basic, Bearer or API key \
-             auth",
-            "Collections, environments and {{variables}}, with history and tabs restored on launch",
-            "Postman and cURL import, and code for cURL, Python and JavaScript",
-            "A collection runner, a local mock server and a webhook inspector",
-            "Load tests with requests per second and p50, p90 and p99 latency",
+            "REST, GraphQL, SOAP, OData, tRPC, WebSocket and gRPC requests in the same \
+             collections and folders",
+            "A GraphQL schema panel from introspection, WSDL operations for SOAP and an OData \
+             query builder",
+            "Collections, environments and {{variables}}, saved per project to .ferrum/api/ in \
+             the repo",
+            "Postman and cURL import, and code for cURL, Python, JavaScript and grpcurl",
+            "A collection runner, a local mock server, a webhook inspector and load tests",
         ],
     },
     AppEntry {
@@ -266,11 +269,11 @@ mod tests {
     }
 
     #[test]
-    fn api_claims_only_what_ships() {
+    fn api_lists_its_request_kinds() {
         let api = MORE.iter().find(|e| e.product.slug == "ferrumapi");
         let text = api.map(|e| e.features.join(" ")).unwrap_or_default();
-        for soon in ["GraphQL", "SOAP", "OData", "tRPC", "WebSocket", "gRPC"] {
-            assert!(!text.contains(soon), "{soon}");
+        for kind in ["GraphQL", "SOAP", "OData", "tRPC", "WebSocket", "gRPC"] {
+            assert!(text.contains(kind), "{kind}");
         }
     }
 }

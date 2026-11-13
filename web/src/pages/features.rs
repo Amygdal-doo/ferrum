@@ -83,29 +83,35 @@ const APPS: [AppFeatures; 9] = [
     },
     AppFeatures {
         product: products::FERRUMAPI,
-        version: "0.3.0-alpha.1",
-        summary: "Three local tools for the parts of API work that happen before the backend \
-                  is ready, or after it ships.",
+        version: "0.4.0-alpha.1",
+        summary: "Six request kinds join REST, mixed freely in one collection, and collections \
+                  can now live in your repo.",
         points: &[
             (
-                "Mock server",
-                "Serve a collection's mock responses on 127.0.0.1, with path parameters, \
-                 query and header conditions, delays and a live log of what answered.",
+                "GraphQL",
+                "Query, variables and operation name over POST or GET, a schema panel from \
+                 introspection and field suggestions as you type.",
             ),
             (
-                "Webhook inspector",
-                "A local listener that records every request it gets. Open any capture as a \
-                 new request to replay it.",
+                "SOAP and OData",
+                "Load a WSDL, pick an operation and get a sample envelope; XML responses are \
+                 coloured. Build OData queries and pick entity sets from $metadata.",
             ),
             (
-                "Load test",
-                "Send a request N times with C at once and get requests per second, errors \
-                 by status and p50, p90 and p99 latency.",
+                "tRPC, WebSocket and gRPC",
+                "tRPC queries, mutations and batches with a result.data view. WebSocket \
+                 messages with templates and a live log. Unary and server-streaming gRPC from \
+                 reflection or a .proto file.",
+            ),
+            (
+                "Collections in the repo",
+                "Collections belong to a project. Save to repo writes them to .ferrum/api/ and \
+                 Load reads them back. Webhook captures can be saved to a collection.",
             ),
         ],
         demo: feature_demos::api,
         demo_label: "FerrumAPI showing a coloured JSON response with search matches and a \
-                     collection run passing request by request",
+                     collection run passing REST, GraphQL, SOAP and tRPC requests one by one",
     },
     AppFeatures {
         product: products::FERRUMGIT,

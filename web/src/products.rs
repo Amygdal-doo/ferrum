@@ -60,7 +60,8 @@ pub const FERRUMAPI: Product = Product {
     logo: "api",
     accent_var: "--app-api",
     kind: "API client",
-    tagline: "A native, local-first API client with the Postman basics, minus the bloat.",
+    tagline: "A native, local-first API client for REST, GraphQL, gRPC and more, minus \
+              the bloat.",
     status: Status::Alpha,
 };
 

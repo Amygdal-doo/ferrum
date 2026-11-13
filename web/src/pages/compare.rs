@@ -114,8 +114,8 @@ pub const COMPARISONS: [Comparison; 2] = [
         title: "FerrumAPI vs Postman",
         description: "FerrumAPI is a local-first, native API client that imports Postman \
                       collections. How it compares on accounts, storage, scripts and teams.",
-        summary: "FerrumAPI covers the everyday Postman basics on your Mac alone: no account, \
-                  no cloud, data in a local file. Postman is a broader platform built around \
+        summary: "FerrumAPI covers the everyday Postman basics, from REST to GraphQL and gRPC, \
+                  on your Mac alone: no account, no cloud, data in a local file. Postman is a broader platform built around \
                   shared, synced workspaces.",
         rows: &[
             (
@@ -130,7 +130,8 @@ pub const COMPARISONS: [Comparison; 2] = [
             ),
             (
                 "Collaboration",
-                "Not built in; share collections as Postman v2.1 files",
+                "Not built in; save collections to .ferrum/api/ in your repo or share them as \
+                 Postman v2.1 files",
                 "Shared workspaces for teams",
             ),
             (
@@ -140,7 +141,8 @@ pub const COMPARISONS: [Comparison; 2] = [
             ),
             (
                 "Protocols",
-                "HTTP; WebSocket, GraphQL and gRPC not built yet",
+                "HTTP, GraphQL, SOAP, OData, tRPC, WebSocket and gRPC, mixed in one collection; \
+                 no GraphQL subscriptions or gRPC client streaming yet",
                 "HTTP, GraphQL, gRPC, WebSocket and more",
             ),
             (
@@ -156,8 +158,8 @@ pub const COMPARISONS: [Comparison; 2] = [
             ),
             (
                 "Local tools",
-                "Mock server per collection, webhook inspector and load test (p50/p90/p99), all \
-                 on 127.0.0.1",
+                "Mock server per collection, webhook inspector (save captures to a collection) \
+                 and load test (p50/p90/p99), all on 127.0.0.1",
                 "Mock servers, monitors and performance tests",
             ),
             (
@@ -173,7 +175,7 @@ pub const COMPARISONS: [Comparison; 2] = [
         ],
         other_fits: &[
             "Your team shares collections and needs them synced.",
-            "You rely on scripts, OAuth, GraphQL, gRPC or WebSocket requests.",
+            "You rely on scripts, OAuth, or GraphQL subscriptions and streaming gRPC.",
         ],
         ferrum_fits: &[
             "You want requests, history and secrets to stay on your Mac, with no account.",

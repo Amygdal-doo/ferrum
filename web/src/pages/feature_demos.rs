@@ -65,10 +65,10 @@ pub fn api() -> Markup {
                 div class="api__runner" {
                     p class="demo__label" { "Runner · Users" }
                     ul {
-                        li { span class="demo__check" { "✓" } "List users" em { "200" } }
-                        li { span class="demo__check" { "✓" } "Create user" em { "201" } }
-                        li { span class="demo__check" { "✓" } "Get user" em { "200" } }
-                        li { span class="demo__check" { "✓" } "Delete user" em { "204" } }
+                        li { span class="demo__check" { "✓" } span class="api__kind" { "GET" } "List users" em { "200" } }
+                        li { span class="demo__check" { "✓" } span class="api__kind" { "GQL" } "Viewer" em { "200" } }
+                        li { span class="demo__check" { "✓" } span class="api__kind" { "SOAP" } "GetOrder" em { "200" } }
+                        li { span class="demo__check" { "✓" } span class="api__kind" { "TRPC" } "user.create" em { "200" } }
                     }
                     p class="api__cookies" { "Cookies (2) · session, theme" }
                 }

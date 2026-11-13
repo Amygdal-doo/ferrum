@@ -63,7 +63,10 @@ const EDITOR: &[Shortcut] = &[
 ];
 
 const API: &[Shortcut] = &[
-    (&["⌘↩"], "Send the request"),
+    (
+        &["⌘↩"],
+        "Send the request (connect / disconnect a WebSocket)",
+    ),
     (&["⌘S"], "Save the request"),
     (&["⌘F"], "Search the response body"),
     (&["⌘G", "⇧⌘G"], "Next / previous match"),
