@@ -2,6 +2,7 @@
 //! rows and builds every quad (current line, matches, selections, guides,
 //! cursors, gutter); paint draws them and registers the IME input handler.
 
+use ferrum_ui::theme::ActiveTheme as _;
 use ferrumeditor_core::display::{ExpandedLine, visual_col};
 use gpui::{
     App, Bounds, ContentMask, ElementId, ElementInputHandler, Entity, Font, GlobalElementId, Hsla,
@@ -307,8 +308,9 @@ impl EditorView {
                 size(bounds.size.width - gutter_width, bounds.size.height),
             ),
             colors: FrameColors {
-                editor: ui(&theme, "editor"),
-                gutter: ui(&theme, "gutter"),
+                // The window theme's copies: translucent in Gradient / Glass.
+                editor: cx.theme().colors().editor_background,
+                gutter: cx.theme().colors().editor_gutter_background,
             },
             backgrounds: Vec::new(),
             foreground: Vec::new(),

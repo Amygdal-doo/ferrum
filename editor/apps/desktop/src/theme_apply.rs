@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use ferrum_ui::appearance::AppearancePrefs;
 use ferrum_ui::theme::{ActiveTheme, Appearance, GlobalTheme};
 use ferrumeditor_core::theme::{Color, Theme};
 use gpui::{App, Hsla, Rgba};
@@ -109,25 +110,113 @@ pub fn apply(theme: &Theme, cx: &mut App) {
     // Keep text readable whatever the token theme says, and rebuild the
     // status tints for this theme's background.
     base.make_legible();
+    // Solid / Gradient / Glass from Settings › Interface.
+    ferrum_ui::appearance::stylize(&mut base, cx);
     GlobalTheme::update_theme(cx, Arc::new(base));
     cx.refresh_windows();
 }
 
-/// Switches between the built-in `ferrum-dark` / `ferrum-light` to match
-/// the suite's appearance, unless the user configured another theme.
-pub fn follow_appearance(appearance: Appearance, cx: &mut App) {
+/// Follows the suite's appearance (Settings › Interface / Themes) unless
+/// the user configured another editor theme: Ferrum Dark / Light map to the
+/// editor's own built-ins, any other built-in theme is converted into an
+/// editor theme so the buffer, tree and tabs match the rest of the suite.
+pub fn follow_appearance(prefs: &AppearancePrefs, appearance: Appearance, cx: &mut App) {
     let settings = cx.global_mut::<crate::settings::Settings>();
-    let configured = settings.config.theme.as_str();
-    if !matches!(configured, "ferrum-dark" | "ferrum-light") {
+    if !matches!(
+        settings.config.theme.as_str(),
+        "ferrum-dark" | "ferrum-light"
+    ) {
         return;
     }
-    let wanted = if appearance.is_light() {
+    let preset = prefs.preset(appearance);
+    let builtin = if appearance.is_light() {
         "ferrum-light"
     } else {
         "ferrum-dark"
     };
-    if settings.theme_name() != wanted && settings.set_theme(wanted) {
-        let theme = settings.theme.clone();
-        apply(&theme, cx);
+    if preset.id == builtin {
+        settings.set_theme(builtin);
+    } else {
+        settings.theme = Arc::new(editor_theme_from(&preset.theme()));
     }
+    let theme = settings.theme.clone();
+    apply(&theme, cx);
+}
+
+fn color(c: Hsla) -> Color {
+    let rgba = Rgba::from(c);
+    let byte = |v: f32| (v.clamp(0., 1.) * 255.).round() as u8;
+    Color {
+        r: byte(rgba.r),
+        g: byte(rgba.g),
+        b: byte(rgba.b),
+        a: byte(rgba.a),
+    }
+}
+
+/// An editor token theme with the UI and terminal colours of a `ferrum-ui`
+/// theme; syntax colours come from the editor's built-in of the same
+/// appearance.
+pub fn editor_theme_from(source: &ferrum_ui::theme::Theme) -> Theme {
+    use ferrumeditor_core::theme::Section::{Terminal, Ui};
+    let dark = !source.appearance.is_light();
+    let mut theme = Theme::base(source.name.as_ref(), dark);
+    let c = source.colors();
+    let s = source.status();
+    for (token, value) in [
+        ("background", c.background),
+        ("panel", c.panel_background),
+        ("surface", c.elevated_surface_background),
+        ("editor", c.editor_background),
+        ("gutter", c.editor_gutter_background),
+        ("border", c.border),
+        ("border_focused", c.border_focused),
+        ("text", c.text),
+        ("text_muted", c.text_muted),
+        ("text_placeholder", c.text_placeholder),
+        ("accent", c.text_accent),
+        ("element_hover", c.element_hover),
+        ("element_selected", c.element_selected),
+        ("tab_active", c.tab_active_background),
+        ("tab_inactive", c.tab_inactive_background),
+        ("tab_bar", c.tab_bar_background),
+        ("status_bar", c.status_bar_background),
+        ("title_bar", c.title_bar_background),
+        ("selection", c.text_accent.opacity(0.22)),
+        ("cursor", c.text_accent),
+        ("current_line", c.editor_active_line_background),
+        ("line_number", c.editor_line_number),
+        ("line_number_active", c.editor_active_line_number),
+        ("git_added", c.version_control_added),
+        ("git_modified", c.version_control_modified),
+        ("git_deleted", c.version_control_deleted),
+        ("error", s.error),
+        ("warning", s.warning),
+        ("success", s.success),
+    ] {
+        theme.set(Ui, token, color(value));
+    }
+    for (token, value) in [
+        ("background", c.terminal_background),
+        ("foreground", c.terminal_foreground),
+        ("black", c.terminal_ansi_black),
+        ("red", c.terminal_ansi_red),
+        ("green", c.terminal_ansi_green),
+        ("yellow", c.terminal_ansi_yellow),
+        ("blue", c.terminal_ansi_blue),
+        ("magenta", c.terminal_ansi_magenta),
+        ("cyan", c.terminal_ansi_cyan),
+        ("white", c.terminal_ansi_white),
+        ("bright_black", c.terminal_ansi_bright_black),
+        ("bright_red", c.terminal_ansi_bright_red),
+        ("bright_green", c.terminal_ansi_bright_green),
+        ("bright_yellow", c.terminal_ansi_bright_yellow),
+        ("bright_blue", c.terminal_ansi_bright_blue),
+        ("bright_magenta", c.terminal_ansi_bright_magenta),
+        ("bright_cyan", c.terminal_ansi_bright_cyan),
+        ("bright_white", c.terminal_ansi_bright_white),
+    ] {
+        theme.set(Terminal, token, color(value));
+    }
+    theme
 }

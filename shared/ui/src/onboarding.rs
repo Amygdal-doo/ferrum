@@ -14,14 +14,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::app_info::{AppInfo, app_info};
 use crate::components::{
-    Button, ButtonCommon, ButtonSize, ButtonStyle, Clickable, Color, Disableable, Headline,
-    HeadlineSize, Icon, IconButton, IconName, Label, LabelCommon, LabelSize, TintColor,
-    format_keystroke, h_flex, v_flex,
+    Button, ButtonCommon, ButtonStyle, Clickable, Color, Disableable, Headline, HeadlineSize, Icon,
+    IconButton, IconName, Label, LabelCommon, LabelSize, format_keystroke, h_flex, v_flex,
 };
 use crate::integrations::{self, Agent, PermissionStatus};
 use crate::settings::interface_page::look_pickers;
 use crate::settings::themes_page::theme_row;
-use crate::settings::widgets::{ChoiceCard, icon_tile, key_caps};
+use crate::settings::widgets::{ChoiceCard, icon_tile, key_caps, primary_button};
 use crate::theme::ActiveTheme;
 use crate::{appearance, prefs};
 
@@ -172,25 +171,20 @@ impl Onboarding {
                         .on_click(cx.listener(|this, _, _, cx| this.back(cx))),
                 )
             })
-            .child(
-                Button::new("onboarding-continue", primary)
-                    .style(ButtonStyle::Tinted(TintColor::Accent))
-                    .size(ButtonSize::Large)
-                    .end_icon(Icon::new(IconName::ArrowRight))
-                    .on_click(cx.listener(|this, _, _, cx| this.next(cx))),
-            )
+            .child(primary_button(
+                "onboarding-continue",
+                primary,
+                Some(IconName::ArrowRight),
+                cx.listener(|this, _, _, cx| this.next(cx)),
+                cx,
+            ))
     }
 
-    fn header(&self, icon: IconName, title: String, detail: String, cx: &App) -> impl IntoElement {
+    fn header(&self, title: String, detail: String, cx: &App) -> impl IntoElement {
         v_flex()
             .items_center()
             .gap_2()
-            .child(icon_tile(icon, gpui::rgb(self.info.tint).into(), px(64.)))
-            .child(
-                div()
-                    .pt_2()
-                    .child(Headline::new(title).size(HeadlineSize::Large)),
-            )
+            .child(Headline::new(title).size(HeadlineSize::Large))
             .child(
                 div()
                     .max_w(px(520.))
@@ -203,7 +197,7 @@ impl Onboarding {
     fn card(cx: &App) -> gpui::Div {
         let colors = cx.theme().colors();
         v_flex()
-            .w(px(640.))
+            .w(px(760.))
             .max_w_full()
             .p_4()
             .gap_3()
@@ -229,12 +223,7 @@ impl Onboarding {
         v_flex()
             .items_center()
             .gap_6()
-            .child(self.header(
-                self.info.icon,
-                format!("Get Started with {name}"),
-                detail,
-                cx,
-            ))
+            .child(self.header(format!("Get Started with {name}"), detail, cx))
             .child(
                 v_flex()
                     .items_center()
@@ -257,7 +246,6 @@ impl Onboarding {
             .gap_5()
             .child(
                 self.header(
-                    IconName::Sparkle,
                     format!("Customize the look and feel of {}", self.info.name),
                     "Choose a color scheme, toolbar style and theme. Every Ferrum app follows it."
                         .into(),
@@ -270,6 +258,8 @@ impl Onboarding {
                         Label::new("Color scheme and toolbar").weight(gpui::FontWeight::SEMIBOLD),
                     )
                     .child(look_pickers(cx))
+                    .child(Label::new("Interface style").weight(gpui::FontWeight::SEMIBOLD))
+                    .child(crate::settings::interface_page::style_pickers(cx))
                     .child(
                         Label::new(format!(
                             "Built-in themes ({} mode)",
@@ -326,10 +316,10 @@ impl Onboarding {
                     .style(ButtonStyle::Subtle)
                     .color(Color::Accent)
                     .on_click(cx.listener(|this, _, _, cx| {
-                        this.message = Some(match integrations::install_skill() {
-                            Ok(files) => format!("Skill installed in {} place(s).", files.len()),
-                            Err(error) => format!("Could not install the skill: {error}"),
-                        });
+                        // The badge turns to "Installed"; only failures need words.
+                        this.message = integrations::install_skill()
+                            .err()
+                            .map(|error| format!("Could not install the skill: {error}"));
                         cx.notify();
                     })),
             );
@@ -389,7 +379,7 @@ impl Onboarding {
                                 Button::new(("grant", i), "Grant…")
                                     .style(ButtonStyle::Subtle)
                                     .color(Color::Accent)
-                                    .on_click(move |_, _, cx| cx.open_url(kind.settings_url()))
+                                    .on_click(move |_, _, cx| crate::integrations::grant(kind, cx))
                                     .into_any_element()
                             })
                             .into_any_element()
@@ -401,7 +391,6 @@ impl Onboarding {
             .items_center()
             .gap_5()
             .child(self.header(
-                IconName::Blocks,
                 "Integrations & Permissions".into(),
                 format!(
                     "Install the Ferrum skill and grant permissions to let agents and {} work \
@@ -531,7 +520,6 @@ impl Onboarding {
             .items_center()
             .gap_5()
             .child(self.header(
-                IconName::ArrowRightLeft,
                 format!("Migrate your config to {}", self.info.name),
                 "Choose your agent to find and migrate your config.".into(),
                 cx,
@@ -572,7 +560,6 @@ impl Onboarding {
             .items_center()
             .gap_5()
             .child(self.header(
-                IconName::CircleCheck,
                 "You're all set".into(),
                 "A few keys worth knowing.".into(),
                 cx,
@@ -598,12 +585,13 @@ impl Onboarding {
                         })),
                 )
             })
-            .child(
-                Button::new("start-using", format!("Start Using {}", self.info.name))
-                    .style(ButtonStyle::Tinted(TintColor::Accent))
-                    .size(ButtonSize::Large)
-                    .on_click(cx.listener(|this, _, _, cx| this.finish(cx))),
-            )
+            .child(primary_button(
+                "start-using",
+                format!("Start Using {}", self.info.name),
+                None,
+                cx.listener(|this, _, _, cx| this.finish(cx)),
+                cx,
+            ))
             .child(
                 h_flex()
                     .gap_2()
@@ -668,7 +656,7 @@ impl Render for Onboarding {
             .absolute()
             .inset_0()
             .occlude()
-            .bg(colors.background)
+            .child(crate::surface::backdrop(true, cx).absolute().inset_0())
             .text_color(colors.text)
             .child(
                 h_flex()
@@ -690,13 +678,6 @@ impl Render for Onboarding {
                                     .size(LabelSize::Small),
                             ),
                     )
-                    .child(h_flex().gap_1().children((0..total).map(|i| {
-                        div().size(px(6.)).rounded_full().bg(if i == index {
-                            colors.text_accent
-                        } else {
-                            colors.border
-                        })
-                    })))
                     .child(
                         IconButton::new("close-onboarding", IconName::Close)
                             .on_click(cx.listener(|this, _, _, cx| this.finish(cx))),
@@ -717,6 +698,43 @@ impl Render for Onboarding {
                             .items_center()
                             .justify_center()
                             .child(body),
+                    ),
+            )
+            .child(
+                // Progress: one pill per step, the current one wide and in
+                // the accent colour, the others clearly visible.
+                h_flex()
+                    .flex_none()
+                    .h(px(44.))
+                    .justify_center()
+                    .gap_2()
+                    .border_t_1()
+                    .border_color(colors.border_variant)
+                    .children((0..total).map(|i| {
+                        let current = i == index;
+                        div()
+                            .id(("onboarding-step", i))
+                            .h(px(8.))
+                            .w(if current { px(24.) } else { px(8.) })
+                            .rounded_full()
+                            .cursor_pointer()
+                            .bg(if current {
+                                colors.text_accent
+                            } else if i < index {
+                                colors.text_muted
+                            } else {
+                                colors.text_muted.opacity(0.45)
+                            })
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.index = i;
+                                this.message = None;
+                                cx.notify();
+                            }))
+                    }))
+                    .child(
+                        Label::new(format!("{} of {total}", index + 1))
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
                     ),
             )
     }

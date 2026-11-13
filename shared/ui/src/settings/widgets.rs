@@ -525,56 +525,126 @@ impl RenderOnce for ChoiceCard {
     }
 }
 
-/// A miniature window in the given colours, for the scheme / toolbar cards.
-fn mini_window(bg: Hsla, bar: Hsla, pane: Hsla, border: Hsla) -> Div {
+/// Colours of a miniature window.
+#[derive(Clone, Copy)]
+struct MiniColors {
+    bg: Hsla,
+    bar: Hsla,
+    pane: Hsla,
+    border: Hsla,
+    ink: Hsla,
+}
+
+fn mini_light() -> MiniColors {
+    MiniColors {
+        bg: gpui::rgb(0xeef0f3).into(),
+        bar: gpui::rgb(0xe2e5ea).into(),
+        pane: gpui::rgb(0xffffff).into(),
+        border: gpui::rgb(0xc9ced6).into(),
+        ink: gpui::rgb(0xa9b0bb).into(),
+    }
+}
+
+fn mini_dark() -> MiniColors {
+    MiniColors {
+        bg: gpui::rgb(0x1b1e24).into(),
+        bar: gpui::rgb(0x14161b).into(),
+        pane: gpui::rgb(0x262a32).into(),
+        border: gpui::rgb(0x3a3f4b).into(),
+        ink: gpui::rgb(0x4a505c).into(),
+    }
+}
+
+/// A miniature window: traffic lights in a title bar of `bar_h`, a
+/// sidebar and two panes, like the app itself.
+fn mini_window(c: MiniColors, bar_h: gpui::Pixels) -> Div {
     let dots = h_flex().gap(px(2.)).children(
-        [0xff5f57, 0xfebc2e, 0x28c840].map(|c| div().size(px(4.)).rounded_full().bg(gpui::rgb(c))),
+        [0xff5f57, 0xfebc2e, 0x28c840]
+            .map(|rgb| div().size(px(4.)).rounded_full().bg(gpui::rgb(rgb))),
     );
+    let pane = || {
+        div()
+            .flex_1()
+            .rounded(px(2.))
+            .bg(c.pane)
+            .border_1()
+            .border_color(c.border)
+    };
     v_flex()
         .size_full()
-        .rounded_md()
+        .rounded(px(5.))
         .overflow_hidden()
         .border_1()
-        .border_color(border)
-        .bg(bg)
-        .child(h_flex().h(px(9.)).px_1().bg(bar).child(dots))
+        .border_color(c.border)
+        .bg(c.bg)
+        .shadow_md()
         .child(
-            div()
+            h_flex()
+                .flex_none()
+                .h(bar_h)
+                .px(px(4.))
+                .gap(px(4.))
+                .bg(c.bar)
+                .child(dots)
+                .child(div().w(px(14.)).h(px(3.)).rounded_full().bg(c.ink)),
+        )
+        .child(
+            h_flex()
                 .flex_1()
                 .p(px(3.))
-                .child(div().size_full().rounded_sm().bg(pane)),
+                .gap(px(3.))
+                .child(
+                    v_flex()
+                        .w(px(16.))
+                        .gap(px(2.))
+                        .children((0..3).map(|_| div().h(px(3.)).rounded_full().bg(c.ink))),
+                )
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .gap(px(3.))
+                        .child(pane())
+                        .child(h_flex().flex_1().gap(px(3.)).child(pane()).child(pane())),
+                ),
         )
 }
 
+/// The gradient "desktop" a miniature window sits on.
+fn preview_backdrop(accent: Hsla) -> Div {
+    div()
+        .h(px(64.))
+        .w_full()
+        .p(px(7.))
+        .rounded_md()
+        .overflow_hidden()
+        .bg(gpui::linear_gradient(
+            135.,
+            gpui::linear_color_stop(accent.opacity(0.85), 0.),
+            gpui::linear_color_stop(
+                Hsla {
+                    l: (accent.l * 0.45).max(0.08),
+                    ..accent
+                },
+                1.,
+            ),
+        ))
+}
+
 /// Preview for a colour scheme card.
-pub fn scheme_preview(scheme: ColorScheme) -> impl IntoElement {
-    let light = || {
-        mini_window(
-            gpui::rgb(0xf4f4f5).into(),
-            gpui::rgb(0xe4e4e7).into(),
-            gpui::rgb(0xffffff).into(),
-            gpui::rgb(0xd4d4d8).into(),
-        )
-    };
-    let dark = || {
-        mini_window(
-            gpui::rgb(0x1f2228).into(),
-            gpui::rgb(0x16181d).into(),
-            gpui::rgb(0x2a2e36).into(),
-            gpui::rgb(0x3a3f4b).into(),
-        )
-    };
-    let frame = div().h(px(56.)).w_full().relative();
+pub fn scheme_preview(scheme: ColorScheme, cx: &App) -> impl IntoElement {
+    let accent = cx.theme().colors().text_accent;
+    let backdrop = preview_backdrop(accent).relative();
     match scheme {
-        ColorScheme::Light => frame.child(light()),
-        ColorScheme::Dark => frame.child(dark()),
-        ColorScheme::Auto => frame.child(light()).child(
+        ColorScheme::Light => backdrop.child(mini_window(mini_light(), px(8.))),
+        ColorScheme::Dark => backdrop.child(mini_window(mini_dark(), px(8.))),
+        ColorScheme::Auto => backdrop.child(mini_window(mini_light(), px(8.))).child(
+            // The dark half, clipped to the right side of the window.
             div()
                 .absolute()
-                .top_0()
-                .bottom_0()
-                .right_0()
-                .w(relative(0.5))
+                .top(px(7.))
+                .bottom(px(7.))
+                .right(px(7.))
+                .w(relative(0.42))
                 .overflow_hidden()
                 .child(
                     div()
@@ -582,45 +652,115 @@ pub fn scheme_preview(scheme: ColorScheme) -> impl IntoElement {
                         .top_0()
                         .bottom_0()
                         .right_0()
-                        .w(px(88.))
-                        .child(dark()),
+                        .w(px(400.))
+                        .child(mini_window(mini_dark(), px(8.))),
                 ),
         ),
     }
 }
 
-/// Preview for a toolbar density card.
+/// Preview for a toolbar density card: the same window with a taller or
+/// shorter title bar.
 pub fn toolbar_preview(style: ToolbarStyle, cx: &App) -> impl IntoElement {
-    let colors = cx.theme().colors();
-    let bar = match style {
-        ToolbarStyle::Comfortable => px(14.),
-        ToolbarStyle::Compact => px(9.),
+    let theme = cx.theme();
+    let colors = theme.colors();
+    let c = MiniColors {
+        bg: colors.background,
+        bar: colors.title_bar_background,
+        pane: colors.editor_background,
+        border: colors.border_variant,
+        ink: colors.text_muted.opacity(0.6),
     };
-    v_flex()
-        .h(px(56.))
-        .w_full()
-        .rounded_md()
-        .overflow_hidden()
-        .border_1()
-        .border_color(colors.border)
-        .bg(colors.editor_background)
-        .child(
-            h_flex()
-                .h(bar)
-                .px_1()
-                .gap(px(3.))
-                .bg(colors.title_bar_background)
-                .border_b_1()
-                .border_color(colors.border)
-                .children((0..3).map(|_| {
-                    div()
-                        .w(px(12.))
-                        .h(px(4.))
-                        .rounded_sm()
-                        .bg(colors.text_muted)
-                })),
-        )
-        .child(div().flex_1())
+    let bar = match style {
+        ToolbarStyle::Comfortable => px(12.),
+        ToolbarStyle::Compact => px(7.),
+    };
+    preview_backdrop(colors.text_accent).child(mini_window(c, bar))
+}
+
+/// Preview for an interface style card: the same miniature window, flat,
+/// with translucent panes over a gradient, or over a "desktop".
+pub fn style_preview(style: crate::appearance::InterfaceStyle, cx: &App) -> impl IntoElement {
+    use crate::appearance::InterfaceStyle;
+    let colors = cx.theme().colors();
+    let base = crate::appearance::backdrop(cx).base;
+    let alpha = style.pane_alpha();
+    let c = MiniColors {
+        bg: if style == InterfaceStyle::Solid {
+            base
+        } else {
+            base.opacity(0.)
+        },
+        bar: if style == InterfaceStyle::Solid {
+            colors.title_bar_background
+        } else {
+            base.opacity(0.)
+        },
+        pane: base.opacity(alpha * 0.9),
+        border: colors.border_variant,
+        ink: colors.text_muted.opacity(0.6),
+    };
+    let accent = colors.text_accent;
+    let backdrop = match style {
+        InterfaceStyle::Solid => preview_backdrop(accent),
+        InterfaceStyle::Gradient => preview_backdrop(accent),
+        InterfaceStyle::Glass => preview_backdrop(gpui::rgb(0x3b82c4).into()),
+    };
+    let window = match style {
+        InterfaceStyle::Solid => mini_window(c, px(8.)),
+        InterfaceStyle::Gradient => mini_window(c, px(8.)).bg(gpui::linear_gradient(
+            160.,
+            gpui::linear_color_stop(
+                Hsla {
+                    l: (accent.l * 0.5).max(0.1),
+                    ..accent
+                },
+                0.,
+            ),
+            gpui::linear_color_stop(base, 1.),
+        )),
+        InterfaceStyle::Glass => mini_window(c, px(8.)).bg(base.opacity(0.35)),
+    };
+    backdrop.child(window)
+}
+
+/// The main call to action: a solid accent button with readable text.
+pub fn primary_button(
+    id: impl Into<ElementId>,
+    label: impl Into<SharedString>,
+    icon: Option<IconName>,
+    on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    cx: &App,
+) -> impl IntoElement {
+    let theme = cx.theme();
+    let accent = theme.colors().text_accent;
+    let fg = theme.readable_text_on(accent);
+    let hover = Hsla {
+        l: (accent.l + 0.06).min(1.),
+        ..accent
+    };
+    h_flex()
+        .id(id)
+        .flex_none()
+        .px_4()
+        .py_1p5()
+        .gap_1p5()
+        .rounded_full()
+        .cursor_pointer()
+        .bg(accent)
+        .hover(move |s| s.bg(hover))
+        .text_color(fg)
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .shadow_md()
+        .on_click(on_click)
+        .child(label.into())
+        .when_some(icon, |this, icon| {
+            this.child(
+                Icon::new(icon)
+                    .size(IconSize::Small)
+                    .color(Color::Custom(fg)),
+            )
+        })
 }
 
 /// A theme tile: "Aa", a prompt chip and a cursor in the theme's colours

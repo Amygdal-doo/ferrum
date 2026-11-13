@@ -57,6 +57,7 @@ const WORKS_TODAY: &[&str] = &[
     "Local, remote and SOCKS port forwards run by the server",
     "Settings: font, cursor style and blink, Option as Meta, copy on selection, startup command",
     "Built-in light and dark themes, recordable shortcuts and per-event notifications",
+    "Solid, Gradient or Glass interface style; terminal and sidebar as pane cards",
     "What's using a port, with a confirmed kill (fterm port)",
 ];
 

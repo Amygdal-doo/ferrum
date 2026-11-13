@@ -41,6 +41,7 @@ pub const POSTS: &[Post] = &[
     posts::public_alpha::POST,
     posts::editor_panes_agentic::POST,
     posts::onboarding_settings::POST,
+    posts::glass_and_cards::POST,
 ];
 
 /// Posts sorted by date, newest first (ties by title).

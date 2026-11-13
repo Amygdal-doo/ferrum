@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
-use gpui::{App, Global, Pixels, WindowAppearance, px};
+use gpui::{App, Global, Hsla, Pixels, WindowAppearance, WindowBackgroundAppearance, px};
 use serde::{Deserialize, Serialize};
 
 use crate::prefs;
@@ -45,6 +45,47 @@ impl ToolbarStyle {
     }
 }
 
+/// How window surfaces are drawn: flat colours, a gradient behind
+/// translucent panes, or translucent panes over the blurred desktop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum InterfaceStyle {
+    #[default]
+    Solid,
+    Gradient,
+    Glass,
+}
+
+impl InterfaceStyle {
+    pub const ALL: [Self; 3] = [Self::Solid, Self::Gradient, Self::Glass];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Solid => "Solid",
+            Self::Gradient => "Gradient",
+            Self::Glass => "Glass",
+        }
+    }
+
+    /// Opacity of pane surfaces (editor, terminal, panels) in this style.
+    pub fn pane_alpha(self) -> f32 {
+        match self {
+            Self::Solid => 1.,
+            Self::Gradient => 0.84,
+            Self::Glass => 0.72,
+        }
+    }
+
+    /// Opacity of window chrome (title, tab and status bars) in this style.
+    pub fn chrome_alpha(self) -> f32 {
+        match self {
+            Self::Solid => 1.,
+            Self::Gradient => 0.,
+            Self::Glass => 0.,
+        }
+    }
+}
+
 /// Interface text size (the window's rem size).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -75,6 +116,7 @@ pub struct AppearancePrefs {
     pub light_theme: String,
     pub toolbar: ToolbarStyle,
     pub text_size: TextSize,
+    pub style: InterfaceStyle,
 }
 
 impl Default for AppearancePrefs {
@@ -85,6 +127,7 @@ impl Default for AppearancePrefs {
             light_theme: presets::default_id(Appearance::Light).into(),
             toolbar: ToolbarStyle::default(),
             text_size: TextSize::default(),
+            style: InterfaceStyle::default(),
         }
     }
 }
@@ -145,7 +188,7 @@ struct AppearanceState {
     seen: Option<SystemTime>,
     hook: Option<ThemeHook>,
     /// The last appearance applied, to skip identical re-applies.
-    applied: Option<(Appearance, String)>,
+    applied: Option<(Appearance, String, InterfaceStyle)>,
 }
 
 impl Global for AppearanceState {}
@@ -156,7 +199,12 @@ fn file() -> Option<PathBuf> {
 
 /// Loads the saved appearance and applies it. Called by `ferrum_ui::run`.
 pub(crate) fn init(cx: &mut App) {
-    let file = file();
+    init_at(file(), cx);
+}
+
+/// [`init`] with another preferences file (`None`: keep them in memory only,
+/// as tests do).
+pub(crate) fn init_at(file: Option<PathBuf>, cx: &mut App) {
     let prefs = file.as_deref().map(prefs::read).unwrap_or_default();
     let seen = file.as_deref().and_then(prefs::modified);
     cx.set_global(AppearanceState {
@@ -223,16 +271,116 @@ pub fn apply(cx: &mut App) {
     let prefs = state.prefs.clone();
     let hook = state.hook.clone();
     let appearance = prefs.effective(cx.window_appearance());
-    let key = (appearance, prefs.theme_id(appearance).to_owned());
+    let key = (
+        appearance,
+        prefs.theme_id(appearance).to_owned(),
+        prefs.style,
+    );
     let unchanged = state.applied.as_ref() == Some(&key);
     cx.global_mut::<AppearanceState>().applied = Some(key);
     if !unchanged {
         let handled = hook.is_some_and(|hook| hook(&prefs, appearance, cx));
         if !handled {
-            GlobalTheme::update_theme(cx, Arc::new(prefs.preset(appearance).theme()));
+            let mut theme = prefs.preset(appearance).theme();
+            stylize(&mut theme, cx);
+            GlobalTheme::update_theme(cx, Arc::new(theme));
         }
     }
     cx.refresh_windows();
+}
+
+/// What a window paints behind its content in the current style: the
+/// opaque theme background, an accent gradient, or a tint over the blur.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Backdrop {
+    pub style: InterfaceStyle,
+    /// The theme's opaque background.
+    pub base: Hsla,
+    pub accent: Hsla,
+}
+
+impl Global for Backdrop {}
+
+impl Backdrop {
+    /// The macOS window background for this style.
+    pub fn window_background(&self) -> WindowBackgroundAppearance {
+        match self.style {
+            InterfaceStyle::Glass => WindowBackgroundAppearance::Blurred,
+            _ => WindowBackgroundAppearance::Opaque,
+        }
+    }
+}
+
+/// The current [`Backdrop`].
+pub fn backdrop(cx: &App) -> Backdrop {
+    cx.try_global::<Backdrop>().copied().unwrap_or_else(|| {
+        let colors = crate::theme::ActiveTheme::theme(cx).colors();
+        Backdrop {
+            style: InterfaceStyle::Solid,
+            base: colors.background,
+            accent: colors.text_accent,
+        }
+    })
+}
+
+/// Makes `theme` follow the interface style: in Gradient and Glass the
+/// window background turns transparent (the window root paints the
+/// [`Backdrop`]), bars float on it and panes become translucent. Menus and
+/// dialogs (elevated surfaces) stay opaque. Hosts that install their own
+/// themes (Ferrum Editor) call this before `GlobalTheme::update_theme`.
+pub fn stylize(theme: &mut crate::theme::Theme, cx: &mut App) {
+    let style = cx
+        .try_global::<AppearanceState>()
+        .map(|s| s.prefs.style)
+        .unwrap_or_default();
+    let c = &mut theme.styles.colors;
+    cx.set_global(Backdrop {
+        style,
+        base: c.background,
+        accent: c.text_accent,
+    });
+    if style == InterfaceStyle::Solid {
+        return;
+    }
+    let pane = style.pane_alpha();
+    let chrome = style.chrome_alpha();
+    c.background = c.background.opacity(0.);
+    for color in [
+        &mut c.title_bar_background,
+        &mut c.title_bar_inactive_background,
+        &mut c.status_bar_background,
+        &mut c.tab_bar_background,
+        &mut c.tab_inactive_background,
+        &mut c.toolbar_background,
+    ] {
+        *color = color.opacity(chrome);
+    }
+    for color in [
+        &mut c.panel_background,
+        &mut c.surface_background,
+        &mut c.editor_background,
+        &mut c.editor_gutter_background,
+        &mut c.tab_active_background,
+        &mut c.terminal_background,
+    ] {
+        *color = color.opacity(pane);
+    }
+}
+
+/// The current interface style.
+pub fn style(cx: &App) -> InterfaceStyle {
+    cx.try_global::<AppearanceState>()
+        .map(|s| s.prefs.style)
+        .unwrap_or_default()
+}
+
+/// Applies the current choice again even if it did not change (a host
+/// that reloaded its own theme calls this so the suite's choice wins back).
+pub fn reapply(cx: &mut App) {
+    if cx.has_global::<AppearanceState>() {
+        cx.global_mut::<AppearanceState>().applied = None;
+    }
+    apply(cx);
 }
 
 /// Re-reads the file when another app changed it; `true` if it did.
@@ -298,6 +446,22 @@ pub fn rem_size(cx: &App) -> Pixels {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[gpui::test]
+    fn choosing_a_theme_recolours_the_app(cx: &mut gpui::TestAppContext) {
+        use crate::theme::ActiveTheme;
+        cx.update(|cx| {
+            crate::init_for_tests(cx);
+            init_at(None, cx);
+            assert_eq!(cx.theme().name.as_ref(), "Ferrum Dark");
+            update(cx, |p| p.choose_theme("plum-ink", Appearance::Dark));
+            assert_eq!(cx.theme().name.as_ref(), "Plum Ink");
+            update(cx, |p| p.scheme = ColorScheme::Light);
+            assert_eq!(cx.theme().appearance, Appearance::Light);
+            update(cx, |p| p.choose_theme("glacier", Appearance::Light));
+            assert_eq!(cx.theme().name.as_ref(), "Glacier");
+        });
+    }
 
     #[test]
     fn auto_follows_the_system() {

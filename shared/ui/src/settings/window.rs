@@ -198,12 +198,14 @@ impl Focusable for SettingsWindow {
 impl Render for SettingsWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         window.set_rem_size(crate::appearance::rem_size(cx));
+        window.set_background_appearance(crate::appearance::backdrop(cx).window_background());
         let colors = cx.theme().colors().clone();
         let page = self.pages[self.current].clone();
-        h_flex()
+        crate::surface::backdrop(false, cx)
+            .flex()
+            .flex_row()
             .size_full()
             .track_focus(&self.focus)
-            .bg(colors.background)
             .text_color(colors.text)
             .child(self.render_sidebar(cx))
             .child(

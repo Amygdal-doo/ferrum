@@ -86,9 +86,13 @@ one look through `shared/ui`.
     (FerrumTerm adds Terminal and Remote Hosts). Pages are built from
     `settings::widgets`. `FERRUM_OPEN_SETTINGS=<page>` opens it at start.
   - `appearance`: colour scheme (Auto / Light / Dark), dark and light
-    theme, toolbar density and text size. Stored in
+    theme, interface style (Solid / Gradient / Glass), toolbar density and
+    text size. Stored in
     `~/.ferrum/appearance.json` and followed live by every running app.
     `theme::presets` holds the built-in themes.
+  - `surface`: the window backdrop for the interface style, and the pane
+    cards (`pane_frame`, `pane_header`, `gap_splitter`) that Ferrum Editor,
+    FerrumAgentic and FerrumTerm lay out on it.
   - `notify`: in-app toasts, system notifications, Dock badge and sound,
     switchable per event, stored in `~/.ferrum/<binary>/notifications.json`.
   - `keymap`: shortcuts recorded in Settings, stored in

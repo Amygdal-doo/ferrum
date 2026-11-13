@@ -88,6 +88,7 @@ pub fn commit_panel(
             .iter()
             .all(|f| view.expanded.contains(&f.path));
     let tree = view.tree;
+    let message_expanded = view.message_expanded;
     let sha = c.oid.0.clone();
     let author = format!("{} <{}>", c.author_name, c.author_email);
     let committer = (details.committer_email != c.author_email)
@@ -300,8 +301,38 @@ pub fn commit_panel(
                         .border_t_1()
                         .border_b_1()
                         .border_color(colors.border)
-                        .child(Label::new(c.summary.clone()).weight(gpui::FontWeight::MEDIUM))
-                        .when(!message_body.is_empty(), |d| {
+                        .child(
+                            h_flex()
+                                .gap_2()
+                                .justify_between()
+                                .child(div().flex_1().min_w_0().child(
+                                    Label::new(c.summary.clone()).weight(gpui::FontWeight::MEDIUM),
+                                ))
+                                .when(!message_body.is_empty(), |d| {
+                                    // Collapsed: just the first line; the
+                                    // choice stays while you move between commits.
+                                    d.child(
+                                        ghost_button(
+                                            "toggle-message-body",
+                                            if message_expanded {
+                                                "Show less"
+                                            } else {
+                                                "Show more"
+                                            },
+                                        )
+                                        .label_size(LabelSize::Small)
+                                        .on_click(
+                                            cx.listener(move |app, _, _, cx| {
+                                                app.state.update_view(id, |v| {
+                                                    v.message_expanded = !message_expanded;
+                                                });
+                                                cx.notify();
+                                            }),
+                                        ),
+                                    )
+                                }),
+                        )
+                        .when(message_expanded && !message_body.is_empty(), |d| {
                             d.child(
                                 div()
                                     .mt_2()

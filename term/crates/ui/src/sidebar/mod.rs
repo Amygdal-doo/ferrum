@@ -55,19 +55,13 @@ impl TermView {
             .flex_none()
             .w(px(width))
             .h_full()
-            .bg(colors.panel_background)
             .font_ui(cx)
             .text_size(px(13.))
             .text_color(colors.text)
             .child(
-                h_flex()
-                    .flex_none()
-                    .h(px(34.))
+                ferrum_ui::pane_header(cx)
                     .pl_3()
                     .pr_1()
-                    .gap_1p5()
-                    .border_b_1()
-                    .border_color(colors.border)
                     .child(heading("Agents", cx).px_0())
                     .when(model.attention > 0, |header| {
                         header.child(badge(

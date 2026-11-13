@@ -253,6 +253,11 @@ impl PermissionKind {
             return PermissionStatus::Granted;
         }
         match self {
+            Self::Notifications => match crate::mac_notifications::granted() {
+                Some(true) => PermissionStatus::Granted,
+                Some(false) => PermissionStatus::NotGranted,
+                None => PermissionStatus::Unknown,
+            },
             // Only apps with Full Disk Access can read the TCC folder.
             Self::FullDiskAccess => match home() {
                 Some(home) => {
@@ -268,6 +273,33 @@ impl PermissionKind {
             _ => PermissionStatus::Unknown,
         }
     }
+}
+
+/// Asks for `kind`. Notifications get the system prompt (which also lists
+/// the app under System Settings › Notifications); everything else, and a
+/// notification permission already declined, opens its System Settings pane.
+pub fn grant(kind: PermissionKind, cx: &mut gpui::App) {
+    let prompt = kind == PermissionKind::Notifications
+        && crate::mac_notifications::available()
+        && crate::mac_notifications::granted() != Some(false);
+    if !prompt {
+        cx.open_url(kind.settings_url());
+        return;
+    }
+    crate::mac_notifications::request_authorization();
+    // The answer arrives on another thread; redraw once it is in.
+    cx.spawn(async move |cx| {
+        for _ in 0..30 {
+            cx.background_executor()
+                .timer(std::time::Duration::from_millis(500))
+                .await;
+            if crate::mac_notifications::granted().is_some() {
+                cx.update(|cx| cx.refresh_windows());
+                break;
+            }
+        }
+    })
+    .detach();
 }
 
 /// "None granted yet" / "2 of 3 granted" for the permissions card.

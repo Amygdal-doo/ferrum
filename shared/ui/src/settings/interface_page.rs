@@ -4,10 +4,10 @@
 use gpui::{AnyElement, App, Hsla, IntoElement, ParentElement, Styled, Window, px};
 
 use super::widgets::{
-    ChoiceCard, Row, Section, Segmented, Switch, scheme_preview, toolbar_preview,
+    ChoiceCard, Row, Section, Segmented, Switch, scheme_preview, style_preview, toolbar_preview,
 };
 use super::{SettingsPage, ShowOnboarding, tint};
-use crate::appearance::{self, ColorScheme, TextSize, ToolbarStyle};
+use crate::appearance::{self, ColorScheme, InterfaceStyle, TextSize, ToolbarStyle};
 use crate::components::{Button, Clickable, IconName, h_flex};
 
 pub(super) struct InterfacePage;
@@ -29,9 +29,14 @@ pub(crate) fn look_pickers(cx: &App) -> impl IntoElement {
         .gap_3()
         .flex_wrap()
         .children(schemes.map(|(scheme, label)| {
-            ChoiceCard::new(("scheme", scheme as usize), label, scheme_preview(scheme))
-                .selected(prefs.scheme == scheme)
-                .on_click(move |_, _, cx| appearance::update(cx, |p| p.scheme = scheme))
+            ChoiceCard::new(
+                ("scheme", scheme as usize),
+                label,
+                scheme_preview(scheme, cx),
+            )
+            .width(px(112.))
+            .selected(prefs.scheme == scheme)
+            .on_click(move |_, _, cx| appearance::update(cx, |p| p.scheme = scheme))
         }))
         .child(gpui::div().w(px(16.)))
         .children(toolbars.map(|(style, label)| {
@@ -40,8 +45,28 @@ pub(crate) fn look_pickers(cx: &App) -> impl IntoElement {
                 label,
                 toolbar_preview(style, cx),
             )
+            .width(px(112.))
             .selected(prefs.toolbar == style)
             .on_click(move |_, _, cx| appearance::update(cx, |p| p.toolbar = style))
+        }))
+}
+
+/// The Solid / Gradient / Glass cards, shared with onboarding.
+pub(crate) fn style_pickers(cx: &App) -> impl IntoElement {
+    let current = appearance::current(cx).style;
+    h_flex()
+        .py_3()
+        .gap_3()
+        .flex_wrap()
+        .children(InterfaceStyle::ALL.map(|style| {
+            ChoiceCard::new(
+                ("style", style as usize),
+                style.label(),
+                style_preview(style, cx),
+            )
+            .width(px(112.))
+            .selected(current == style)
+            .on_click(move |_, _, cx| appearance::update(cx, |p| p.style = style))
         }))
 }
 
@@ -88,6 +113,14 @@ impl SettingsPage for InterfacePage {
                 Section::new("Look")
                     .row(look_pickers(cx))
                     .footnote("Auto follows the system. Every Ferrum app uses the same look."),
+            )
+            .child(
+                Section::new("Interface style")
+                    .row(style_pickers(cx))
+                    .footnote(
+                        "Gradient puts translucent panes on a colour wash from the theme; Glass \
+                         shows the desktop, blurred, behind them.",
+                    ),
             )
             .child(
                 Section::new("Window")

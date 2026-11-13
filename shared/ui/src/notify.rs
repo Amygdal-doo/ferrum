@@ -283,6 +283,9 @@ pub fn clear_badge(cx: &mut App) {
 
 /// A notification from the system (Notification Center on macOS).
 pub fn system_notification(app: &str, title: &str, body: &str) {
+    if crate::mac_notifications::post(title, app, body) {
+        return;
+    }
     if cfg!(target_os = "macos") {
         let script = format!(
             "display notification {} with title {} subtitle {}",

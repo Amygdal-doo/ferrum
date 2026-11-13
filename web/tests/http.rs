@@ -53,7 +53,7 @@ async fn send_with(releases: Releases, req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 33] = [
+const PAGES: [&str; 34] = [
     "/",
     "/apps",
     "/features",
@@ -84,6 +84,7 @@ const PAGES: [&str; 33] = [
     "/updates/ferrum-public-alpha",
     "/updates/ferrum-editor-0-5-and-ferrumagentic",
     "/updates/onboarding-and-settings",
+    "/updates/glass-gradients-and-pane-cards",
     "/about",
     "/licenses",
     "/privacy",

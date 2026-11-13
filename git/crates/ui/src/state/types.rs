@@ -162,6 +162,8 @@ pub struct RepoView {
     pub expanded: std::collections::HashSet<String>,
     /// Details show a folder tree instead of the changeset.
     pub tree: bool,
+    /// Commit details show the whole message, not just its first line.
+    pub message_expanded: bool,
     /// Scroll the graph to this row once rendered.
     pub scroll_to: Option<usize>,
     /// Pull requests page.

@@ -155,7 +155,7 @@ impl SettingsPage for IntegrationsPage {
                             .child(
                                 Button::new(("grant", i), "Open Settings…")
                                     .style(ButtonStyle::Subtle)
-                                    .on_click(move |_, _, cx| cx.open_url(kind.settings_url())),
+                                    .on_click(move |_, _, cx| crate::integrations::grant(kind, cx)),
                             ),
                     ),
             );

@@ -103,7 +103,6 @@ impl FerrumAgentic {
     }
 
     fn header(&self, column: Column, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors();
         let status = cx.theme().status();
         let detail: Option<AnyElement> = match column {
             Column::Chat if self.pending_changes > 0 => Some(
@@ -123,15 +122,8 @@ impl FerrumAgentic {
             }),
             _ => None,
         };
-        h_flex()
+        ferrum_ui::pane_header(cx)
             .id(id("header", column))
-            .flex_none()
-            .h(px(30.))
-            .px_2()
-            .gap_1p5()
-            .bg(colors.title_bar_background)
-            .border_b_1()
-            .border_color(colors.border)
             .cursor_grab()
             .on_drag(DraggedColumn(column), |dragged, _, _, cx| {
                 cx.new(|_| *dragged)
@@ -139,7 +131,7 @@ impl FerrumAgentic {
             .child(
                 Icon::new(icon(column))
                     .size(IconSize::Small)
-                    .color(Color::Muted),
+                    .color(Color::Accent),
             )
             .child(
                 Label::new(column.title())
@@ -197,11 +189,10 @@ impl FerrumAgentic {
     fn column(&self, column: Column, fraction: f32, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
         let drop_bg = colors.drop_target_background;
-        v_flex()
+        ferrum_ui::pane_frame(cx)
             .id(id("column", column))
             .debug_selector(|| format!("column-{}", column.key()))
             .h_full()
-            .min_w_0()
             .flex_basis(relative(fraction))
             .flex_shrink(1.)
             .overflow_hidden()
@@ -222,7 +213,13 @@ impl FerrumAgentic {
             )
             .into_any_element();
         }
-        let mut row = h_flex().id("columns").flex_1().min_h_0().w_full();
+        // Rounded cards on the window backdrop, with the gaps as splitters.
+        let mut row = h_flex()
+            .id("columns")
+            .flex_1()
+            .min_h_0()
+            .w_full()
+            .p(ferrum_ui::PANE_GAP);
         let count = fractions.len();
         for (i, (column, fraction)) in fractions.into_iter().enumerate() {
             row = row.child(self.column(column, fraction, cx));
@@ -232,7 +229,7 @@ impl FerrumAgentic {
                         .h_full()
                         .flex_none()
                         .debug_selector(move || format!("splitter-{}", column.key()))
-                        .child(splitter(
+                        .child(ferrum_ui::gap_splitter(
                             format!("{SPLIT_PREFIX}{}", column.key()),
                             Axis::Horizontal,
                             cx,

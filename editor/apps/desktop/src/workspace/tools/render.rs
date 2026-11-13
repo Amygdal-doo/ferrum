@@ -3,9 +3,9 @@
 //! dividers between panes, and drop zones at the window edges while a
 //! pane is dragged.
 
+use ferrum_ui::DraggedSplitter;
 use ferrum_ui::components::{ContextMenu, IconButton, IconName, IconSize, PopoverMenu};
 use ferrum_ui::prelude::*;
-use ferrum_ui::{DraggedSplitter, splitter};
 use ferrumeditor_core::tool_layout::{Dock, ToolKind};
 use gpui::{Axis, DragMoveEvent, Stateful};
 
@@ -77,7 +77,7 @@ impl Workspace {
                 } else {
                     Axis::Horizontal
                 };
-                column = column.child(splitter(
+                column = column.child(ferrum_ui::gap_splitter(
                     format!("tool-divider-{}-{i}", dock_name(dock)),
                     axis,
                     cx,
@@ -153,19 +153,11 @@ impl Workspace {
         dock: Dock,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
-        let colors = cx.theme().colors().clone();
         let id =
             |part: &str| SharedString::from(format!("tool-{}-{part}", kind.title().to_lowercase()));
-        let header = h_flex()
+        let header = ferrum_ui::pane_header(cx)
             .id(id("header"))
-            .flex_none()
-            .h(px(26.))
-            .pl_2()
             .pr_1()
-            .gap_1()
-            .bg(colors.panel_background)
-            .border_b_1()
-            .border_color(colors.border)
             .cursor_grab()
             .on_drag(DraggedTool(kind), {
                 let weak = cx.weak_entity();
@@ -181,12 +173,12 @@ impl Workspace {
             .child(
                 Icon::new(tool_icon(kind))
                     .size(IconSize::Small)
-                    .color(Color::Muted),
+                    .color(Color::Accent),
             )
             .child(
                 Label::new(kind.title())
                     .size(LabelSize::Small)
-                    .color(Color::Muted),
+                    .weight(gpui::FontWeight::SEMIBOLD),
             )
             .child(div().flex_1())
             .child(self.tool_menu(kind, dock, cx))
@@ -198,13 +190,9 @@ impl Workspace {
                         cx.listener(move |this, _, window, cx| this.close_tool(kind, window, cx)),
                     ),
             );
-        v_flex()
+        ferrum_ui::pane_frame(cx)
             .id(id("pane"))
             .debug_selector(move || format!("tool-pane-{}", kind.title().to_lowercase()))
-            .min_w_0()
-            .min_h_0()
-            .overflow_hidden()
-            .bg(colors.panel_background)
             .drag_over::<DraggedTool>(move |style, dragged, _, cx| {
                 if dragged.0 == kind {
                     style

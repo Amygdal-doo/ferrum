@@ -17,6 +17,7 @@ mod lsp_actions;
 mod popups;
 mod search;
 
+use ferrum_ui::theme::ActiveTheme as _;
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -455,7 +456,6 @@ impl Focusable for EditorView {
 
 impl Render for EditorView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.global::<Settings>().theme.clone();
         let popups = self.render_popups(window, cx);
         div()
             .id("editor")
@@ -464,7 +464,7 @@ impl Render for EditorView {
             .size_full()
             .min_w_0()
             .min_h_0()
-            .bg(crate::theme_apply::ui(&theme, "editor"))
+            .bg(cx.theme().colors().editor_background)
             .cursor(CursorStyle::IBeam)
             .on_action(cx.listener(Self::on_run_command))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))

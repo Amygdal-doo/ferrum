@@ -2428,11 +2428,13 @@ name = "ferrum-ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "block2 0.6.2",
  "gpui",
  "gpui_platform",
  "objc2 0.6.3",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
+ "objc2-user-notifications",
  "serde",
  "serde_json",
  "smallvec",

@@ -306,7 +306,7 @@ impl Workspace {
             }
             other => {
                 let sidebar = if self.sidebar_shown() {
-                    self.tree_width + px(4.)
+                    self.tree_width + ferrum_ui::PANE_GAP * 2.
                 } else {
                     px(0.)
                 };
@@ -362,24 +362,38 @@ impl Render for Workspace {
             .into_any_element();
         let bottom = self.render_dock(Dock::Bottom, cx);
         let bottom_height = px(self.tools.layout.dock_size(Dock::Bottom));
+        // The editor area is a card like the tool panes around it.
         let center = v_flex()
             .flex_1()
             .min_w_0()
             .h_full()
-            .child(div().flex_1().min_h_0().child(content))
+            .child(
+                ferrum_ui::pane_frame(cx)
+                    .flex_1()
+                    .bg(colors.editor_background)
+                    .child(div().size_full().child(content)),
+            )
             .when(self.find_visible, |this| this.child(self.find_bar.clone()))
             .when(self.project_find_visible, |this| {
-                this.child(splitter("project-find-splitter", Axis::Vertical, cx))
-                    .child(
-                        div()
-                            .flex_none()
-                            .h(self.project_find_height)
-                            .child(self.project_find.clone()),
-                    )
+                this.child(ferrum_ui::gap_splitter(
+                    "project-find-splitter",
+                    Axis::Vertical,
+                    cx,
+                ))
+                .child(
+                    div()
+                        .flex_none()
+                        .h(self.project_find_height)
+                        .child(self.project_find.clone()),
+                )
             })
             .when_some(bottom, |this, dock| {
-                this.child(splitter("dock-splitter-bottom", Axis::Vertical, cx))
-                    .child(div().flex_none().h(bottom_height).child(dock))
+                this.child(ferrum_ui::gap_splitter(
+                    "dock-splitter-bottom",
+                    Axis::Vertical,
+                    cx,
+                ))
+                .child(div().flex_none().h(bottom_height).child(dock))
             });
         let side = |dock: Dock, this: &Self, cx: &mut Context<Self>| {
             let width = px(this.tools.layout.dock_size(dock));
@@ -407,18 +421,37 @@ impl Render for Workspace {
                 h_flex()
                     .flex_1()
                     .min_h_0()
+                    .px(ferrum_ui::PANE_GAP)
+                    .pb(ferrum_ui::PANE_GAP)
                     .when_some(sidebar, |this, sidebar| {
-                        this.child(div().flex_none().h_full().w(self.tree_width).child(sidebar))
-                            .child(splitter("tree-splitter", Axis::Horizontal, cx))
+                        this.child(
+                            ferrum_ui::pane_frame(cx)
+                                .flex_none()
+                                .h_full()
+                                .w(self.tree_width)
+                                .child(sidebar),
+                        )
+                        .child(ferrum_ui::gap_splitter(
+                            "tree-splitter",
+                            Axis::Horizontal,
+                            cx,
+                        ))
                     })
                     .when_some(left, |this, dock| {
-                        this.child(dock)
-                            .child(splitter("dock-splitter-left", Axis::Horizontal, cx))
+                        this.child(dock).child(ferrum_ui::gap_splitter(
+                            "dock-splitter-left",
+                            Axis::Horizontal,
+                            cx,
+                        ))
                     })
                     .child(center)
                     .when_some(right, |this, dock| {
-                        this.child(splitter("dock-splitter-right", Axis::Horizontal, cx))
-                            .child(dock)
+                        this.child(ferrum_ui::gap_splitter(
+                            "dock-splitter-right",
+                            Axis::Horizontal,
+                            cx,
+                        ))
+                        .child(dock)
                     }),
             )
             .child(self.render_status_bar(cx))

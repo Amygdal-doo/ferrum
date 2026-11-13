@@ -17,6 +17,8 @@ use crate::theme::ActiveTheme;
 
 pub struct Root {
     app: AnyView,
+    /// Window background last set for the interface style.
+    background: Option<gpui::WindowBackgroundAppearance>,
     onboarding: Option<(Entity<Onboarding>, Subscription)>,
     _activation: Subscription,
 }
@@ -30,6 +32,7 @@ impl Root {
         });
         let mut root = Self {
             app,
+            background: None,
             onboarding: None,
             _activation: activation,
         };
@@ -124,8 +127,13 @@ impl Root {
 impl Render for Root {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         window.set_rem_size(crate::appearance::rem_size(cx));
+        let background = crate::appearance::backdrop(cx).window_background();
+        if self.background != Some(background) {
+            window.set_background_appearance(background);
+            self.background = Some(background);
+        }
         let toasts = self.render_toasts(cx);
-        div()
+        crate::surface::backdrop(false, cx)
             .size_full()
             .relative()
             .on_action(

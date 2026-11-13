@@ -4,13 +4,13 @@
 
 use super::{MESSAGE_TTL, TermView};
 use crate::paint::{CellMetrics, paint_terminal, update_grid};
+use ferrum_ui::ToggleProjectSwitcher;
 use ferrum_ui::components::{StyledTypography, h_flex, v_flex};
 use ferrum_ui::gpui::{
     self, Axis, Context, ElementId, Hsla, MouseButton, SharedString, Window, canvas, div,
     prelude::*, px,
 };
 use ferrum_ui::theme::ActiveTheme;
-use ferrum_ui::{ToggleProjectSwitcher, splitter};
 use ferrumterm_protocol::{ProgramState, WindowInfo};
 
 const TAB_BAR_HEIGHT: f32 = 34.0;
@@ -41,15 +41,20 @@ impl TermView {
         let colors = cx.theme().colors().clone();
         let compact = self.options.compact;
         let (height, _, min_width, label_len) = tab_sizes(compact);
+        let cards = !compact;
         let bar = h_flex()
             .flex_none()
             .h(px(height))
             .w_full()
             .px_2()
             .gap(px(2.))
-            .bg(colors.tab_bar_background)
+            .when(!cards, |bar| bar.bg(colors.tab_bar_background))
             .border_b_1()
-            .border_color(colors.border)
+            .border_color(if cards {
+                colors.border_variant
+            } else {
+                colors.border
+            })
             .font_ui(cx)
             .text_size(px(if compact { 12. } else { 13. }))
             .child(self.sidebar_toggle(cx));
@@ -139,10 +144,17 @@ impl TermView {
             .text_color(color)
             .cursor_pointer()
             .hover(|style| style.bg(colors.ghost_element_hover))
-            .when(active, |tab| {
+            .when(!self.options.compact, |tab| tab.my(px(5.)).rounded_md())
+            .when(active && self.options.compact, |tab| {
                 tab.bg(colors.tab_active_background)
                     .border_b_2()
                     .border_color(colors.text_accent)
+            })
+            .when(active && !self.options.compact, |tab| {
+                tab.bg(colors.element_selected)
+                    .border_1()
+                    .border_color(colors.border_variant)
+                    .shadow_sm()
             })
             .on_click(cx.listener(move |view, _, _, cx| {
                 view.app.click_tab(kind.clone());
@@ -223,10 +235,21 @@ impl Render for TermView {
                 )
                 .size_full(),
             );
+        // The window draws the terminal and the sidebar as cards on the
+        // window backdrop; embedded panes stay flat (the host frames them).
+        let cards = !compact;
         let terminal = v_flex()
             .flex_1()
             .min_w_0()
             .h_full()
+            .when(cards, |t| {
+                t.rounded(px(10.))
+                    .overflow_hidden()
+                    .border_1()
+                    .border_color(colors.border_variant)
+                    .bg(colors.terminal_background)
+                    .shadow_sm()
+            })
             .child(self.render_tab_bar(cx))
             .child(
                 div()
@@ -245,9 +268,15 @@ impl Render for TermView {
             .flex_1()
             .min_h_0()
             .w_full()
+            .when(cards, |row| row.p(ferrum_ui::PANE_GAP))
             .when(sidebar_open && !compact, |root| {
-                root.child(self.render_sidebar(self.app.ui.sidebar_width, cx))
-                    .child(splitter("sidebar", Axis::Horizontal, cx))
+                root.child(
+                    ferrum_ui::pane_frame(cx)
+                        .flex_none()
+                        .h_full()
+                        .child(self.render_sidebar(self.app.ui.sidebar_width, cx)),
+                )
+                .child(ferrum_ui::gap_splitter("sidebar", Axis::Horizontal, cx))
             })
             .child(terminal);
         let root = crate::actions::on_actions(v_flex(), cx);
@@ -277,7 +306,7 @@ impl Render for TermView {
                     }
                 }),
             )
-            .bg(colors.terminal_background)
+            .when(!cards, |root| root.bg(colors.terminal_background))
             .text_color(colors.terminal_foreground)
             .when_some(self.project.as_ref(), |root, project| {
                 root.child(project.bar.clone())

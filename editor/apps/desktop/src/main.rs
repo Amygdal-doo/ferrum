@@ -96,8 +96,8 @@ fn main() {
         // editor's own light and dark built-ins; a theme chosen in the editor
         // ("Theme: Select") always wins.
         ferrum_ui::appearance::set_theme_hook(
-            std::rc::Rc::new(|_, appearance, cx| {
-                theme_apply::follow_appearance(appearance, cx);
+            std::rc::Rc::new(|prefs, appearance, cx| {
+                theme_apply::follow_appearance(prefs, appearance, cx);
                 true
             }),
             cx,

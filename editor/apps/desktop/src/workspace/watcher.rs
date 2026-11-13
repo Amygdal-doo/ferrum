@@ -121,6 +121,8 @@ impl Workspace {
         let theme = next.theme.clone();
         cx.set_global(next);
         crate::theme_apply::apply(&theme, cx);
+        // A default editor theme follows the suite's choice again.
+        ferrum_ui::appearance::reapply(cx);
         crate::actions::set_menus(cx);
         for editor in self.all_editors() {
             editor.update(cx, |e, cx| e.apply_settings(cx));
