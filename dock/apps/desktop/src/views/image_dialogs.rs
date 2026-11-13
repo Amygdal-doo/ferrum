@@ -4,13 +4,13 @@ use crate::app::FerrumContainers;
 use crate::commands::resources::image_label;
 use crate::views::widgets::muted;
 use ferrum_ui::Modal;
-use ferrumdock_engine::{Image, format};
-use gpui::{AnyElement, Context, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{
+use ferrum_ui::components::{
     Button, ButtonCommon, ButtonStyle, Clickable, Color, Label, LabelCommon, LabelSize,
     StyledTypography, h_flex, v_flex,
 };
+use ferrum_ui::theme::ActiveTheme;
+use ferrumdock_engine::{Image, format};
+use gpui::{AnyElement, Context, div, prelude::*, px};
 
 fn close(
     cx: &mut Context<FerrumContainers>,

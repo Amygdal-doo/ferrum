@@ -5,10 +5,10 @@
 
 use std::path::PathBuf;
 
+use ferrum_ui::components::{Button, ButtonStyle, IconButton, IconName, IconSize};
 use ferrum_ui::prelude::*;
 use ferrum_ui::{TextInput, TextInputEvent};
 use gpui::{FontWeight, ScrollHandle};
-use ui::{Button, ButtonStyle, IconButton, IconName, IconSize};
 
 use super::Debugger;
 use crate::actions::run;

@@ -4,6 +4,10 @@
 use crate::app::FerrumContainers;
 use crate::state::DetailState;
 use crate::views::widgets::{button, muted, segmented};
+use ferrum_ui::components::{
+    Checkbox, Color, LabelCommon, LabelSize, StyledTypography, ToggleState, h_flex, v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumdock_engine::LogStream;
 use ferrumdock_engine::ansi::{self, AnsiColor};
 use ferrumdock_engine::logs::{Since, display_timestamp};
@@ -12,8 +16,6 @@ use gpui::{
     Window, div, prelude::*, px, uniform_list,
 };
 use std::ops::Range;
-use theme::ActiveTheme;
-use ui::{Checkbox, Color, LabelCommon, LabelSize, StyledTypography, ToggleState, h_flex, v_flex};
 
 fn checkbox(
     id: &'static str,

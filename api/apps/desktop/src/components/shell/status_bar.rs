@@ -1,9 +1,9 @@
 use crate::app::FerrumApi;
 use crate::state::{Dialog, TabResponse};
+use ferrum_ui::components::{Tooltip, h_flex};
 use ferrum_ui::status_bar;
 use ferrumapi_domain::text::{human_duration_ms, human_size};
 use gpui::{AnyElement, Context, div, prelude::*};
-use ui::{Tooltip, h_flex};
 
 impl FerrumApi {
     pub fn render_status_bar(&self, cx: &mut Context<Self>) -> AnyElement {

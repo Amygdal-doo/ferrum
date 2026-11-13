@@ -4,9 +4,9 @@
 
 use std::path::{Path, PathBuf};
 
+use ferrum_ui::components::{Icon, IconName, IconSize};
 use ferrum_ui::prelude::*;
 use ferrumeditor_core::lsp::{Location, Position, PositionEncoding, Severity, uri_to_path};
-use ui::{Icon, IconName, IconSize};
 
 use super::Workspace;
 use crate::editor::{EditorEvent, EditorView};

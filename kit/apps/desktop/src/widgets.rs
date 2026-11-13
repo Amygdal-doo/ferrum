@@ -104,7 +104,9 @@ pub fn choice<V: 'static, T: Copy + PartialEq + 'static>(
                 .style(ButtonStyle::Subtle)
                 .size(ButtonSize::Compact)
                 .toggle_state(value == current)
-                .selected_style(ButtonStyle::Tinted(ferrum_ui::ui::TintColor::Accent))
+                .selected_style(ButtonStyle::Tinted(
+                    ferrum_ui::components::TintColor::Accent,
+                ))
                 .on_click(cx.listener(move |this, _, window, cx| {
                     on_select(this, value, window, cx);
                     cx.notify();

@@ -7,13 +7,13 @@ use crate::components::widgets::{
     caption, ghost_button, hint, primary_button, radio_row, small_button,
 };
 use crate::state::Dialog;
-use ferrumgit_domain::{PullMode, RepoId, RepoOp};
-use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{
+use ferrum_ui::components::{
     ButtonCommon, Checkbox, Clickable, Color, Label, LabelCommon, LabelSize, StyledTypography,
     ToggleState, Toggleable, h_flex, v_flex,
 };
+use ferrum_ui::theme::ActiveTheme;
+use ferrumgit_domain::{PullMode, RepoId, RepoOp};
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 
 pub fn render(
     app: &FerrumGit,
@@ -271,7 +271,7 @@ pub fn render(
                         .child(
                             ghost_button("forget-repo", "Remove from FerrumGIT")
                                 .color(Color::Error)
-                                .tooltip(ui::Tooltip::text("Removes it from FerrumGIT; files are kept"))
+                                .tooltip(ferrum_ui::components::Tooltip::text("Removes it from FerrumGIT; files are kept"))
                                 .on_click(cx.listener(move |app, _, window, cx| {
                                     app.close_dialog(window, cx);
                                     app.forget(id, cx);

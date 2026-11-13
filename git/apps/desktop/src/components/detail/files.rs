@@ -2,10 +2,12 @@
 
 use crate::app::FerrumGit;
 use crate::components::{change_color, split_path};
+use ferrum_ui::components::{
+    Color, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_domain::ChangeKind;
 use gpui::{AnyElement, ClickEvent, Context, SharedString, Window, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{Color, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RowAction {

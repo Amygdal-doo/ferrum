@@ -7,6 +7,10 @@ use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change};
 use crate::components::{hint, status_color};
 use crate::state::tools::LoadTestState;
+use ferrum_ui::components::{
+    ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, Label,
+    LabelCommon as _, LabelSize, StyledTypography as _, TintColor, h_flex, v_flex,
+};
 use ferrumapi_application::LoadEnd;
 use ferrumapi_domain::load::{
     LoadTally, MAX_LOAD_CONCURRENCY, MAX_LOAD_DURATION_SECS, MAX_LOAD_REQUESTS, format_latency_us,
@@ -14,10 +18,6 @@ use ferrumapi_domain::load::{
 };
 use ferrumapi_domain::text::human_duration_ms;
 use gpui::{AnyElement, Context, Window, div, prelude::*, px, relative};
-use ui::{
-    ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, Label,
-    LabelCommon as _, LabelSize, StyledTypography as _, TintColor, h_flex, v_flex,
-};
 
 const HISTOGRAM_BUCKETS: usize = 12;
 
@@ -27,7 +27,7 @@ fn stat(label: &'static str, value: String) -> impl IntoElement {
         .child(
             Label::new(label)
                 .size(LabelSize::XSmall)
-                .color(ui::Color::Muted),
+                .color(ferrum_ui::components::Color::Muted),
         )
         .child(
             div()

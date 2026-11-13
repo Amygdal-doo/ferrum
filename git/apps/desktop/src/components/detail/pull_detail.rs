@@ -8,6 +8,10 @@ use crate::commands::pulls::open_url;
 use crate::components::now_secs;
 use crate::components::widgets::{empty, ghost_button, primary_button, small_button};
 use crate::state::{Dialog, Load, PrTab};
+use ferrum_ui::components::{
+    Clickable, Color, Disableable, Label, LabelCommon, LabelSize, StyledTypography, h_flex, v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_application::forge::markdown::{Block, blocks};
 use ferrumgit_application::forge::{
     PrDetail, PrState, ReviewDecision, ReviewEvent, ReviewState, TimelineKind,
@@ -16,10 +20,6 @@ use ferrumgit_domain::text::relative_time;
 use ferrumgit_domain::{ForgeKind, RepoId};
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
 use std::sync::Arc;
-use theme::ActiveTheme;
-use ui::{
-    Clickable, Color, Disableable, Label, LabelCommon, LabelSize, StyledTypography, h_flex, v_flex,
-};
 
 /// Basic Markdown as stacked text blocks.
 fn markdown(md: &str, cx: &mut Context<FerrumGit>) -> AnyElement {

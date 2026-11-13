@@ -1,10 +1,10 @@
 //! The Git sidebar panel: branch and sync buttons, the commit message,
 //! and staged / unstaged files with stage, unstage and discard.
 
+use ferrum_ui::components::{Button, ButtonStyle, Icon, IconButton, IconName, IconSize};
 use ferrum_ui::prelude::*;
 use ferrumgit_domain::{ChangeKind, FileStatus};
 use gpui::{PromptLevel, ScrollHandle};
-use ui::{Button, ButtonStyle, Icon, IconButton, IconName, IconSize};
 
 use super::{GitState, open_in_ferrumgit};
 use crate::settings::Settings;

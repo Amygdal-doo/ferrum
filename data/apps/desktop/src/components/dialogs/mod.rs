@@ -2,8 +2,8 @@
 
 use crate::app::FerrumData;
 use crate::state::Dialog;
+use ferrum_ui::components::TintColor;
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::TintColor;
 
 impl FerrumData {
     pub fn render_dialog(&mut self, cx: &mut Context<Self>) -> Option<AnyElement> {

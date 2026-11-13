@@ -18,11 +18,11 @@ pub use new_request::new_request_menu;
 use crate::app::FerrumApi;
 use crate::state::Dialog;
 use ferrum_ui::Modal;
-use gpui::{AnyElement, ClickEvent, Context, Pixels, SharedString, Window, prelude::*, px};
-use ui::{
+use ferrum_ui::components::{
     Button, ButtonCommon as _, ButtonStyle, Clickable as _, Disableable as _, Label,
     LabelCommon as _, LabelSize, TintColor,
 };
+use gpui::{AnyElement, ClickEvent, Context, Pixels, SharedString, Window, prelude::*, px};
 
 /// Dialog shell: title, width, closes on backdrop / close button.
 pub fn modal(title: impl Into<SharedString>, width: Pixels, cx: &mut Context<FerrumApi>) -> Modal {

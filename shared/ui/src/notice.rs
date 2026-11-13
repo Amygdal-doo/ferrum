@@ -1,7 +1,7 @@
 use std::time::Duration;
 
+use crate::theme::ActiveTheme;
 use gpui::{AnyElement, App, Context, SharedString, Task, div, prelude::*, px};
-use theme::ActiveTheme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NoticeTone {

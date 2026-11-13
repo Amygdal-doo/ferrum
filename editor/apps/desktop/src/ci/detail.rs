@@ -3,8 +3,8 @@
 use crate::ci::CiView;
 use crate::ci::widgets::{state_color, state_icon};
 use chrono::Utc;
+use ferrum_ui::components::{Icon, IconSize};
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::{Icon, IconSize};
 use ferrumci_core::format::{duration, relative, short_sha};
 use ferrumci_core::logs::JobLog;
 use ferrumci_core::{Job, RunState, WorkflowRun};

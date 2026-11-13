@@ -4,10 +4,10 @@ use super::form_row;
 use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change, on_request_edit};
 use crate::components::{hint, select};
+use ferrum_ui::components::{Label, LabelCommon as _, LabelSize, h_flex, v_flex};
 use ferrumapi_domain::{ApiKeyLocation, Auth};
 use gpui::{AnyElement, Context, SharedString, Window, prelude::*};
 use std::rc::Rc;
-use ui::{Label, LabelCommon as _, LabelSize, h_flex, v_flex};
 
 const KINDS: [&str; 5] = ["inherit", "none", "basic", "bearer", "apikey"];
 

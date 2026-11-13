@@ -4,9 +4,9 @@
 
 use std::path::{Path, PathBuf};
 
+use ferrum_ui::components::Checkbox;
 use ferrum_ui::gpui::PathPromptOptions;
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::Checkbox;
 use ferrumenv_core::dotenv::{self, ParsedEnv};
 
 use super::{Dialog, input};

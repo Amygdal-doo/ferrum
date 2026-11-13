@@ -2,8 +2,8 @@
 
 use super::{layout, split};
 use crate::widgets::*;
+use ferrum_ui::components::Checkbox;
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::Checkbox;
 use ferrumkit_core::url_tool::{self, UrlParts};
 
 #[derive(Clone, Copy, PartialEq, Eq)]

@@ -5,6 +5,7 @@
 use crate::app::{App, UiEvent};
 use crate::input::{self, Action, Shortcut};
 use crate::selection::{Cell, Selection, cell_at};
+use ferrum_ui::components::{StyledTypography, h_flex, v_flex};
 use ferrum_ui::gpui::{
     self, Axis, Bounds, ClipboardItem, Context, ElementId, ElementInputHandler, Entity,
     FocusHandle, Focusable, Font, FontStyle, FontWeight, Hsla, KeyDownEvent, MouseButton,
@@ -12,8 +13,7 @@ use ferrum_ui::gpui::{
     SharedString, Size, StrikethroughStyle, Subscription, Task, TextRun, UTF16Selection,
     UnderlineStyle, Window, canvas, div, fill, point, prelude::*, px, size,
 };
-use ferrum_ui::theme::{self, ActiveTheme};
-use ferrum_ui::ui::{StyledTypography, h_flex, v_flex};
+use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{TextInput, ToggleProjectSwitcher, splitter};
 use ferrumterm_protocol::{
     BlockId, CursorShape, Frame, ProgramState, Rect, Span, WindowInfo, flags,
@@ -444,7 +444,7 @@ impl TermView {
 
 impl Render for TermView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let font = theme::theme_settings(cx).buffer_font(cx).clone();
+        let font = ferrum_ui::theme::theme_settings(cx).buffer_font.clone();
         if self
             .metrics
             .is_none_or(|metrics| metrics.font_pt != self.app.font_pt)

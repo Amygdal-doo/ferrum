@@ -7,10 +7,10 @@ use crate::components::widgets::{AuthTarget, AuthView, RowEditor};
 use crate::components::{hint, tab_button};
 use crate::state::kv;
 use crate::state::{Dialog, SettingsPane};
+use ferrum_ui::components::{ActiveTheme as _, Label, LabelCommon as _, LabelSize, h_flex, v_flex};
 use ferrumapi_domain::{Auth, Collection};
 use gpui::{AnyElement, Context, Window, div, prelude::*, px};
 use std::rc::Rc;
-use ui::{ActiveTheme as _, Label, LabelCommon as _, LabelSize, h_flex, v_flex};
 
 fn with_draft(this: &mut FerrumApi, f: impl FnOnce(&mut Collection, &mut SettingsPane)) {
     if let Some(Dialog::CollectionSettings { draft, pane }) = &mut this.state.dialog {

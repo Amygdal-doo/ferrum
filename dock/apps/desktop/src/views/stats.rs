@@ -3,11 +3,11 @@
 
 use crate::app::FerrumContainers;
 use crate::views::widgets::muted;
+use ferrum_ui::components::{Label, LabelCommon, LabelSize, h_flex, v_flex};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumdock_engine::stats::{IoRates, StatsHistory, sparkline};
 use ferrumdock_engine::{Stats, format};
 use gpui::{AnyElement, Context, Hsla, div, prelude::*, px, relative};
-use theme::ActiveTheme;
-use ui::{Label, LabelCommon, LabelSize, h_flex, v_flex};
 
 const CHART_HEIGHT: f32 = 56.;
 

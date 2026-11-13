@@ -1,10 +1,10 @@
+use crate::components::{Clickable, Headline, HeadlineSize, IconButton, IconName, h_flex, v_flex};
+use crate::theme::ActiveTheme;
 use gpui::{
     AnyElement, App, ClickEvent, IntoElement, Pixels, SharedString, Window, div, hsla, prelude::*,
     px,
 };
 use smallvec::SmallVec;
-use theme::ActiveTheme;
-use ui::{Clickable, Headline, HeadlineSize, IconButton, IconName, h_flex, v_flex};
 
 type DismissHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 

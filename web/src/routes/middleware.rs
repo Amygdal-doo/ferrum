@@ -90,10 +90,7 @@ mod tests {
             Some("https://tryferrum.dev/")
         );
         assert_eq!(www_redirect(site, "tryferrum.dev", "/"), None);
-        assert_eq!(
-            www_redirect(site, "tryferrum.dev", "/"),
-            None
-        );
+        assert_eq!(www_redirect(site, "tryferrum.dev", "/"), None);
         assert_eq!(www_redirect(site, "www.example.com", "/"), None);
     }
 }

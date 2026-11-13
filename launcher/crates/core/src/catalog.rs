@@ -176,7 +176,7 @@ pub struct AppInfo {
     /// Applications folder, or a `<former>.lnk` Start Menu shortcut, is
     /// replaced by the current name's (see `State::retire_former_names`).
     pub former_names: Vec<String>,
-    /// Name of a `ui` crate `IconName` variant (e.g. `ToolHammer`); the UI falls
+    /// Name of a `ferrum_ui::components::IconName` variant (e.g. `ToolHammer`); the UI falls
     /// back to a generic icon for names it doesn't know.
     pub icon: String,
     /// URL of a PNG logo, downloaded once and cached; built-in apps also have

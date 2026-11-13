@@ -8,8 +8,8 @@ mod vars_table;
 pub use auth_editor::{AuthTarget, AuthView};
 pub use kv_table::RowEditor;
 
+use ferrum_ui::components::{ActiveTheme as _, Color, Label, LabelCommon as _, LabelSize};
 use gpui::{App, Hsla, IntoElement, div, prelude::*};
-use ui::{ActiveTheme as _, Color, Label, LabelCommon as _, LabelSize};
 
 /// Tooltip listing unresolved variables (empty when none).
 #[must_use]
@@ -36,7 +36,7 @@ pub fn row_border(cx: &App) -> Hsla {
 
 /// Labelled form row: fixed-width label, then the control.
 pub fn form_row(label: &'static str, control: impl IntoElement) -> impl IntoElement {
-    ui::h_flex()
+    ferrum_ui::components::h_flex()
         .gap_3()
         .child(
             div()

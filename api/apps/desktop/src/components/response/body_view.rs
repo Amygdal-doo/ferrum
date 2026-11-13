@@ -4,15 +4,15 @@ use crate::app::FerrumApi;
 use crate::components::fields::FieldSpec;
 use crate::components::hint;
 use crate::state::BodyMode;
+use ferrum_ui::components::{
+    ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _,
+    LabelSize, Toggleable as _, h_flex, v_flex,
+};
 use ferrumapi_domain::{HttpResponse, TabId};
 use gpui::{
     AnyElement, Context, Image, ImageFormat, ObjectFit, SharedString, Window, div, img, prelude::*,
 };
 use std::sync::Arc;
-use ui::{
-    ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _,
-    LabelSize, Toggleable as _, h_flex, v_flex,
-};
 
 impl FerrumApi {
     pub(super) fn render_body_view(

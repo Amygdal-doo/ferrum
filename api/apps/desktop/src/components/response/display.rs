@@ -6,6 +6,7 @@
 use crate::app::FerrumApi;
 use crate::state::BodyMode;
 use ferrum_ui::TextInput;
+use ferrum_ui::components::ActiveTheme as _;
 use ferrumapi_domain::highlight::{JsonToken, find_matches, json_tokens, layer_spans, line_of};
 use ferrumapi_domain::protocol::trpc::{TrpcOutcome, unwrap_response};
 use ferrumapi_domain::text::pretty_json;
@@ -13,7 +14,6 @@ use ferrumapi_domain::xml::{XmlToken, looks_like_xml, pretty_xml, xml_tokens};
 use ferrumapi_domain::{HttpResponse, TabId};
 use gpui::{App, Context, Entity, EntityId, HighlightStyle, Window, point, px};
 use std::ops::Range;
-use ui::ActiveTheme as _;
 
 /// Large bodies are cut for display (Copy / Save still use the full body).
 const MAX_RENDER_CHARS: usize = 400_000;

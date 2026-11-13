@@ -5,14 +5,14 @@ use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change};
 use crate::components::{count_pill, hint, method_label, status_color};
 use ferrum_ui::Modal;
+use ferrum_ui::components::{
+    ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, Disableable as _,
+    Label, LabelCommon as _, LabelSize, StyledTypography as _, TintColor, h_flex, v_flex,
+};
 use ferrumapi_application::variables_for;
 use ferrumapi_domain::mock::{MockLogEntry, route_path};
 use ferrumapi_domain::{CollectionId, HttpMethod, ItemId, RequestOrigin};
 use gpui::{AnyElement, ClickEvent, Context, SharedString, Window, div, prelude::*, px};
-use ui::{
-    ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, Disableable as _,
-    Label, LabelCommon as _, LabelSize, StyledTypography as _, TintColor, h_flex, v_flex,
-};
 
 struct RouteRow {
     item: ItemId,

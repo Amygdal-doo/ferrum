@@ -5,11 +5,13 @@ use crate::app::FerrumContainers;
 use crate::state::DetailTab;
 use crate::views::containers::state_color;
 use crate::views::widgets::{icon_button, muted, segmented, state_dot};
+use ferrum_ui::components::{
+    IconName, Label, LabelCommon, LabelSize, Tab, TabBar, Toggleable, h_flex, v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumdock_engine::compose::ComposeAction;
 use ferrumdock_engine::shell::Shell;
 use gpui::{AnyElement, Context, FontWeight, SharedString, Window, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{IconName, Label, LabelCommon, LabelSize, Tab, TabBar, Toggleable, h_flex, v_flex};
 
 pub fn render(
     app: &mut FerrumContainers,

@@ -5,12 +5,12 @@ use super::{icon_action, section_header};
 use crate::app::FerrumApi;
 use crate::components::{MenuHandler, menu_item};
 use crate::state::Dialog;
-use ferrumapi_domain::Environment;
-use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, Color, Divider, IconName, Label, LabelCommon as _, LabelSize, Tooltip,
     VisibleOnHover as _, h_flex, v_flex,
 };
+use ferrumapi_domain::Environment;
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*};
 
 impl FerrumApi {
     pub(super) fn render_environments_view(

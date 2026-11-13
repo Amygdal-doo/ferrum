@@ -5,8 +5,8 @@ pub mod host_form;
 pub mod ports;
 
 use crate::view::TermView;
+use ferrum_ui::components::{Color, Label, LabelCommon, LabelSize, v_flex};
 use ferrum_ui::gpui::{AnyElement, Context, Div, Entity, SharedString, Window, prelude::*};
-use ferrum_ui::ui::{Color, Label, LabelCommon, LabelSize, v_flex};
 use ferrum_ui::{Modal, TextInput, TextInputEvent};
 
 pub enum Dialog {

@@ -6,14 +6,14 @@ use crate::components::fields::{FieldSpec, on_request_edit};
 use crate::components::widgets::RowEditor;
 use crate::components::{hint, select};
 use crate::state::kv;
+use ferrum_ui::components::{
+    Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Color, Label,
+    LabelCommon as _, LabelSize, StyledTypography as _, Toggleable as _, Tooltip, h_flex, v_flex,
+};
 use ferrumapi_domain::text::pretty_json;
 use ferrumapi_domain::{RawLanguage, RequestBody, TabId, VariableSet};
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 use std::rc::Rc;
-use ui::{
-    Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Color, Label,
-    LabelCommon as _, LabelSize, StyledTypography as _, Toggleable as _, Tooltip, h_flex, v_flex,
-};
 
 const MODES: [&str; 5] = [
     "none",

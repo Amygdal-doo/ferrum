@@ -3,11 +3,11 @@
 
 use std::path::{Path, PathBuf};
 
+use ferrum_ui::components::{Button, ButtonCommon, ButtonStyle, Clickable};
 use ferrum_ui::prelude::*;
 use ferrum_ui::{Modal, TextInput, TextInputEvent};
 use ferrumeditor_core::file_tree::{create_dir, create_file, rename};
 use gpui::PromptLevel;
-use ui::{Button, ButtonCommon, ButtonStyle, Clickable};
 
 use super::{PaneItem, Workspace};
 use crate::tree_view::TreeEvent;
@@ -220,7 +220,7 @@ impl Workspace {
                     Modal::new(title)
                         .width(px(560.))
                         .on_dismiss(dismiss)
-                        .child(div().on_action(cx.listener(|this, _: &menu::Cancel, window, cx| this.close_dialog(window, cx))).child(input.clone()))
+                        .child(div().on_action(cx.listener(|this, _: &ferrum_ui::menu::Cancel, window, cx| this.close_dialog(window, cx))).child(input.clone()))
                         .footer(Button::new("dialog-cancel", "Cancel").on_click(cx.listener(|this, _, window, cx| this.close_dialog(window, cx))))
                         .footer(
                             Button::new("dialog-ok", action)

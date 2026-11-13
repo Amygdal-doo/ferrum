@@ -7,10 +7,10 @@ use crate::components::widgets::RowEditor;
 use crate::components::{checkbox, hint};
 use crate::state::Dialog;
 use crate::state::kv;
+use ferrum_ui::components::{ActiveTheme as _, Label, LabelCommon as _, LabelSize, h_flex};
 use ferrumapi_domain::Environment;
 use gpui::{AnyElement, Context, Window, div, prelude::*, px};
 use std::rc::Rc;
-use ui::{ActiveTheme as _, Label, LabelCommon as _, LabelSize, h_flex};
 
 fn with_draft(this: &mut FerrumApi, f: impl FnOnce(&mut Environment)) {
     if let Some(Dialog::EditEnvironment(env)) = &mut this.state.dialog {

@@ -4,13 +4,13 @@ use super::files::{FileRow, RowAction, list_header};
 use crate::app::FerrumGit;
 use crate::components::widgets::{ghost_button, primary_button, small_button};
 use crate::state::Dialog;
-use ferrumgit_domain::{DiffSource, FileStatus, RepoId, RepoOp};
-use gpui::{AnyElement, Context, ElementId, Window, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{
+use ferrum_ui::components::{
     Checkbox, Clickable, Color, Disableable, FixedWidth, Label, LabelCommon, LabelSize,
     ToggleState, Tooltip, h_flex, v_flex,
 };
+use ferrum_ui::theme::ActiveTheme;
+use ferrumgit_domain::{DiffSource, FileStatus, RepoId, RepoOp};
+use gpui::{AnyElement, Context, ElementId, Window, div, prelude::*, px};
 
 const STAGE: RowAction = RowAction {
     label: "Stage",

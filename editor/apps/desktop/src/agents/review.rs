@@ -8,10 +8,10 @@
 
 use std::path::PathBuf;
 
+use ferrum_ui::components::{Button, ButtonStyle};
 use ferrum_ui::prelude::*;
 use ferrumeditor_core::agents::review::{FileChange, FileStatus, LineKind};
 use gpui::{FontWeight, ScrollHandle};
-use ui::{Button, ButtonStyle};
 
 use super::{AgentSessions, ReviewAction};
 use crate::git::diff::{self, RowKind};

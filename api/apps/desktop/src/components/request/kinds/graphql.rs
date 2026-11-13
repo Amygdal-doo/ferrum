@@ -5,13 +5,13 @@ use super::{labelled, setter};
 use crate::app::FerrumApi;
 use crate::components::{checkbox, hint};
 use crate::state::protocols::Loadable;
-use ferrumapi_domain::RequestTab;
-use ferrumapi_domain::protocol::graphql_schema::{complete_fields, partial_word};
-use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _,
     LabelSize, Tooltip, h_flex, v_flex,
 };
+use ferrumapi_domain::RequestTab;
+use ferrumapi_domain::protocol::graphql_schema::{complete_fields, partial_word};
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 
 /// Completion chips shown at most.
 const MAX_COMPLETIONS: usize = 12;

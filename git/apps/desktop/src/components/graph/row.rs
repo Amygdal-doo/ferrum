@@ -6,6 +6,8 @@ use crate::app::FerrumGit;
 use crate::components::actions;
 use crate::components::avatar_color;
 use crate::state::Selection;
+use ferrum_ui::components::{StyledTypography, Tooltip, h_flex, v_flex};
+use ferrum_ui::theme::Theme;
 use ferrumgit_application::GraphRow;
 use ferrumgit_domain::text::{full_time, initials};
 use ferrumgit_domain::{Commit, GitRef, RefKind, RepoId};
@@ -14,8 +16,6 @@ use gpui::{
     prelude::*, px,
 };
 use std::sync::Arc;
-use theme::Theme;
-use ui::{StyledTypography, Tooltip, h_flex, v_flex};
 
 pub fn month_row(
     label: String,

@@ -6,12 +6,12 @@ use crate::app::FerrumApi;
 use crate::components::checkbox;
 use crate::components::fields::{FieldSpec, on_change};
 use crate::state::kv::RowEdit;
-use ferrumapi_domain::Variable;
-use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use ui::{
+use ferrum_ui::components::{
     ButtonCommon as _, Clickable as _, IconButton, IconName, IconSize, Tooltip,
     VisibleOnHover as _, h_flex, v_flex,
 };
+use ferrumapi_domain::Variable;
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 
 impl FerrumApi {
     pub fn render_vars_table(

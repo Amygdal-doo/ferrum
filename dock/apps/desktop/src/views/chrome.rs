@@ -3,10 +3,12 @@
 use crate::app::FerrumContainers;
 use crate::state::{EngineStatus, Section};
 use crate::views::widgets::{button, muted};
+use ferrum_ui::components::{
+    Color, Icon, IconName, IconSize, Label, LabelCommon, LabelSize, h_flex, v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{Notice, badge, render_notice, section_header};
 use gpui::{AnyElement, Context, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{Color, Icon, IconName, IconSize, Label, LabelCommon, LabelSize, h_flex, v_flex};
 
 pub fn toolbar(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let theme = cx.theme().clone();

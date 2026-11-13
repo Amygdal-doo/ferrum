@@ -3,8 +3,8 @@
 use crate::app::FerrumContainers;
 use crate::views::containers::state_color;
 use crate::views::widgets::{button, cell, grow_cell, header_row, muted, row, state_dot};
+use ferrum_ui::components::{Color, Label, LabelCommon, LabelSize, h_flex, v_flex};
 use gpui::{AnyElement, Context, SharedString, div, prelude::*};
-use ui::{Color, Label, LabelCommon, LabelSize, h_flex, v_flex};
 
 const COLUMNS: [(&str, Option<f32>); 4] = [
     ("SERVICE", None),

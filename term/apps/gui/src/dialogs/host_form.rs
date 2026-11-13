@@ -5,8 +5,8 @@
 use super::{Dialog, error_text, field, hint, modal};
 use crate::view::TermView;
 use ferrum_ui::TextInput;
+use ferrum_ui::components::{Button, ButtonCommon, ButtonStyle, Clickable, TintColor, h_flex};
 use ferrum_ui::gpui::{AnyElement, Context, Entity, Window, prelude::*};
-use ferrum_ui::ui::{Button, ButtonCommon, ButtonStyle, Clickable, TintColor, h_flex};
 use ferrumterm_net::HostSource;
 use ferrumterm_net::hosts::{HostFormFields, SavedHost, find_host};
 use ferrumterm_protocol::{ForwardSpec, ForwardState};

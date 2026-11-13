@@ -5,11 +5,11 @@ use crate::components::actions::Action;
 use crate::components::icons::Icon;
 use crate::components::now_secs;
 use crate::state::Selection;
+use ferrum_ui::components::{Color, IconSize, Label, LabelCommon, LabelSize, h_flex, v_flex};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_domain::RepoId;
 use ferrumgit_domain::text::relative_time;
 use gpui::{AnyElement, Context, MouseButton, MouseDownEvent, SharedString, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{Color, IconSize, Label, LabelCommon, LabelSize, h_flex, v_flex};
 
 pub fn stash_list(app: &FerrumGit, id: RepoId, cx: &mut Context<FerrumGit>) -> AnyElement {
     let theme = cx.theme().clone();

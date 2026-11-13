@@ -116,9 +116,9 @@ RUST_LOG=debug cargo desktop                     # verbose logs (never include S
 ### Styling
 There is no CSS. Views are GPUI elements styled with Tailwind-like builder methods and
 colours from the active theme (`cx.theme().colors()`). Shared widgets (text input, splitter,
-modal, notice, toolbar/status bar) come from `ferrum-ui` (`../shared/ui`); buttons, labels,
-icons, menus and tooltips come from Zed's `ui` crate (`../ide`). Fonts and icons are embedded
-from `../ide/assets`.
+modal, notice, toolbar/status bar, buttons, labels, icons, menus and tooltips) come from
+`ferrum-ui` (`../shared/ui`), which also embeds the fonts (IBM Plex Sans, Lilex) and the
+Lucide icons.
 
 ### Packaging
 FerrumData is bundled with `scripts/bundle-macos.sh` like the other apps; released macOS

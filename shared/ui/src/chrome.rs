@@ -1,6 +1,6 @@
+use crate::components::{Color, Label, LabelCommon, LabelSize, StyledTypography, h_flex, v_flex};
+use crate::theme::ActiveTheme;
 use gpui::{App, Div, Hsla, IntoElement, SharedString, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{Color, Label, LabelCommon, LabelSize, StyledTypography, h_flex, v_flex};
 
 /// Top bar of a tool window: app name on the left, `children` after it.
 pub fn toolbar(cx: &App) -> Div {

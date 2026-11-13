@@ -4,14 +4,14 @@
 use crate::services::Services;
 use crate::state::{AppState, EngineStatus};
 use crate::views;
+use ferrum_ui::components::v_flex;
+use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{ProjectBar, ProjectBarEvent, TextInput, TextInputEvent, ToggleProjectSwitcher};
 use ferrumdock_engine::DockerCli;
 use gpui::{
     App, Context, Entity, FocusHandle, KeyBinding, Subscription, Task, UniformListScrollHandle,
     Window, actions, prelude::*,
 };
-use theme::ActiveTheme;
-use ui::v_flex;
 
 actions!(ferrumdock, [Refresh, FocusFilter]);
 
@@ -199,7 +199,12 @@ impl FerrumContainers {
         filter.update(cx, |input, cx| input.focus(window, cx));
     }
 
-    fn on_cancel(&mut self, _: &::menu::Cancel, window: &mut Window, cx: &mut Context<Self>) {
+    fn on_cancel(
+        &mut self,
+        _: &ferrum_ui::menu::Cancel,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.state.dialog.take().is_some() {
             window.focus(&self.focus_handle, cx);
         } else if self.state.detail.is_some() {

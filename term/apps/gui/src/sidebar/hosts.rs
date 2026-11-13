@@ -4,11 +4,11 @@
 
 use super::heading;
 use crate::view::TermView;
-use ferrum_ui::gpui::{Context, Hsla, SharedString, div, prelude::*, px};
-use ferrum_ui::theme::ActiveTheme;
-use ferrum_ui::ui::{
+use ferrum_ui::components::{
     ButtonCommon, Clickable, IconButton, IconName, IconSize, Tooltip, h_flex, v_flex,
 };
+use ferrum_ui::gpui::{Context, Hsla, SharedString, div, prelude::*, px};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumterm_protocol::{ForwardInfo, ForwardSpec, ForwardState};
 
 impl TermView {
@@ -125,7 +125,10 @@ impl TermView {
                 .text_color(colors.text_muted)
                 .hover(|style| style.bg(colors.ghost_element_hover).text_color(colors.text))
                 .on_click(cx.listener(|view, _, window, cx| view.open_ports(window, cx)))
-                .child(ferrum_ui::ui::Icon::new(IconName::MagnifyingGlass).size(IconSize::XSmall))
+                .child(
+                    ferrum_ui::components::Icon::new(IconName::MagnifyingGlass)
+                        .size(IconSize::XSmall),
+                )
                 .child("What's using a port?"),
         )
     }

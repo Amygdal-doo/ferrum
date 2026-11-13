@@ -1,7 +1,7 @@
 use crate::app::FerrumData;
 use crate::components::env_dot;
+use ferrum_ui::components::TintColor;
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::TintColor;
 use ferrumdata_domain::{ProfileId, Theme};
 
 impl FerrumData {

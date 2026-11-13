@@ -1,8 +1,8 @@
 //! Settings dialog. The token is only passed to the keychain, never stored
 //! in `state.json` or logged.
 
+use ferrum_ui::components::Checkbox;
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::Checkbox;
 use ferrumlauncher_core::{Settings, TokenSource};
 
 #[derive(Clone)]

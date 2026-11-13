@@ -1,7 +1,8 @@
 # Ferrum monorepo — one Cargo workspace for the Ferrum desktop tools.
 #
 # `ide/` (the Zed fork) keeps its own workspace so upstream merges stay easy;
-# the apps here depend on its GPUI/`ui`/`theme` crates by path.
+# the apps here depend only on its GPUI crates (Apache-2.0) by path. Widgets,
+# theme, icons and fonts come from `shared/ui` (ferrum-ui).
 # `web/` is a standalone package (own Dockerfile / Railway build context).
 [workspace]
 resolver = "3"
@@ -44,17 +45,11 @@ publish = false
 resvg = { version = "0.46", default-features = false }
 ferrum-ui = { path = "shared/ui" }
 
-# GPUI + Zed UI (from the `ide/` submodule, used as a library only)
+# GPUI (Apache-2.0) from the `ide/` submodule, used as a library only. Only
+# permissively licensed `ide/` crates may be added here: the apps are shipped
+# closed source (see scripts/check-licenses.sh).
 gpui = { path = "ide/crates/gpui" }
 gpui_platform = { path = "ide/crates/gpui_platform" }
-ui = { path = "ide/crates/ui" }
-ui_input = { path = "ide/crates/ui_input" }
-theme = { path = "ide/crates/theme" }
-menu = { path = "ide/crates/menu" }
-assets = { path = "ide/crates/assets" }
-# `assets` reads files relative to a `.git` root in debug builds, which does not
-# match the monorepo layout; `debug-embed` embeds them at compile time instead.
-util = { path = "ide/crates/util", features = ["debug-embed"] }
 
 # FerrumAPI
 ferrumapi-domain = { path = "api/crates/domain" }

@@ -6,39 +6,15 @@
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use ferrum_ui::theme::{self, ThemeSettingsProvider, UiDensity};
 use ferrum_ui::{TextInput, ToggleProjectSwitcher};
 use ferrumenv_core::Variable;
 use ferrumenv_core::crypto::KdfParams;
 use ferrumenv_core::diff::ChangeKind;
-use gpui::{App, Entity, Font, Pixels, TestAppContext, VisualTestContext, font, px};
+use gpui::{App, Entity, TestAppContext, VisualTestContext};
 
 use crate::app::{EnvApp, EnvConfig, Screen};
 use crate::dialogs::Dialog;
 use crate::unlocked::Unlocked;
-
-struct TestFonts {
-    ui: Font,
-    buffer: Font,
-}
-
-impl ThemeSettingsProvider for TestFonts {
-    fn ui_font<'a>(&'a self, _: &'a App) -> &'a Font {
-        &self.ui
-    }
-    fn buffer_font<'a>(&'a self, _: &'a App) -> &'a Font {
-        &self.buffer
-    }
-    fn ui_font_size(&self, _: &App) -> Pixels {
-        px(14.)
-    }
-    fn buffer_font_size(&self, _: &App) -> Pixels {
-        px(13.)
-    }
-    fn ui_density(&self, _: &App) -> UiDensity {
-        UiDensity::Default
-    }
-}
 
 /// The real app gets the text input bindings from `ferrum_ui::run`; bind
 /// the ones these tests type with, by action name (the types are private).
@@ -64,19 +40,16 @@ fn bind_text_input_keys(cx: &mut App) {
         );
     }
     cx.bind_keys(bindings);
-    cx.bind_keys([gpui::KeyBinding::new("escape", menu::Cancel, None)]);
+    cx.bind_keys([gpui::KeyBinding::new(
+        "escape",
+        ferrum_ui::menu::Cancel,
+        None,
+    )]);
 }
 
 fn init(cx: &mut TestAppContext) {
     cx.update(|cx| {
-        theme::set_theme_settings_provider(
-            Box::new(TestFonts {
-                ui: font("Helvetica"),
-                buffer: font("Menlo"),
-            }),
-            cx,
-        );
-        theme::init(theme::LoadThemes::JustBase, cx);
+        ferrum_ui::init_for_tests(cx);
         bind_text_input_keys(cx);
         crate::app::bind_keys(cx);
     });

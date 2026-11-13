@@ -6,13 +6,15 @@ use crate::components::icons::Icon;
 use crate::components::now_secs;
 use crate::components::widgets::{card, ghost_button, hint, primary_button, small_button};
 use crate::state::{Dialog, Load};
+use ferrum_ui::components::{
+    Clickable, Color, IconSize, Label, LabelCommon, LabelSize, Tooltip, h_flex, v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_application::ForgeInfo;
 use ferrumgit_application::forge::{CheckState, PrFilter, PullRequest, ReviewDecision};
 use ferrumgit_domain::text::relative_time;
 use ferrumgit_domain::{ForgeKind, RepoId};
 use gpui::{AnyElement, App, Context, Hsla, SharedString, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{Clickable, Color, IconSize, Label, LabelCommon, LabelSize, Tooltip, h_flex, v_flex};
 
 /// RFC 3339 → Unix seconds (0 when unparsable).
 #[must_use]

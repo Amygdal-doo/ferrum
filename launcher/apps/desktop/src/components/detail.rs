@@ -166,7 +166,7 @@ impl FerrumLauncher {
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         use crate::integration::display_hotkey;
-        use ferrum_ui::ui::Checkbox;
+        use ferrum_ui::components::Checkbox;
         if !app.is_builtin() {
             return None;
         }
@@ -487,12 +487,16 @@ impl FerrumLauncher {
         h_flex()
             .gap_3()
             .child(Label::new(label).size(LabelSize::Small))
-            .child(div().flex_1().child(ferrum_ui::ui::ProgressBar::new(
-                "download-progress",
-                fraction.unwrap_or(0.0),
-                1.0,
-                cx,
-            )))
+            .child(
+                div()
+                    .flex_1()
+                    .child(ferrum_ui::components::ProgressBar::new(
+                        "download-progress",
+                        fraction.unwrap_or(0.0),
+                        1.0,
+                        cx,
+                    )),
+            )
             .child(
                 Button::new("cancel-download", "Cancel")
                     .style(ButtonStyle::Subtle)

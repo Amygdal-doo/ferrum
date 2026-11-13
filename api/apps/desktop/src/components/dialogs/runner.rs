@@ -6,13 +6,13 @@ use super::modal;
 use crate::app::FerrumApi;
 use crate::components::{hint, method_label, status_color};
 use crate::state::runner::{RowStatus, RunRow, RunnerState};
-use ferrumapi_application::RunOutcome;
-use ferrumapi_domain::text::human_duration_ms;
-use gpui::{AnyElement, Context, Hsla, SharedString, div, prelude::*, px};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, TintColor, Tooltip,
     h_flex, v_flex,
 };
+use ferrumapi_application::RunOutcome;
+use ferrumapi_domain::text::human_duration_ms;
+use gpui::{AnyElement, Context, Hsla, SharedString, div, prelude::*, px};
 
 /// Short status label and its colour.
 fn badge_for(status: &RowStatus, cx: &Context<FerrumApi>) -> (&'static str, Hsla) {

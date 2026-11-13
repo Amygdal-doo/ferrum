@@ -4,14 +4,14 @@ use super::menu::{MenuAction, more_button, with_context_menu};
 use crate::app::FerrumApi;
 use crate::components::{MenuHandler, menu_item, request_badge};
 use crate::state::Dialog;
+use ferrum_ui::components::{
+    ActiveTheme as _, Color, Icon, IconName, IconSize, Label, LabelCommon as _, LabelSize, Tooltip,
+    VisibleOnHover as _, h_flex,
+};
 use ferrumapi_domain::{
     Collection, CollectionId, HttpMethod, Item, ItemId, RequestKind, RequestOrigin,
 };
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use ui::{
-    ActiveTheme as _, Color, Icon, IconName, IconSize, Label, LabelCommon as _, LabelSize, Tooltip,
-    VisibleOnHover as _, h_flex,
-};
 use uuid::Uuid;
 
 const CONTAINER_ACTIONS: [MenuAction; 7] = [

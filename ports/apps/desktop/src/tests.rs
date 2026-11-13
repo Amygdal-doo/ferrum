@@ -6,35 +6,11 @@ use std::process::Command;
 use std::time::Duration;
 
 use ferrum_ui::NoticeTone;
-use ferrum_ui::theme::{self, ThemeSettingsProvider, UiDensity};
 use ferrumports_core::kill::{KillError, Signal};
 use ferrumports_core::{Listener, Protocol, Row, ScanError, Snapshot};
-use gpui::{App, Entity, Font, Pixels, TestAppContext, VisualTestContext, font, px};
+use gpui::{Entity, TestAppContext, VisualTestContext};
 
 use crate::app::{FerrumPorts, KillStage, Options};
-
-struct TestFonts {
-    ui: Font,
-    buffer: Font,
-}
-
-impl ThemeSettingsProvider for TestFonts {
-    fn ui_font<'a>(&'a self, _: &'a App) -> &'a Font {
-        &self.ui
-    }
-    fn buffer_font<'a>(&'a self, _: &'a App) -> &'a Font {
-        &self.buffer
-    }
-    fn ui_font_size(&self, _: &App) -> Pixels {
-        px(14.)
-    }
-    fn buffer_font_size(&self, _: &App) -> Pixels {
-        px(13.)
-    }
-    fn ui_density(&self, _: &App) -> UiDensity {
-        UiDensity::Default
-    }
-}
 
 fn listener(port: u16, process: &str, pid: u32, project: Option<&str>) -> Listener {
     Listener {
@@ -65,14 +41,7 @@ fn sample() -> Snapshot {
 
 fn window(cx: &mut TestAppContext) -> (Entity<FerrumPorts>, &mut VisualTestContext) {
     cx.update(|cx| {
-        theme::set_theme_settings_provider(
-            Box::new(TestFonts {
-                ui: font("Helvetica"),
-                buffer: font("Menlo"),
-            }),
-            cx,
-        );
-        theme::init(theme::LoadThemes::JustBase, cx);
+        ferrum_ui::init_for_tests(cx);
         crate::app::bind_keys(cx);
     });
     let (app, cx) = cx.add_window_view(|window, cx| {

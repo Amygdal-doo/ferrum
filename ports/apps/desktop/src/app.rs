@@ -181,7 +181,12 @@ impl FerrumPorts {
         });
     }
 
-    fn on_cancel(&mut self, _: &menu::Cancel, window: &mut Window, cx: &mut Context<Self>) {
+    fn on_cancel(
+        &mut self,
+        _: &ferrum_ui::menu::Cancel,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.dialog.take().is_some() {
             window.focus(&self.focus_handle, cx);
         } else {

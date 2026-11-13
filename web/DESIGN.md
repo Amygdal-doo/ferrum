@@ -45,7 +45,7 @@ The system has two halves:
 | `button::link`, `badge::status` | Buttons (`Primary`, `Secondary`, `Ghost`) and the status badge. | `.btn`, `.badge` |
 
 Page-level CSS: `pages.css` (home, `/apps`, product pages, about, 404, download), `docs.css`
-(docs, changelog, FAQ, security, compare), `features.css` (animated demo windows),
+(docs, changelog, FAQ, security, compare, licences), `features.css` (animated demo windows),
 `updates.css` (posts).
 
 ## Rules

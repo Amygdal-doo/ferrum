@@ -6,12 +6,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use ferrum_ui::components::{IconButton, IconName, IconSize};
 use ferrum_ui::prelude::*;
 use ferrum_ui::{TextInput, TextInputEvent};
 use ferrumeditor_core::find::SearchQuery;
 use ferrumeditor_core::project_search::{ProjectSearchResult, SearchLimits, search_project};
 use gpui::{HighlightStyle, StyledText};
-use ui::{IconButton, IconName, IconSize};
 
 pub enum ProjectFindEvent {
     /// Open `path` at 0-based line / byte column.
@@ -303,7 +303,11 @@ impl Render for ProjectFind {
             .key_context("FerrumProjectFind")
             .size_full()
             .bg(colors.panel_background)
-            .on_action(cx.listener(|_, _: &menu::Cancel, _, cx| cx.emit(ProjectFindEvent::Close)))
+            .on_action(
+                cx.listener(|_, _: &ferrum_ui::menu::Cancel, _, cx| {
+                    cx.emit(ProjectFindEvent::Close)
+                }),
+            )
             .child(
                 h_flex()
                     .p_1p5()

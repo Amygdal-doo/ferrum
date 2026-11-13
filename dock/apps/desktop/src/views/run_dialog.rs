@@ -3,14 +3,14 @@
 
 use crate::app::FerrumContainers;
 use crate::views::widgets::segmented;
-use ferrum_ui::{Modal, TextInput};
-use ferrumdock_engine::create::RestartPolicy;
-use gpui::{AnyElement, Context, Entity, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{
+use ferrum_ui::components::{
     Button, ButtonCommon, ButtonStyle, Checkbox, Clickable, Color, Disableable, Label, LabelCommon,
     LabelSize, ToggleState, h_flex, v_flex,
 };
+use ferrum_ui::theme::ActiveTheme;
+use ferrum_ui::{Modal, TextInput};
+use ferrumdock_engine::create::RestartPolicy;
+use gpui::{AnyElement, Context, Entity, div, prelude::*, px};
 
 fn field(
     title: &'static str,

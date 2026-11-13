@@ -4,36 +4,12 @@
 use std::path::Path;
 
 use ferrumeditor_core::buffer::Point;
-use gpui::{App, Entity, Font, Pixels, TestAppContext, VisualTestContext, font, px};
-use theme::{ThemeSettingsProvider, UiDensity};
+use gpui::{App, Entity, TestAppContext, VisualTestContext};
 
 use crate::actions;
 use crate::editor::EditorView;
 use crate::settings::{MAC, Settings};
 use crate::workspace::Workspace;
-
-struct TestFonts {
-    ui: Font,
-    buffer: Font,
-}
-
-impl ThemeSettingsProvider for TestFonts {
-    fn ui_font<'a>(&'a self, _: &'a App) -> &'a Font {
-        &self.ui
-    }
-    fn buffer_font<'a>(&'a self, _: &'a App) -> &'a Font {
-        &self.buffer
-    }
-    fn ui_font_size(&self, _: &App) -> Pixels {
-        px(14.)
-    }
-    fn buffer_font_size(&self, _: &App) -> Pixels {
-        px(13.)
-    }
-    fn ui_density(&self, _: &App) -> UiDensity {
-        UiDensity::Default
-    }
-}
 
 /// The real app gets these from `ferrum_ui::run`; tests bind the few the
 /// pickers and find bar rely on, by action name (the types are private).
@@ -60,7 +36,7 @@ fn bind_text_input_keys(cx: &mut App) {
             .expect("binding"),
         );
     }
-    let escape = gpui::KeyBinding::new("escape", menu::Cancel, None);
+    let escape = gpui::KeyBinding::new("escape", ferrum_ui::menu::Cancel, None);
     cx.bind_keys(bindings);
     cx.bind_keys([escape]);
 }
@@ -68,14 +44,7 @@ fn bind_text_input_keys(cx: &mut App) {
 pub(crate) fn init(cx: &mut TestAppContext) {
     cx.update(|cx| {
         bind_text_input_keys(cx);
-        theme::set_theme_settings_provider(
-            Box::new(TestFonts {
-                ui: font("Helvetica"),
-                buffer: font("Menlo"),
-            }),
-            cx,
-        );
-        theme::init(theme::LoadThemes::JustBase, cx);
+        ferrum_ui::init_for_tests(cx);
         actions::capture_base_bindings(cx);
         let settings = Settings::load(None, Settings::default_commands());
         assert!(actions::apply_keymap(&settings.keymap, cx).is_empty());

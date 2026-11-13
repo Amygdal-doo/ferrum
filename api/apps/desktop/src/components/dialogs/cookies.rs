@@ -5,13 +5,13 @@ use super::modal;
 use crate::app::FerrumApi;
 use crate::components::hint;
 use crate::components::widgets::{header_cell, row_border};
-use ferrumapi_domain::{CookieJar, StoredCookie};
-use gpui::{AnyElement, Context, SharedString, div, prelude::*, px, relative};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _,
     Disableable as _, IconButton, IconName, IconSize, StyledTypography as _, TintColor, Tooltip,
     h_flex, v_flex,
 };
+use ferrumapi_domain::{CookieJar, StoredCookie};
+use gpui::{AnyElement, Context, SharedString, div, prelude::*, px, relative};
 
 fn expires_label(c: &StoredCookie) -> String {
     c.expires.map_or_else(

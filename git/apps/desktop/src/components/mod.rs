@@ -14,9 +14,9 @@ pub mod sidebar;
 pub mod split;
 pub mod widgets;
 
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_domain::ChangeKind;
 use gpui::{App, Hsla, rgb};
-use theme::ActiveTheme;
 
 /// Lane colours (readable on the dark theme).
 pub const LANE_COLORS: [u32; 8] = [

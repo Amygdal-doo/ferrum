@@ -11,9 +11,9 @@ mod view;
 
 use std::path::PathBuf;
 
+use ferrum_ui::components::{IconButton, IconName, IconSize};
 use ferrum_ui::prelude::*;
 use ferrumeditor_core::terminal::{PanelState, Toggle};
-use ui::{IconButton, IconName, IconSize};
 
 use crate::settings::Settings;
 pub use view::{TerminalEvent, TerminalView};

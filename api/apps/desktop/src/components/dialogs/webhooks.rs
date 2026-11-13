@@ -6,13 +6,13 @@ use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change};
 use crate::components::hint;
 use crate::components::widgets::{form_row, header_cell, row_border};
-use ferrumapi_domain::text::human_size;
-use ferrumapi_domain::webhook::{CapturedRequest, DEFAULT_CAPTURE_LIMIT};
-use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px, relative};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, Disableable as _,
     Label, LabelCommon as _, LabelSize, StyledTypography as _, TintColor, h_flex, v_flex,
 };
+use ferrumapi_domain::text::human_size;
+use ferrumapi_domain::webhook::{CapturedRequest, DEFAULT_CAPTURE_LIMIT};
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px, relative};
 
 fn time_label(c: &CapturedRequest) -> String {
     c.received_at
@@ -143,7 +143,7 @@ impl FerrumApi {
                     .child(
                         Button::new("capture-save", "Save to collection…")
                             .style(ButtonStyle::Outlined)
-                            .tooltip(ui::Tooltip::text(
+                            .tooltip(ferrum_ui::components::Tooltip::text(
                                 "Save this webhook as a REST request in a collection (replays to the inspector)",
                             ))
                             .on_click(cx.listener(move |this, _, _, cx| {

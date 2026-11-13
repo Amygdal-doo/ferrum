@@ -10,16 +10,16 @@ use crate::components::split::layout_toggle;
 use crate::components::widgets::{danger_button, ghost_button, primary_button, small_button};
 use crate::components::{avatar_color, change_word, plural};
 use crate::state::{FileTab, Selection};
+use ferrum_ui::components::{
+    Clickable, Color, IconSize, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex,
+    v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_domain::text::initials;
 use ferrumgit_domain::{ChangeKind, CommitDetails, DiffSource, FileDiff, Oid, RepoId};
 use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use theme::ActiveTheme;
-use ui::{
-    Clickable, Color, IconSize, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex,
-    v_flex,
-};
 
 /// `5 November 2026 at 15:44:54 CET`.
 fn long_date(unix: i64) -> String {

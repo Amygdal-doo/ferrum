@@ -4,10 +4,10 @@
 //! with install hints and masked keys), the status bar item, and applying
 //! the review's accept / reject to disk and open editors.
 
+use ferrum_ui::components::{Button, ButtonStyle};
 use ferrum_ui::prelude::*;
 use ferrumeditor_core::agents::review::Written;
 use ferrumeditor_core::agents::{self as core_agents, AgentDef, masked};
-use ui::{Button, ButtonStyle};
 
 use super::Workspace;
 use super::dock::RightTab;

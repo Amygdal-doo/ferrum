@@ -90,8 +90,9 @@ cargo test -p ferrumgit-forge     # GitHub / GitLab mapping from recorded fixtur
 ```
 
 ### Styling
-No CSS: views are GPUI elements styled with the Ferrum theme (`theme::ActiveTheme`) and built
-from Zed's `ui` components plus `ferrum-ui` (text inputs, modal, splitter, notices). App-only
+No CSS: views are GPUI elements styled with the Ferrum theme (`ferrum_ui::theme::ActiveTheme`)
+and built from `ferrum-ui` components (buttons, labels, menus, text inputs, modal, splitter,
+notices). App-only
 widgets live in `apps/desktop/src/components/widgets.rs`.
 
 ## Layout

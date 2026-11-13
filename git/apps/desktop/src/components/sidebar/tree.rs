@@ -4,13 +4,13 @@ use super::toggle;
 use crate::app::FerrumGit;
 use crate::components::actions::{self, Action};
 use crate::components::icons::Icon;
+use ferrum_ui::components::{Color, IconSize, Label, LabelCommon, LabelSize, Tooltip, h_flex};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_domain::{GitRef, RefKind};
 use gpui::{
     AnyElement, ClickEvent, Context, MouseButton, MouseDownEvent, SharedString, div, prelude::*, px,
 };
 use std::collections::BTreeMap;
-use theme::ActiveTheme;
-use ui::{Color, IconSize, Label, LabelCommon, LabelSize, Tooltip, h_flex};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Node {

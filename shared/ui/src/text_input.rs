@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+use crate::components::{StyledTypography, h_flex};
+use crate::theme::ActiveTheme;
 use gpui::{
     App, Bounds, ClipboardItem, Context, CursorStyle, ElementId, ElementInputHandler, Entity,
     EntityInputHandler, EventEmitter, FocusHandle, Focusable, GlobalElementId, HighlightStyle,
@@ -7,8 +9,6 @@ use gpui::{
     Pixels, Point, ShapedLine, SharedString, Style, TextRun, UTF16Selection, UnderlineStyle,
     Window, actions, fill, point, prelude::*, px, relative, size,
 };
-use theme::ActiveTheme;
-use ui::{StyledTypography, h_flex};
 use unicode_segmentation::UnicodeSegmentation;
 
 actions!(

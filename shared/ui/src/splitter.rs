@@ -1,5 +1,5 @@
+use crate::theme::ActiveTheme;
 use gpui::{App, Axis, CursorStyle, IntoElement, SharedString, div, prelude::*, px};
-use theme::ActiveTheme;
 
 /// Drag payload of a [`splitter`]. The parent container handles resizing with
 /// `.on_drag_move(cx.listener(|this, event: &DragMoveEvent<DraggedSplitter>, ..| ..))`,

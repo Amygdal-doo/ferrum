@@ -3,6 +3,7 @@
 use crate::components::fields::FieldCache;
 use crate::components::response::BodyDisplay;
 use crate::state::AppState;
+use ferrum_ui::components::{ActiveTheme as _, Color, Label, LabelCommon as _, h_flex, v_flex};
 use ferrum_ui::{
     DraggedSplitter, Notice, ProjectBar, ToggleProjectSwitcher, render_notice, splitter,
 };
@@ -12,7 +13,6 @@ use gpui::{
     SharedString, Task, Window, actions, div, prelude::*, px,
 };
 use std::sync::Arc;
-use ui::{ActiveTheme as _, Color, Label, LabelCommon as _, h_flex, v_flex};
 
 actions!(
     ferrum_api,
@@ -138,7 +138,12 @@ impl FerrumApi {
         }
     }
 
-    fn on_cancel(&mut self, _: &menu::Cancel, window: &mut Window, cx: &mut Context<Self>) {
+    fn on_cancel(
+        &mut self,
+        _: &ferrum_ui::menu::Cancel,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.state.dialog.take().is_none() {
             if self.state.renaming.is_none()
                 && self.state.renaming_tab.is_none()

@@ -15,8 +15,6 @@ ferrumapi-domain.workspace = true
 ferrumapi-application.workspace = true
 ferrum-ui.workspace = true
 gpui.workspace = true
-ui.workspace = true
-menu.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
@@ -34,4 +32,3 @@ workspace = true
 [dev-dependencies]
 # Headless GPUI test harness (TestAppContext); no window is shown.
 gpui = { workspace = true, features = ["test-support"] }
-theme.workspace = true

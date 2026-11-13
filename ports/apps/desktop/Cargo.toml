@@ -14,7 +14,6 @@ path = "src/main.rs"
 ferrumports-core.workspace = true
 ferrum-ui.workspace = true
 gpui.workspace = true
-menu.workspace = true
 chrono.workspace = true
 
 [dev-dependencies]

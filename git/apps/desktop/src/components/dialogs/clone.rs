@@ -6,12 +6,14 @@ use crate::app::FerrumGit;
 use crate::components::widgets::{
     field, ghost_button, hint, primary_button, radio_row, small_button,
 };
+use ferrum_ui::components::{
+    Clickable, Color, Disableable, Label, LabelCommon, LabelSize, h_flex, v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{TextInput, TextInputEvent};
 use ferrumgit_application::CancellationToken;
 use ferrumgit_domain::ProfileId;
 use gpui::{AnyElement, Context, Entity, SharedString, Window, div, prelude::*};
-use theme::ActiveTheme;
-use ui::{Clickable, Color, Disableable, Label, LabelCommon, LabelSize, h_flex, v_flex};
 
 pub struct CloneForm {
     pub url: Entity<TextInput>,

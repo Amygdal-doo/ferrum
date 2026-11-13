@@ -61,6 +61,7 @@ pub fn render() -> Markup {
                             li { a href=(updates::FEED_PATH) { "Atom feed" } }
                             li { a href="/about" { "About" } }
                             li { a href=(crate::pages::privacy::PATH) { "Privacy" } }
+                            li { a href=(crate::pages::licenses::PATH) { "Licences" } }
                             li { a href=(site::GPUI_URL) rel="noopener" { "GPUI" } }
                         }
                     }
@@ -94,6 +95,7 @@ mod tests {
         assert!(html.contains(site::AMYGDAL_URL));
         assert!(html.contains("for the Rust community"));
         assert!(html.contains(r#"href="/privacy""#));
+        assert!(html.contains(r#"href="/licenses""#));
         assert!(html.contains(r#"href="/updates""#));
         for path in [
             "/docs",

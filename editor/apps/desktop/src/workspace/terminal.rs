@@ -4,8 +4,8 @@
 
 use std::path::{Path, PathBuf};
 
+use ferrum_ui::components::{IconButton, IconName, IconSize};
 use ferrum_ui::prelude::*;
-use ui::{IconButton, IconName, IconSize};
 
 use super::Workspace;
 use crate::terminal::PanelEvent;

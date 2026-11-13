@@ -106,6 +106,7 @@ pub fn router(state: AppState) -> Router {
         .route(crate::updates::FEED_PATH, get(updates::feed))
         .route("/updates/{slug}", get(updates::post))
         .route(pages::privacy::PATH, get(privacy))
+        .route(pages::licenses::PATH, get(licenses))
         .route("/healthz", get(health::healthz))
         .route("/robots.txt", get(seo::robots))
         .route(
@@ -131,6 +132,9 @@ async fn apps(State(s): State<AppState>) -> Markup {
 }
 async fn privacy(State(s): State<AppState>) -> Markup {
     pages::privacy::render(s.site_url())
+}
+async fn licenses(State(s): State<AppState>) -> Markup {
+    pages::licenses::render(s.site_url())
 }
 async fn ferrumdata(State(s): State<AppState>) -> Markup {
     pages::ferrumdata::render(s.site_url())

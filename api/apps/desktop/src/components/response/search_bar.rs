@@ -4,11 +4,11 @@ use super::display::MAX_MATCHES;
 use crate::app::FerrumApi;
 use crate::components::fields::{FieldEvent, FieldSpec};
 use crate::state::{BodyMode, ResponseSearch, ResponseView, TabResponse};
-use gpui::{AnyElement, Context, Focusable as _, Window, div, prelude::*};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, ButtonCommon as _, Clickable as _, Disableable as _, IconButton, IconName,
     IconSize, Toggleable as _, Tooltip, h_flex,
 };
+use gpui::{AnyElement, Context, Focusable as _, Window, div, prelude::*};
 
 impl FerrumApi {
     /// Opens (or re-focuses) the find bar on the response body.

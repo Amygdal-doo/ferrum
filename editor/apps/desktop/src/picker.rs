@@ -311,19 +311,22 @@ impl Render for Picker {
             _ if count == 0 => Some("No matches"),
             _ => None,
         };
-        let mut root = v_flex()
-            .key_context("FerrumPicker")
-            .w(px(600.))
-            .max_h(px(440.))
-            .p_1()
-            .gap_1()
-            .rounded_lg()
-            .border_1()
-            .border_color(colors.border)
-            .bg(colors.elevated_surface_background)
-            .shadow_lg()
-            .on_action(cx.listener(|_, _: &menu::Cancel, _, cx| cx.emit(PickerEvent::Dismissed)))
-            .child(self.input.clone());
+        let mut root =
+            v_flex()
+                .key_context("FerrumPicker")
+                .w(px(600.))
+                .max_h(px(440.))
+                .p_1()
+                .gap_1()
+                .rounded_lg()
+                .border_1()
+                .border_color(colors.border)
+                .bg(colors.elevated_surface_background)
+                .shadow_lg()
+                .on_action(cx.listener(|_, _: &ferrum_ui::menu::Cancel, _, cx| {
+                    cx.emit(PickerEvent::Dismissed)
+                }))
+                .child(self.input.clone());
         if let Some(up) = &self.up {
             root = root.on_boxed_action(
                 up.as_ref(),

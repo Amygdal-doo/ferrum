@@ -5,13 +5,13 @@
 use std::ops::Range;
 use std::time::Duration;
 
+use ferrum_ui::components::StyledTypography;
 use ferrum_ui::prelude::*;
 use ferrumeditor_core::markdown::{self, Block, ListMarker, Span};
 use gpui::{
     FontStyle, FontWeight, HighlightStyle, Hsla, InteractiveText, StrikethroughStyle, StyledText,
     UnderlineStyle,
 };
-use ui::StyledTypography;
 
 use crate::editor::{EditorEvent, EditorView};
 

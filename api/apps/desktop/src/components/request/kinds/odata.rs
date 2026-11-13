@@ -4,13 +4,13 @@ use super::{labelled, load_button, setter};
 use crate::app::FerrumApi;
 use crate::components::{checkbox, hint};
 use crate::state::protocols::Loadable;
-use ferrumapi_domain::RequestTab;
-use ferrumapi_domain::protocol::odata::build_url;
-use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _,
     LabelSize, LoadingLabel, StyledTypography as _, Tooltip, h_flex, v_flex,
 };
+use ferrumapi_domain::RequestTab;
+use ferrumapi_domain::protocol::odata::build_url;
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 
 type Setter = fn(&mut ferrumapi_domain::HttpRequest, String);
 

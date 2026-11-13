@@ -4,9 +4,9 @@
 
 use std::sync::Arc;
 
+use ferrum_ui::theme::{ActiveTheme, Appearance, GlobalTheme};
 use ferrumeditor_core::theme::{Color, Theme};
 use gpui::{App, Hsla, Rgba};
-use theme::{ActiveTheme, Appearance, GlobalTheme};
 
 pub fn hsla(color: Color) -> Hsla {
     Rgba {

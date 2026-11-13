@@ -3,10 +3,10 @@
 use super::{labelled, setter};
 use crate::app::FerrumApi;
 use crate::components::{checkbox, hint, select};
+use ferrum_ui::components::{ActiveTheme as _, StyledTypography as _, h_flex, v_flex};
 use ferrumapi_domain::RequestTab;
 use ferrumapi_domain::protocol::TrpcType;
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*};
-use ui::{ActiveTheme as _, StyledTypography as _, h_flex, v_flex};
 
 impl FerrumApi {
     pub(super) fn render_trpc(

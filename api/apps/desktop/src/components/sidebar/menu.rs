@@ -4,8 +4,8 @@ use crate::app::FerrumApi;
 use crate::components::fields::{FieldEvent, FieldSpec};
 use crate::components::{MenuHandler, action_menu};
 use ferrum_ui::TextInput;
+use ferrum_ui::components::{IconButton, IconName, IconSize, PopoverMenu, right_click_menu};
 use gpui::{AnyElement, Context, ElementId, Entity, SharedString, Window, prelude::*};
-use ui::{IconButton, IconName, IconSize, PopoverMenu, right_click_menu};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

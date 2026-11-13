@@ -4,11 +4,11 @@ use crate::app::FerrumApi;
 use crate::components::fields::{FieldEvent, FieldSpec};
 use crate::components::request_badge;
 use crate::state::tabs::display_title;
-use gpui::{AnyElement, ClickEvent, Context, SharedString, Window, div, prelude::*, px};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, ButtonCommon as _, Clickable as _, IconButton, IconName, IconSize, Tooltip,
     h_flex,
 };
+use gpui::{AnyElement, ClickEvent, Context, SharedString, Window, div, prelude::*, px};
 
 impl FerrumApi {
     pub(super) fn render_tab_bar(

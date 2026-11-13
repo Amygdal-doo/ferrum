@@ -3,12 +3,12 @@
 use crate::app::FerrumContainers;
 use crate::state::Dialog;
 use ferrum_ui::Modal;
-use gpui::{AnyElement, Context, Window, div, prelude::*, px, relative};
-use theme::ActiveTheme;
-use ui::{
+use ferrum_ui::components::{
     Button, ButtonCommon, ButtonStyle, Clickable, Color, Disableable, Label, LabelCommon,
     LabelSize, TintColor, v_flex,
 };
+use ferrum_ui::theme::ActiveTheme;
+use gpui::{AnyElement, Context, Window, div, prelude::*, px, relative};
 
 pub fn render(
     app: &FerrumContainers,

@@ -1,9 +1,11 @@
-use assets::Assets;
 use gpui::{
-    App, Bounds, Entity, Font, KeyBinding, Menu, MenuItem, Pixels, Render, Size, TitlebarOptions,
-    Window, WindowBounds, WindowOptions, actions, font, px, size,
+    App, Bounds, Entity, KeyBinding, Menu, MenuItem, Pixels, Render, Size, TitlebarOptions, Window,
+    WindowBounds, WindowOptions, actions, px, size,
 };
-use theme::{LoadThemes, ThemeSettingsProvider, UiDensity};
+
+use crate::assets::Assets;
+use crate::menu;
+use crate::theme::{self, ThemeSettings};
 
 actions!(ferrum, [Quit]);
 
@@ -31,33 +33,6 @@ impl AppConfig {
     pub fn min_size(mut self, width: f32, height: f32) -> Self {
         self.min_size = size(px(width), px(height));
         self
-    }
-}
-
-struct FerrumThemeSettings {
-    ui_font: Font,
-    buffer_font: Font,
-}
-
-impl ThemeSettingsProvider for FerrumThemeSettings {
-    fn ui_font<'a>(&'a self, _: &'a App) -> &'a Font {
-        &self.ui_font
-    }
-
-    fn buffer_font<'a>(&'a self, _: &'a App) -> &'a Font {
-        &self.buffer_font
-    }
-
-    fn ui_font_size(&self, _: &App) -> Pixels {
-        px(14.)
-    }
-
-    fn buffer_font_size(&self, _: &App) -> Pixels {
-        px(13.)
-    }
-
-    fn ui_density(&self, _: &App) -> UiDensity {
-        UiDensity::Default
     }
 }
 
@@ -99,14 +74,7 @@ fn init(title: &'static str, cx: &mut App) {
     if let Err(error) = Assets.load_fonts(cx) {
         eprintln!("{title}: failed to load bundled fonts: {error:#}");
     }
-    theme::set_theme_settings_provider(
-        Box::new(FerrumThemeSettings {
-            ui_font: font(".ZedSans"),
-            buffer_font: font(".ZedMono"),
-        }),
-        cx,
-    );
-    theme::init(LoadThemes::JustBase, cx);
+    theme::init(ThemeSettings::default(), cx);
 
     crate::text_input::bind_keys(cx);
     crate::project_bar::bind_keys(cx);
@@ -125,4 +93,10 @@ fn init(title: &'static str, cx: &mut App) {
         }
     })
     .detach();
+}
+
+/// Theme and fonts for headless GPUI tests (system font names, since tests
+/// do not load the bundled fonts).
+pub fn init_for_tests(cx: &mut App) {
+    theme::init(ThemeSettings::with_fonts("Helvetica", "Menlo"), cx);
 }

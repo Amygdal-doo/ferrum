@@ -1,6 +1,6 @@
 //! App icons, mapped onto the shared `ui` crate icon set so every Ferrum tool shares one look.
 
-use ui::IconName;
+use ferrum_ui::components::IconName;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Icon {
@@ -76,7 +76,7 @@ impl Icon {
     }
 
     #[must_use]
-    pub fn icon(self) -> ui::Icon {
-        ui::Icon::new(self.name())
+    pub fn icon(self) -> ferrum_ui::components::Icon {
+        ferrum_ui::components::Icon::new(self.name())
     }
 }

@@ -5,12 +5,12 @@ use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change};
 use crate::components::hint;
 use crate::state::protocols::Loadable;
+use ferrum_ui::components::{
+    ActiveTheme as _, Color, Label, LabelCommon as _, LabelSize, LoadingLabel, h_flex, v_flex,
+};
 use ferrumapi_domain::TabId;
 use ferrumapi_domain::protocol::graphql_schema::GqlType;
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use ui::{
-    ActiveTheme as _, Color, Label, LabelCommon as _, LabelSize, LoadingLabel, h_flex, v_flex,
-};
 
 /// Rows of one type: its fields (or input fields / enum values).
 fn type_detail(t: &GqlType) -> Vec<(String, String)> {

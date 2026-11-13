@@ -113,11 +113,14 @@ fn faqs() -> Vec<Faq> {
         },
         Faq {
             q: "Is Ferrum open source?",
-            a: "No. The apps' source isn't published under an open-source license; the public \
-                releases repository holds builds only. Ferrum builds on open-source projects, \
-                GPUI from the Zed editor first among them."
-                .to_owned(),
-            more: Some(("Credits", "/about")),
+            a: format!(
+                "No. The apps are proprietary (© {}, all rights reserved) and their source isn't \
+                 published; the public releases repository holds builds only. They include \
+                 permissively licensed open-source work: GPUI from the Zed editor (Apache-2.0), \
+                 Lucide icons (ISC) and the IBM Plex Sans and Lilex fonts (OFL 1.1).",
+                site::ORGANIZATION_LEGAL_NAME
+            ),
+            more: Some(("Open source licences", "/licenses")),
         },
         Faq {
             q: "Who makes Ferrum?",

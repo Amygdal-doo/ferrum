@@ -9,6 +9,10 @@ use crate::app::FerrumGit;
 use crate::components::icons::Icon;
 use crate::components::widgets::small_button;
 use crate::state::Selection;
+use ferrum_ui::components::{
+    Clickable, Color, IconSize, Label, LabelCommon, LabelSize, Tooltip, h_flex, v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_application::RepoData;
 use ferrumgit_domain::search::CommitQuery;
 use ferrumgit_domain::{GitRef, RepoId};
@@ -17,8 +21,6 @@ use row::{CommitRowProps, commit_row, month_row};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::sync::Arc;
-use theme::ActiveTheme;
-use ui::{Clickable, Color, IconSize, Label, LabelCommon, LabelSize, Tooltip, h_flex, v_flex};
 
 pub const ROW_H: f32 = 50.0;
 pub const MONTH_H: f32 = 34.0;
@@ -253,7 +255,7 @@ fn render_item(
     history: &History,
     ix: usize,
     view: gpui::WeakEntity<FerrumGit>,
-    theme: Arc<theme::Theme>,
+    theme: Arc<ferrum_ui::theme::Theme>,
     cx: &mut gpui::App,
 ) -> AnyElement {
     let Some(item) = history.items.get(ix) else {

@@ -5,12 +5,12 @@ use crate::app::FerrumGit;
 use crate::commands::workspace::{open_terminal, reveal};
 use crate::components::icons::Icon;
 use crate::state::{Dialog, Page, PromptKind};
-use ferrumgit_domain::RepoOp;
-use gpui::{AnyElement, ClickEvent, Context, ElementId, Window, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{
+use ferrum_ui::components::{
     Color, IconSize, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex, v_flex,
 };
+use ferrum_ui::theme::ActiveTheme;
+use ferrumgit_domain::RepoOp;
+use gpui::{AnyElement, ClickEvent, Context, ElementId, Window, div, prelude::*, px};
 
 fn tool(
     id: impl Into<ElementId>,

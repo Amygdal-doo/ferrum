@@ -5,12 +5,12 @@ use crate::app::FerrumContainers;
 use crate::state::EngineStatus;
 use crate::views::widgets::muted;
 use ferrum_ui::Modal;
-use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{
+use ferrum_ui::components::{
     Button, Clickable, Color, Icon, IconName, IconSize, Label, LabelCommon, LabelSize, h_flex,
     v_flex,
 };
+use ferrum_ui::theme::ActiveTheme;
+use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
 
 pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let colors = cx.theme().colors();

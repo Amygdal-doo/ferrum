@@ -4,11 +4,11 @@
 use crate::app::FerrumContainers;
 use crate::state::DetailTab;
 use crate::views::widgets::{button, muted};
+use ferrum_ui::components::{Color, Icon, IconName, IconSize, Label, LabelCommon, h_flex};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumdock_engine::compose::{ComposeAction, ComposeProject};
 use ferrumdock_engine::project::ComposeFile;
 use gpui::{AnyElement, Context, SharedString, div, prelude::*};
-use theme::ActiveTheme;
-use ui::{Color, Icon, IconName, IconSize, Label, LabelCommon, h_flex};
 
 pub fn group_row(
     app: &FerrumContainers,

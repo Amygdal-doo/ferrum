@@ -6,13 +6,13 @@ use crate::app::FerrumApi;
 use crate::components::checkbox;
 use crate::components::fields::{FieldSpec, on_request_edit};
 use crate::state::kv::RowEdit;
-use ferrumapi_domain::{KeyValue, VariableSet};
-use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use std::rc::Rc;
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, ButtonCommon as _, Clickable as _, IconButton, IconName, IconSize, Tooltip,
     VisibleOnHover as _, h_flex, v_flex,
 };
+use ferrumapi_domain::{KeyValue, VariableSet};
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
+use std::rc::Rc;
 
 /// Applies one row edit to the latest state.
 pub type RowEditor = Rc<dyn Fn(&mut FerrumApi, usize, RowEdit, &mut Context<FerrumApi>)>;

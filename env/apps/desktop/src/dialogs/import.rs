@@ -2,9 +2,9 @@
 //! decrypt it with the project's stored key or one typed in, preview the
 //! added / changed / removed keys per environment, then import.
 
+use ferrum_ui::components::Checkbox;
 use ferrum_ui::gpui::PathPromptOptions;
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::Checkbox;
 use ferrumenv_core::ShareKey;
 use ferrumenv_core::bundle::{self, BundleContents};
 use ferrumenv_core::diff::{self, ChangeKind, EnvironmentPlan};

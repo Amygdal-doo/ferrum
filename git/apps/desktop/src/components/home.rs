@@ -4,13 +4,13 @@ use crate::app::FerrumGit;
 use crate::components::now_secs;
 use crate::components::widgets::small_button;
 use crate::state::Dialog;
-use ferrumgit_domain::text::relative_time;
-use gpui::{AnyElement, ClickEvent, Context, ElementId, Window, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{
+use ferrum_ui::components::{
     Clickable, Color, Headline, HeadlineSize, Label, LabelCommon, LabelSize, Tooltip, h_flex,
     v_flex,
 };
+use ferrum_ui::theme::ActiveTheme;
+use ferrumgit_domain::text::relative_time;
+use gpui::{AnyElement, ClickEvent, Context, ElementId, Window, div, prelude::*, px};
 
 fn home_action(
     id: impl Into<ElementId>,

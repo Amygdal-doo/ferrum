@@ -4,12 +4,12 @@
 use crate::app::FerrumApi;
 use crate::components::hint;
 use crate::components::shell::project::project_name;
-use ferrumapi_domain::Collection;
-use gpui::{AnyElement, Context, prelude::*};
-use ui::{
+use ferrum_ui::components::{
     Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Color, Label,
     LabelCommon as _, LabelSize, Tooltip, h_flex,
 };
+use ferrumapi_domain::Collection;
+use gpui::{AnyElement, Context, prelude::*};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum GroupKind {

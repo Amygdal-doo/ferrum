@@ -13,14 +13,14 @@ use crate::components::fields::{FieldSpec, on_request_edit};
 use crate::components::hint;
 use crate::state::RequestSection;
 use ferrum_ui::TextInput;
+use ferrum_ui::components::{
+    Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Color, Label,
+    LabelCommon as _, LabelSize, Tooltip, h_flex, v_flex,
+};
 use ferrumapi_domain::text::pretty_json;
 use ferrumapi_domain::{HttpRequest, RequestKind, RequestTab, TabId, VariableSet};
 use gpui::{AnyElement, Context, Entity, SharedString, Window, div, prelude::*};
 use std::rc::Rc;
-use ui::{
-    Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Color, Label,
-    LabelCommon as _, LabelSize, Tooltip, h_flex, v_flex,
-};
 
 /// Writes edited text into the request.
 pub type SpecSetter = Rc<dyn Fn(&mut HttpRequest, String)>;

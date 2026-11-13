@@ -6,13 +6,13 @@ use super::{labelled, setter};
 use crate::app::FerrumApi;
 use crate::components::{hint, select};
 use crate::state::protocols::WsStatus;
-use ferrumapi_domain::RequestTab;
-use ferrumapi_domain::protocol::{WsPayloadKind, WsTemplate};
-use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _,
     Disableable as _, IconButton, IconName, IconSize, Tooltip, h_flex, v_flex,
 };
+use ferrumapi_domain::RequestTab;
+use ferrumapi_domain::protocol::{WsPayloadKind, WsTemplate};
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 
 fn template_name(payload: &str) -> String {
     let one_line: String = payload.split_whitespace().collect::<Vec<_>>().join(" ");

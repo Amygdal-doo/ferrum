@@ -5,8 +5,8 @@
 use crate::app::FerrumData;
 use crate::commands::keys::KeyInputs;
 use crate::state::{Dialog, KeyViewLoad};
+use ferrum_ui::components::TintColor;
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::TintColor;
 use ferrumdata_domain::{EditorTabId, KeyKind, KeyTtl};
 
 /// What the view needs from the loaded value (avoids cloning its rows).

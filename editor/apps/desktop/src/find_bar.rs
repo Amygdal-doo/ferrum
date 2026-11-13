@@ -1,10 +1,10 @@
 //! The find / replace bar under the panes. It owns only the query fields
 //! and toggles; the workspace applies its events to the active editor.
 
+use ferrum_ui::components::{IconButton, IconName, IconSize};
 use ferrum_ui::prelude::*;
 use ferrum_ui::{TextInput, TextInputEvent};
 use ferrumeditor_core::find::SearchQuery;
-use ui::{IconButton, IconName, IconSize};
 
 pub enum FindBarEvent {
     QueryChanged,
@@ -212,7 +212,9 @@ impl Render for FindBar {
             .bg(colors.panel_background)
             .border_t_1()
             .border_color(colors.border)
-            .on_action(cx.listener(|_, _: &menu::Cancel, _, cx| cx.emit(FindBarEvent::Close)))
+            .on_action(
+                cx.listener(|_, _: &ferrum_ui::menu::Cancel, _, cx| cx.emit(FindBarEvent::Close)),
+            )
             .child(find_row)
             .when(self.show_replace, |this| {
                 this.child(

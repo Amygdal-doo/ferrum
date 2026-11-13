@@ -4,6 +4,10 @@ use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_request_edit};
 use crate::state::Dialog;
 use crate::state::protocols::WsStatus;
+use ferrum_ui::components::{
+    ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _,
+    StyledTypography as _, Tooltip, h_flex, v_flex,
+};
 use ferrum_ui::kbd;
 use ferrumapi_application::interop::codegen::CodeTarget;
 use ferrumapi_domain::urlparams::params_from_url;
@@ -11,10 +15,6 @@ use ferrumapi_domain::vars::Segment;
 use ferrumapi_domain::{RequestKind, RequestTab, VariableSet};
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 use std::collections::HashSet;
-use ui::{
-    ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _,
-    StyledTypography as _, Tooltip, h_flex, v_flex,
-};
 
 impl FerrumApi {
     pub(super) fn render_url_bar(

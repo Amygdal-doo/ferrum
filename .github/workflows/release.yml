@@ -25,8 +25,8 @@
 #   RELEASES_TOKEN   A token with Contents: write on $RELEASE_REPO.
 #   SUBMODULE_TOKEN  A token with read access to Amygdal-doo/ferrum-ide (the
 #                    repo behind the ide/ submodule). Every app needs it checked
-#                    out, because the apps depend on its GPUI and UI crates by
-#                    path. It is only a library; nothing is released from it.
+#                    out, because the apps depend on its GPUI crates by path.
+#                    It is only a library; nothing is released from it.
 name: Release
 
 on:
@@ -141,6 +141,9 @@ jobs:
         run: |
           ide/script/linux
           sudo apt-get install -y dpkg-dev
+      - name: License check (no GPL-family crates in shipped binaries)
+        if: env.FERRUM_SKIP != 'true' && runner.os == 'Linux'
+        run: scripts/check-licenses.sh
       - name: Build
         if: env.FERRUM_SKIP != 'true'
         run: |

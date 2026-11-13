@@ -10,15 +10,15 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::components::{
+    Button, ButtonCommon, ButtonSize, ButtonStyle, Clickable, Color, FixedWidth, Icon, IconButton,
+    IconName, IconSize, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex, v_flex,
+};
+use crate::theme::ActiveTheme;
 use gpui::{
     Anchor, AnyElement, App, ClipboardItem, Context, Entity, EventEmitter, FocusHandle, Focusable,
     IntoElement, KeyBinding, KeyDownEvent, MouseButton, ParentElement, PathPromptOptions, Render,
     SharedString, Subscription, Window, actions, anchored, deferred, div, point, prelude::*, px,
-};
-use theme::ActiveTheme;
-use ui::{
-    Button, ButtonCommon, ButtonSize, ButtonStyle, Clickable, Color, FixedWidth, Icon, IconButton,
-    IconName, IconSize, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex, v_flex,
 };
 
 use crate::project::{self, FerrumApp, RecentProject};

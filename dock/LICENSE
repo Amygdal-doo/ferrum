@@ -1,5 +1,5 @@
-Copyright (c) 2026 the FerrumAPI authors. All rights reserved.
+Copyright (c) 2026 the FerrumContainers (FerrumDock) authors. All rights reserved.
 
 No license has been chosen yet.
-Vendored third-party code keeps its own license, e.g.
-apps/desktop/src/components/rust_ui/LICENSE-rust-ui (MIT).
+Third-party components keep their own licences; see THIRD_PARTY_NOTICES.md
+at the repository root.

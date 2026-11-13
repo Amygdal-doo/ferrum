@@ -1,8 +1,8 @@
 //! Small shared pieces: status icons and a value dropdown.
 
 use crate::ci::CiView;
+use ferrum_ui::components::{DropdownStyle, Icon, IconSize};
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::{DropdownStyle, Icon, IconSize};
 use ferrumci_core::{CheckState, RunState};
 use std::rc::Rc;
 

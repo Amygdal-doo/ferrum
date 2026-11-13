@@ -1,12 +1,12 @@
 use crate::app::FerrumApi;
 use crate::components::select;
 use crate::state::Dialog;
-use ferrum_ui::toolbar;
-use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*};
-use ui::{
+use ferrum_ui::components::{
     Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Color, Divider, Label,
     LabelCommon as _, LabelSize, Tooltip,
 };
+use ferrum_ui::toolbar;
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*};
 
 impl FerrumApi {
     pub fn render_header(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {

@@ -3,9 +3,9 @@
 use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change};
 use crate::components::{checkbox, hint};
+use ferrum_ui::components::{Label, h_flex, v_flex};
 use ferrumapi_domain::{HttpRequest, RequestKind, TabId};
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use ui::{Label, h_flex, v_flex};
 
 impl FerrumApi {
     pub(super) fn render_settings_editor(

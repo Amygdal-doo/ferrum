@@ -109,8 +109,8 @@ RUST_LOG=debug cargo api         # verbose logs (never include URLs, headers, bo
 ```
 
 ### Styling
-There is no stylesheet. Components come from Zed's `ui` crate and `ferrum-ui`
-(`../shared/ui`: app bootstrap, theme, text input, splitter, notices, modal); colours come
+There is no stylesheet. Components come from `ferrum-ui` (`../shared/ui`: app bootstrap,
+theme, buttons, labels, icons, menus, text input, splitter, notices, modal); colours come
 from the active theme (`cx.theme()`).
 
 ### Packaging

@@ -117,7 +117,7 @@ next check; no launcher release is needed.
 | `extra_binaries` | no | more executables that get `~/.ferrum/bin` links (`fterm`) |
 | `bundle_name` | for new apps | macOS bundle name without `.app`, published as `~/Applications/Ferrum/<bundle_name>.app` |
 | `former_names` | no | names the app was published under before a rename (`["FerrumDock"]` for FerrumContainers): a `<name>.app` copy in `~/Applications/Ferrum` or a `<name>.lnk` Start Menu shortcut with one is replaced by the current name's, at activation and at every start. Added to the built-in list; Launcher 0.8.1 and older ignore it |
-| `icon` | no | a `ui` crate `IconName` (`ToolHammer` or `tool_hammer`); unknown names show a generic icon |
+| `icon` | no | a `ferrum_ui::components::IconName` (`ToolHammer` or `tool_hammer`); unknown names show a generic icon |
 | `logo` | no | `https://` URL of a PNG (≤ 1 MiB), downloaded once and cached; falls back to the built-in logo, then the icon |
 | `order` | no | position on the overview, ascending (built-ins use 10–70; default 1000) |
 

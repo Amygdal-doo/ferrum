@@ -4,10 +4,10 @@ use super::{DialogState, modal};
 use crate::app::FerrumGit;
 use crate::components::icons::Icon;
 use ferrum_ui::TextInput;
+use ferrum_ui::components::{Color, IconSize, Label, LabelCommon, LabelSize, h_flex, v_flex};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_domain::{GitRef, RefKind, RepoEntry, RepoOp};
 use gpui::{AnyElement, Context, Entity, SharedString, Window, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{Color, IconSize, Label, LabelCommon, LabelSize, h_flex, v_flex};
 
 pub struct Picker {
     pub query: Entity<TextInput>,
@@ -237,12 +237,16 @@ pub fn render_quick_open(app: &FerrumGit, cx: &mut Context<FerrumGit>) -> AnyEle
         .child(
             v_flex()
                 .key_context("FerrumGitPicker")
-                .on_action(cx.listener(move |app, _: &::menu::SelectNext, _, cx| {
-                    app.move_cursor(1, len, cx)
-                }))
-                .on_action(cx.listener(move |app, _: &::menu::SelectPrevious, _, cx| {
-                    app.move_cursor(-1, len, cx)
-                }))
+                .on_action(
+                    cx.listener(move |app, _: &ferrum_ui::menu::SelectNext, _, cx| {
+                        app.move_cursor(1, len, cx)
+                    }),
+                )
+                .on_action(
+                    cx.listener(move |app, _: &ferrum_ui::menu::SelectPrevious, _, cx| {
+                        app.move_cursor(-1, len, cx)
+                    }),
+                )
                 .gap_3()
                 .child(query)
                 .child(list_box(rows, "No repositories match.", cx)),
@@ -298,12 +302,16 @@ pub fn render_pick_branch(app: &FerrumGit, cx: &mut Context<FerrumGit>) -> AnyEl
         .child(
             v_flex()
                 .key_context("FerrumGitPicker")
-                .on_action(cx.listener(move |app, _: &::menu::SelectNext, _, cx| {
-                    app.move_cursor(1, len, cx)
-                }))
-                .on_action(cx.listener(move |app, _: &::menu::SelectPrevious, _, cx| {
-                    app.move_cursor(-1, len, cx)
-                }))
+                .on_action(
+                    cx.listener(move |app, _: &ferrum_ui::menu::SelectNext, _, cx| {
+                        app.move_cursor(1, len, cx)
+                    }),
+                )
+                .on_action(
+                    cx.listener(move |app, _: &ferrum_ui::menu::SelectPrevious, _, cx| {
+                        app.move_cursor(-1, len, cx)
+                    }),
+                )
                 .gap_3()
                 .child(query)
                 .child(list_box(rows, "No other branches.", cx)),

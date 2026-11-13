@@ -8,14 +8,14 @@ mod hosts;
 pub mod model;
 
 use crate::view::TermView;
+use ferrum_ui::components::{
+    ButtonCommon, Clickable, ContextMenu, IconButton, IconName, IconSize, PopoverMenu,
+    StyledTypography, Tooltip, h_flex, v_flex,
+};
 use ferrum_ui::gpui::{
     self, Context, DragMoveEvent, Hsla, SharedString, Window, div, prelude::*, px,
 };
 use ferrum_ui::theme::ActiveTheme;
-use ferrum_ui::ui::{
-    ButtonCommon, Clickable, ContextMenu, IconButton, IconName, IconSize, PopoverMenu,
-    StyledTypography, Tooltip, h_flex, v_flex,
-};
 use ferrum_ui::{DraggedSplitter, TextInput, TextInputEvent, badge};
 use ferrumterm_protocol::{ProgramState, ProgramStatus};
 use model::{Model, Row};

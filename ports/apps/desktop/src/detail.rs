@@ -190,7 +190,7 @@ pub fn render(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> Option<AnyEle
             })
             .child(
                 Button::new("d-kill", "Stop process…")
-                    .style(ButtonStyle::Tinted(ferrum_ui::ui::TintColor::Error))
+                    .style(ButtonStyle::Tinted(ferrum_ui::components::TintColor::Error))
                     .on_click(cx.listener(move |app, _, _, cx| app.ask_kill(kill.clone(), cx))),
             )
             .into_any_element(),

@@ -2,9 +2,11 @@
 
 use crate::app::FerrumContainers;
 use crate::views::widgets::{icon_button, muted};
+use ferrum_ui::components::{
+    Color, IconName, Label, LabelCommon, LabelSize, StyledTypography, h_flex, v_flex,
+};
 use ferrumdock_engine::ContainerDetail;
 use gpui::{AnyElement, App, Context, SharedString, div, prelude::*, px};
-use ui::{Color, IconName, Label, LabelCommon, LabelSize, StyledTypography, h_flex, v_flex};
 
 pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let Some(detail) = app.state.detail.as_ref() else {

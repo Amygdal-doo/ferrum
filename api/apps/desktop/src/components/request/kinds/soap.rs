@@ -4,14 +4,14 @@ use super::{labelled, load_button, setter};
 use crate::app::FerrumApi;
 use crate::components::{hint, select};
 use crate::state::protocols::Loadable;
+use ferrum_ui::components::{
+    ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _,
+    LoadingLabel, Tooltip, h_flex, v_flex,
+};
 use ferrumapi_domain::RequestTab;
 use ferrumapi_domain::protocol::SoapVersion;
 use ferrumapi_domain::protocol::soap::{envelope, soap_headers};
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use ui::{
-    ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _,
-    LoadingLabel, Tooltip, h_flex, v_flex,
-};
 
 impl FerrumApi {
     pub(super) fn render_soap(

@@ -3,7 +3,7 @@
 One desktop process. No backend server.
 
 ```
-apps/desktop (GPUI UI, main thread; widgets from ferrum-ui + Zed `ui`)
+apps/desktop (GPUI UI, main thread; widgets from ferrum-ui)
    │  commands::background(...) ──► AppServices::spawn (dedicated Tokio runtime, 2 workers)
    ▼
 crates/application   ConnectionService · QueryService (supervisor) · safety

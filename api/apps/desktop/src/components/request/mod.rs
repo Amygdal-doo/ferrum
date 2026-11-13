@@ -10,9 +10,9 @@ mod tab_bar;
 mod url_bar;
 
 use crate::app::FerrumApi;
+use ferrum_ui::components::{ActiveTheme as _, StyledTypography as _, h_flex, v_flex};
 use ferrumapi_application::http::unresolved_variables;
 use gpui::{AnyElement, Context, Window, div, prelude::*};
-use ui::{ActiveTheme as _, StyledTypography as _, h_flex, v_flex};
 
 impl FerrumApi {
     pub fn render_request_pane(

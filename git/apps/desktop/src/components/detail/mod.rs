@@ -14,9 +14,9 @@ use crate::components::file_panel::file_panel;
 use crate::components::graph::commit_list;
 use crate::components::widgets::empty;
 use crate::state::{Page, Selection};
+use ferrum_ui::components::v_flex;
+use ferrum_ui::theme::ActiveTheme;
 use gpui::{AnyElement, Context, Window, div, prelude::*};
-use theme::ActiveTheme;
-use ui::v_flex;
 
 pub fn middle_column(
     app: &mut FerrumGit,

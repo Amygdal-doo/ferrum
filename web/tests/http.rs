@@ -53,7 +53,7 @@ async fn send_with(releases: Releases, req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 29] = [
+const PAGES: [&str; 30] = [
     "/",
     "/apps",
     "/features",
@@ -82,6 +82,7 @@ const PAGES: [&str; 29] = [
     "/updates",
     "/updates/ferrum-public-alpha",
     "/about",
+    "/licenses",
     "/privacy",
 ];
 
@@ -778,6 +779,48 @@ async fn new_pages_are_linked_from_every_page() {
     ] {
         assert!(html.contains(&format!(r#"href="{path}""#)), "{path}");
     }
+}
+
+#[tokio::test]
+async fn licenses_page_lists_bundled_works_and_is_linked() {
+    let res = get("/licenses").await;
+    assert_eq!(res.status, StatusCode::OK);
+    let html = res.text();
+    assert_eq!(html.matches("<h1").count(), 1);
+    for needle in [
+        "Lucide",
+        "IBM Plex Sans",
+        "Lilex",
+        "OFL",
+        "ISC",
+        "Apache-2.0",
+        "MIT",
+        "all rights reserved",
+        "AMYGDAL d.o.o.",
+        "<details",
+        "axum",
+        "maud",
+    ] {
+        assert!(html.contains(needle), "{needle}");
+    }
+    assert!(ld_types(&json_ld(&html)).contains(&"BreadcrumbList".to_owned()));
+
+    let sitemap = get("/sitemap.xml").await.text();
+    assert!(sitemap.contains("<loc>http://localhost:8080/licenses</loc>"));
+
+    for path in ["/", "/privacy", "/licenses"] {
+        let html = get(path).await.text();
+        let footer = html.split("<footer").nth(1).unwrap_or_default();
+        assert!(footer.contains(r#"href="/licenses""#), "{path}");
+    }
+    for path in ["/security", "/faq", "/about"] {
+        let html = get(path).await.text();
+        let main = html.split("<footer").next().unwrap_or_default();
+        assert!(main.contains(r#"href="/licenses""#), "{path}");
+    }
+    let faq = get("/faq").await.text();
+    assert!(faq.contains("proprietary"));
+    assert!(!get("/about").await.text().contains("theme crates"));
 }
 
 #[test]

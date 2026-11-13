@@ -5,11 +5,11 @@ use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change};
 use crate::components::hint;
 use crate::state::Dialog;
-use gpui::{AnyElement, Context, Window, div, prelude::*, px};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, Color,
     Disableable as _, Divider, Label, LabelCommon as _, LabelSize, h_flex, v_flex,
 };
+use gpui::{AnyElement, Context, Window, div, prelude::*, px};
 
 impl FerrumApi {
     fn import_curl(&mut self, cx: &mut Context<Self>) {

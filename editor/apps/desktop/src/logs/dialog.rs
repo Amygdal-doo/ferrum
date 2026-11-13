@@ -1,9 +1,9 @@
 //! Add / edit / remove a source.
 
 use crate::logs::LogsView;
+use ferrum_ui::components::Checkbox;
 use ferrum_ui::gpui::AnyElement;
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::Checkbox;
 use ferrumlogs_core::{SourceConfig, SourceKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,9 +1,9 @@
 //! The job log: folding groups, coloured text, highlighted errors and search.
 
 use crate::ci::CiView;
+use ferrum_ui::components::{Icon, IconSize};
 use ferrum_ui::prelude::*;
 use ferrum_ui::theme::ThemeColors;
-use ferrum_ui::ui::{Icon, IconSize};
 use ferrumci_core::RunState;
 use ferrumci_core::ansi::AnsiColor;
 use ferrumci_core::logs::{JobLog, LineKind};

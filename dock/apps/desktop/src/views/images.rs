@@ -6,9 +6,9 @@ use crate::state::{Section, matches_any};
 use crate::views::widgets::{
     button, cell, grow_cell, header_row, icon_button, muted, row, section_bar,
 };
+use ferrum_ui::components::{Color, IconName, Label, LabelCommon, LabelSize, h_flex, v_flex};
 use ferrumdock_engine::{Image, format};
 use gpui::{AnyElement, Context, SharedString, prelude::*};
-use ui::{Color, IconName, Label, LabelCommon, LabelSize, h_flex, v_flex};
 
 const COLUMNS: [(&str, Option<f32>); 6] = [
     ("REPOSITORY:TAG", None),

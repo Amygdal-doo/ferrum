@@ -7,12 +7,12 @@ pub mod sidebar;
 pub mod widgets;
 
 use crate::app::FerrumApi;
-use ferrumapi_domain::{HttpMethod, RequestKind};
-use gpui::{App, Context, ElementId, Hsla, SharedString, Window, div, prelude::*, rgb};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, Checkbox, ContextMenu, DropdownMenu, DropdownStyle, Label, LabelCommon as _,
     LabelSize, ToggleState,
 };
+use ferrumapi_domain::{HttpMethod, RequestKind};
+use gpui::{App, Context, ElementId, Hsla, SharedString, Window, div, prelude::*, rgb};
 
 /// Postman-style method colour.
 #[must_use]
@@ -81,7 +81,7 @@ pub fn method_label(m: HttpMethod, cx: &App) -> impl IntoElement {
 pub fn hint(text: impl Into<SharedString>) -> Label {
     Label::new(text)
         .size(LabelSize::Small)
-        .color(ui::Color::Muted)
+        .color(ferrum_ui::components::Color::Muted)
 }
 
 /// Underlined tab (request sections, response views, dialog panes).

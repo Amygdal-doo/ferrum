@@ -1,5 +1,5 @@
 /* Docs, changelog, FAQ, security and compare pages. Markup: src/pages/docs/,
-   changelog.rs, faq.rs, security.rs, compare.rs. Tokens only. */
+   changelog.rs, faq.rs, security.rs, compare.rs, licenses.rs. Tokens only. */
 
 /* ---------- Docs: index rail + reading column ---------- */
 .docs-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-8) var(--sp-16); padding-block: var(--sp-12) 0; }
@@ -95,3 +95,18 @@
 
 /* ---------- Security ---------- */
 .page-security .section .prose-list li::before, .page-security .callout .prose-list li::before { background: var(--security); }
+
+/* ---------- Licences (src/pages/licenses.rs) ---------- */
+.licence-table th[scope="row"] { width: 10rem; }
+.licence-table__detail { display: block; margin-top: var(--sp-1); font-size: var(--fs-xs); color: var(--text-faint); }
+.licence-table td a { overflow-wrap: anywhere; }
+.licence-text { max-width: var(--measure); border: var(--rule); border-radius: var(--radius); background: var(--bg); }
+.licence-text + .licence-text { margin-top: var(--sp-3); }
+.licence-text summary { padding: var(--sp-3) var(--sp-4); cursor: pointer; font-weight: 600; color: var(--text); }
+.licence-text__for { font-weight: 400; color: var(--text-muted); }
+.licence-text[open] summary { border-bottom: var(--rule); }
+.licence-text pre {
+  margin: 0; padding: var(--sp-4); max-height: 28rem; overflow: auto;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted);
+}

@@ -1,9 +1,9 @@
 //! Context menu at the pointer with a click-away backdrop.
 
 use crate::app::FerrumGit;
+use ferrum_ui::components::{Color, Label, LabelCommon, LabelSize, v_flex};
+use ferrum_ui::theme::ActiveTheme;
 use gpui::{AnyElement, Context, MouseButton, anchored, deferred, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{Color, Label, LabelCommon, LabelSize, v_flex};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MenuItem {

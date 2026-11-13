@@ -8,13 +8,13 @@ use crate::components::icons::Icon;
 use crate::components::split::layout_toggle;
 use crate::components::widgets::{ghost_button, primary_button, small_button};
 use crate::state::{Dialog, FileTab};
-use ferrumgit_domain::{DiffSource, RepoOp};
-use gpui::{AnyElement, Context, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{
+use ferrum_ui::components::{
     ButtonCommon, Clickable, Color, Disableable, IconSize, Label, LabelCommon, LabelSize,
     StyledTypography, Tooltip, h_flex, v_flex,
 };
+use ferrum_ui::theme::ActiveTheme;
+use ferrumgit_domain::{DiffSource, RepoOp};
+use gpui::{AnyElement, Context, div, prelude::*, px};
 
 pub fn diff_pane(app: &FerrumGit, cx: &mut Context<FerrumGit>) -> AnyElement {
     let theme = cx.theme().clone();

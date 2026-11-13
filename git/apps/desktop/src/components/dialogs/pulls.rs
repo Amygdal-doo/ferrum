@@ -8,13 +8,13 @@ use crate::components::widgets::{
     radio_row, small_button,
 };
 use ferrum_ui::TextInput;
-use ferrumgit_application::forge::{MergeMethod, NewPullRequest, ReviewEvent};
-use ferrumgit_domain::{ForgeKind, RefKind, RepoForge, RepoId, TokenSource};
-use gpui::{AnyElement, Context, Entity, SharedString, Window, prelude::*};
-use ui::{
+use ferrum_ui::components::{
     Checkbox, Clickable, Color, Disableable, Label, LabelCommon, LabelSize, ToggleState, h_flex,
     v_flex,
 };
+use ferrumgit_application::forge::{MergeMethod, NewPullRequest, ReviewEvent};
+use ferrumgit_domain::{ForgeKind, RefKind, RepoForge, RepoId, TokenSource};
+use gpui::{AnyElement, Context, Entity, SharedString, Window, prelude::*};
 
 pub struct ForgeSettingsForm {
     pub id: RepoId,

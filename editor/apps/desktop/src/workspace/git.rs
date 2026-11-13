@@ -2,8 +2,8 @@
 //! Files | Git tabs of the sidebar, `git:*` commands, and refreshing git
 //! status after saves and when the window comes back.
 
+use ferrum_ui::components::{Button, ButtonStyle, IconButton, IconName, IconSize};
 use ferrum_ui::prelude::*;
-use ui::{Button, ButtonStyle, IconButton, IconName, IconSize};
 
 use super::Workspace;
 use crate::git::{GitEvent, GitPanelEvent, GitState};

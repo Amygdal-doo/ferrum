@@ -6,13 +6,13 @@ use super::{Dialog, error_text, field, hint, modal};
 use crate::ssh::{KillOutcome, PortsResult};
 use crate::view::TermView;
 use ferrum_ui::TextInput;
+use ferrum_ui::components::{
+    Button, ButtonCommon, ButtonSize, ButtonStyle, Clickable, TintColor, h_flex, v_flex,
+};
 use ferrum_ui::gpui::{
     self, AnyElement, Context, Entity, SharedString, Window, div, prelude::*, px,
 };
 use ferrum_ui::theme::ActiveTheme;
-use ferrum_ui::ui::{
-    Button, ButtonCommon, ButtonSize, ButtonStyle, Clickable, TintColor, h_flex, v_flex,
-};
 use ferrumterm_net::ports::Signal;
 
 pub struct PortsDialog {

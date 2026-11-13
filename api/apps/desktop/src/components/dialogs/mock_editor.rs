@@ -6,14 +6,14 @@ use crate::components::fields::{FieldSpec, on_change};
 use crate::components::widgets::RowEditor;
 use crate::components::{checkbox, hint};
 use crate::state::kv;
+use ferrum_ui::components::{
+    ActiveTheme as _, ButtonCommon as _, Clickable as _, IconButton, IconName, IconSize, Label,
+    LabelCommon as _, LabelSize, Tooltip, h_flex, v_flex,
+};
 use ferrumapi_domain::mock::{MAX_MOCK_DELAY_MS, MockResponse};
 use ferrumapi_domain::{CollectionId, KeyValue, MockId, VariableSet};
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 use std::rc::Rc;
-use ui::{
-    ActiveTheme as _, ButtonCommon as _, Clickable as _, IconButton, IconName, IconSize, Label,
-    LabelCommon as _, LabelSize, Tooltip, h_flex, v_flex,
-};
 
 /// Which key/value list of a mock a table edits.
 #[derive(Clone, Copy)]

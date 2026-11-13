@@ -2,9 +2,11 @@
 
 use crate::app::FerrumApi;
 use crate::components::widgets::{header_cell, row_border};
+use ferrum_ui::components::{
+    Color, Label, LabelCommon as _, LabelSize, StyledTypography as _, h_flex, v_flex,
+};
 use ferrumapi_domain::ResponseCookie;
 use gpui::{AnyElement, Context, div, prelude::*, relative};
-use ui::{Color, Label, LabelCommon as _, LabelSize, StyledTypography as _, h_flex, v_flex};
 
 fn empty(text: &'static str) -> AnyElement {
     div()

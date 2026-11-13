@@ -8,7 +8,7 @@ use ferrum_ui::gpui::Hsla;
 use ferrum_ui::prelude::*;
 use ferrumlauncher_core::{AppStatus, Channel};
 
-/// A `ui` crate `IconName` from its variant name (`ToolHammer`) or its snake_case
+/// A `ferrum_ui::components::IconName` from its variant name (`ToolHammer`) or its snake_case
 /// form (`tool_hammer`); unknown names get a generic icon.
 pub fn icon_for(name: &str) -> IconName {
     let mut snake = String::with_capacity(name.len() + 4);

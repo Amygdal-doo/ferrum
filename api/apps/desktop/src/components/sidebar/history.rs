@@ -5,14 +5,14 @@ use crate::app::FerrumApi;
 use crate::components::{method_label, status_color};
 use crate::state::history::{group_by_local_day, time_of_day};
 use crate::state::{Dialog, tabs};
-use ferrumapi_domain::HistoryEntry;
-use ferrumapi_domain::text::human_duration_ms;
-use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Color,
     IconButton, IconName, IconSize, Label, LabelCommon as _, LabelSize, StyledTypography as _,
     Tooltip, VisibleOnHover as _, h_flex, v_flex,
 };
+use ferrumapi_domain::HistoryEntry;
+use ferrumapi_domain::text::human_duration_ms;
+use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
 
 impl FerrumApi {
     pub(super) fn render_history_view(&mut self, cx: &mut Context<Self>) -> AnyElement {

@@ -13,31 +13,7 @@ use ferrumapi_application::interop::odata::{ODataEntitySet, ODataMetadata};
 use ferrumapi_application::interop::wsdl::WsdlOperation;
 use ferrumapi_domain::protocol::SoapVersion;
 use ferrumapi_domain::{Collection, HttpRequest, HttpResponse, RequestKind, RequestTab, TabId};
-use gpui::{App, Entity, Font, Pixels, TestAppContext, VisualTestContext, font, px};
-use theme::{ThemeSettingsProvider, UiDensity};
-
-struct TestFonts {
-    ui: Font,
-    buffer: Font,
-}
-
-impl ThemeSettingsProvider for TestFonts {
-    fn ui_font<'a>(&'a self, _: &'a App) -> &'a Font {
-        &self.ui
-    }
-    fn buffer_font<'a>(&'a self, _: &'a App) -> &'a Font {
-        &self.buffer
-    }
-    fn ui_font_size(&self, _: &App) -> Pixels {
-        px(14.)
-    }
-    fn buffer_font_size(&self, _: &App) -> Pixels {
-        px(13.)
-    }
-    fn ui_density(&self, _: &App) -> UiDensity {
-        UiDensity::Default
-    }
-}
+use gpui::{Entity, TestAppContext, VisualTestContext};
 
 fn app_window(
     cx: &mut TestAppContext,
@@ -47,14 +23,7 @@ fn app_window(
     std::path::PathBuf,
 ) {
     cx.update(|cx| {
-        theme::set_theme_settings_provider(
-            Box::new(TestFonts {
-                ui: font("Helvetica"),
-                buffer: font("Menlo"),
-            }),
-            cx,
-        );
-        theme::init(theme::LoadThemes::JustBase, cx);
+        ferrum_ui::init_for_tests(cx);
     });
     let dir = std::env::temp_dir().join(format!("ferrumapi-ui-{}", uuid::Uuid::new_v4()));
     let services = AppServices::start(&dir).expect("services");

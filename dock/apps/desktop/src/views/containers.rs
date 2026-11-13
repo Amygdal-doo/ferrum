@@ -6,13 +6,13 @@ use crate::views::compose_rows;
 use crate::views::widgets::{
     button, cell, grow_cell, header_row, icon_button, muted, row, section_bar, state_dot,
 };
-use ferrumdock_engine::{Container, ContainerAction, ContainerState, format, ops};
-use gpui::{AnyElement, App, Context, Hsla, SharedString, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{
+use ferrum_ui::components::{
     Button, ButtonCommon, ButtonSize, Clickable, Color, IconName, Label, LabelCommon, LabelSize,
     h_flex, v_flex,
 };
+use ferrum_ui::theme::ActiveTheme;
+use ferrumdock_engine::{Container, ContainerAction, ContainerState, format, ops};
+use gpui::{AnyElement, App, Context, Hsla, SharedString, div, prelude::*, px};
 
 const COLUMNS: [(&str, Option<f32>); 7] = [
     ("NAME", None),
@@ -188,7 +188,7 @@ fn ports_cell(c: &Container, cx: &mut Context<FerrumContainers>) -> AnyElement {
         )
         .size(ButtonSize::Compact)
         .color(Color::Accent)
-        .tooltip(ui::Tooltip::text(format!("Open {url}")))
+        .tooltip(ferrum_ui::components::Tooltip::text(format!("Open {url}")))
         .on_click(cx.listener(move |app, _, _, cx| {
             cx.stop_propagation();
             app.open_url(&open, cx);

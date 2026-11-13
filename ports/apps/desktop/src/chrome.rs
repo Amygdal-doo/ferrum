@@ -1,7 +1,7 @@
 //! Toolbar, status bar, kill dialog, notices and small shared widgets.
 
+use ferrum_ui::components::TintColor;
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::TintColor;
 
 use crate::app::{FerrumPorts, KillStage};
 

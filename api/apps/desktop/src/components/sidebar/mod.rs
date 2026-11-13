@@ -9,13 +9,13 @@ mod tree;
 use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change};
 use crate::state::SidebarView;
-use ferrum_ui::empty_state;
-use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, Color, IconButton,
     IconName, IconSize, Label, LabelCommon as _, LabelSize, Toggleable as _, Tooltip, h_flex,
     v_flex,
 };
+use ferrum_ui::empty_state;
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*};
 
 /// Section header with a title and trailing actions.
 fn section_header(title: &'static str, actions: Vec<AnyElement>) -> impl IntoElement {

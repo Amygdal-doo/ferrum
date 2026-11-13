@@ -244,7 +244,12 @@ impl EnvApp {
         }
     }
 
-    fn on_cancel(&mut self, _: &menu::Cancel, window: &mut Window, cx: &mut Context<Self>) {
+    fn on_cancel(
+        &mut self,
+        _: &ferrum_ui::menu::Cancel,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.vault().is_some_and(|u| u.dialog.is_some()) {
             self.close_dialog(window, cx);
         } else {

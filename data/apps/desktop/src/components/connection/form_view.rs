@@ -38,7 +38,7 @@ impl ConnectionForm {
                 menu = menu.toggleable_entry(
                     label(option),
                     option == current,
-                    ferrum_ui::ui::IconPosition::Start,
+                    ferrum_ui::components::IconPosition::Start,
                     None,
                     move |_, cx| {
                         if let Err(e) = this.update(cx, |this, cx| {
@@ -259,7 +259,7 @@ impl Render for ConnectionForm {
                 .gap_1p5()
                 .child(Self::field("Password", &self.password))
                 .child(
-                    ferrum_ui::ui::Checkbox::new("cf-remember", toggle(self.remember))
+                    ferrum_ui::components::Checkbox::new("cf-remember", toggle(self.remember))
                         .label("Save password in the OS keychain (otherwise kept for this session only)")
                         .label_size(LabelSize::XSmall)
                         .on_click(cx.listener(|this, state: &ToggleState, _, cx| {
@@ -298,7 +298,7 @@ impl Render for ConnectionForm {
                 ),
             )
             .child(
-                ferrum_ui::ui::Checkbox::new("cf-read-only", toggle(self.read_only))
+                ferrum_ui::components::Checkbox::new("cf-read-only", toggle(self.read_only))
                     .label(self.read_only_label())
                     .label_size(LabelSize::Small)
                     .on_click(cx.listener(|this, state: &ToggleState, _, cx| {

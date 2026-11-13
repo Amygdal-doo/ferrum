@@ -5,14 +5,14 @@ use crate::app::FerrumApi;
 use crate::components::fields::FieldSpec;
 use crate::components::hint;
 use crate::state::protocols::WsStatus;
+use ferrum_ui::components::{
+    ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _,
+    StyledTypography as _, h_flex, v_flex,
+};
 use ferrumapi_domain::TabId;
 use ferrumapi_domain::protocol::websocket::{WsDirection, WsFrame};
 use ferrumapi_domain::text::human_size;
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use ui::{
-    ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _,
-    StyledTypography as _, h_flex, v_flex,
-};
 
 /// Rows rendered at most (newest); the session keeps more.
 const MAX_ROWS: usize = 500;

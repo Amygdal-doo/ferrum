@@ -6,12 +6,12 @@ use super::modal;
 use crate::app::FerrumApi;
 use crate::components::{MenuHandler, action_menu, hint, kind_color, menu_item};
 use crate::state::Dialog;
-use ferrumapi_domain::{CollectionId, ItemId, RequestKind};
-use gpui::{AnyElement, Context, ElementId, SharedString, prelude::*, px};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, ButtonCommon as _, IconButton, IconName, IconSize, PopoverMenu, Tooltip,
     h_flex, v_flex,
 };
+use ferrumapi_domain::{CollectionId, ItemId, RequestKind};
+use gpui::{AnyElement, Context, ElementId, SharedString, prelude::*, px};
 
 /// One-line description of each kind.
 #[must_use]

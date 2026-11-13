@@ -1,8 +1,8 @@
 //! Rendering of the tree view: header, entry list and context menu.
 
+use ferrum_ui::components::{Icon, IconButton, IconName, IconSize};
 use ferrum_ui::prelude::*;
 use gpui::{MouseButton, MouseDownEvent, anchored, deferred, point};
-use ui::{Icon, IconButton, IconName, IconSize};
 
 use super::{ContextMenuState, TreeEvent, TreeView};
 use crate::actions::RunCommand;

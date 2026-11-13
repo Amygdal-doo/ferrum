@@ -5,9 +5,9 @@ use crate::state::{Section, matches_any};
 use crate::views::widgets::{
     button, cell, grow_cell, header_row, icon_button, muted, row, section_bar,
 };
+use ferrum_ui::components::{Color, IconName, Label, LabelCommon, LabelSize, h_flex, v_flex};
 use ferrumdock_engine::format;
 use gpui::{AnyElement, Context, SharedString, prelude::*, px};
-use ui::{Color, IconName, Label, LabelCommon, LabelSize, h_flex, v_flex};
 
 fn list(id: &'static str, loaded: bool, empty: &'static str, rows: Vec<AnyElement>) -> AnyElement {
     if !loaded {

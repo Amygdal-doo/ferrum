@@ -1,8 +1,8 @@
 //! Add / edit a variable: key, value (masked while it is a secret),
 //! comment and the secret flag.
 
+use ferrum_ui::components::Checkbox;
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::Checkbox;
 use ferrumenv_core::Variable;
 use zeroize::Zeroizing;
 

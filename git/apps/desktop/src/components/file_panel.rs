@@ -8,6 +8,10 @@ use crate::components::icons::Icon;
 use crate::components::widgets::empty;
 use crate::components::{avatar_color, change_color, now_secs};
 use crate::state::{FileTab, FileView, Selection};
+use ferrum_ui::components::{
+    Color, IconSize, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex, v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_domain::text::{full_time, initials, relative_time};
 use ferrumgit_domain::{Blame, ChangeKind, FileCommit, RepoId};
 use gpui::{
@@ -16,10 +20,6 @@ use gpui::{
 };
 use std::ops::Range;
 use std::sync::Arc;
-use theme::ActiveTheme;
-use ui::{
-    Color, IconSize, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex, v_flex,
-};
 
 const HISTORY_ROW_H: f32 = 48.0;
 /// Width of the blame annotation column.

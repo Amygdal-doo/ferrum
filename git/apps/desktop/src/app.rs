@@ -8,6 +8,8 @@ use crate::components::graph::HistoryKey;
 use crate::components::shell::{project, toolbar};
 use crate::components::{home, menu, sidebar};
 use crate::state::{AppState, Dialog, Page};
+use ferrum_ui::components::{Color, Label, LabelCommon, h_flex, v_flex};
+use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{
     DraggedSplitter, Notice as UiNotice, ProjectBar, TextInput, TextInputEvent,
     ToggleProjectSwitcher, render_notice, splitter,
@@ -19,8 +21,6 @@ use gpui::{
     MouseButton, Pixels, Point, Subscription, Task, Window, actions, div, prelude::*, px,
 };
 use std::collections::HashSet;
-use theme::ActiveTheme;
-use ui::{Color, Label, LabelCommon, h_flex, v_flex};
 
 actions!(ferrumgit, [QuickOpen, Reload, GoBack, GoForward]);
 
@@ -37,8 +37,12 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("ctrl-r", Reload, context),
         KeyBinding::new("cmd-[", GoBack, context),
         KeyBinding::new("cmd-]", GoForward, context),
-        KeyBinding::new("up", ::menu::SelectPrevious, Some("FerrumGitPicker")),
-        KeyBinding::new("down", ::menu::SelectNext, Some("FerrumGitPicker")),
+        KeyBinding::new(
+            "up",
+            ferrum_ui::menu::SelectPrevious,
+            Some("FerrumGitPicker"),
+        ),
+        KeyBinding::new("down", ferrum_ui::menu::SelectNext, Some("FerrumGitPicker")),
     ]);
 }
 
@@ -222,7 +226,12 @@ impl FerrumGit {
         cx.notify();
     }
 
-    fn on_cancel(&mut self, _: &::menu::Cancel, window: &mut Window, cx: &mut Context<Self>) {
+    fn on_cancel(
+        &mut self,
+        _: &ferrum_ui::menu::Cancel,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.menu.take().is_some() {
         } else if self.dialog.is_some() {
             self.close_dialog(window, cx);

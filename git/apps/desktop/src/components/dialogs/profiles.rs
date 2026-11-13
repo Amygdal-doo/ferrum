@@ -8,15 +8,15 @@ use crate::components::widgets::{
     caption, card, danger_button, field, ghost_button, hint, primary_button, radio_row,
     small_button,
 };
+use ferrum_ui::components::{
+    ButtonCommon, Clickable, Color, Disableable, Label, LabelCommon, LabelSize, StyledTypography,
+    h_flex, v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{TextInput, TextInputEvent};
 use ferrumgit_application::{AppServices, PassphraseChange};
 use ferrumgit_domain::{Profile, ProfileId, Secret, SshAuth};
 use gpui::{AnyElement, Context, Entity, SharedString, Window, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{
-    ButtonCommon, Clickable, Color, Disableable, Label, LabelCommon, LabelSize, StyledTypography,
-    h_flex, v_flex,
-};
 
 pub struct ProfilesForm {
     pub current: Option<ProfileId>,
@@ -459,7 +459,7 @@ fn render_editor(editor: &Editor, cx: &mut Context<FerrumGit>) -> AnyElement {
                 let label = k.rsplit('/').next().unwrap_or(k).to_owned();
                 let path = k.clone();
                 ghost_button(SharedString::from(format!("key-{k}")), label)
-                    .tooltip(ui::Tooltip::text(k.clone()))
+                    .tooltip(ferrum_ui::components::Tooltip::text(k.clone()))
                     .on_click(cx.listener(move |app, _, _, cx| app.set_key_path(path.clone(), cx)))
                     .into_any_element()
             })
@@ -518,7 +518,7 @@ fn render_editor(editor: &Editor, cx: &mut Context<FerrumGit>) -> AnyElement {
                     )
                     .child(
                         ghost_button("generate-key", "Generate new key")
-                            .tooltip(ui::Tooltip::text(format!(
+                            .tooltip(ferrum_ui::components::Tooltip::text(format!(
                                 "Creates {gen_path} (ed25519, no passphrase)"
                             )))
                             .on_click(cx.listener(move |app, _, _, cx| {

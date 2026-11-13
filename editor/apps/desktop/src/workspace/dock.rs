@@ -1,8 +1,8 @@
 //! The right dock: Agents | Debug tabs over the agent sessions list or
 //! the debug panel. ⌥⌘A and ⇧⌘Y show / hide it on their tab.
 
+use ferrum_ui::components::{IconButton, IconName, IconSize};
 use ferrum_ui::prelude::*;
-use ui::{IconButton, IconName, IconSize};
 
 use super::Workspace;
 

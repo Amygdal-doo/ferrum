@@ -6,16 +6,16 @@ use crate::commands::repo::HunkAction;
 use crate::components::highlight::{Token, highlight};
 use crate::components::split::split_side;
 use crate::components::widgets::small_button;
+use ferrum_ui::components::{
+    Clickable, Color, Disableable, Label, LabelCommon, LabelSize, StyledTypography, h_flex, v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_domain::{DiffLine, DiffSource, FileDiff, Hunk, LineKind, RepoId};
 use gpui::{
     AnyElement, Context, HighlightStyle, Hsla, SharedString, StyledText, div, prelude::*, px, rgb,
 };
 use std::ops::Range;
 use std::sync::Arc;
-use theme::ActiveTheme;
-use ui::{
-    Clickable, Color, Disableable, Label, LabelCommon, LabelSize, StyledTypography, h_flex, v_flex,
-};
 
 /// Lines rendered per file at most.
 pub const MAX_LINES: usize = 4000;
@@ -306,7 +306,7 @@ fn line_view(
     selectable: bool,
     invisibles: bool,
     id_base: &str,
-    theme: &theme::Theme,
+    theme: &ferrum_ui::theme::Theme,
     cx: &mut Context<FerrumGit>,
 ) -> AnyElement {
     let colors = theme.colors();

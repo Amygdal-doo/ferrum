@@ -35,13 +35,12 @@ const PRINCIPLES: &[(&str, &str)] = &[
 const CREDITS: &[(&str, &str)] = &[
     (
         "Zed",
-        "The open-source editor GPUI and the ui and theme crates come from, developed by Zed \
-         Industries.",
+        "The open-source editor GPUI comes from, developed by Zed Industries.",
     ),
     (
         "GPUI",
-        "Zed's GPU-accelerated UI framework. Every Ferrum desktop app renders with it, \
-         together with Zed's ui and theme crates.",
+        "Zed's GPU-accelerated UI framework, under Apache-2.0. Every Ferrum desktop app \
+         renders with it, using Ferrum's own UI components.",
     ),
     (
         "SQLx",
@@ -130,9 +129,11 @@ pub fn render(site_url: &str) -> Markup {
                         }
                     }
                     p class="muted" {
-                        "GPUI and the ui and theme crates come from the open-source "
+                        "GPUI comes from the open-source "
                         a href=(site::ZED_UPSTREAM_URL) rel="noopener" { "Zed editor" }
-                        ". Ferrum is not affiliated with or endorsed by Zed Industries."
+                        ". Ferrum is not affiliated with or endorsed by Zed Industries. The \
+                         apps' third-party icons, fonts and libraries and their licences are on "
+                        a href=(crate::pages::licenses::PATH) { "Open source licences" } "."
                     }
                 }
             }

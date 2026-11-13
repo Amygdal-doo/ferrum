@@ -10,10 +10,12 @@ mod repo_settings;
 use crate::app::FerrumGit;
 use crate::components::widgets::{confirm_button, field, ghost_button, hint, radio_row};
 use crate::state::{Dialog, PromptKind};
+use ferrum_ui::components::{
+    Checkbox, Clickable, Disableable, Label, LabelSize, ToggleState, v_flex,
+};
 use ferrum_ui::{Modal, TextInput, TextInputEvent};
 use ferrumgit_domain::{RepoId, RepoOp, ResetMode};
 use gpui::{AnyElement, Context, Entity, Window, prelude::*, px};
-use ui::{Checkbox, Clickable, Disableable, Label, LabelSize, ToggleState, v_flex};
 
 pub enum DialogState {
     Confirm {

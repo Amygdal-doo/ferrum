@@ -1,9 +1,9 @@
 //! Panes (tab stacks) and their split layout: adding / activating /
 //! closing items, splitting right or down, moving focus, rendering tabs.
 
+use ferrum_ui::components::{IconButton, IconName, IconSize};
 use ferrum_ui::prelude::*;
 use ferrumeditor_core::session::SplitAxis;
-use ui::{IconButton, IconName, IconSize};
 
 use super::Workspace;
 use crate::editor::{EditorEvent, EditorView};

@@ -13,13 +13,13 @@ use crate::commands::files;
 use crate::components::{status_color, tab_button};
 use crate::state::{ResponseView, TabResponse};
 use ferrum_ui::badge;
-use ferrumapi_domain::text::{human_duration_ms, human_size};
-use ferrumapi_domain::{HttpResponse, TabId};
-use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*};
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Color,
     Label, LabelCommon as _, LabelSize, LoadingLabel, Tooltip, h_flex, v_flex,
 };
+use ferrumapi_domain::text::{human_duration_ms, human_size};
+use ferrumapi_domain::{HttpResponse, TabId};
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*};
 
 fn centered(children: Vec<AnyElement>) -> AnyElement {
     v_flex()

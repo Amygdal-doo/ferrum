@@ -5,14 +5,14 @@ use crate::app::FerrumApi;
 use crate::components::fields::FieldSpec;
 use crate::components::select;
 use crate::state::Dialog;
+use ferrum_ui::components::{
+    ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, Disableable as _,
+    h_flex,
+};
 use ferrumapi_application::code_snippet;
 use ferrumapi_application::interop::codegen::CodeTarget;
 use ferrumapi_domain::TabId;
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use ui::{
-    ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, Disableable as _,
-    h_flex,
-};
 
 impl FerrumApi {
     pub(super) fn render_code_dialog(

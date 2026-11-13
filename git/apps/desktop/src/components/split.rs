@@ -3,10 +3,10 @@
 use crate::app::FerrumGit;
 use crate::components::code::{line_text, toggle_line};
 use crate::components::highlight::Token;
+use ferrum_ui::components::{StyledTypography, h_flex};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_domain::{DiffLine, LineKind, RepoId};
 use gpui::{AnyElement, Context, Hsla, SharedString, StyledText, div, prelude::*, px};
-use theme::ActiveTheme;
-use ui::{StyledTypography, h_flex};
 
 /// One half of a side-by-side row: the old (`left`) or new line, or an empty
 /// filler when the other side has no counterpart. Lines are clipped, not wrapped.
@@ -21,7 +21,7 @@ pub fn split_side(
     invisibles: bool,
     left: bool,
     id_base: &str,
-    theme: &theme::Theme,
+    theme: &ferrum_ui::theme::Theme,
     cx: &mut Context<FerrumGit>,
 ) -> AnyElement {
     let colors = theme.colors();

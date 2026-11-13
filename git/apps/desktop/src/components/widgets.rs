@@ -1,13 +1,13 @@
 //! Small app-local building blocks on top of Zed's `ui` crate.
 
+use ferrum_ui::components::{
+    Button, ButtonCommon, ButtonSize, ButtonStyle, Color, Label, LabelCommon, LabelSize, TintColor,
+    h_flex, v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use gpui::{
     AnyElement, App, ClickEvent, Div, ElementId, SharedString, Stateful, Window, div, prelude::*,
     px,
-};
-use theme::ActiveTheme;
-use ui::{
-    Button, ButtonCommon, ButtonSize, ButtonStyle, Color, Label, LabelCommon, LabelSize, TintColor,
-    h_flex, v_flex,
 };
 
 /// A labelled form row: small muted caption above `child`.

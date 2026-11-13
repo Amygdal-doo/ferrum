@@ -18,9 +18,9 @@ pub mod widgets;
 
 use crate::app::FerrumContainers;
 use crate::state::{EngineStatus, Section};
+use ferrum_ui::components::h_flex;
 use ferrum_ui::{DraggedSplitter, splitter};
 use gpui::{AnyElement, Axis, Context, DragMoveEvent, Window, div, prelude::*, px};
-use ui::h_flex;
 
 /// Everything between toolbar and status bar.
 pub fn body(

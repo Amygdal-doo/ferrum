@@ -116,6 +116,12 @@ pub fn render(site_url: &str) -> Markup {
                              private repository, its GitHub token goes into the macOS Keychain, \
                              never into a file or a log."
                         }
+                        li {
+                            "The apps link only permissively licensed third-party code, and CI \
+                             fails a build if a GPL-family crate gets in. Each component and its \
+                             licence is listed on "
+                            a href=(crate::pages::licenses::PATH) { "Open source licences" } "."
+                        }
                     }
                 }
             }))

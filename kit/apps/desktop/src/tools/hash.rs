@@ -2,8 +2,8 @@
 
 use super::layout;
 use crate::widgets::*;
+use ferrum_ui::components::Checkbox;
 use ferrum_ui::prelude::*;
-use ferrum_ui::ui::Checkbox;
 use ferrumkit_core::hash::{HashAlgorithm, hash_all};
 
 pub struct HashTool {

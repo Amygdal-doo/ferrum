@@ -7,14 +7,16 @@ use crate::app::FerrumGit;
 use crate::components::actions::Action;
 use crate::components::icons::Icon;
 use crate::state::{Dialog, Page, PromptKind};
+use ferrum_ui::components::{
+    Color, IconSize, Label, LabelCommon, LabelSize, Tooltip, h_flex, v_flex,
+};
+use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_domain::{GitRef, RefKind};
 use gpui::{
     AnyElement, ClickEvent, Context, ElementId, MouseButton, MouseDownEvent, SharedString, Window,
     div, prelude::*, px,
 };
-use theme::ActiveTheme;
 use tree::{build, render_tree};
-use ui::{Color, IconSize, Label, LabelCommon, LabelSize, Tooltip, h_flex, v_flex};
 
 pub(crate) fn toggle(app: &mut FerrumGit, key: &str, cx: &mut Context<FerrumGit>) {
     if !app.collapsed.remove(key) {

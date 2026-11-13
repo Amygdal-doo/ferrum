@@ -5,13 +5,13 @@ use crate::commands::files::file_name;
 use crate::components::widgets::{RowEditor, header_cell, row_border};
 use crate::components::{checkbox, select};
 use crate::state::kv::{self, RowEdit};
-use ferrumapi_domain::{FormField, FormFieldKind, RequestBody, TabId, VariableSet};
-use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use std::rc::Rc;
-use ui::{
+use ferrum_ui::components::{
     ActiveTheme as _, ButtonCommon as _, Clickable as _, IconButton, IconName, IconSize,
     StyledTypography as _, Tooltip, VisibleOnHover as _, h_flex, v_flex,
 };
+use ferrumapi_domain::{FormField, FormFieldKind, RequestBody, TabId, VariableSet};
+use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
+use std::rc::Rc;
 
 impl FerrumApi {
     pub(super) fn render_form_data(

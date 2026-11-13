@@ -61,6 +61,16 @@ impl FerrumKit {
         this
     }
 
+    /// Shows `tool` (its view is built on the next render).
+    pub fn select(&mut self, tool: Tool) {
+        self.selected = tool;
+    }
+
+    #[cfg(test)]
+    pub fn selected(&self) -> Tool {
+        self.selected
+    }
+
     fn ensure_view(&mut self, tool: Tool, window: &mut Window, cx: &mut Context<Self>) -> AnyView {
         if let Some(view) = self.views.get(&tool) {
             return view.clone();
@@ -126,7 +136,7 @@ impl FerrumKit {
                             .tooltip(Tooltip::text(tool.description()))
                             .child(Label::new(tool.name()))
                             .on_click(cx.listener(move |this, _, _, cx| {
-                                this.selected = tool;
+                                this.select(tool);
                                 cx.notify();
                             }))
                     })),

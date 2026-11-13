@@ -15,7 +15,6 @@ ferrumenv-core.workspace = true
 chrono.workspace = true
 ferrum-ui.workspace = true
 gpui.workspace = true
-menu.workspace = true
 sha2.workspace = true
 zeroize.workspace = true
 

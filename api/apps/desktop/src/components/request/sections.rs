@@ -6,11 +6,11 @@ use crate::components::widgets::{AuthTarget, AuthView, RowEditor};
 use crate::components::{count_pill, tab_button};
 use crate::state::RequestSection;
 use crate::state::kv::{self, active_count};
+use ferrum_ui::components::{ActiveTheme as _, h_flex};
 use ferrumapi_domain::urlparams::url_with_params;
 use ferrumapi_domain::{Auth, RequestBody, RequestTab, VariableSet};
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*};
 use std::rc::Rc;
-use ui::{ActiveTheme as _, h_flex};
 
 fn body_count(body: &RequestBody) -> usize {
     match body {

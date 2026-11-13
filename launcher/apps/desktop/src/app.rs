@@ -251,7 +251,9 @@ impl FerrumLauncher {
                                 format!("Update Launcher to v{version}")
                             },
                         )
-                        .style(ButtonStyle::Tinted(ferrum_ui::ui::TintColor::Accent))
+                        .style(ButtonStyle::Tinted(
+                            ferrum_ui::components::TintColor::Accent,
+                        ))
                         .start_icon(Icon::new(IconName::Download))
                         .disabled(updating);
                         this.child(if self_updatable {

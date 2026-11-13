@@ -3,7 +3,7 @@
 use axum::{extract::State, http::header, response::IntoResponse};
 
 use super::AppState;
-use crate::pages::{apps, changelog, compare, docs, faq, features, privacy, security};
+use crate::pages::{apps, changelog, compare, docs, faq, features, licenses, privacy, security};
 use crate::{products, site, updates};
 
 /// One sitemap entry: path and `lastmod` (`YYYY-MM-DD`).
@@ -30,7 +30,7 @@ pub async fn robots(State(s): State<AppState>) -> impl IntoResponse {
 }
 
 /// Every public page: home, the apps, the guides and info pages, the
-/// updates with every post, then about and privacy. `changelog_date` is the
+/// updates with every post, then about, licences and privacy. `changelog_date` is the
 /// newest release already known, if any.
 pub fn sitemap_entries(changelog_date: Option<&str>) -> Vec<Entry> {
     let content = site::CONTENT_UPDATED;
@@ -57,6 +57,7 @@ pub fn sitemap_entries(changelog_date: Option<&str>) -> Vec<Entry> {
             .map(|p| entry(&p.path(), p.date)),
     );
     entries.push(entry("/about", content));
+    entries.push(entry(licenses::PATH, content));
     entries.push(entry(privacy::PATH, privacy::UPDATED));
     entries
 }

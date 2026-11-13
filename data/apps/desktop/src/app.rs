@@ -354,13 +354,15 @@ impl Render for FerrumData {
             .key_context("FerrumData")
             .bg(colors.background)
             .text_color(colors.text)
-            .on_action(cx.listener(|this, _: &menu::Cancel, window, cx| {
-                if this.state.dialog.is_some() {
-                    this.close_dialog(window, cx);
-                } else {
-                    cx.propagate();
-                }
-            }))
+            .on_action(
+                cx.listener(|this, _: &ferrum_ui::menu::Cancel, window, cx| {
+                    if this.state.dialog.is_some() {
+                        this.close_dialog(window, cx);
+                    } else {
+                        cx.propagate();
+                    }
+                }),
+            )
             .on_drop(cx.listener(|this, _: &DraggedSplitter, _, cx| {
                 this.save_settings(cx);
             }))

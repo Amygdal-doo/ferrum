@@ -5,9 +5,9 @@ use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change};
 use crate::components::hint;
 use crate::state::Dialog;
+use ferrum_ui::components::{ActiveTheme as _, v_flex};
 use ferrumapi_domain::{Collection, CollectionId, Item, ItemId, TabId};
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
-use ui::{ActiveTheme as _, v_flex};
 
 /// One choosable destination: (collection, folder, indented label).
 type Target = (CollectionId, Option<ItemId>, String);

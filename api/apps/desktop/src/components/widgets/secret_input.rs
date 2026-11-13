@@ -2,10 +2,10 @@
 
 use crate::app::FerrumApi;
 use crate::components::fields::{FieldEvent, FieldSpec};
-use gpui::{AnyElement, Context, SharedString, Window, prelude::*};
-use ui::{
+use ferrum_ui::components::{
     Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Toggleable as _, h_flex,
 };
+use gpui::{AnyElement, Context, SharedString, Window, prelude::*};
 
 impl FerrumApi {
     pub fn render_secret_input(

@@ -1,13 +1,13 @@
 //! Small building blocks: buttons, table cells, captions.
 
 use crate::app::FerrumContainers;
-use gpui::{AnyElement, App, Context, Div, ElementId, Hsla, SharedString, div, prelude::*, px};
-use std::rc::Rc;
-use theme::ActiveTheme;
-use ui::{
+use ferrum_ui::components::{
     Button, ButtonCommon, ButtonSize, ButtonStyle, Clickable, Color, Disableable, IconButton,
     IconName, IconSize, Label, LabelCommon, LabelSize, Toggleable, Tooltip, h_flex,
 };
+use ferrum_ui::theme::ActiveTheme;
+use gpui::{AnyElement, App, Context, Div, ElementId, Hsla, SharedString, div, prelude::*, px};
+use std::rc::Rc;
 
 /// Compact outlined button bound to the root view.
 pub fn button(
