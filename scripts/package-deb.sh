@@ -34,7 +34,7 @@ fi
 # Debian orders `~` before everything, so 1.0.0~beta.1 < 1.0.0 like semver.
 deb_version="$(printf '%s' "$version" | tr '-' '~')"
 maintainer="${DEB_MAINTAINER:-Ferrum maintainers <ferrum@users.noreply.github.com>}"
-homepage="${FERRUM_HOMEPAGE:-https://ferrum-web-production.up.railway.app}"
+homepage="${FERRUM_HOMEPAGE:-https://tryferrum.dev}"
 main_binary="${APP_BINARIES%% *}"
 
 staging="$(mktemp -d)"

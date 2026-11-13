@@ -115,8 +115,12 @@ pub fn router(state: AppState) -> Router {
         .route("/sitemap.xml", get(seo::sitemap))
         .route("/assets/{*path}", get(assets::serve))
         .fallback(not_found)
-        .with_state(state);
-    middleware::with_middleware(router)
+        .with_state(state.clone());
+    let site_url: Arc<str> = state.site_url().into();
+    middleware::with_middleware(router.layer(axum::middleware::from_fn_with_state(
+        site_url,
+        middleware::canonical_host,
+    )))
 }
 
 async fn home(State(s): State<AppState>) -> Markup {

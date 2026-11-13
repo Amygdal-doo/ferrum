@@ -1,5 +1,5 @@
-//! Cross-cutting HTTP middleware: compression, tracing, security headers and
-//! a default cache policy.
+//! Cross-cutting HTTP middleware: compression, tracing, security headers,
+//! a default cache policy and the `www.` → canonical host redirect.
 
 use axum::{
     Router,
@@ -44,4 +44,56 @@ pub fn with_middleware(router: Router) -> Router {
             })
             .on_response(DefaultOnResponse::new().level(Level::INFO)),
     )
+}
+
+/// Where a request for `www.<site host>` should go: the same path and query on
+/// `site_url`. `None` for any other host, so health checks and the platform's
+/// own domain are served as usual.
+pub fn www_redirect(site_url: &str, host: &str, path_and_query: &str) -> Option<String> {
+    let site_host = site_url.split_once("://")?.1.split('/').next()?;
+    let host = host.split(':').next()?;
+    (host.strip_prefix("www.")? == site_host).then(|| format!("{site_url}{path_and_query}"))
+}
+
+/// Permanently redirects `www.<site host>` to the canonical `SITE_URL`.
+pub async fn canonical_host(
+    axum::extract::State(site_url): axum::extract::State<std::sync::Arc<str>>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let host = req
+        .headers()
+        .get(header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or_default();
+    let pq = req.uri().path_and_query().map_or("/", |pq| pq.as_str());
+    match www_redirect(&site_url, host, pq) {
+        Some(to) => axum::response::Redirect::permanent(&to).into_response(),
+        None => next.run(req).await,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::www_redirect;
+
+    #[test]
+    fn www_goes_to_the_canonical_host_with_path_and_query() {
+        let site = "https://tryferrum.dev";
+        assert_eq!(
+            www_redirect(site, "www.tryferrum.dev", "/apps?x=1").as_deref(),
+            Some("https://tryferrum.dev/apps?x=1")
+        );
+        assert_eq!(
+            www_redirect(site, "www.tryferrum.dev:443", "/").as_deref(),
+            Some("https://tryferrum.dev/")
+        );
+        assert_eq!(www_redirect(site, "tryferrum.dev", "/"), None);
+        assert_eq!(
+            www_redirect(site, "tryferrum.dev", "/"),
+            None
+        );
+        assert_eq!(www_redirect(site, "www.example.com", "/"), None);
+    }
 }

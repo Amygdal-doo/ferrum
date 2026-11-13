@@ -8,7 +8,7 @@ It is a single Rust binary built with
 Axum 0.8, maud templates and tower-http. All CSS, JS and images are embedded in
 the binary with rust-embed, so there is nothing to upload besides the binary.
 
-> **Deployed on Railway** at <https://ferrum-web-production.up.railway.app>
+> **Deployed on Railway** at <https://tryferrum.dev>
 > (`SITE_URL` is set there).
 
 ## Local development
@@ -154,7 +154,7 @@ The runtime image runs as a non-root user (uid 10001), and the binary is at
 2. In the service's *Settings → Networking*, click **Generate Domain**, or
    attach a custom domain.
 3. In *Variables*, set `SITE_URL` to the public URL, e.g.
-   `https://web-ferrum-production.up.railway.app` or your custom domain.
+   `https://tryferrum.dev` or your custom domain.
    Without it, the app falls back to `RAILWAY_PUBLIC_DOMAIN`. Do not set `PORT`.
    Railway injects it.
 4. Redeploy, then check `https://<domain>/healthz` and `https://<domain>/sitemap.xml`.
