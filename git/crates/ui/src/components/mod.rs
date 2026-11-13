@@ -70,6 +70,21 @@ pub fn now_secs() -> i64 {
     chrono::Utc::now().timestamp()
 }
 
+/// (fill, text, muted text) of a selected row or card: the accent fill with
+/// whichever of near-black/near-white reads on it.
+#[must_use]
+pub fn selected_colors(theme: &ferrum_ui::theme::Theme) -> (Hsla, Hsla, Hsla) {
+    let fill = theme.colors().text_accent;
+    let text = theme.readable_text_on(fill);
+    (fill, text, text.opacity(0.88))
+}
+
+/// Text for a solid `fill` (badges, selected segments, change letters).
+#[must_use]
+pub fn text_on(fill: Hsla, cx: &App) -> Hsla {
+    cx.theme().readable_text_on(fill)
+}
+
 /// Avatar background derived from the author's email (stable per person).
 #[must_use]
 pub fn avatar_color(seed: &str) -> Hsla {

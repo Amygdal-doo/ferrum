@@ -128,11 +128,10 @@ fn row(
 ) -> AnyElement {
     let colors = cx.theme().colors().clone();
     let number = pr.number;
+    let (selected_fill, selected_text, selected_muted) =
+        crate::components::selected_colors(cx.theme());
     let (text, muted) = if selected {
-        (
-            Color::Custom(gpui::white()),
-            Color::Custom(gpui::white().opacity(0.75)),
-        )
+        (Color::Custom(selected_text), Color::Custom(selected_muted))
     } else {
         (Color::Default, Color::Muted)
     };
@@ -158,7 +157,7 @@ fn row(
         .py_2()
         .rounded_lg()
         .cursor_pointer()
-        .when(selected, |d| d.bg(colors.text_accent))
+        .when(selected, |d| d.bg(selected_fill))
         .when(!selected, |d| d.hover(|s| s.bg(colors.element_hover)))
         .on_click(cx.listener(move |app, _, _, cx| app.select_pull_request(id, number, cx)))
         .child(
@@ -216,6 +215,7 @@ pub fn pull_list(app: &GitView, id: RepoId, cx: &mut Context<GitView>) -> AnyEle
     let info = prs.info.ready().cloned();
     let ready = info.as_ref().is_some_and(|i| i.has_token);
 
+    let on_accent = theme.readable_text_on(colors.text_accent);
     let segment = |f: PrFilter, cx: &mut Context<GitView>| {
         let active = f == filter;
         div()
@@ -224,9 +224,7 @@ pub fn pull_list(app: &GitView, id: RepoId, cx: &mut Context<GitView>) -> AnyEle
             .py_0p5()
             .cursor_pointer()
             .text_xs()
-            .when(active, |d| {
-                d.bg(colors.text_accent).text_color(colors.background)
-            })
+            .when(active, |d| d.bg(colors.text_accent).text_color(on_accent))
             .when(!active, |d| d.hover(|s| s.bg(colors.element_hover)))
             .child(f.label())
             .on_click(cx.listener(move |app, _, _, cx| app.set_pr_filter(id, f, cx)))

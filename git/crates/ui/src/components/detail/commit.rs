@@ -92,6 +92,8 @@ pub fn commit_panel(
     let author = format!("{} <{}>", c.author_name, c.author_email);
     let committer = (details.committer_email != c.author_email)
         .then(|| format!("{} <{}>", details.committer_name, details.committer_email));
+    let message_body =
+        SharedString::from(super::trailers::without_trailers(&details.body).to_owned());
     let paths: Vec<String> = details.files.iter().map(|f| f.path.clone()).collect();
 
     let mut grid: Vec<AnyElement> = Vec::new();
@@ -115,8 +117,9 @@ pub fn commit_panel(
                 .px_1p5()
                 .rounded_sm()
                 .bg(colors.text_accent)
-                .text_color(colors.background)
+                .text_color(theme.readable_text_on(colors.text_accent))
                 .text_ui_xs(cx)
+                .font_weight(gpui::FontWeight::MEDIUM)
                 .child("HEAD")
         });
         let badges: Vec<AnyElement> = refs
@@ -168,7 +171,8 @@ pub fn commit_panel(
             .cursor_pointer()
             .text_ui_sm(cx)
             .when(active, |d| {
-                d.bg(colors.text_accent).text_color(colors.background)
+                d.bg(colors.text_accent)
+                    .text_color(theme.readable_text_on(colors.text_accent))
             })
             .when(!active, |d| d.hover(|s| s.bg(colors.element_hover)))
             .child(label)
@@ -297,13 +301,13 @@ pub fn commit_panel(
                         .border_b_1()
                         .border_color(colors.border)
                         .child(Label::new(c.summary.clone()).weight(gpui::FontWeight::MEDIUM))
-                        .when(!details.body.is_empty(), |d| {
+                        .when(!message_body.is_empty(), |d| {
                             d.child(
                                 div()
                                     .mt_2()
                                     .text_ui_sm(cx)
                                     .text_color(colors.text_muted)
-                                    .child(details.body.clone()),
+                                    .child(message_body),
                             )
                         }),
                 )
@@ -481,7 +485,7 @@ pub(super) fn file_section(
                         .justify_center()
                         .rounded_sm()
                         .bg(word_color)
-                        .text_color(colors.background)
+                        .text_color(theme.readable_text_on(word_color))
                         .font_buffer(cx)
                         .text_ui_xs(cx)
                         .font_weight(gpui::FontWeight::BOLD)

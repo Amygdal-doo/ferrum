@@ -14,6 +14,7 @@ use gpui::{AnyElement, Context, MouseButton, MouseDownEvent, SharedString, div, 
 pub fn stash_list(app: &GitView, id: RepoId, cx: &mut Context<GitView>) -> AnyElement {
     let theme = cx.theme().clone();
     let colors = theme.colors();
+    let (selected_fill, selected_text, selected_muted) = crate::components::selected_colors(&theme);
     let view = app.state.view(id);
     let stashes = view
         .data
@@ -28,10 +29,7 @@ pub fn stash_list(app: &GitView, id: RepoId, cx: &mut Context<GitView>) -> AnyEl
             let selected = view.selection == Selection::Stash(i);
             let when = relative_time(s.time, now);
             let (text, muted) = if selected {
-                (
-                    Color::Custom(gpui::white()),
-                    Color::Custom(gpui::white().opacity(0.75)),
-                )
+                (Color::Custom(selected_text), Color::Custom(selected_muted))
             } else {
                 (Color::Default, Color::Muted)
             };
@@ -41,7 +39,7 @@ pub fn stash_list(app: &GitView, id: RepoId, cx: &mut Context<GitView>) -> AnyEl
                 .px_3()
                 .py_2()
                 .rounded_lg()
-                .when(selected, |d| d.bg(colors.text_accent))
+                .when(selected, |d| d.bg(selected_fill))
                 .when(!selected, |d| d.hover(|st| st.bg(colors.element_hover)))
                 .on_click(cx.listener(move |app, _, _, cx| {
                     app.navigate(id, Selection::Stash(i), cx);

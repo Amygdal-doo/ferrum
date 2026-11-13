@@ -21,6 +21,7 @@ fn icon_button(
     cx: &mut Context<GitView>,
 ) -> AnyElement {
     let colors = cx.theme().colors().clone();
+    let on_accent = crate::components::text_on(colors.text_accent, cx);
     div()
         .id(id)
         .relative()
@@ -46,7 +47,7 @@ fn icon_button(
                 .px_0p5()
                 .rounded_full()
                 .bg(colors.text_accent)
-                .text_color(colors.background)
+                .text_color(on_accent)
                 .text_ui_xs(cx)
                 .child(n.to_string())
         }))

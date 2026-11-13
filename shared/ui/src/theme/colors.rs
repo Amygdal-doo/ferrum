@@ -113,7 +113,10 @@ pub struct ThemeColors {
 }
 
 /// Declares [`StatusColors`]: each status has a foreground, a background
-/// and a border colour.
+/// and a border colour. The background is a faint opaque tint of the hue
+/// meant to sit behind text (the foreground, or regular text, reads on it at
+/// 4.5:1 or better); for a solid chip fill the foreground itself with
+/// [`crate::theme::contrast::readable_text_on`] text.
 macro_rules! status_colors {
     ($($fg:ident, $bg:ident, $border:ident;)*) => {
         /// Semantic colours (errors, git states, diagnostics...).
@@ -123,11 +126,21 @@ macro_rules! status_colors {
         }
 
         impl StatusColors {
-            /// Colours every status by `color(name)`; backgrounds and
-            /// borders match the foreground.
-            pub(crate) fn from_fn(color: impl Fn(&str) -> Hsla) -> Self {
-                $(let $fg = color(stringify!($fg));)*
-                Self { $($fg, $bg: $fg, $border: $fg,)* }
+            /// Colours every status by `colors(name)`, which returns its
+            /// (foreground, background, border).
+            pub(crate) fn from_fn(colors: impl Fn(&str) -> (Hsla, Hsla, Hsla)) -> Self {
+                $(let ($fg, $bg, $border) = colors(stringify!($fg));)*
+                Self { $($fg, $bg, $border,)* }
+            }
+
+            /// Every status as (name, foreground, background).
+            pub fn pairs(&self) -> Vec<(&'static str, Hsla, Hsla)> {
+                vec![$((stringify!($fg), self.$fg, self.$bg),)*]
+            }
+
+            /// Every status as mutable (foreground, background, border).
+            pub(crate) fn triples_mut(&mut self) -> Vec<(&mut Hsla, &mut Hsla, &mut Hsla)> {
+                vec![$((&mut self.$fg, &mut self.$bg, &mut self.$border),)*]
             }
         }
     };
@@ -201,6 +214,15 @@ impl SyntaxTheme {
     /// The colour for `name`, if it has one.
     pub fn color(&self, name: &str) -> Option<Hsla> {
         self.style_for_name(name).and_then(|s| s.color)
+    }
+
+    /// Replaces every token colour with `f(colour)`.
+    pub fn map_colors(&mut self, f: impl Fn(Hsla) -> Hsla) {
+        for (_, style) in &mut self.styles {
+            if let Some(color) = style.color.as_mut() {
+                *color = f(*color);
+            }
+        }
     }
 }
 

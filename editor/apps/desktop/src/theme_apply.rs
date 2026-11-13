@@ -106,6 +106,9 @@ pub fn apply(theme: &Theme, cx: &mut App) {
         player.cursor = t("cursor");
         player.selection = t("selection");
     }
+    // Keep text readable whatever the token theme says, and rebuild the
+    // status tints for this theme's background.
+    base.make_legible();
     GlobalTheme::update_theme(cx, Arc::new(base));
     cx.refresh_windows();
 }

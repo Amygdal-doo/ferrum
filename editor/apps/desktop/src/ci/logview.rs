@@ -146,8 +146,9 @@ fn render_lines(
     let collapsed: HashSet<usize> = view.collapsed.clone();
     let matches: HashSet<usize> = view.matches.iter().copied().collect();
     let current = view.matches.get(view.current).copied();
-    let colors = cx.theme().colors().clone();
-    let status = cx.theme().status().clone();
+    let theme = cx.theme().clone();
+    let colors = theme.colors().clone();
+    let status = theme.status().clone();
     let weak = cx.weak_entity();
     let count = rows.len();
     uniform_list("job-log", count, move |range, _, _| {
@@ -186,7 +187,7 @@ fn render_lines(
                 for span in &line.spans {
                     let mut s = div().child(span.text.clone());
                     if let Some(c) = span.fg.filter(|_| line.kind != LineKind::Error) {
-                        s = s.text_color(ansi_color(c, &colors));
+                        s = s.text_color(theme.legible_text(ansi_color(c, &colors)));
                     }
                     if span.bold || line.kind == LineKind::Group {
                         s = s.font_weight(FontWeight::BOLD);

@@ -134,10 +134,10 @@ fn source_row(state: &SourceState, hidden: bool, cx: &mut Context<LogsView>) -> 
                         .child(state.config.name.clone()),
                 )
                 .when(state.errors > 0, |d| {
-                    d.child(count_pill(state.errors, status.error))
+                    d.child(count_pill(state.errors, status.error, cx))
                 })
                 .when(state.warns > 0, |d| {
-                    d.child(count_pill(state.warns, status.warning))
+                    d.child(count_pill(state.warns, status.warning, cx))
                 })
                 .child(
                     IconButton::new(

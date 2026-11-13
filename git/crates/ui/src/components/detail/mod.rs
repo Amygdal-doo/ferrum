@@ -6,6 +6,7 @@ mod files;
 mod pull_detail;
 mod pull_list;
 mod stashes;
+mod trailers;
 mod wip;
 
 use crate::app::GitView;

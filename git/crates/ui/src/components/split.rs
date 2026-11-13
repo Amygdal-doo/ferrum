@@ -100,6 +100,7 @@ pub fn split_side(
 pub fn layout_toggle(app: &GitView, cx: &mut Context<GitView>) -> AnyElement {
     let colors = cx.theme().colors().clone();
     let split = app.state.settings.side_by_side;
+    let on_accent = crate::components::text_on(colors.text_accent, cx);
     let segment = |label: &'static str, on: bool, cx: &mut Context<GitView>| {
         let active = split == on;
         div()
@@ -108,9 +109,7 @@ pub fn layout_toggle(app: &GitView, cx: &mut Context<GitView>) -> AnyElement {
             .py_0p5()
             .cursor_pointer()
             .text_ui_xs(cx)
-            .when(active, |d| {
-                d.bg(colors.text_accent).text_color(colors.background)
-            })
+            .when(active, |d| d.bg(colors.text_accent).text_color(on_accent))
             .when(!active, |d| d.hover(|s| s.bg(colors.element_hover)))
             .child(label)
             .on_click(cx.listener(move |app, _, _, cx| {

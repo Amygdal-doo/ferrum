@@ -225,3 +225,45 @@ fn material_themes_and_vscode_import(cx: &mut TestAppContext) {
     workspace.update(cx, |w, cx| w.import_vscode_theme(&junk, cx));
     assert_eq!(theme_name(cx), "Fixture");
 }
+
+/// Every bundled token theme keeps the chrome readable once bridged to the
+/// UI theme: text, muted, accent and status text at 4.5:1 on the window
+/// background and on the status tints, filled-chip text on status fills.
+#[gpui::test]
+fn every_bundled_theme_keeps_text_readable(cx: &mut TestAppContext) {
+    use ferrum_ui::theme::ActiveTheme;
+    use ferrum_ui::theme::contrast::{MIN_TEXT_CONTRAST, contrast_over};
+    use ferrumeditor_core::theme::registry::ThemeRegistry;
+
+    let registry = ThemeRegistry::builtins();
+    let mut failures = Vec::new();
+    for entry in registry.entries() {
+        let theme = registry.get(&entry.name).expect("listed theme");
+        cx.update(|cx| {
+            crate::theme_apply::apply(&theme, cx);
+            let ui = cx.theme().clone();
+            let c = ui.colors();
+            let base = c.background;
+            let mut check = |what: &str, fg, bg| {
+                let ratio = contrast_over(fg, bg, base);
+                if ratio < MIN_TEXT_CONTRAST {
+                    failures.push(format!("{}: {what} {ratio:.2}", entry.name));
+                }
+            };
+            check("text", c.text, base);
+            check("muted", c.text_muted, base);
+            check("accent", c.text_accent, base);
+            check(
+                "accent fill",
+                ui.readable_text_on(c.text_accent),
+                c.text_accent,
+            );
+            for (name, fg, bg) in ui.status().pairs() {
+                check(name, fg, base);
+                check(&format!("{name} tint"), fg, bg);
+                check(&format!("text on {name} tint"), c.text, bg);
+            }
+        });
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+}

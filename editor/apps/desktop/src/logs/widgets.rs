@@ -19,7 +19,10 @@ pub fn source_color(slot: u32, cx: &App) -> Hsla {
         c.terminal_ansi_bright_magenta,
         c.terminal_ansi_bright_cyan,
     ];
-    palette[slot as usize % palette.len()]
+    // ANSI colours are tuned for the terminal; keep them readable as text
+    // on the chrome.
+    cx.theme()
+        .legible_text(palette[slot as usize % palette.len()])
 }
 
 pub fn level_color(level: Level, cx: &App) -> Hsla {
@@ -50,14 +53,14 @@ pub fn dot(color: Hsla) -> Div {
 
 /// A coloured source tag, fixed width so the text column lines up.
 pub fn source_chip(name: &str, slot: u32, width: f32, cx: &App) -> Div {
-    let color = source_color(slot, cx);
+    let (bg, fg) = cx.theme().tinted_chip(source_color(slot, cx));
     div().flex_none().w(px(width)).overflow_hidden().child(
         div()
             .max_w_full()
             .px_1()
             .rounded_sm()
-            .bg(color.opacity(0.14))
-            .text_color(color)
+            .bg(bg)
+            .text_color(fg)
             .overflow_hidden()
             .whitespace_nowrap()
             .text_ellipsis()
@@ -66,25 +69,27 @@ pub fn source_chip(name: &str, slot: u32, width: f32, cx: &App) -> Div {
 }
 
 /// A count pill, e.g. errors of a source.
-pub fn count_pill(count: u64, color: Hsla) -> Div {
+pub fn count_pill(count: u64, color: Hsla, cx: &App) -> Div {
     let text = if count > 9_999 {
         format!("{}k", count / 1000)
     } else {
         count.to_string()
     };
+    let (bg, fg) = cx.theme().tinted_chip(color);
     div()
         .flex_none()
         .px_1()
         .rounded_sm()
-        .bg(color.opacity(0.15))
-        .text_color(color)
+        .bg(bg)
+        .text_color(fg)
         .text_xs()
         .child(text)
 }
 
+/// An ANSI colour of a log line, made readable on the log background.
 pub fn ansi_color(color: AnsiColor, cx: &App) -> Hsla {
     let c = cx.theme().colors();
-    match color.0 {
+    let color = match color.0 {
         0 => c.terminal_ansi_black,
         1 => c.terminal_ansi_red,
         2 => c.terminal_ansi_green,
@@ -101,5 +106,6 @@ pub fn ansi_color(color: AnsiColor, cx: &App) -> Hsla {
         13 => c.terminal_ansi_bright_magenta,
         14 => c.terminal_ansi_bright_cyan,
         _ => c.terminal_ansi_bright_white,
-    }
+    };
+    cx.theme().legible_text(color)
 }

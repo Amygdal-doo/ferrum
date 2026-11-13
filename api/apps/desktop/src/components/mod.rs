@@ -14,23 +14,24 @@ use ferrum_ui::components::{
 use ferrumapi_domain::{HttpMethod, RequestKind};
 use gpui::{App, Context, ElementId, Hsla, SharedString, Window, div, prelude::*, rgb};
 
-/// Postman-style method colour.
+/// Postman-style method colour, made readable on the active theme.
 #[must_use]
 pub fn method_color(m: HttpMethod, cx: &App) -> Hsla {
-    match m {
+    let color: Hsla = match m {
         HttpMethod::Get => rgb(0x4ade80).into(),
         HttpMethod::Post => rgb(0xfbbf24).into(),
         HttpMethod::Put => rgb(0x60a5fa).into(),
         HttpMethod::Patch => rgb(0xc084fc).into(),
         HttpMethod::Delete => rgb(0xf87171).into(),
         HttpMethod::Head | HttpMethod::Options => cx.theme().colors().text_muted,
-    }
+    };
+    cx.theme().legible_text(color)
 }
 
-/// Colour of a non-REST kind badge.
+/// Colour of a non-REST kind badge, made readable on the active theme.
 #[must_use]
 pub fn kind_color(kind: RequestKind, cx: &App) -> Hsla {
-    match kind {
+    let color: Hsla = match kind {
         RequestKind::Rest => cx.theme().colors().text_muted,
         RequestKind::Graphql => rgb(0xf472b6).into(),
         RequestKind::Soap => rgb(0x38bdf8).into(),
@@ -38,7 +39,8 @@ pub fn kind_color(kind: RequestKind, cx: &App) -> Hsla {
         RequestKind::Trpc => rgb(0x818cf8).into(),
         RequestKind::Grpc => rgb(0x2dd4bf).into(),
         RequestKind::WebSocket => rgb(0xa3e635).into(),
-    }
+    };
+    cx.theme().legible_text(color)
 }
 
 /// The tree / tab badge: the method for REST, the kind otherwise.

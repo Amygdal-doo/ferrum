@@ -133,7 +133,7 @@ pub fn diff_pane(app: &GitView, cx: &mut Context<GitView>) -> AnyElement {
                         .justify_center()
                         .rounded_sm()
                         .bg(word_color)
-                        .text_color(colors.background)
+                        .text_color(theme.readable_text_on(word_color))
                         .font_buffer(cx)
                         .text_ui_xs(cx)
                         .font_weight(gpui::FontWeight::BOLD)

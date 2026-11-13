@@ -1,5 +1,8 @@
 //! Ferrum's built-in dark and light themes, derived from the base tones in
 //! [`super::tones`].
+//!
+//! The tones are raw; [`Theme::make_legible`] then nudges every text colour
+//! to its contrast target and derives the status tints.
 
 use gpui::{FontStyle, FontWeight, HighlightStyle, Hsla, transparent_black};
 
@@ -143,12 +146,16 @@ fn theme_colors(p: &Palette) -> ThemeColors {
 
 fn status(p: &Palette) -> StatusColors {
     let [blue, red, green, yellow, _, _, _, gray] = p.hues;
-    StatusColors::from_fn(|name| match name {
-        "conflict" | "modified" | "warning" => yellow,
-        "created" | "success" => green,
-        "deleted" | "error" => red,
-        "hint" | "info" | "renamed" => blue,
-        _ => gray,
+    // Tints and borders are derived from the hue by `Theme::make_legible`.
+    StatusColors::from_fn(|name| {
+        let hue = match name {
+            "conflict" | "modified" | "warning" => yellow,
+            "created" | "success" => green,
+            "deleted" | "error" => red,
+            "hint" | "info" | "renamed" => blue,
+            _ => gray,
+        };
+        (hue, hue, hue)
     })
 }
 
@@ -196,7 +203,7 @@ fn syntax(p: &Palette) -> SyntaxTheme {
 
 fn build(name: &str, p: &Palette) -> Theme {
     let blue = p.hues[0];
-    Theme {
+    let mut theme = Theme {
         name: name.to_owned().into(),
         appearance: p.appearance,
         styles: ThemeStyles {
@@ -209,7 +216,9 @@ fn build(name: &str, p: &Palette) -> Theme {
             }]),
             syntax: std::sync::Arc::new(syntax(p)),
         },
-    }
+    };
+    theme.make_legible();
+    theme
 }
 
 /// The default theme.

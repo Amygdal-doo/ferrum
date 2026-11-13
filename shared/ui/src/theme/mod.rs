@@ -8,6 +8,8 @@
 //! ```
 
 mod colors;
+pub mod contrast;
+mod legible;
 mod palette;
 mod tones;
 
@@ -69,6 +71,12 @@ impl Theme {
 
     pub fn appearance(&self) -> Appearance {
         self.appearance
+    }
+
+    /// Near-black or near-white text that reads on `bg`; a translucent `bg`
+    /// is judged as drawn over this theme's background.
+    pub fn readable_text_on(&self, bg: Hsla) -> Hsla {
+        contrast::readable_text_over(bg, self.styles.colors.background)
     }
 
     /// `color` darkened by `light` on light themes and `dark` on dark ones.
@@ -179,3 +187,6 @@ mod tests {
         assert_eq!(darker.l, 0.);
     }
 }
+
+#[cfg(test)]
+mod legibility_tests;

@@ -23,6 +23,7 @@ fn tool(
 ) -> AnyElement {
     let theme = cx.theme().clone();
     let colors = theme.colors();
+    let on_accent = theme.readable_text_on(colors.text_accent);
     div()
         .id(id)
         .relative()
@@ -54,7 +55,7 @@ fn tool(
                 .px_1()
                 .rounded_full()
                 .bg(colors.text_accent)
-                .text_color(colors.background)
+                .text_color(on_accent)
                 .text_ui_xs(cx)
                 .child(n.to_string())
         }))

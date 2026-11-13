@@ -4,10 +4,10 @@ use super::lanes::{paint_pass_through, paint_row};
 use super::{MONTH_H, ROW_H};
 use crate::app::GitView;
 use crate::components::actions;
-use crate::components::avatar_color;
+use crate::components::{avatar_color, selected_colors};
 use crate::state::Selection;
 use ferrum_ui::components::{StyledTypography, Tooltip, h_flex, v_flex};
-use ferrum_ui::theme::Theme;
+use ferrum_ui::theme::{Theme, contrast};
 use ferrumgit_application::GraphRow;
 use ferrumgit_domain::text::{full_time, initials};
 use ferrumgit_domain::{Commit, GitRef, RefKind, RepoId};
@@ -99,18 +99,19 @@ pub fn commit_row(
     } = props;
     let colors = theme.colors();
     let accent = colors.text_accent;
-    let (card_bg, muted) = if selected {
-        (Some(accent), gpui::white().opacity(0.75))
+    let (card_bg, text, muted) = if selected {
+        let (bg, text, muted) = selected_colors(&theme);
+        (Some(bg), text, muted)
     } else {
-        (None, colors.text_muted)
+        (None, colors.text, colors.text_muted)
     };
-    let text = if selected { gpui::white() } else { colors.text };
     let oid = commit.oid.clone();
     let menu_oid = commit.oid.clone();
     let foreground = colors.text;
     let background = colors.background;
     let hover = colors.element_hover;
-    let avatar_bg = avatar_color(&commit.author_email);
+    // Opaque, so the initials read the same on the selected card.
+    let avatar_bg = contrast::composite(avatar_color(&commit.author_email), background);
     let author_title = format!("{} <{}>", commit.author_name, commit.author_email);
     let open_view = view.clone();
 
@@ -175,6 +176,7 @@ pub fn commit_row(
                         .items_center()
                         .justify_center()
                         .bg(avatar_bg)
+                        .text_color(contrast::readable_text_on(avatar_bg))
                         .text_ui_xs(cx)
                         .font_weight(gpui::FontWeight::SEMIBOLD)
                         .tooltip(Tooltip::text(author_title))
@@ -238,20 +240,31 @@ pub fn commit_row(
         .into_any_element()
 }
 
-pub fn ref_badge(r: &GitRef, on_card: bool, theme: &Theme, cx: &App) -> AnyElement {
+/// (background, text) of a ref chip. Coloured chips are solid fills with
+/// near-black or near-white text, whichever reads better; neutral chips use
+/// regular text on an element fill. `on_card` is a chip inside the selected
+/// commit card.
+pub fn ref_badge_colors(r: &GitRef, on_card: bool, theme: &Theme) -> (Hsla, Hsla) {
     let colors = theme.colors();
     let status = theme.status();
-    let (bg, fg): (Hsla, Hsla) = if on_card {
-        (gpui::white().opacity(0.2), gpui::white())
-    } else {
-        match r.kind {
-            Some(RefKind::LocalBranch) if r.is_head => (colors.text_accent, colors.background),
-            Some(RefKind::LocalBranch) => (status.info_background, status.info),
-            Some(RefKind::RemoteBranch) => (colors.element_active, colors.text),
-            Some(RefKind::Tag) => (status.warning_background, status.warning),
-            None => (colors.element_background, colors.text),
-        }
-    };
+    let filled = |fill: Hsla| (fill, theme.readable_text_on(fill));
+    if on_card {
+        // Push the chip away from the text colour so it stays readable.
+        let (card, text, _) = selected_colors(theme);
+        let away = contrast::readable_text_on(text);
+        return (contrast::composite(away.opacity(0.18), card), text);
+    }
+    match r.kind {
+        Some(RefKind::LocalBranch) if r.is_head => filled(colors.text_accent),
+        Some(RefKind::LocalBranch) => filled(status.info),
+        Some(RefKind::RemoteBranch) => (colors.element_active, colors.text),
+        Some(RefKind::Tag) => filled(status.warning),
+        None => (colors.element_background, colors.text),
+    }
+}
+
+pub fn ref_badge(r: &GitRef, on_card: bool, theme: &Theme, cx: &App) -> AnyElement {
+    let (bg, fg) = ref_badge_colors(r, on_card, theme);
     let label = if r.is_head {
         format!("HEAD → {}", r.name)
     } else {
@@ -271,4 +284,71 @@ pub fn ref_badge(r: &GitRef, on_card: bool, theme: &Theme, cx: &App) -> AnyEleme
         .tooltip(Tooltip::text(r.full_name.clone()))
         .child(label)
         .into_any_element()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::components::avatar_color;
+    use ferrum_ui::theme::contrast::{MIN_TEXT_CONTRAST, contrast_over};
+    use ferrum_ui::theme::{dark, light};
+
+    #[test]
+    fn every_ref_chip_is_readable_in_both_themes() {
+        let kinds = [
+            (None, false),
+            (Some(RefKind::LocalBranch), false),
+            (Some(RefKind::LocalBranch), true),
+            (Some(RefKind::RemoteBranch), false),
+            (Some(RefKind::Tag), false),
+        ];
+        for theme in [dark(), light()] {
+            let base = theme.colors().background;
+            for (kind, is_head) in kinds {
+                let r = GitRef {
+                    name: "git-v0.4.0-alpha.1".into(),
+                    kind,
+                    is_head,
+                    ..GitRef::default()
+                };
+                for on_card in [false, true] {
+                    let (bg, fg) = ref_badge_colors(&r, on_card, &theme);
+                    let ratio = contrast_over(fg, bg, base);
+                    assert!(
+                        ratio >= MIN_TEXT_CONTRAST,
+                        "{}: {kind:?} head={is_head} card={on_card}: {ratio:.2}",
+                        theme.name
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn selected_card_and_avatars_are_readable() {
+        for theme in [dark(), light()] {
+            let base = theme.colors().background;
+            let (fill, text, muted) = selected_colors(&theme);
+            assert!(contrast_over(text, fill, base) >= MIN_TEXT_CONTRAST);
+            let m = contrast_over(muted, fill, base);
+            assert!(m >= MIN_TEXT_CONTRAST, "{}: muted {m:.2}", theme.name);
+            for seed in ["a", "b", "c", "d", "e", "f", "g", "h"] {
+                let avatar = avatar_color(seed);
+                let shown = contrast::composite(avatar, base);
+                let r = contrast_over(contrast::readable_text_on(shown), shown, base);
+                assert!(
+                    r >= MIN_TEXT_CONTRAST,
+                    "{}: avatar {seed} {r:.2}",
+                    theme.name
+                );
+                // Avatars elsewhere inherit the regular text colour.
+                let r = contrast_over(theme.colors().text, shown, base);
+                assert!(
+                    r >= MIN_TEXT_CONTRAST,
+                    "{}: avatar text {seed} {r:.2}",
+                    theme.name
+                );
+            }
+        }
+    }
 }

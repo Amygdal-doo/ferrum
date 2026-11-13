@@ -42,6 +42,7 @@ pub fn file_panel(
         (None, FileTab::Blame) => "Working tree (uncommitted lines included)",
         (None, FileTab::History) => "History up to HEAD",
     };
+    let on_accent = theme.readable_text_on(colors.text_accent);
     let segment = |label: &'static str, tab: FileTab, cx: &mut Context<GitView>| {
         let active = file.tab == tab;
         div()
@@ -50,9 +51,7 @@ pub fn file_panel(
             .py_0p5()
             .cursor_pointer()
             .text_ui_sm(cx)
-            .when(active, |d| {
-                d.bg(colors.text_accent).text_color(colors.background)
-            })
+            .when(active, |d| d.bg(colors.text_accent).text_color(on_accent))
             .when(!active, |d| d.hover(|s| s.bg(colors.element_hover)))
             .child(label)
             .on_click(cx.listener(move |app, _, _, cx| app.set_file_tab(id, tab, cx)))
@@ -202,8 +201,9 @@ fn history_row(
             .child(f.change.letter().to_string())
     });
     let renamed = f.old_path.as_ref().map(|old| format!("{old} → {}", f.path));
+    let (selected_fill, selected_text, selected_muted) = super::selected_colors(&theme);
     let muted = if selected {
-        gpui::white().opacity(0.75)
+        selected_muted
     } else {
         colors.text_muted
     };
@@ -216,9 +216,7 @@ fn history_row(
         .px_2()
         .rounded_lg()
         .cursor_pointer()
-        .when(selected, |d| {
-            d.bg(colors.text_accent).text_color(gpui::white())
-        })
+        .when(selected, |d| d.bg(selected_fill).text_color(selected_text))
         .when(!selected, |d| d.hover(|s| s.bg(colors.element_hover)))
         .on_click(cx.listener(move |app, _, _, cx| app.reveal_commit(id, &oid, cx)))
         .child(

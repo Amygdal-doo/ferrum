@@ -40,17 +40,19 @@ pub fn section_header(title: impl Into<SharedString>) -> impl IntoElement {
     )
 }
 
-/// A compact pill, e.g. an HTTP method, a status code or a branch name.
+/// A compact pill, e.g. an HTTP method, a status code or a branch name; the
+/// text is nudged to 4.5:1 on its tint.
 pub fn badge(text: impl Into<SharedString>, color: Hsla, cx: &App) -> impl IntoElement {
-    let colors = cx.theme().colors();
+    let theme = cx.theme();
+    let (bg, fg) = theme.tinted_chip(color);
     div()
         .flex_none()
         .px_1p5()
         .rounded_sm()
         .border_1()
-        .border_color(colors.border_variant)
-        .bg(color.opacity(0.12))
-        .text_color(color)
+        .border_color(theme.colors().border_variant)
+        .bg(bg)
+        .text_color(fg)
         .text_ui_xs(cx)
         .font_weight(gpui::FontWeight::SEMIBOLD)
         .child(text.into())
