@@ -3,6 +3,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
+mod app_info;
 mod chrome;
 mod commands;
 mod detail;
@@ -23,7 +24,8 @@ fn main() {
         .filter(|p| p.is_dir());
     let config = AppConfig::new("FerrumPorts")
         .size(1240., 760.)
-        .min_size(900., 480.);
+        .min_size(900., 480.)
+        .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         app::bind_keys(cx);
         let options = app::Options {

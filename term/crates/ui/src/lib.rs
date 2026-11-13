@@ -24,6 +24,7 @@
 
 mod actions;
 mod app;
+mod app_info;
 #[cfg(test)]
 mod app_tests;
 mod connection;
@@ -34,6 +35,8 @@ mod options;
 mod paint;
 mod project;
 mod selection;
+pub mod settings;
+mod settings_pages;
 mod sidebar;
 mod ssh;
 mod ui_state;
@@ -46,10 +49,12 @@ pub use actions::{
     PreviousPane, PreviousTab, ResetFontSize, ScrollPageDown, ScrollPageUp, SplitDown, SplitRight,
     ToggleSidebar, key_bindings,
 };
+pub use app_info::app_info;
 pub use connection::Backend;
 pub use events::{CommandId, TermViewEvent};
 pub use ferrumterm_protocol::{BlockId, ProgramState, ProgramStatus};
 pub use options::TermViewOptions;
+pub use settings_pages::{RemoteHostsPage, TerminalPage};
 pub use view::TermView;
 
 use ferrum_ui::gpui::{App, Global};

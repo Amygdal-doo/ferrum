@@ -3,6 +3,7 @@
 //! `catalog.json` and the product pages: no invented plans, numbers or dates.
 
 pub mod editor_panes_agentic;
+pub mod onboarding_settings;
 pub mod public_alpha;
 
 use maud::{Markup, html};

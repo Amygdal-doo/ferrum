@@ -37,7 +37,11 @@ impl Post {
 }
 
 /// Every post. Order doesn't matter: [`newest_first`] sorts them.
-pub const POSTS: &[Post] = &[posts::public_alpha::POST, posts::editor_panes_agentic::POST];
+pub const POSTS: &[Post] = &[
+    posts::public_alpha::POST,
+    posts::editor_panes_agentic::POST,
+    posts::onboarding_settings::POST,
+];
 
 /// Posts sorted by date, newest first (ties by title).
 pub fn newest_first() -> Vec<&'static Post> {

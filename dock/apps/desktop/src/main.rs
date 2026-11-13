@@ -2,6 +2,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
+mod app_info;
 mod commands;
 mod project;
 mod services;
@@ -30,7 +31,8 @@ fn main() {
         .map(|p| std::fs::canonicalize(&p).unwrap_or(p));
     let config = AppConfig::new("FerrumContainers")
         .size(1440., 880.)
-        .min_size(980., 560.);
+        .min_size(980., 560.)
+        .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         app::bind_keys(cx);
         cx.new(|cx| {

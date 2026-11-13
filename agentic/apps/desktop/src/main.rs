@@ -3,6 +3,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
+mod app_info;
 mod chrome;
 mod columns;
 mod layout;
@@ -31,7 +32,8 @@ fn main() {
 
     let config = AppConfig::new("FerrumAgentic")
         .size(1560., 920.)
-        .min_size(720., 480.);
+        .min_size(720., 480.)
+        .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         ferrumagent_ui::init(cx);
         ferrumgit_ui::init(cx);

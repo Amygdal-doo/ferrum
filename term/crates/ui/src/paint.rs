@@ -111,6 +111,8 @@ pub(crate) fn paint_terminal(
         })
         .collect();
     let ime_marked = view.ime_marked.clone();
+    let cursor_on = view.cursor_on;
+    let settings = crate::settings::get();
     let selection = view.selection.clone().filter(|s| !s.is_empty());
     let theme = cx.theme();
     let colors = Colors {
@@ -184,7 +186,10 @@ pub(crate) fn paint_terminal(
                             if focused {
                                 cursor_bounds = Some(caret);
                             }
-                            paint_cursor(cursor.shape, caret, focused, thin, &colors, window);
+                            if !focused || cursor_on {
+                                let shape = settings.cursor_shape(cursor.shape);
+                                paint_cursor(shape, caret, focused, thin, &colors, window);
+                            }
                             if focused && let Some(marked) = &ime_marked {
                                 paint_marked_text(
                                     marked, caret, &metrics, font, &colors, window, cx,

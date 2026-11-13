@@ -2,6 +2,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod actions;
+mod app_info;
 mod ci;
 mod debug;
 mod editor;
@@ -74,7 +75,8 @@ fn main() {
     };
     let config = AppConfig::new("Ferrum Editor")
         .size(1280., 820.)
-        .min_size(640., 400.);
+        .min_size(640., 400.)
+        .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         // The embedded tools' key bindings (scoped to their panes) must be
         // in place before the base bindings are captured.
@@ -90,6 +92,16 @@ fn main() {
         let store = cx.new(lsp_store::LspStore::new);
         cx.set_global(lsp_store::GlobalLsp(store));
         theme_apply::apply(&theme, cx);
+        // The suite's colour scheme (Settings › Interface) picks between the
+        // editor's own light and dark built-ins; a theme chosen in the editor
+        // ("Theme: Select") always wins.
+        ferrum_ui::appearance::set_theme_hook(
+            std::rc::Rc::new(|_, appearance, cx| {
+                theme_apply::follow_appearance(appearance, cx);
+                true
+            }),
+            cx,
+        );
         actions::set_menus(cx);
         let workspace = cx.new(|cx| {
             let mut workspace = Workspace::new(window, cx);

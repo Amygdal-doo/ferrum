@@ -2,6 +2,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
+mod app_info;
 mod commands;
 mod components;
 mod integration;
@@ -78,7 +79,8 @@ fn main() {
 
     let config = AppConfig::new("Ferrum Launcher")
         .size(1040., 680.)
-        .min_size(760., 480.);
+        .min_size(760., 480.)
+        .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         let launcher =
             cx.new(|cx| app::FerrumLauncher::new(services, state, startup_notice, window, cx));

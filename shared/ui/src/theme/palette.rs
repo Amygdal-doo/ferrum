@@ -201,7 +201,7 @@ fn syntax(p: &Palette) -> SyntaxTheme {
     ])
 }
 
-fn build(name: &str, p: &Palette) -> Theme {
+pub(super) fn build(name: &str, p: &Palette) -> Theme {
     let blue = p.hues[0];
     let mut theme = Theme {
         name: name.to_owned().into(),

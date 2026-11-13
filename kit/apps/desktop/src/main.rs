@@ -3,6 +3,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
+mod app_info;
 #[cfg(test)]
 mod tests_render;
 mod tools;
@@ -14,7 +15,8 @@ use ferrum_ui::gpui::AppContext as _;
 fn main() {
     let config = AppConfig::new("FerrumKit")
         .size(1180., 760.)
-        .min_size(820., 520.);
+        .min_size(820., 520.)
+        .app(app_info::app_info());
     ferrum_ui::run(config, |window, cx| {
         app::bind_keys(cx);
         cx.new(|cx| app::FerrumKit::new(window, cx))

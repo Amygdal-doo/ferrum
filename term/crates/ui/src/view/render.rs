@@ -171,7 +171,21 @@ impl TermView {
 
 impl Render for TermView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let font = ferrum_ui::theme::theme_settings(cx).buffer_font.clone();
+        let settings = crate::settings::get();
+        let font = match &settings.font_family {
+            Some(family) if !family.trim().is_empty() => gpui::font(family.clone()),
+            _ => ferrum_ui::theme::theme_settings(cx).buffer_font.clone(),
+        };
+        // Follow a font size changed in Settings while keeping ⌘+/⌘- zoom.
+        if !self.options.compact && self.app.default_font_pt != settings.font_size {
+            self.app.font_pt += settings.font_size - self.app.default_font_pt;
+            self.app.default_font_pt = settings.font_size;
+        }
+        let font_key = (self.app.font_pt, font.family.clone());
+        if self.font_key.as_ref() != Some(&font_key) {
+            self.metrics = None;
+            self.font_key = Some(font_key);
+        }
         if self
             .metrics
             .is_none_or(|metrics| metrics.font_pt != self.app.font_pt)
@@ -332,7 +346,7 @@ pub(crate) fn tab_label(w: &WindowInfo, max: usize) -> String {
             ProgramState::Idle => 0,
         });
     let mut label: String = name.chars().take(max).collect();
-    if let Some(s) = status {
+    if let Some(s) = status.filter(|_| crate::settings::get().activity_in_tabs) {
         label = format!("{} {label}", s.glyph());
     }
     label

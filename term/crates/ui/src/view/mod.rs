@@ -54,6 +54,11 @@ pub struct TermView {
     /// Text under the selection when the drag ended (what ⌘C copies).
     selection_text: Option<String>,
     selecting: bool,
+    /// Blink phase of the focused pane's cursor (see `settings::Blink`).
+    pub(crate) cursor_on: bool,
+    /// Font the cell metrics were measured with.
+    pub(crate) font_key: Option<(f32, gpui::SharedString)>,
+    _blink: Task<()>,
     _message_timer: Option<Task<()>>,
     _events: Task<()>,
 }
@@ -71,6 +76,24 @@ impl TermView {
                     .update(cx, |view, cx| view.handle_event(event, cx))
                     .is_err()
                 {
+                    break;
+                }
+            }
+        });
+        let blink = cx.spawn(async move |this, cx| {
+            loop {
+                let interval = crate::settings::get().cursor_blink.interval_ms();
+                cx.background_executor()
+                    .timer(Duration::from_millis(interval.unwrap_or(500)))
+                    .await;
+                let alive = this.update(cx, |view, cx| {
+                    let next = interval.is_none() || !view.cursor_on;
+                    if next != view.cursor_on {
+                        view.cursor_on = next;
+                        cx.notify();
+                    }
+                });
+                if alive.is_err() {
                     break;
                 }
             }
@@ -102,6 +125,9 @@ impl TermView {
             selection: None,
             selection_text: None,
             selecting: false,
+            cursor_on: true,
+            font_key: None,
+            _blink: blink,
             _message_timer: None,
             _events: events,
         }
@@ -272,6 +298,7 @@ impl TermView {
         }
         // ⌘ shortcuts normally arrive as actions (see `actions`); this also
         // covers hosts that did not call `ferrumterm_ui::init`.
+        self.cursor_on = true;
         if let Some(action) = input::translate(&event.keystroke) {
             cx.stop_propagation();
             self.ime_marked = None;
@@ -317,6 +344,11 @@ impl TermView {
         match &self.selection {
             Some(s) if !s.is_empty() => {
                 self.selection_text = self.app.frames.get(&s.block).map(|f| s.text(f));
+                if crate::settings::get().copy_on_select
+                    && let Some(text) = &self.selection_text
+                {
+                    cx.write_to_clipboard(ClipboardItem::new_string(text.clone()));
+                }
             }
             _ => self.clear_selection(),
         }

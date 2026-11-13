@@ -7,7 +7,7 @@ pub fn toolbar(cx: &App) -> Div {
     let colors = cx.theme().colors();
     h_flex()
         .flex_none()
-        .h(px(40.))
+        .h(crate::appearance::toolbar_height(cx))
         .px_3()
         .gap_2()
         .bg(colors.title_bar_background)

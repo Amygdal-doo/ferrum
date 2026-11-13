@@ -4,24 +4,37 @@
 //! Built directly on `gpui` (Apache-2.0).
 
 mod app;
+mod app_info;
+pub mod appearance;
 pub mod assets;
 mod chrome;
 pub mod components;
 pub mod dock;
+pub mod integrations;
+pub mod keymap;
 pub mod menu;
 mod modal;
 mod notice;
+pub mod notify;
+pub mod onboarding;
+pub mod prefs;
 pub mod project;
 mod project_bar;
+mod root;
+pub mod settings;
 mod splitter;
 mod text_input;
 pub mod theme;
 
 pub use app::{AppConfig, Quit, init_for_tests, run};
+pub use app_info::{
+    AppInfo, KeyHint, Migration, NotificationEvent, Permission, PermissionKind, app_info,
+};
 pub use chrome::{badge, empty_state, kbd, section_header, status_bar, toolbar};
 pub use modal::Modal;
 pub use notice::{Notice, NoticeTone, render_notice};
 pub use project_bar::{ProjectBar, ProjectBarEvent, ToggleProjectSwitcher};
+pub use settings::{OpenSettings, ShowOnboarding, open_settings};
 pub use splitter::{DraggedSplitter, splitter};
 pub use text_input::{TextInput, TextInputEvent};
 

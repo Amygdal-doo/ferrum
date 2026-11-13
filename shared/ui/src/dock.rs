@@ -2,11 +2,10 @@
 //! in `~/.ferrum/preferences.json` (`hide_from_dock`: binary names); every
 //! app reads it when it starts.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 fn preferences_file() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME")?;
-    Some(Path::new(&home).join(".ferrum").join("preferences.json"))
+    crate::prefs::path("preferences.json")
 }
 
 /// Whether `binary` is listed in the preferences JSON `text`.
@@ -39,6 +38,32 @@ pub fn hidden_by_preference() -> bool {
         return false;
     };
     std::fs::read_to_string(file).is_ok_and(|text| listed(&text, &binary))
+}
+
+/// Adds or removes `binary` from the launcher's `hide_from_dock` list,
+/// keeping every other field of the file.
+pub fn set_hidden(binary: &str, hidden: bool) {
+    let Some(file) = preferences_file() else {
+        return;
+    };
+    let mut json: serde_json::Value = std::fs::read_to_string(&file)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .filter(serde_json::Value::is_object)
+        .unwrap_or_else(|| serde_json::json!({}));
+    let mut list: Vec<String> = json
+        .get("hide_from_dock")
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    list.retain(|b| b != binary);
+    if hidden {
+        list.push(binary.to_owned());
+        list.sort();
+    }
+    json["hide_from_dock"] = serde_json::json!(list);
+    if let Err(error) = crate::prefs::write(&file, &json) {
+        eprintln!("ferrum: could not save {}: {error}", file.display());
+    }
 }
 
 /// Shows or hides the Dock icon (and the app in ⌘-Tab) while running.

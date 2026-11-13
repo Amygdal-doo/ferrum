@@ -72,6 +72,30 @@ one look through `shared/ui`.
   `ferrum_ui::project`.
 - `Modal`, `Notice` / `render_notice`, `toolbar`, `status_bar`,
   `section_header`, `badge`, `kbd` and `empty_state`.
+- Onboarding and Settings, shared by every app. Each app describes itself
+  with `AppInfo` (passed to `AppConfig::app`): the keys worth knowing,
+  macOS permissions, where users migrate from, notification events and
+  its own settings pages.
+  - `onboarding`: the first-launch walkthrough. It covers welcome, look and
+    feel, integrations and permissions, agent-driven migration and the
+    keys worth knowing. Finished apps are listed in
+    `~/.ferrum/onboarding.json`. `FERRUM_ONBOARDING=1` shows it again; so
+    does the Show Onboarding… menu item.
+  - `settings`: the Settings window (⌘,). It has the Interface, Themes,
+    Shortcuts, Integrations and Notifications pages plus the app's own
+    (FerrumTerm adds Terminal and Remote Hosts). Pages are built from
+    `settings::widgets`. `FERRUM_OPEN_SETTINGS=<page>` opens it at start.
+  - `appearance`: colour scheme (Auto / Light / Dark), dark and light
+    theme, toolbar density and text size. Stored in
+    `~/.ferrum/appearance.json` and followed live by every running app.
+    `theme::presets` holds the built-in themes.
+  - `notify`: in-app toasts, system notifications, Dock badge and sound,
+    switchable per event, stored in `~/.ferrum/<binary>/notifications.json`.
+  - `keymap`: shortcuts recorded in Settings, stored in
+    `~/.ferrum/<binary>/keymap.json`.
+  - `integrations`: coding-agent detection, the Ferrum agent skill, the
+    migration prompt and permission checks.
+  - `prefs`: JSON files under `~/.ferrum` (`$FERRUM_HOME` overrides).
 - `ferrum_ui::prelude::*` re-exports GPUI and the components
   (`Button`, `Label`, `ListItem`, `ContextMenu`, `PopoverMenu`, `TabBar`, …).
 - `ferrum_ui::init_for_tests(cx)` installs the theme in headless GPUI tests.

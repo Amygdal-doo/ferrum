@@ -71,9 +71,43 @@ fn applescript_string(s: &str) -> String {
     format!("\"{}\"", clean.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
+/// Whether Settings › Notifications in FerrumTerm allows a system
+/// notification for `event` (`~/.ferrum/ferrumterm/notifications.json`,
+/// written by `ferrum_ui::notify`). Missing settings allow it.
+fn system_notifications_allowed(event: &str) -> bool {
+    let dir = match std::env::var_os("FERRUM_HOME") {
+        Some(dir) => std::path::PathBuf::from(dir),
+        None => match std::env::var_os("HOME") {
+            Some(home) => std::path::Path::new(&home).join(".ferrum"),
+            None => return true,
+        },
+    };
+    let Ok(text) = std::fs::read_to_string(dir.join("ferrumterm/notifications.json")) else {
+        return true;
+    };
+    allowed_in(&text, event)
+}
+
+fn allowed_in(text: &str, event: &str) -> bool {
+    let Ok(prefs) = serde_json::from_str::<serde_json::Value>(text) else {
+        return true;
+    };
+    let on = |v: Option<&serde_json::Value>| v.and_then(serde_json::Value::as_bool) != Some(false);
+    on(prefs.get("system")) && on(prefs.pointer(&format!("/events/{event}/system")))
+}
+
 /// Desktop notification for a status change (macOS only).
 pub fn notify(block: BlockId, label: &str, status: &ProgramStatus) {
     if !cfg!(target_os = "macos") {
+        return;
+    }
+    let event = match status.state {
+        ProgramState::Done => "done",
+        ProgramState::Blocked => "blocked",
+        ProgramState::Error => "error",
+        _ => return,
+    };
+    if !system_notifications_allowed(event) {
         return;
     }
     let headline = match status.state {
@@ -121,5 +155,20 @@ mod tests {
             r#""say \"hi\" \\ now""#
         );
         assert_eq!(applescript_string("a\nb"), "\"ab\"");
+    }
+}
+
+#[cfg(test)]
+mod notification_pref_tests {
+    use super::allowed_in;
+
+    #[test]
+    fn honours_master_and_event_switches() {
+        assert!(allowed_in("{}", "done"));
+        assert!(allowed_in("not json", "done"));
+        assert!(!allowed_in(r#"{"system": false}"#, "done"));
+        let per_event = r#"{"system": true, "events": {"done": {"system": false}}}"#;
+        assert!(!allowed_in(per_event, "done"));
+        assert!(allowed_in(per_event, "blocked"));
     }
 }

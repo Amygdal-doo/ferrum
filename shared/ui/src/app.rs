@@ -3,8 +3,15 @@ use gpui::{
     WindowBounds, WindowOptions, actions, px, size,
 };
 
+use std::rc::Rc;
+
+use gpui::AppContext as _;
+
+use crate::app_info::{AppInfo, AppInfoGlobal};
 use crate::assets::Assets;
 use crate::menu;
+use crate::root::Root;
+use crate::settings::{OpenSettings, ShowOnboarding};
 use crate::theme::{self, ThemeSettings};
 
 actions!(ferrum, [Quit]);
@@ -14,6 +21,9 @@ pub struct AppConfig {
     pub title: &'static str,
     pub size: Size<Pixels>,
     pub min_size: Size<Pixels>,
+    /// Onboarding, Settings pages and notifications; a bare one named after
+    /// the title when not given.
+    pub app: Option<AppInfo>,
 }
 
 impl AppConfig {
@@ -22,7 +32,14 @@ impl AppConfig {
             title,
             size: size(px(1360.), px(860.)),
             min_size: size(px(900.), px(560.)),
+            app: None,
         }
+    }
+
+    /// Describes the app for onboarding and Settings.
+    pub fn app(mut self, info: AppInfo) -> Self {
+        self.app = Some(info);
+        self
     }
 
     pub fn size(mut self, width: f32, height: f32) -> Self {
@@ -45,6 +62,12 @@ pub fn run<V: Render + 'static>(
     gpui_platform::application()
         .with_assets(Assets)
         .run(move |cx: &mut App| {
+            let info = config.app.unwrap_or_else(|| {
+                let binary =
+                    crate::prefs::current_binary().unwrap_or_else(|| config.title.to_lowercase());
+                AppInfo::new(config.title, Box::leak(binary.into_boxed_str()))
+            });
+            cx.set_global(AppInfoGlobal(Rc::new(info)));
             init(config.title, cx);
 
             let bounds = Bounds::centered(None, config.size, cx);
@@ -58,7 +81,21 @@ pub fn run<V: Render + 'static>(
                 app_id: Some(config.title.to_lowercase()),
                 ..Default::default()
             };
-            if let Err(error) = cx.open_window(options, |window, cx| build(window, cx)) {
+            let opened = cx.open_window(options, |window, cx| {
+                let app = build(window, cx);
+                cx.new(|cx| Root::new(app.into(), window, cx))
+            });
+            // After `build`, so recorded shortcuts win over the app's own.
+            crate::keymap::apply_saved(cx);
+            crate::appearance::watch(cx);
+            // Development aid: open Settings at start (`FERRUM_OPEN_SETTINGS=terminal`).
+            if let Ok(page) = std::env::var("FERRUM_OPEN_SETTINGS") {
+                crate::settings::open_settings(
+                    Some(&page).filter(|p| !p.is_empty()).map(|p| p.as_str()),
+                    cx,
+                );
+            }
+            if let Err(error) = opened {
                 eprintln!("{}: failed to open window: {error:#}", config.title);
                 cx.quit();
                 return;
@@ -75,18 +112,27 @@ fn init(title: &'static str, cx: &mut App) {
         eprintln!("{title}: failed to load bundled fonts: {error:#}");
     }
     theme::init(ThemeSettings::default(), cx);
+    crate::appearance::init(cx);
 
     crate::text_input::bind_keys(cx);
     crate::project_bar::bind_keys(cx);
     cx.bind_keys([
         KeyBinding::new("cmd-q", Quit, None),
+        KeyBinding::new("cmd-,", OpenSettings, None),
         KeyBinding::new("escape", menu::Cancel, None),
         KeyBinding::new("enter", menu::Confirm, Some("menu")),
+        KeyBinding::new("enter", menu::Confirm, Some("Onboarding")),
         KeyBinding::new("up", menu::SelectPrevious, Some("menu")),
         KeyBinding::new("down", menu::SelectNext, Some("menu")),
     ]);
     cx.on_action(|_: &Quit, cx| cx.quit());
-    cx.set_menus([Menu::new(title).items([MenuItem::action("Quit", Quit)])]);
+    cx.on_action(|_: &OpenSettings, cx| crate::settings::open_settings(None, cx));
+    cx.set_menus([Menu::new(title).items([
+        MenuItem::action("Settings…", OpenSettings),
+        MenuItem::action("Show Onboarding…", ShowOnboarding),
+        MenuItem::separator(),
+        MenuItem::action("Quit", Quit),
+    ])]);
     cx.on_window_closed(|cx, _| {
         if cx.windows().is_empty() {
             cx.quit();

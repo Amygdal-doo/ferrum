@@ -1,6 +1,8 @@
 //! FerrumGIT desktop entry point: one window around `ferrumgit_ui::GitView`.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod app_info;
+
 use ferrum_ui::AppConfig;
 use ferrumgit_ui::{AppServices, GitView, GitViewOptions};
 use gpui::Focusable as _;
@@ -29,7 +31,8 @@ fn main() {
 
     let config = AppConfig::new("FerrumGIT")
         .size(1440., 900.)
-        .min_size(980., 600.);
+        .min_size(980., 600.)
+        .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         ferrumgit_ui::init_with_services(services, cx);
         let view = GitView::new(open_at, GitViewOptions::desktop(), window, cx);

@@ -112,3 +112,22 @@ pub fn apply(theme: &Theme, cx: &mut App) {
     GlobalTheme::update_theme(cx, Arc::new(base));
     cx.refresh_windows();
 }
+
+/// Switches between the built-in `ferrum-dark` / `ferrum-light` to match
+/// the suite's appearance, unless the user configured another theme.
+pub fn follow_appearance(appearance: Appearance, cx: &mut App) {
+    let settings = cx.global_mut::<crate::settings::Settings>();
+    let configured = settings.config.theme.as_str();
+    if !matches!(configured, "ferrum-dark" | "ferrum-light") {
+        return;
+    }
+    let wanted = if appearance.is_light() {
+        "ferrum-light"
+    } else {
+        "ferrum-dark"
+    };
+    if settings.theme_name() != wanted && settings.set_theme(wanted) {
+        let theme = settings.theme.clone();
+        apply(&theme, cx);
+    }
+}

@@ -2,6 +2,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
+mod app_info;
 mod commands;
 mod components;
 mod state;
@@ -28,10 +29,13 @@ fn main() {
     };
     tracing::info!(data_dir = %dirs.data_dir().display(), "starting FerrumAPI");
 
-    ferrum_ui::run(AppConfig::new("FerrumAPI"), move |window, cx| {
-        app::bind_keys(cx);
-        cx.new(|cx| app::FerrumApi::new(services, window, cx))
-    });
+    ferrum_ui::run(
+        AppConfig::new("FerrumAPI").app(app_info::app_info()),
+        move |window, cx| {
+            app::bind_keys(cx);
+            cx.new(|cx| app::FerrumApi::new(services, window, cx))
+        },
+    );
 }
 
 /// Logs never include URLs with credentials, header values, bodies or

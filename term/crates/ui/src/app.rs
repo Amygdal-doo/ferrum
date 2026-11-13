@@ -93,6 +93,7 @@ pub(crate) fn spawn_env() -> Spawn {
         .filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v)))
         .collect();
     Spawn {
+        command: crate::settings::get().startup_argv(),
         env,
         ..Spawn::default()
     }
@@ -107,7 +108,7 @@ impl App {
         let default_font_pt = if options.compact {
             COMPACT_FONT_PT
         } else {
-            DEFAULT_FONT_PT
+            crate::settings::get().font_size
         };
         let mut app = Self {
             rt: connection::runtime(),

@@ -2,6 +2,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
+mod app_info;
 mod commands;
 mod components;
 mod state;
@@ -28,7 +29,8 @@ fn main() {
 
     let config = AppConfig::new("FerrumData")
         .size(1360., 860.)
-        .min_size(900., 560.);
+        .min_size(900., 560.)
+        .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         cx.new(|cx| app::FerrumData::new(services, window, cx))
     });

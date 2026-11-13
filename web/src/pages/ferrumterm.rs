@@ -33,6 +33,11 @@ const FEATURES: &[(&str, &str)] = &[
          C-b prefix for the usual commands.",
     ),
     (
+        "Settings and onboarding",
+        "Font, cursor, Option key, copy on selection, startup command, SSH hosts, themes, \
+         shortcuts and notifications in one Settings window, with a first-launch walkthrough.",
+    ),
+    (
         "Reach it from another Mac",
         "Optional listeners on loopback or your Tailscale address only, protected by a \
          256-bit token.",
@@ -50,13 +55,16 @@ const WORKS_TODAY: &[&str] = &[
     "Mouse selection and copy (⌘C)",
     "Saved SSH hosts and ~/.ssh/config hosts, with fterm ssh",
     "Local, remote and SOCKS port forwards run by the server",
+    "Settings: font, cursor style and blink, Option as Meta, copy on selection, startup command",
+    "Built-in light and dark themes, recordable shortcuts and per-event notifications",
     "What's using a port, with a confirmed kill (fterm port)",
 ];
 
 const NOT_BUILT_YET: &[&str] = &[
     "Mouse reporting to programs",
     "OSC 8 hyperlinks and ligatures",
-    "Config file, themes and search",
+    "Search in scrollback",
+    "Importing iTerm2 or Ghostty theme files",
     "Restoring sessions after the server itself restarts",
     "Kitty keyboard and graphics protocols",
 ];

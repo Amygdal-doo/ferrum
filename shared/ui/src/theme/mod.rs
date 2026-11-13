@@ -11,6 +11,7 @@ mod colors;
 pub mod contrast;
 mod legible;
 mod palette;
+pub mod presets;
 mod tones;
 
 use std::sync::Arc;

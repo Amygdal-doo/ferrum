@@ -110,6 +110,14 @@ pub fn translate(keystroke: &Keystroke) -> Option<Action> {
     if modifiers.platform {
         return shortcut(&key, modifiers.shift).map(Action::Shortcut);
     }
+    // Option types special characters (é, ∑, …) unless it is used as Meta.
+    if modifiers.alt
+        && !modifiers.control
+        && key.chars().count() == 1
+        && !crate::settings::get().option_as_meta
+    {
+        return None;
+    }
     let mut prefix = String::new();
     if modifiers.control {
         prefix.push_str("C-");
