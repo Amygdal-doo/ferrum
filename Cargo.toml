@@ -27,6 +27,8 @@ members = [
     "editor/crates/*",
     "ports/apps/*",
     "ports/crates/*",
+    "system/apps/*",
+    "system/crates/*",
     "env/apps/*",
     "env/crates/*",
     "logs/crates/*",
@@ -108,6 +110,9 @@ ferrumkit-core = { path = "kit/crates/core" }
 
 # FerrumPorts
 ferrumports-core = { path = "ports/crates/core" }
+
+# Ferrum System (FeS)
+ferrumsystem-core = { path = "system/crates/core" }
 
 # FerrumEnv
 ferrumenv-core = { path = "env/crates/core" }

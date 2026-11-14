@@ -10,7 +10,9 @@ APPS = {
     # FeK (Kit), FeC (FerrumContainers), FeE (Editor), FeP (Ports) and
     # FeE (Env: the vault; same letter as the Editor, told apart by the
     # vermilion accent and the padlock badge), FeX (Agentic: chat, git and
-    # terminal side by side; aurora accent, spark badge).
+    # terminal side by side; aurora accent, spark badge; the app is now
+    # FerrumVibe, so its capital is V), FeS (Ferrum System: architecture
+    # diagrams; aqua accent, stacked-layers badge).
     "ferrum":  ("e", "#E8743B", None),
     "api":     ("A", "#3FB8A0", "arrows"),
     "git":     ("G", "#F0B43C", "branch"),
@@ -22,7 +24,8 @@ APPS = {
     "editor":  ("E", "#C5DC3A", "caret"),
     "ports":   ("P", "#5B8DEF", "plug"),
     "env":     ("E", "#F2665A", "lock"),
-    "agentic": ("X", "#4CD97B", "spark"),
+    "agentic": ("V", "#4CD97B", "spark"),
+    "system":  ("S", "#2DD4BF", "layers"),
 }
 SW = 62  # letter stroke width
 
@@ -70,6 +73,7 @@ CAPITALS = {
     "V": (["M0 390 L100 730 L200 390"], 0, 200),
     "O": (["M100 390 A100 170 0 0 1 100 730 A100 170 0 0 1 100 390"], 0, 200),
     "I": (["M100 390 V730", "M30 390 H170", "M30 730 H170"], 30, 170),
+    "S": (["M188 440 Q165 390 100 390 Q12 390 12 472 Q12 545 100 560 Q190 575 190 648 Q190 730 100 730 Q28 730 6 680"], 6, 190),
 }
 CAP_SCALE = 0.72
 CAP_SW = 76  # heavier so the scaled-down strokes match the two-letter marks
@@ -128,6 +132,10 @@ def glyph(kind):
     if kind == "lock":
         return (f'<path {common} d="M-40 -12 V-42 Q-40 -82 0 -82 Q40 -82 40 -42 V-12"/>'
                 f'<rect x="-66" y="-14" width="132" height="96" rx="16" fill="{DARK}"/>')
+    if kind == "layers":
+        # Three stacked layers, seen from above.
+        return (f'<path fill="{DARK}" d="M0 -78 L80 -40 L0 -2 L-80 -40 Z"/>'
+                f'<path {common} d="M-80 4 L0 42 L80 4 M-80 44 L0 82 L80 44"/>')
     if kind == "spark":
         # A four-point sparkle with a small one beside it.
         def star(cx, cy, r, k):

@@ -3223,6 +3223,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrumsystem-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "ferrumsystem-desktop"
+version = "0.1.0"
+dependencies = [
+ "ferrum-ui",
+ "ferrumsystem-core",
+ "gpui",
+ "tempfile",
+]
+
+[[package]]
 name = "ferrumterm-cli"
 version = "0.1.0"
 dependencies = [

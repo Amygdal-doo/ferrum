@@ -1,0 +1,18 @@
+[package]
+name = "ferrumsystem-core"
+description = "Ferrum System (FeS) core: the architecture model, the technology and cloud catalogue, the .architecture folder, demo systems and live Kubernetes / Docker status (no GPUI)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
