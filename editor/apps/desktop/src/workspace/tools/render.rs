@@ -165,7 +165,7 @@ impl Workspace {
             |part: &str| SharedString::from(format!("tool-{}-{part}", kind.title().to_lowercase()));
         // As tall as the editor card's header beside it.
         let header = ferrum_ui::pane_header(cx)
-            .h(ferrum_ui::TITLE_ROW_HEIGHT)
+            .h(ferrum_ui::title_row_height())
             .id(id("header"))
             .pr_1()
             .cursor_grab()

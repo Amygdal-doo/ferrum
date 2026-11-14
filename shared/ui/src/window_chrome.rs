@@ -26,8 +26,21 @@ use crate::components::{
 };
 use crate::theme::ActiveTheme;
 
-/// Height of the title row (and of the pane headers that line up with it).
+/// Height of the title row (and of the pane headers that line up with it)
+/// in the Comfortable style; Compact uses [`COMPACT_TITLE_ROW_HEIGHT`].
 pub const TITLE_ROW_HEIGHT: Pixels = px(40.);
+/// [`TITLE_ROW_HEIGHT`] in the Compact style.
+pub const COMPACT_TITLE_ROW_HEIGHT: Pixels = px(32.);
+
+/// The title row's height in the current style (Comfortable or Compact).
+#[must_use]
+pub fn title_row_height() -> Pixels {
+    if crate::appearance::compact() {
+        COMPACT_TITLE_ROW_HEIGHT
+    } else {
+        TITLE_ROW_HEIGHT
+    }
+}
 /// Room left of the title row's content for the traffic lights.
 pub const TRAFFIC_LIGHTS_WIDTH: Pixels = px(76.);
 /// Where the traffic lights sit, centred in the title row.
@@ -49,7 +62,7 @@ pub fn title_row(id: impl Into<ElementId>, lights: bool, window: &Window) -> Sta
         .id(id)
         .flex_none()
         .w_full()
-        .h(TITLE_ROW_HEIGHT)
+        .h(title_row_height())
         .px_2()
         .gap_0p5()
         .when(lights, |row| row.pl(TRAFFIC_LIGHTS_WIDTH))
@@ -72,10 +85,12 @@ pub fn title_row(id: impl Into<ElementId>, lights: bool, window: &Window) -> Sta
         })
 }
 
-/// The point the traffic lights use; apps don't need it.
+/// Where the traffic lights go: centred in the title row of the current
+/// style (the window moves them when the style changes).
 #[must_use]
 pub fn traffic_light_position() -> Point<Pixels> {
-    point(TRAFFIC_LIGHT_POSITION.x, TRAFFIC_LIGHT_POSITION.y)
+    let shift = (TITLE_ROW_HEIGHT - title_row_height()) / 2.;
+    point(TRAFFIC_LIGHT_POSITION.x, TRAFFIC_LIGHT_POSITION.y - shift)
 }
 
 /// A small icon button for a title row or pane header.
@@ -132,7 +147,11 @@ pub fn sidebar_item(id: impl Into<ElementId>, active: bool, cx: &App) -> Statefu
         .flex_none()
         .mx_1p5()
         .px_2()
-        .min_h(px(30.))
+        .min_h(if crate::appearance::compact() {
+            px(24.)
+        } else {
+            px(30.)
+        })
         .gap_2()
         .rounded(px(8.))
         .cursor_pointer()
@@ -147,12 +166,13 @@ pub fn sidebar_item(id: impl Into<ElementId>, active: bool, cx: &App) -> Statefu
 
 /// A quiet group label in a sidebar ("Branches", "Agents").
 pub fn sidebar_label(text: impl Into<SharedString>, cx: &App) -> Div {
+    let compact = crate::appearance::compact();
     div()
         .flex_none()
         .px_3p5()
-        .pt_3()
-        .pb_1()
-        .text_size(px(12.))
+        .pt(if compact { px(8.) } else { px(12.) })
+        .pb(if compact { px(2.) } else { px(4.) })
+        .text_size(if compact { px(11.) } else { px(12.) })
         .text_color(cx.theme().colors().text_muted)
         .child(text.into())
 }
@@ -164,7 +184,11 @@ pub fn header_tab(id: impl Into<ElementId>, active: bool, cx: &App) -> Stateful<
     h_flex()
         .id(id)
         .flex_none()
-        .h(px(26.))
+        .h(if crate::appearance::compact() {
+            px(22.)
+        } else {
+            px(26.)
+        })
         .px_2p5()
         .gap_1p5()
         .rounded(px(7.))

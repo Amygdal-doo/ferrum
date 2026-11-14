@@ -78,6 +78,9 @@ pub fn run<V: Render + 'static>(
                 AppInfo::new(config.title, Box::leak(binary.into_boxed_str()))
             });
             cx.set_global(AppInfoGlobal(Rc::new(info)));
+            if config.unified_titlebar {
+                cx.set_global(crate::root::UnifiedTitlebar);
+            }
             init(config.title, cx);
 
             let bounds = Bounds::centered(None, config.size, cx);

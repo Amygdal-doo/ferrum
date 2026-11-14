@@ -1,7 +1,6 @@
 //! Root view and window layout.
 
 use crate::components::onboarding::Onboarding;
-use crate::components::settings::{SettingsForm, SettingsFormEvent};
 use crate::services::Services;
 use ferrum_ui::gpui::Image;
 use ferrum_ui::prelude::*;
@@ -60,7 +59,6 @@ pub struct FerrumLauncher {
     /// The `.app` this process runs from; `None` for unbundled builds.
     pub running_bundle: Option<std::path::PathBuf>,
     pub token_source: Option<TokenSource>,
-    pub settings_form: Option<Entity<SettingsForm>>,
     pub onboarding: Option<Entity<Onboarding>>,
     pub(crate) onboarding_subscription: Option<Subscription>,
     pub notice: Option<Notice>,
@@ -85,6 +83,8 @@ impl FerrumLauncher {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        // Settings › Launcher acts on this view.
+        cx.set_global(crate::settings_page::LauncherHandle(cx.weak_entity()));
         let mut this = Self {
             services,
             state,
@@ -97,7 +97,6 @@ impl FerrumLauncher {
             logos: HashMap::new(),
             running_bundle: ferrumlauncher_core::self_update::running_bundle(),
             token_source: None,
-            settings_form: None,
             onboarding: None,
             onboarding_subscription: None,
             notice: None,
@@ -190,28 +189,9 @@ impl FerrumLauncher {
         }));
     }
 
-    pub fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let settings = self.state.settings.clone();
-        let hide_dock = self.prefs(AppId::LAUNCHER).hide_from_dock;
-        let form = cx.new(|cx| SettingsForm::new(settings, hide_dock, window, cx));
-        let subscription =
-            cx.subscribe_in(&form, window, |this, _, event, window, cx| match event {
-                SettingsFormEvent::Saved(settings, hide_dock) => {
-                    this.settings_form = None;
-                    this.apply_settings(settings.clone(), window, cx);
-                    if *hide_dock != this.prefs(AppId::LAUNCHER).hide_from_dock {
-                        this.set_hide_from_dock(AppId::LAUNCHER, *hide_dock, cx);
-                    }
-                }
-                SettingsFormEvent::Cancelled => {
-                    this.settings_form = None;
-                    cx.notify();
-                }
-            });
-        self._subscriptions = vec![subscription];
-        form.update(cx, |form, cx| form.focus_first(window, cx));
-        self.settings_form = Some(form);
-        cx.notify();
+    /// Settings › Launcher in the shared Settings window (⌘,).
+    pub fn open_settings(&mut self, _: &mut Window, cx: &mut Context<Self>) {
+        ferrum_ui::open_settings(Some("launcher"), cx);
     }
 
     /// The window's title row: traffic-light room, the update buttons, then
@@ -306,10 +286,7 @@ impl FerrumLauncher {
                     "Look of every Ferrum app: colour scheme, themes, style",
                 )
                 .on_click(|_, _, cx| ferrum_ui::open_settings(Some("interface"), cx)),
-            )
-            .child(
-                ferrum_ui::title_button("settings", IconName::Settings, "Launcher settings")
-                    .on_click(cx.listener(|this, _, window, cx| this.open_settings(window, cx))),
+                // Launcher settings are in the same window (⌘,), on their own page.
             )
     }
 }
@@ -400,7 +377,6 @@ impl Render for FerrumLauncher {
             .when_some(self.onboarding.clone(), |this, onboarding| {
                 this.child(onboarding)
             })
-            .when_some(self.settings_form.clone(), |this, form| this.child(form))
             .when_some(self.notice.as_ref(), |this, notice| {
                 this.child(render_notice(
                     notice,

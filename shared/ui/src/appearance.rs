@@ -105,6 +105,15 @@ pub fn title_bar_fill() -> Option<Hsla> {
     TITLE_BAR_FILL.lock().ok().and_then(|fill| *fill)
 }
 
+/// The current [`ToolbarStyle`], for elements built without an `App`.
+static COMPACT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether the interface is set to Compact (smaller title rows, sidebar
+/// rows and tabs).
+pub fn compact() -> bool {
+    COMPACT.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Interface text size (the window's rem size).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -291,6 +300,10 @@ pub fn apply(cx: &mut App) {
     };
     let prefs = state.prefs.clone();
     let hook = state.hook.clone();
+    COMPACT.store(
+        prefs.toolbar == ToolbarStyle::Compact,
+        std::sync::atomic::Ordering::Relaxed,
+    );
     let appearance = prefs.effective(cx.window_appearance());
     let key = (
         appearance,

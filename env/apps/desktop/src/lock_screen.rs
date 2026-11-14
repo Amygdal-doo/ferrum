@@ -190,7 +190,7 @@ impl EnvApp {
                     .min_h_0()
                     .items_center()
                     .justify_center()
-                    .pb(ferrum_ui::window_chrome::TITLE_ROW_HEIGHT)
+                    .pb(ferrum_ui::title_row_height())
                     .child(card),
             )
             .into_any_element()

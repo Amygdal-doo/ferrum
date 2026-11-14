@@ -655,7 +655,11 @@ impl Render for ProjectBar {
             }))
             .flex_none()
             .w_full()
-            .h(px(30.))
+            .h(if crate::appearance::compact() {
+                px(24.)
+            } else {
+                px(30.)
+            })
             .px_2()
             .gap_2()
             .when(!self.inline, |bar| {

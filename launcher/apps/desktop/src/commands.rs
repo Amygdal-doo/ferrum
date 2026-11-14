@@ -553,7 +553,7 @@ impl FerrumLauncher {
     }
 
     /// Saves settings, then re-checks.
-    pub fn apply_settings(&mut self, settings: Settings, _: &mut Window, cx: &mut Context<Self>) {
+    pub fn apply_settings(&mut self, settings: Settings, cx: &mut Context<Self>) {
         // The form edits these three; everything else (release repository,
         // seen apps, migration flags, channels revision) stays as it is.
         let settings = Settings {
@@ -568,6 +568,11 @@ impl FerrumLauncher {
         self.state.settings = settings;
         if menu_bar_changed {
             self.refresh_menu_bar(cx);
+            // Without the menu bar icon, a launcher hidden from the Dock
+            // could not be reached: bring its Dock icon back.
+            if !self.state.settings.menu_bar && self.prefs(AppId::LAUNCHER).hide_from_dock {
+                self.set_hide_from_dock(AppId::LAUNCHER, false, cx);
+            }
         }
         self.persist(cx);
         let installed: Vec<AppId> = self.state.apps.keys().copied().collect();

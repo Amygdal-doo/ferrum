@@ -15,8 +15,16 @@ use crate::onboarding::{self, Onboarding, OnboardingEvent};
 use crate::settings::ShowOnboarding;
 use crate::theme::ActiveTheme;
 
+/// The app's main window draws its own title row (see
+/// [`crate::AppConfig::unified_titlebar`]).
+pub(crate) struct UnifiedTitlebar;
+
+impl gpui::Global for UnifiedTitlebar {}
+
 pub struct Root {
     app: AnyView,
+    /// Traffic-light position last set (follows Comfortable / Compact).
+    lights: Option<gpui::Point<gpui::Pixels>>,
     /// Window size before onboarding enlarged it (restored afterwards).
     before_onboarding: Option<gpui::Size<gpui::Pixels>>,
     /// Window background last set for the interface style.
@@ -34,6 +42,7 @@ impl Root {
         });
         let mut root = Self {
             app,
+            lights: None,
             background: None,
             before_onboarding: None,
             onboarding: None,
@@ -158,6 +167,13 @@ impl Render for Root {
         if self.background != Some(background) {
             window.set_background_appearance(background);
             self.background = Some(background);
+        }
+        if cx.has_global::<UnifiedTitlebar>() {
+            let lights = crate::window_chrome::traffic_light_position();
+            if self.lights != Some(lights) {
+                window.set_traffic_light_position(lights);
+                self.lights = Some(lights);
+            }
         }
         let toasts = self.render_toasts(cx);
         crate::surface::backdrop(false, cx)
