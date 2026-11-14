@@ -24,6 +24,7 @@ impl gpui::Global for UnifiedTitlebar {}
 pub struct Root {
     app: AnyView,
     /// Traffic-light position last set (follows Comfortable / Compact).
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     lights: Option<gpui::Point<gpui::Pixels>>,
     /// Window size before onboarding enlarged it (restored afterwards).
     before_onboarding: Option<gpui::Size<gpui::Pixels>>,
@@ -168,6 +169,8 @@ impl Render for Root {
             window.set_background_appearance(background);
             self.background = Some(background);
         }
+        // Only macOS draws traffic lights over the window.
+        #[cfg(target_os = "macos")]
         if cx.has_global::<UnifiedTitlebar>() {
             let lights = crate::window_chrome::traffic_light_position();
             if self.lights != Some(lights) {
