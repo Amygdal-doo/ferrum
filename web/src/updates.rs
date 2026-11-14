@@ -46,6 +46,7 @@ pub const POSTS: &[Post] = &[
     posts::rex_layout_and_fec::POST,
     posts::agentic_workspace::POST,
     posts::launcher_settings_compact::POST,
+    posts::per_app_themes::POST,
 ];
 
 /// Posts sorted by date, newest first (ties by title).
