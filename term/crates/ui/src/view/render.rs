@@ -21,7 +21,6 @@ const COMPACT_SIDEBAR: f32 = 260.0;
 /// A clickable tab-bar element.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TabKind {
-    Session,
     Window(String),
     NewWindow,
 }
@@ -59,27 +58,28 @@ impl TermView {
             .text_size(px(if compact { 12. } else { 13. }))
             .child(self.sidebar_toggle(cx));
         let mut tabs = Vec::new();
-        if let Some(session) = self.app.session() {
-            let name: String = if compact {
-                session.name.chars().take(12).collect()
-            } else {
-                session.name.clone()
-            };
-            tabs.push(
-                self.tab(
-                    "session",
-                    format!("◆ {name}"),
-                    false,
-                    colors.text,
-                    0.0,
-                    TabKind::Session,
-                    cx,
-                )
-                .mr(px(6.)),
-            );
-            let in_sidebar = !compact
-                && crate::settings::get().tab_position == crate::settings::TabPosition::Sidebar;
-            for window in session.windows.iter().filter(|_| !in_sidebar) {
+        let in_sidebar =
+            crate::settings::get().tab_position == crate::settings::TabPosition::Sidebar;
+        if in_sidebar {
+            // Tabs are listed in the sidebar: show only the current one.
+            if let Some(w) = self.app.window() {
+                tabs.push(
+                    h_flex()
+                        .id("current-tab")
+                        .h_full()
+                        .gap_1()
+                        .pr_2()
+                        .child(self.tab_chip(w, cx))
+                        .child(
+                            div()
+                                .truncate()
+                                .text_color(colors.text)
+                                .child(tab_label(w, label_len)),
+                        ),
+                );
+            }
+        } else if let Some(session) = self.app.session() {
+            for window in &session.windows {
                 let active = window.id == session.active_window;
                 let chip = self.tab_chip(window, cx);
                 tabs.push(
@@ -406,6 +406,8 @@ impl TermView {
                         cx,
                     )
                     .pl_0p5()
+                    // No fill: the active tab stands out by its brighter title.
+                    .bg(gpui::transparent_black())
                     .child(self.tab_chip(w, cx))
                     .child(tab_label(w, 28))
                     .on_click(cx.listener(move |view, _, _, cx| {

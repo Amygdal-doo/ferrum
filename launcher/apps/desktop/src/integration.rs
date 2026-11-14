@@ -358,7 +358,40 @@ impl FerrumLauncher {
                     cx.quit();
                     return;
                 }
-                other => other.strip_prefix("open:").and_then(AppId::new),
+                "check" => {
+                    self.check_for_updates(true, cx);
+                    return;
+                }
+                "update-all" => {
+                    self.update_all(cx);
+                    self.refresh_menu_bar(cx);
+                    return;
+                }
+                other => {
+                    if let Some(app) = other.strip_prefix("install:").and_then(AppId::new) {
+                        self.install_new_app(app, cx);
+                        self.refresh_menu_bar(cx);
+                        return;
+                    }
+                    if let Some(app) = other.strip_prefix("update:").and_then(AppId::new) {
+                        if let Some((_, version)) = self
+                            .state
+                            .app_updates()
+                            .into_iter()
+                            .find(|(a, _)| *a == app)
+                        {
+                            self.install(app, version, true, cx);
+                        }
+                        self.refresh_menu_bar(cx);
+                        return;
+                    }
+                    if let Some(app) = other.strip_prefix("show:").and_then(AppId::new) {
+                        cx.activate(true);
+                        self.select_app(app, cx);
+                        return;
+                    }
+                    other.strip_prefix("open:").and_then(AppId::new)
+                }
             },
             Signal::Hotkey(id) => self.app_for_hotkey(id),
         };
@@ -483,41 +516,76 @@ impl FerrumLauncher {
 
     /// Shows, updates or removes the menu bar icon.
     pub fn refresh_menu_bar(&mut self, cx: &mut Context<Self>) {
-        use tray_icon::menu::{Menu, MenuItem, PredefinedMenuItem};
+        use tray_icon::menu::{IconMenuItem, Menu, MenuItem, PredefinedMenuItem};
         if !self.state.settings.menu_bar {
             self.integration.tray = None;
             return;
         }
+        // Every app with its logo: installed ones open (with their version
+        // and shortcut), the others install. Then the pending updates.
         let menu = Menu::new();
         let mut apps: Vec<_> = AppId::BUILTIN
             .into_iter()
-            .filter(|app| *app != AppId::LAUNCHER && self.state.active(*app).is_some())
+            .filter(|app| *app != AppId::LAUNCHER)
             .map(|app| self.state.info(app))
             .collect();
         apps.sort_by_key(|info| (info.order, info.name.clone()));
+        let downloading = |app: AppId| self.downloads.contains_key(&app);
         for info in &apps {
-            let accelerator = self
-                .prefs(info.id)
-                .hotkey
-                .and_then(|h| h.replace("cmd", "super").parse().ok());
-            menu.append(&MenuItem::with_id(
-                format!("open:{}", info.id),
-                format!("Open {}", info.name),
+            let (id, text, accelerator) = match self.state.active(info.id) {
+                Some(version) => (
+                    format!("open:{}", info.id),
+                    format!("{}   v{version}", info.name),
+                    self.prefs(info.id)
+                        .hotkey
+                        .and_then(|h| h.replace("cmd", "super").parse().ok()),
+                ),
+                None if downloading(info.id) => (
+                    format!("show:{}", info.id),
+                    format!("{}   installing…", info.name),
+                    None,
+                ),
+                None => (
+                    format!("install:{}", info.id),
+                    format!("{}   Install", info.name),
+                    None,
+                ),
+            };
+            menu.append(&IconMenuItem::with_id(
+                id,
+                text,
                 true,
+                app_icon(info.id),
                 accelerator,
             ))
             .ok();
         }
-        if apps.is_empty() {
-            menu.append(&MenuItem::with_id(
-                "none",
-                "No apps installed yet",
-                false,
-                None,
-            ))
-            .ok();
+        let updates = self.state.app_updates();
+        if !updates.is_empty() {
+            menu.append(&PredefinedMenuItem::separator()).ok();
+            for (app, version) in &updates {
+                let name = self.state.info(*app).name;
+                menu.append(&MenuItem::with_id(
+                    format!("update:{app}"),
+                    format!("Update {name} to v{version}"),
+                    !downloading(*app),
+                    None,
+                ))
+                .ok();
+            }
+            if updates.len() > 1 {
+                menu.append(&MenuItem::with_id(
+                    "update-all",
+                    format!("Update All ({})", updates.len()),
+                    true,
+                    None,
+                ))
+                .ok();
+            }
         }
         menu.append(&PredefinedMenuItem::separator()).ok();
+        menu.append(&MenuItem::with_id("check", "Check for Updates", true, None))
+            .ok();
         menu.append(&MenuItem::with_id(
             "show",
             "Open Ferrum Launcher",
@@ -550,6 +618,45 @@ impl FerrumLauncher {
             Err(e) => self.notify_user(format!("Could not add the menu bar icon: {e}"), true, cx),
         }
     }
+}
+
+/// An app's logo for its menu item (32px for Retina).
+#[cfg(target_os = "macos")]
+fn app_icon(app: AppId) -> Option<tray_icon::menu::Icon> {
+    macro_rules! logo {
+        ($name:literal) => {
+            include_bytes!(concat!("../../../../brand/png/", $name, "-32.png")).as_slice()
+        };
+    }
+    let bytes = match app.as_str() {
+        "editor" => logo!("editor"),
+        "agentic" => logo!("agentic"),
+        "api" => logo!("api"),
+        "git" => logo!("git"),
+        "data" => logo!("data"),
+        "term" => logo!("term"),
+        "kit" => logo!("kit"),
+        "dock" => logo!("dock"),
+        "ports" => logo!("ports"),
+        "env" => logo!("env"),
+        _ => return None,
+    };
+    let (rgba, width, height) = decode_png(bytes)?;
+    tray_icon::menu::Icon::from_rgba(rgba, width, height).ok()
+}
+
+/// RGBA pixels of an 8-bit RGBA PNG.
+#[cfg(target_os = "macos")]
+fn decode_png(bytes: &[u8]) -> Option<(Vec<u8>, u32, u32)> {
+    let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+    let mut reader = decoder.read_info().ok()?;
+    let mut buf = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf).ok()?;
+    if info.color_type != png::ColorType::Rgba || info.bit_depth != png::BitDepth::Eight {
+        return None;
+    }
+    buf.truncate(info.buffer_size());
+    Some((buf, info.width, info.height))
 }
 
 #[cfg(target_os = "macos")]

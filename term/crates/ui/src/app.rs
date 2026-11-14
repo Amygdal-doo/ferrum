@@ -569,7 +569,6 @@ impl App {
 
     pub fn click_tab(&mut self, kind: TabKind) {
         match kind {
-            TabKind::Session => self.shortcut(Shortcut::NextSession, None),
             TabKind::Window(id) => self.send(Request::Focus { target: id }),
             TabKind::NewWindow => self.shortcut(Shortcut::NewTab, None),
         }

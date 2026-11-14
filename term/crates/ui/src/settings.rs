@@ -79,8 +79,9 @@ impl Blink {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TabPosition {
-    #[default]
     Top,
+    /// Listed in the sidebar, like Rex: the default.
+    #[default]
     Sidebar,
 }
 
@@ -114,7 +115,7 @@ pub struct TermSettings {
 impl Default for TermSettings {
     fn default() -> Self {
         Self {
-            tab_position: TabPosition::Top,
+            tab_position: TabPosition::Sidebar,
             sidebar_agents: true,
             sidebar_hosts: true,
             cursor_style: CursorStyle::Block,

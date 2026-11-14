@@ -229,8 +229,12 @@ impl Render for TerminalSettingsView {
             .child(
                 Section::new("Tabs and Sidebar")
                     .row(
-                        Row::new("tab-position", "Tabs")
-                            .detail("Across the top of the terminal, or listed in the sidebar.")
+                        Row::new("tab-position", "Show tabs")
+                            .detail(
+                                "In the sidebar, under their session, or across the top of the \
+                                 terminal (the sidebar then lists sessions). Also in Ferrum \
+                                 Editor's and FerrumAgentic's terminals.",
+                            )
                             .control(
                                 Segmented::new("tab-position-segments", tab_index)
                                     .icon_item(IconName::ThreadsSidebarLeftClosed, "Top")

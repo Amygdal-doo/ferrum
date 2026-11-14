@@ -52,15 +52,13 @@ impl TermView {
                 }
             }
         } else {
-            for section in &model.sessions {
-                if named {
-                    terminals =
-                        terminals.child(ferrum_ui::sidebar_label(session_name(&section.title), cx));
-                }
-                for row in &section.rows {
-                    terminals =
-                        terminals.child(self.render_row(format!("row-{}", row.block), row, cx));
-                }
+            // Tabs mode: the tabs run across the top, so the sidebar lists
+            // the sessions (like Rex's sidebar).
+            if named {
+                terminals = terminals.child(ferrum_ui::sidebar_label("Sessions", cx));
+            }
+            for session in &self.app.sessions {
+                terminals = terminals.child(self.render_session_row(session, cx));
             }
         }
 
@@ -138,6 +136,56 @@ impl TermView {
                             .child(bottom),
                     )
             })
+    }
+
+    /// A session in the sidebar (tabs mode): its current tab's mark, its
+    /// name and how many tabs it has; clicking switches to it.
+    fn render_session_row(
+        &self,
+        session: &ferrumterm_protocol::SessionInfo,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let active = Some(session.id) == self.app.session().map(|s| s.id);
+        let current = session
+            .windows
+            .iter()
+            .find(|w| w.id == session.active_window)
+            .or(session.windows.first());
+        let mark = match current.and_then(crate::tab_style::TabStyle::agent_logo) {
+            Some(logo) => ferrum_ui::agent_logo(logo, px(15.), cx).into_any_element(),
+            None => ferrum_ui::terminal_tile(px(17.), cx).into_any_element(),
+        };
+        let (session_id, block) = (session.id, current.map(|w| w.focused));
+        let tabs = session.windows.len();
+        ferrum_ui::sidebar_item(
+            SharedString::from(format!("session-row-{}", session.id)),
+            active,
+            cx,
+        )
+        .on_click(cx.listener(move |view, _, window, cx| {
+            window.focus(&view.focus_handle, cx);
+            if let Some(block) = block {
+                view.app.focus_block(session_id, block);
+            }
+            view.close_overlay_sidebar();
+            view.after_change(cx);
+        }))
+        .child(mark)
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .truncate()
+                .child(session_name(&session.name)),
+        )
+        .when(tabs > 1, |row| {
+            row.child(
+                div()
+                    .text_size(px(11.))
+                    .text_color(cx.theme().colors().text_muted)
+                    .child(tabs.to_string()),
+            )
+        })
     }
 
     /// A tab in the sidebar (tabs mode): chip, name, close.

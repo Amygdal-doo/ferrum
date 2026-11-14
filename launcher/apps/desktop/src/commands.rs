@@ -585,6 +585,8 @@ impl FerrumLauncher {
 
     /// Writes `state.json` off the UI thread.
     pub fn persist(&mut self, cx: &mut Context<Self>) {
+        // Versions and updates in the menu bar follow every saved change.
+        self.refresh_menu_bar(cx);
         let state = self.state.clone();
         let services = self.services.clone();
         cx.spawn(async move |this, cx| {
