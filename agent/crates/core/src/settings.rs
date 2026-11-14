@@ -106,6 +106,9 @@ pub struct AgentSettings {
     /// `provider_id/model` or `acp:<agent id>`.
     #[serde(default)]
     pub default_agent: Option<String>,
+    /// What runs without asking (the composer's approval menu).
+    #[serde(default)]
+    pub approval: crate::permissions::Approval,
 }
 
 impl Default for AgentSettings {
@@ -117,6 +120,7 @@ impl Default for AgentSettings {
                 ProviderSettings::ollama(),
             ],
             default_agent: None,
+            approval: crate::permissions::Approval::default(),
         }
     }
 }
@@ -162,5 +166,9 @@ mod tests {
         assert_eq!(anthropic.default_model, "claude-sonnet-5-5");
         assert!(anthropic.models.contains(&"claude-opus-5-5".to_string()));
         assert!(!settings.provider("ollama").expect("ollama").needs_key());
+        // Files from before the approval menu still load.
+        let old: AgentSettings =
+            serde_json::from_str(r#"{"providers": []}"#).expect("old settings");
+        assert_eq!(old.approval, crate::permissions::Approval::Ask);
     }
 }

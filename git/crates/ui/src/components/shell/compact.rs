@@ -110,6 +110,9 @@ pub fn render(app: &GitView, _: &mut Window, cx: &mut Context<GitView>) -> AnyEl
         .py_1()
         .bg(colors.title_bar_background);
     let Some(entry) = app.state.active_entry() else {
+        if !app.options.show_toolbar {
+            return div().into_any_element();
+        }
         return v_flex()
             .flex_none()
             .border_b_1()
@@ -388,12 +391,17 @@ pub fn render(app: &GitView, _: &mut Window, cx: &mut Context<GitView>) -> AnyEl
                 .child(div().flex_1().min_w_0().child(app.inputs.search.clone())),
         );
 
+    // Hosts that run these actions themselves keep only the page tabs.
+    let show_toolbar = app.options.show_toolbar;
     v_flex()
         .flex_none()
         .border_b_1()
         .border_color(colors.border)
-        .bg(colors.title_bar_background)
-        .child(bar.child(branch_button).child(actions))
-        .child(tabs)
+        .when(show_toolbar, |col| {
+            col.bg(colors.title_bar_background)
+                .child(bar.child(branch_button).child(actions))
+        })
+        .when(!show_toolbar, |col| col.pt_0p5())
+        .child(tabs.when(!show_toolbar, |tabs| tabs.border_t_0()))
         .into_any_element()
 }

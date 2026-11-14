@@ -11,7 +11,7 @@ use ferrum_ui::components::{
 use ferrum_ui::theme::ActiveTheme;
 use ferrumdock_engine::compose::ComposeAction;
 use ferrumdock_engine::shell::Shell;
-use gpui::{AnyElement, Context, FontWeight, SharedString, Window, div, prelude::*, px};
+use gpui::{AnyElement, Context, FontWeight, SharedString, Window, div, prelude::*};
 
 pub fn render(
     app: &mut FerrumContainers,
@@ -62,13 +62,12 @@ pub fn render(
             }),
         )
     });
-    let header = h_flex()
-        .flex_none()
-        .h(px(40.))
+    // The card's 40px header row (it drags the window too).
+    let header = ferrum_ui::title_row("detail-header", false, window)
         .px_3()
         .gap_2()
         .border_b_1()
-        .border_color(colors.border)
+        .border_color(colors.border_variant)
         .when_some(container.as_ref(), |d, c| {
             d.child(state_dot(state_color(c.state, cx)))
         })

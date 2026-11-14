@@ -1,11 +1,11 @@
 //! Root view (`GitView`) and window layout (Tower style):
-//! toolbar / sidebar | list | details; compact pane layout for hosts.
+//! sidebar | list card | detail card; compact pane layout for hosts.
 
 use crate::components::actions::Action;
 use crate::components::dialogs::{self, DialogState};
 use crate::components::graph::HistoryKey;
 use crate::components::menu;
-use crate::components::shell::{compact, layout, project, toolbar};
+use crate::components::shell::{compact, layout, project};
 use crate::embed::{self, GitViewEvent, GitViewOptions};
 use crate::state::{AppState, Dialog, Page};
 use ferrum_ui::components::v_flex;
@@ -442,11 +442,7 @@ impl Render for GitView {
             )
         });
         let compact = self.options.compact;
-        let toolbar = if compact {
-            compact::render(self, window, cx)
-        } else {
-            toolbar::render(self, window, cx)
-        };
+        let toolbar = compact.then(|| compact::render(self, window, cx));
         let body = layout::render_body(self, window, cx);
         let sidebar = self
             .sidebar_shown()
@@ -480,11 +476,11 @@ impl Render for GitView {
             .child(measure)
             .map(|d| {
                 if compact {
-                    d.child(toolbar).child(body)
+                    d.children(toolbar).child(body)
                 } else {
-                    // Window: sidebar on the backdrop, then the toolbar row
-                    // over the list and detail cards.
-                    d.child(layout::window_row(sidebar, toolbar, body, cx))
+                    // Window: sidebar on the backdrop, then the list and
+                    // detail cards, each with its own header row.
+                    d.child(layout::window_row(sidebar, body, cx))
                 }
             })
             .children(dialog)

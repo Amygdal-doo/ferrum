@@ -1,4 +1,4 @@
-//! Title row, sidebar, status line, notices and the connecting / offline screens.
+//! Card header and footer, sidebar, notices and the connecting / offline screens.
 
 use crate::app::FerrumContainers;
 use crate::state::{EngineStatus, Section};
@@ -11,8 +11,8 @@ use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{Notice, badge, render_notice};
 use gpui::{AnyElement, Context, Window, div, prelude::*, px};
 
-/// ◧, ⌘ and + : in the sidebar's title row, or at the start of the main
-/// title row while the sidebar is hidden.
+/// ◧, ⌘ and + : in the sidebar's title row, or at the start of the card
+/// header while the sidebar is hidden.
 pub fn title_controls(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let connected = matches!(app.status, EngineStatus::Connected(_));
     h_flex()
@@ -39,10 +39,15 @@ pub fn title_controls(app: &FerrumContainers, cx: &mut Context<FerrumContainers>
         .into_any_element()
 }
 
-/// The main title row: (window controls and project while the sidebar is
-/// hidden), the engine, then filter and Refresh.
-pub fn title_bar(
+/// A card's 40px header row (it drags the window too): (window controls
+/// and project while the sidebar is hidden), the section's title and count,
+/// the engine (badge, context, picker, stop VM), then the section's
+/// `actions`, filter and Refresh.
+pub fn card_header(
     app: &FerrumContainers,
+    title: &str,
+    count: Option<usize>,
+    actions: Vec<AnyElement>,
     window: &Window,
     cx: &mut Context<FerrumContainers>,
 ) -> AnyElement {
@@ -71,17 +76,29 @@ pub fn title_bar(
         EngineStatus::Connected(c) => c.candidate.context.clone(),
         _ => None,
     };
-    ferrum_ui::title_row("main-title", !sidebar, window)
+    ferrum_ui::title_row("card-header", !sidebar, window)
         .gap_2()
+        .pr_2()
+        .border_b_1()
+        .border_color(theme.colors().border_variant)
         .when(!sidebar, |row| {
             row.child(title_controls(app, cx)).child(
                 div()
                     .flex_none()
-                    .max_w(px(320.))
+                    .max_w(px(260.))
                     .child(app.project_bar.clone()),
             )
         })
-        .when(sidebar, |row| row.pl(ferrum_ui::PANE_GAP))
+        .when(sidebar, |row| row.pl_3())
+        .child(
+            Label::new(title.to_owned())
+                .weight(gpui::FontWeight::SEMIBOLD)
+                .into_any_element(),
+        )
+        .when_some(count, |row, n| {
+            row.child(Label::new(n.to_string()).color(Color::Muted))
+        })
+        .child(div().w(px(4.)))
         .child(engine_badge)
         .when_some(context, |bar, name| bar.child(muted(name)))
         .when(!matches!(app.status, EngineStatus::Connecting), |bar| {
@@ -101,10 +118,12 @@ pub fn title_bar(
             )
         })
         .child(div().flex_1())
+        .children(actions)
         .when(connected, |bar| {
             bar.child(
                 h_flex()
-                    .w(px(240.))
+                    .flex_none()
+                    .w(px(200.))
                     .h(px(26.))
                     .px_2()
                     .gap_1p5()
@@ -171,7 +190,9 @@ pub fn sidebar(
 
 pub const SIDEBAR_WIDTH: f32 = 248.;
 
-pub fn status_bar(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
+/// The quiet status line at the bottom of the section's card: socket, API,
+/// platform, pulls and the running count.
+pub fn card_footer(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let left = match &app.status {
         EngineStatus::Connected(c) => format!(
             "{} · API {} · {}/{}",
@@ -195,15 +216,17 @@ pub fn status_bar(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) ->
             app.state.containers.len()
         ));
     }
-    // A quiet line under the cards, on the backdrop.
+    let colors = cx.theme().colors();
     h_flex()
         .flex_none()
-        .h(px(22.))
-        .px_2()
+        .h(px(26.))
+        .px_3()
         .gap_3()
+        .border_t_1()
+        .border_color(colors.border_variant)
         .justify_between()
         .text_xs()
-        .text_color(cx.theme().colors().text_muted)
+        .text_color(colors.text_muted)
         .child(div().truncate().child(left))
         .child(div().truncate().child(right.join("   ")))
         .into_any_element()

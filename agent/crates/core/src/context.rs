@@ -12,7 +12,9 @@ use crate::tools::Sandbox;
 
 const FILE_LIMIT: usize = 100 * 1024;
 const FOLDER_LIMIT: usize = 300;
-const URL_LIMIT: usize = 40 * 1024;
+/// Bytes downloaded from a web page at most.
+const URL_DOWNLOAD_LIMIT: usize = 200 * 1024;
+const URL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
@@ -155,65 +157,133 @@ fn git_diff(root: &Path) -> Result<String, String> {
     })
 }
 
+/// A web page as text: http(s) only, redirects followed (the client's
+/// policy), 10 s, the first 200 KB; HTML is reduced to readable text.
 async fn fetch(http: &reqwest::Client, url: &str) -> Result<String, String> {
     let parsed = url::Url::parse(url).map_err(|e| e.to_string())?;
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err("only http(s) URLs".into());
     }
-    let response = http
-        .get(parsed)
-        .timeout(std::time::Duration::from_secs(20))
-        .send()
+    let download = async {
+        let mut response = http
+            .get(parsed)
+            .send()
+            .await
+            .map_err(|e| e.without_url().to_string())?;
+        if !response.status().is_success() {
+            return Err(format!("HTTP {}", response.status().as_u16()));
+        }
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+            bytes.extend_from_slice(&chunk);
+            if bytes.len() >= URL_DOWNLOAD_LIMIT {
+                bytes.truncate(URL_DOWNLOAD_LIMIT);
+                break;
+            }
+        }
+        Ok((content_type, bytes))
+    };
+    let (content_type, bytes) = tokio::time::timeout(URL_TIMEOUT, download)
         .await
-        .map_err(|e| e.without_url().to_string())?;
-    if !response.status().is_success() {
-        return Err(format!("HTTP {}", response.status().as_u16()));
+        .map_err(|_| "timed out after 10 s".to_string())??;
+    if content_type.starts_with("image/")
+        || content_type.starts_with("audio/")
+        || content_type.starts_with("video/")
+        || bytes[..bytes.len().min(8192)].contains(&0)
+    {
+        return Err(format!("not a text page ({content_type})"));
     }
-    let html = response
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|t| t.contains("html"));
-    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
-    let text = String::from_utf8_lossy(&bytes[..bytes.len().min(2 * 1024 * 1024)]).to_string();
+    let text = String::from_utf8_lossy(&bytes).to_string();
+    let html = content_type.contains("html")
+        || (content_type.is_empty() && text.trim_start().starts_with('<'));
     let text = if html { html_to_text(&text) } else { text };
-    let mut end = text.len().min(URL_LIMIT);
+    let mut end = text.len().min(FILE_LIMIT);
     while !text.is_char_boundary(end) {
         end -= 1;
     }
-    Ok(text[..end].to_string())
+    let more = if end < text.len() {
+        "\n…(truncated)"
+    } else {
+        ""
+    };
+    Ok(format!("{url}\n\n{}{more}", &text[..end]))
 }
 
-/// Crude HTML → text: drops scripts, styles and tags, decodes a few
-/// entities, collapses blank space.
+/// Crude HTML → text: the page title first, then the body without
+/// scripts, styles and tags; list items as `- `, entities decoded, blank
+/// space collapsed.
 pub fn html_to_text(html: &str) -> String {
-    let drop = regex::Regex::new(
-        r"(?is)<(script|style|noscript|svg)[^>]*>.*?</(script|style|noscript|svg)>",
-    )
-    .map(|r| r.replace_all(html, " ").to_string())
-    .unwrap_or_else(|_| html.to_string());
-    let blocks = regex::Regex::new(r"(?i)<(br|/p|/div|/h[1-6]|/li|/tr)[^>]*>")
-        .map(|r| r.replace_all(&drop, "\n").to_string())
-        .unwrap_or(drop);
-    let tags = regex::Regex::new(r"(?s)<[^>]+>")
-        .map(|r| r.replace_all(&blocks, " ").to_string())
-        .unwrap_or(blocks);
-    let decoded = tags
-        .replace("&nbsp;", " ")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&amp;", "&");
+    let replace = |pattern: &str, text: &str, with: &str| -> String {
+        regex::Regex::new(pattern)
+            .map(|r| r.replace_all(text, with).to_string())
+            .unwrap_or_else(|_| text.to_string())
+    };
+    let title = regex::Regex::new(r"(?is)<title[^>]*>(.*?)</title>")
+        .ok()
+        .and_then(|r| r.captures(html))
+        .and_then(|c| c.get(1))
+        .map(|m| decode_entities(&replace(r"(?s)<[^>]+>", m.as_str(), " ")))
+        .map(|t| t.split_whitespace().collect::<Vec<_>>().join(" "))
+        .unwrap_or_default();
+    let text = replace(r"(?s)<!--.*?-->", html, " ");
+    let text = replace(
+        r"(?is)<(script|style|noscript|svg|head|template)\b[^>]*>.*?</(script|style|noscript|svg|head|template)>",
+        &text,
+        " ",
+    );
+    let text = replace(r"(?i)<li\b[^>]*>", &text, "\n- ");
+    let text = replace(
+        r"(?i)<(br|hr|h[1-6]|/p|/div|/h[1-6]|/nav|/li|/tr|/pre|/blockquote|/section|/article|/header|/footer|/table|/ul|/ol)\b[^>]*>",
+        &text,
+        "\n",
+    );
+    let text = decode_entities(&replace(r"(?s)<[^>]+>", &text, " "));
     let mut out = String::new();
-    for line in decoded.lines() {
+    if !title.is_empty() {
+        out.push_str(&title);
+        out.push('\n');
+    }
+    for line in text.lines() {
         let line = line.split_whitespace().collect::<Vec<_>>().join(" ");
-        if !line.is_empty() {
+        if !line.is_empty() && line != "-" && line != title {
             out.push_str(&line);
             out.push('\n');
         }
     }
     out
+}
+
+/// Named entities that matter for prose, and numeric ones.
+fn decode_entities(text: &str) -> String {
+    let numeric = regex::Regex::new(r"&#(x[0-9a-fA-F]+|[0-9]+);").map(|r| {
+        r.replace_all(text, |c: &regex::Captures| {
+            let code = &c[1];
+            let n = match code.strip_prefix('x') {
+                Some(hex) => u32::from_str_radix(hex, 16).ok(),
+                None => code.parse().ok(),
+            };
+            n.and_then(char::from_u32)
+                .map_or_else(|| c[0].to_string(), String::from)
+        })
+        .to_string()
+    });
+    numeric
+        .unwrap_or_else(|_| text.to_string())
+        .replace("&nbsp;", " ")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
+        .replace("&mdash;", "—")
+        .replace("&ndash;", "–")
+        .replace("&hellip;", "…")
+        .replace("&amp;", "&")
 }
 
 /// A row in the @-mention picker.
@@ -432,5 +502,15 @@ mod tests {
             "<html><head><style>a{}</style><script>x()</script></head><body><h1>Title</h1><p>One &amp; two</p></body></html>",
         );
         assert_eq!(text, "Title\nOne & two\n");
+        let page = html_to_text(
+            "<!doctype html><html><head><title>Docs &mdash; API</title><meta x></head>\
+             <body><!-- nav --><nav><a href=\"/\">Home</a></nav>\
+             <h2>Install</h2><pre>cargo add x</pre><ul><li>fast</li><li>safe &#x2713;</li></ul>\
+             <p>a&nbsp;&lt;b&gt;<br>c &#39;d&#39;</p></body></html>",
+        );
+        assert_eq!(
+            page,
+            "Docs — API\nHome\nInstall\ncargo add x\n- fast\n- safe ✓\na <b>\nc 'd'\n"
+        );
     }
 }

@@ -471,6 +471,47 @@ impl Thread {
     }
 }
 
+impl Thread {
+    /// The conversation as Markdown ("Copy as Markdown"): the title, then
+    /// each message's text, plans and a line per tool call.
+    pub fn to_markdown(&self) -> String {
+        let mut out = format!("# {}\n", self.title);
+        for message in &self.messages {
+            let who = match message.role {
+                Role::User => "User",
+                Role::Assistant => "Assistant",
+            };
+            out.truncate(out.trim_end().len());
+            out.push_str(&format!("\n\n## {who}\n\n"));
+            for attachment in &message.attachments {
+                out.push_str(&format!("> @{}\n", attachment.label));
+            }
+            if !message.attachments.is_empty() {
+                out.push('\n');
+            }
+            for block in &message.blocks {
+                match block {
+                    Block::Text { text } => {
+                        out.push_str(text.trim_end());
+                        out.push_str("\n\n");
+                    }
+                    Block::Thinking { .. } => {}
+                    Block::Tool { call } => out.push_str(&format!("- `{}`\n", call.title)),
+                    Block::Plan { entries } => {
+                        for e in entries {
+                            let mark = if e.status == "completed" { "x" } else { " " };
+                            out.push_str(&format!("- [{mark}] {}\n", e.content));
+                        }
+                        out.push('\n');
+                    }
+                    Block::Error { message } => out.push_str(&format!("> Error: {message}\n\n")),
+                }
+            }
+        }
+        format!("{}\n", out.trim_end())
+    }
+}
+
 /// A title from the first prompt: its first line, at most 60 chars.
 pub fn title_from(text: &str) -> String {
     let line = text
@@ -571,5 +612,27 @@ mod tests {
         t.apply(&ThreadEvent::Truncated { keep_through: 1 });
         assert_eq!(t.messages.len(), 1);
         assert_eq!(title_from(&"x".repeat(70)).chars().count(), 61);
+    }
+
+    #[test]
+    fn markdown_export() {
+        let mut t = Thread::new("/p".into(), "anthropic/m", Mode::Agent);
+        t.apply(&ThreadEvent::UserMessage {
+            id: 1,
+            text: "Fix the bug".into(),
+            attachments: vec![Attachment {
+                label: "src/a.rs".into(),
+                text: "…".into(),
+            }],
+            checkpoint: None,
+        });
+        t.apply(&ThreadEvent::AssistantStarted { id: 2 });
+        t.apply(&ThreadEvent::ThinkingDelta("hidden".into()));
+        t.apply(&ThreadEvent::TextDelta("Fixed.".into()));
+        let md = t.to_markdown();
+        assert_eq!(
+            md,
+            "# Fix the bug\n\n## User\n\n> @src/a.rs\n\nFix the bug\n\n## Assistant\n\nFixed.\n"
+        );
     }
 }

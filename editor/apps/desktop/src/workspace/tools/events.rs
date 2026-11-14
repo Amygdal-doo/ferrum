@@ -55,6 +55,9 @@ impl Workspace {
             }
             // The agent wrote files: open buffers reload (or ask if edited).
             ChatEvent::ChangesUpdated { .. } => self.check_disk_changes(window, cx),
+            // The editor shows no thread list and never sets a git status, so
+            // the chat's footer offers no git actions here.
+            ChatEvent::ThreadsChanged | ChatEvent::Git(_) => {}
         }
     }
 

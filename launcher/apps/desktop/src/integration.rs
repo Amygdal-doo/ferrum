@@ -13,8 +13,12 @@ use crate::app::FerrumLauncher;
 /// Signals from the menu bar icon and global shortcuts (AppKit callbacks).
 #[derive(Debug, Clone)]
 pub enum Signal {
+    /// A choice in the icon's right-click menu.
     Menu(String),
     Hotkey(u32),
+    /// A left click on the icon, which toggles the panel.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    Tray(crate::panel::IconRect),
 }
 
 /// Per-window state for the integrations.
@@ -24,6 +28,12 @@ pub struct Integration {
     pub recording: Option<AppId>,
     /// The command name field of each app page.
     pub command_inputs: HashMap<AppId, Entity<TextInput>>,
+    /// The menu bar panel, while open.
+    pub panel: Option<ferrum_ui::gpui::WindowHandle<crate::panel::LauncherPanel>>,
+    /// When the panel last closed (see `panel::toggle`).
+    pub panel_closed_at: Option<std::time::Instant>,
+    /// The main window, which the panel brings up.
+    pub main_window: Option<ferrum_ui::gpui::AnyWindowHandle>,
     #[cfg(target_os = "macos")]
     tray: Option<tray_icon::TrayIcon>,
     #[cfg(target_os = "macos")]
@@ -80,7 +90,7 @@ pub fn hotkey_from_keystroke(keystroke: &ferrum_ui::gpui::Keystroke) -> Result<S
 }
 
 impl FerrumLauncher {
-    fn prefs(&self, app: AppId) -> AppPrefs {
+    pub(crate) fn prefs(&self, app: AppId) -> AppPrefs {
         self.state
             .settings
             .app_prefs
@@ -394,6 +404,12 @@ impl FerrumLauncher {
                 }
             },
             Signal::Hotkey(id) => self.app_for_hotkey(id),
+            Signal::Tray(icon) => {
+                // After this update: the panel reads the launcher.
+                let launcher = cx.entity();
+                cx.defer(move |cx| crate::panel::toggle(launcher, icon, cx));
+                return;
+            }
         };
         match app {
             Some(app) if app == AppId::LAUNCHER => cx.activate(true),
@@ -410,10 +426,31 @@ impl FerrumLauncher {
         use futures::StreamExt;
         use global_hotkey::{GlobalHotKeyEvent, HotKeyState};
         use tray_icon::menu::MenuEvent;
+        use tray_icon::{MouseButton, MouseButtonState, TrayIconEvent};
         let (tx, mut rx) = futures::channel::mpsc::unbounded::<Signal>();
         let menu_tx = tx.clone();
         MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
             menu_tx.unbounded_send(Signal::Menu(event.id.0)).ok();
+        }));
+        // A left click opens the panel under the icon (the right-click
+        // menu is AppKit's own).
+        let tray_tx = tx.clone();
+        TrayIconEvent::set_event_handler(Some(move |event: TrayIconEvent| {
+            if let TrayIconEvent::Click {
+                rect,
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Down,
+                ..
+            } = event
+            {
+                let icon = crate::panel::IconRect {
+                    x: rect.position.x,
+                    y: rect.position.y,
+                    width: f64::from(rect.size.width),
+                    height: f64::from(rect.size.height),
+                };
+                tray_tx.unbounded_send(Signal::Tray(icon)).ok();
+            }
         }));
         GlobalHotKeyEvent::set_event_handler(Some(move |event: GlobalHotKeyEvent| {
             if event.state() == HotKeyState::Pressed {
@@ -514,7 +551,8 @@ impl FerrumLauncher {
         }
     }
 
-    /// Shows, updates or removes the menu bar icon.
+    /// Shows, updates or removes the menu bar icon. A left click opens the
+    /// panel; a right click shows the menu built here.
     pub fn refresh_menu_bar(&mut self, cx: &mut Context<Self>) {
         use tray_icon::menu::{IconMenuItem, Menu, MenuItem, PredefinedMenuItem};
         if !self.state.settings.menu_bar {
@@ -607,7 +645,8 @@ impl FerrumLauncher {
         let icon = menu_bar_icon();
         let mut builder = tray_icon::TrayIconBuilder::new()
             .with_tooltip("Ferrum Launcher")
-            .with_menu(Box::new(menu));
+            .with_menu(Box::new(menu))
+            .with_menu_on_left_click(false);
         if let Some(icon) = icon {
             builder = builder.with_icon(icon);
         } else {

@@ -1,16 +1,25 @@
-//! FerrumAgentic desktop entry point: FerrumChat, FerrumGIT and FerrumTerm
-//! side by side. `ferrumagentic [folder]` opens on that project.
+//! FerrumAgentic desktop entry point: an agent always live in a project,
+//! with its threads in a sidebar and FerrumGIT and FerrumTerm beside it.
+//! `ferrumagentic [folder]` opens on that project.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
 mod app_info;
+mod automations;
 mod chrome;
 mod columns;
+mod extensions;
 mod layout;
+mod nav;
+mod navigate;
+mod pages;
 mod panes;
 mod shell_path;
+mod sidebar;
+mod sites;
 #[cfg(test)]
 mod tests;
+mod threads;
 
 use std::path::PathBuf;
 use std::rc::Rc;

@@ -25,7 +25,13 @@ fn value(text: impl Into<SharedString>) -> Label {
     Label::new(text.into()).size(LabelSize::Small)
 }
 
-pub fn render(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> Option<AnyElement> {
+/// The detail card's content: a 40px header row (title, close) over the
+/// scrolling details.
+pub fn render(
+    app: &FerrumPorts,
+    window: &Window,
+    cx: &mut Context<FerrumPorts>,
+) -> Option<AnyElement> {
     let l = app.selected_listener()?.clone();
     let theme = cx.theme().clone();
     let colors = theme.colors();
@@ -85,111 +91,123 @@ pub fn render(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> Option<AnyEle
     });
     let kill = l.clone();
 
+    let header = ferrum_ui::title_row("detail-header", false, window)
+        .px_3()
+        .gap_2()
+        .border_b_1()
+        .border_color(colors.border_variant)
+        .child(
+            div().flex_1().min_w_0().child(
+                Label::new(title)
+                    .weight(gpui::FontWeight::SEMIBOLD)
+                    .truncate(),
+            ),
+        )
+        .child(
+            ferrum_ui::title_button("detail-close", IconName::Close, "Close (Esc)").on_click(
+                cx.listener(|app, _, _, cx| {
+                    app.selected = None;
+                    cx.notify();
+                }),
+            ),
+        );
+    let body = v_flex()
+        .id("detail")
+        .flex_1()
+        .min_h_0()
+        .overflow_y_scroll()
+        .p_3()
+        .gap_3()
+        .child(actions)
+        .children(open_in)
+        .child(field(
+            "Command",
+            div()
+                .p_2()
+                .rounded_md()
+                .border_1()
+                .border_color(colors.border)
+                .bg(colors.editor_background)
+                .font_buffer(cx)
+                .text_ui_sm(cx)
+                .child(l.command_or_name().to_string()),
+        ))
+        .child(field(
+            "Process",
+            value(match l.pid {
+                Some(pid) => format!("{} · pid {pid}", l.process),
+                None => format!("{} · pid hidden (another user)", l.process),
+            }),
+        ))
+        .child(field(
+            "Listening on",
+            value(format!(
+                "{} {} · {}",
+                l.protocol.label(),
+                l.address_label(),
+                l.exposure().label()
+            )),
+        ))
+        .when_some(l.cwd.as_deref().map(show), |d, cwd| {
+            d.child(field("Working directory", value(cwd)))
+        })
+        .when_some(l.project.as_deref().map(show), |d, project| {
+            d.child(field("Project", value(project).color(Color::Accent)))
+        })
+        .when_some(l.user.clone(), |d, user| {
+            d.child(field("User", value(user)))
+        })
+        .when_some(l.started, |d, started| {
+            d.child(field(
+                "Started",
+                value(started.format("%Y-%m-%d %H:%M:%S").to_string()),
+            ))
+        })
+        .when(others.len() > 1, |d| {
+            d.child(field(
+                "All ports of this process",
+                v_flex().gap_0p5().children(others.into_iter().map(|o| {
+                    let key = o.key();
+                    let selected = key == l.key();
+                    div()
+                        .id(SharedString::from(format!(
+                            "other-{}-{}",
+                            o.protocol.label(),
+                            o.port
+                        )))
+                        .cursor_pointer()
+                        .child(
+                            value(format!(
+                                "{} {} · {}",
+                                o.protocol.label(),
+                                o.port,
+                                o.address_label()
+                            ))
+                            .color(if selected {
+                                Color::Accent
+                            } else {
+                                Color::Default
+                            }),
+                        )
+                        .on_click(cx.listener(move |app, _, _, cx| {
+                            app.selected = Some(key);
+                            cx.notify();
+                        }))
+                })),
+            ))
+        })
+        .child(
+            Button::new("d-kill", "Stop process…")
+                .style(ButtonStyle::Tinted(ferrum_ui::components::TintColor::Error))
+                .on_click(cx.listener(move |app, _, _, cx| app.ask_kill(kill.clone(), cx))),
+        );
     Some(
         v_flex()
-            .id("detail")
             .flex_none()
             .w(px(WIDTH))
             .h_full()
-            .overflow_y_scroll()
-            .p_3()
-            .gap_3()
-            .child(
-                h_flex()
-                    .justify_between()
-                    .child(Headline::new(title).size(HeadlineSize::XSmall))
-                    .child(
-                        IconButton::new("detail-close", IconName::Close).on_click(cx.listener(
-                            |app, _, _, cx| {
-                                app.selected = None;
-                                cx.notify();
-                            },
-                        )),
-                    ),
-            )
-            .child(actions)
-            .children(open_in)
-            .child(field(
-                "Command",
-                div()
-                    .p_2()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(colors.border)
-                    .bg(colors.editor_background)
-                    .font_buffer(cx)
-                    .text_ui_sm(cx)
-                    .child(l.command_or_name().to_string()),
-            ))
-            .child(field(
-                "Process",
-                value(match l.pid {
-                    Some(pid) => format!("{} · pid {pid}", l.process),
-                    None => format!("{} · pid hidden (another user)", l.process),
-                }),
-            ))
-            .child(field(
-                "Listening on",
-                value(format!(
-                    "{} {} · {}",
-                    l.protocol.label(),
-                    l.address_label(),
-                    l.exposure().label()
-                )),
-            ))
-            .when_some(l.cwd.as_deref().map(show), |d, cwd| {
-                d.child(field("Working directory", value(cwd)))
-            })
-            .when_some(l.project.as_deref().map(show), |d, project| {
-                d.child(field("Project", value(project).color(Color::Accent)))
-            })
-            .when_some(l.user.clone(), |d, user| {
-                d.child(field("User", value(user)))
-            })
-            .when_some(l.started, |d, started| {
-                d.child(field(
-                    "Started",
-                    value(started.format("%Y-%m-%d %H:%M:%S").to_string()),
-                ))
-            })
-            .when(others.len() > 1, |d| {
-                d.child(field(
-                    "All ports of this process",
-                    v_flex().gap_0p5().children(others.into_iter().map(|o| {
-                        let key = o.key();
-                        let selected = key == l.key();
-                        div()
-                            .id(SharedString::from(format!(
-                                "other-{}-{}",
-                                o.protocol.label(),
-                                o.port
-                            )))
-                            .cursor_pointer()
-                            .child(
-                                value(format!(
-                                    "{} {} · {}",
-                                    o.protocol.label(),
-                                    o.port,
-                                    o.address_label()
-                                ))
-                                .color(if selected {
-                                    Color::Accent
-                                } else {
-                                    Color::Default
-                                }),
-                            )
-                            .on_click(cx.listener(move |app, _, _, cx| {
-                                app.selected = Some(key);
-                                cx.notify();
-                            }))
-                    })),
-                ))
-            })
-            .child(
-                Button::new("d-kill", "Stop process…")
-                    .style(ButtonStyle::Tinted(ferrum_ui::components::TintColor::Error))
-                    .on_click(cx.listener(move |app, _, _, cx| app.ask_kill(kill.clone(), cx))),
-            )
+            .child(header)
+            .child(body)
             .into_any_element(),
     )
 }

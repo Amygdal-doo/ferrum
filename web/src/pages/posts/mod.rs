@@ -2,6 +2,7 @@
 //! `POST: crate::updates::Post`. Claims must come from the app READMEs,
 //! `catalog.json` and the product pages: no invented plans, numbers or dates.
 
+pub mod agentic_workspace;
 pub mod editor_panes_agentic;
 pub mod glass_and_cards;
 pub mod onboarding_settings;

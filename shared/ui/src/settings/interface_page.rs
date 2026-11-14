@@ -104,6 +104,7 @@ impl SettingsPage for InterfacePage {
             .position(|s| *s == prefs.text_size)
             .unwrap_or(1);
         let in_dock = !crate::dock::hidden_by_preference();
+        let tinted = usize::from(prefs.title_bar == appearance::TitleBarStyle::Tinted);
         let info = crate::app_info::app_info(cx);
         gpui::div()
             .flex()
@@ -124,6 +125,27 @@ impl SettingsPage for InterfacePage {
             )
             .child(
                 Section::new("Window")
+                    .row(
+                        Row::new("title-bar", "Title bar")
+                            .detail(
+                                "Transparent: the top row sits on the window background. \
+                                 Tinted: a shaded strip like a classic title bar.",
+                            )
+                            .control(
+                                Segmented::new("title-bar-segments", tinted)
+                                    .item("Transparent")
+                                    .item("Tinted")
+                                    .on_select(|i, _, cx| {
+                                        appearance::update(cx, |p| {
+                                            p.title_bar = if i == 1 {
+                                                appearance::TitleBarStyle::Tinted
+                                            } else {
+                                                appearance::TitleBarStyle::Transparent
+                                            }
+                                        });
+                                    }),
+                            ),
+                    )
                     .row(
                         Row::new("text-size", "Text size")
                             .detail("Size of labels, lists and menus in every window.")

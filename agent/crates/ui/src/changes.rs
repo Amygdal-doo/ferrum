@@ -1,6 +1,7 @@
 //! The changes list: every file the agent changed since the session's
 //! snapshot, with its diff split into hunks, and Accept / Reject for all,
-//! a file or a hunk; "Undo restore" after a checkpoint restore.
+//! a file or a hunk; "Undo restore" after a checkpoint restore. Also the
+//! summary card after a turn ("Edited 3 files +20 −2 · Undo · Review").
 
 use ferrum_ui::prelude::*;
 use ferrum_ui::theme::theme_settings;
@@ -10,7 +11,134 @@ use gpui::{Context, Window};
 use crate::actions::*;
 use crate::view::ChatView;
 
+/// Files listed on the summary card before "Show N more files".
+const SUMMARY_FILES: usize = 5;
+
 impl ChatView {
+    pub(crate) fn render_change_summary(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        let additions: usize = self.changes.iter().map(|c| c.additions).sum();
+        let deletions: usize = self.changes.iter().map(|c| c.deletions).sum();
+        let count = self.changes.len();
+        let shown = if self.all_changed_files {
+            count
+        } else {
+            count.min(SUMMARY_FILES)
+        };
+        let hover = ferrum_ui::hover_fill(cx);
+        v_flex()
+            .rounded(px(10.))
+            .border_1()
+            .border_color(colors.border_variant)
+            .overflow_hidden()
+            .child(
+                h_flex()
+                    .px_3()
+                    .py_1p5()
+                    .gap_1p5()
+                    .border_b_1()
+                    .border_color(colors.border_variant)
+                    .child(
+                        Label::new(format!(
+                            "Edited {count} file{}",
+                            if count == 1 { "" } else { "s" }
+                        ))
+                        .size(LabelSize::Small),
+                    )
+                    .child(
+                        Label::new(format!("+{additions}"))
+                            .size(LabelSize::Small)
+                            .color(Color::Created),
+                    )
+                    .child(
+                        Label::new(format!("−{deletions}"))
+                            .size(LabelSize::Small)
+                            .color(Color::Deleted),
+                    )
+                    .child(div().flex_1())
+                    .child(
+                        Button::new("chat-summary-undo", "Undo")
+                            .style(ButtonStyle::Subtle)
+                            .label_size(LabelSize::XSmall)
+                            .start_icon(Icon::new(IconName::Undo).size(IconSize::XSmall))
+                            .tooltip(Tooltip::text("Reject every change (⌘⇧⌫)"))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.reject_all(&RejectAll, window, cx)
+                            })),
+                    )
+                    .child(
+                        Button::new("chat-summary-review", "Review")
+                            .style(ButtonStyle::Subtle)
+                            .label_size(LabelSize::XSmall)
+                            .toggle_state(self.show_changes)
+                            .start_icon(Icon::new(IconName::Eye).size(IconSize::XSmall))
+                            .tooltip(Tooltip::text("Review hunk by hunk (⌘⌥R)"))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.toggle_changes(&ToggleChanges, window, cx)
+                            })),
+                    ),
+            )
+            .children(
+                self.changes
+                    .iter()
+                    .take(shown)
+                    .enumerate()
+                    .map(|(i, change)| {
+                        let path = change.path.clone();
+                        let line = change.hunks.first().map(|h| h.new_start as u32 + 1);
+                        h_flex()
+                            .id(("chat-summary-file", i))
+                            .px_3()
+                            .py_0p5()
+                            .gap_1p5()
+                            .cursor_pointer()
+                            .hover(move |s| s.bg(hover))
+                            .on_click(
+                                cx.listener(move |this, _, _, cx| this.open_file(&path, line, cx)),
+                            )
+                            .child(
+                                div().flex_1().min_w_0().overflow_hidden().child(
+                                    Label::new(change.path.to_string_lossy().to_string())
+                                        .size(LabelSize::XSmall)
+                                        .single_line()
+                                        .truncate(),
+                                ),
+                            )
+                            .child(
+                                Label::new(format!("+{}", change.additions))
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Created),
+                            )
+                            .child(
+                                Label::new(format!("−{}", change.deletions))
+                                    .size(LabelSize::XSmall)
+                                    .color(Color::Deleted),
+                            )
+                    }),
+            )
+            .when(shown < count, |this| {
+                this.child(
+                    div().px_1p5().py_0p5().child(
+                        Button::new(
+                            "chat-summary-more",
+                            format!(
+                                "Show {} more file{}",
+                                count - shown,
+                                if count - shown == 1 { "" } else { "s" }
+                            ),
+                        )
+                        .style(ButtonStyle::Transparent)
+                        .label_size(LabelSize::XSmall)
+                        .color(Color::Muted)
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.all_changed_files = true;
+                            cx.notify();
+                        })),
+                    ),
+                )
+            })
+    }
+
     pub(crate) fn render_changes(
         &mut self,
         _: &mut Window,

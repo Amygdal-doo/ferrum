@@ -24,5 +24,7 @@ actions!(
         MentionPrev,
         AcceptMention,
         BuildPlan,
+        /// Pick files to attach as context (the composer's 📎).
+        AttachFiles,
     ]
 );

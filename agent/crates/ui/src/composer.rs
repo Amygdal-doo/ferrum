@@ -1,17 +1,20 @@
-//! The composer: message input with an @-mention picker and context
-//! chips, queued messages, open permission prompts, and the footer with
-//! the mode switch, agent/model selector, token meter and send/stop.
+//! The composer: open permission prompts, queued messages and the
+//! @-mention picker above a rounded card with the context chips, the input
+//! and a row of controls — add context (+), attach (📎), mode, approvals,
+//! the model/agent picker, the microphone and send/stop. The footer line
+//! below it is [`crate::footer`].
 
 use ferrum_ui::TextInput;
-use ferrum_ui::components::{ContextMenu, DropdownMenu, DropdownStyle, ProgressBar};
+use ferrum_ui::components::ContentButton;
 use ferrum_ui::prelude::*;
 use ferrumagent_core::context::{self, Mention};
-use ferrumagent_core::modes::Mode;
 use ferrumagent_core::permissions::Decision;
 use ferrumagent_core::session::AgentChoice;
-use gpui::{Context, Entity, Window};
+use gpui::{Anchor, Context, Entity, Window};
 
 use crate::actions::*;
+use crate::attach::{DICTATION_HINT, mic_glyph};
+use crate::menus::{approval_icon, mode_icon};
 use crate::view::{ChatView, Picker};
 
 /// `12.3k`.
@@ -134,7 +137,7 @@ impl ChatView {
             .update(cx, |input, cx| input.focus(window, cx));
     }
 
-    fn context_window(&self) -> Option<u64> {
+    pub(crate) fn context_window(&self) -> Option<u64> {
         self.thread
             .context_window
             .or_else(|| match AgentChoice::parse(&self.thread.agent) {
@@ -173,67 +176,222 @@ impl ChatView {
         }
     }
 
-    /// The selector's menu, rebuilt only when its options or selection
-    /// change (not on every streamed render).
-    fn agent_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Entity<ContextMenu> {
-        let options = self
-            .session
-            .as_ref()
-            .map(|s| s.agent_options())
-            .unwrap_or_default();
-        let current = self.thread.agent.clone();
-        let signature = format!(
-            "{current}|{}",
-            options
-                .iter()
-                .map(|o| o.choice.key())
-                .collect::<Vec<_>>()
-                .join(",")
-        );
-        if let Some((built_for, menu)) = &self.agent_menu
-            && *built_for == signature
-        {
-            return menu.clone();
+    /// "Describe a task…" on an empty thread, else "Continue this session…".
+    fn sync_placeholder(&mut self, cx: &mut Context<Self>) {
+        let empty = self.thread.messages.is_empty();
+        if self.placeholder_empty != Some(empty) {
+            self.placeholder_empty = Some(empty);
+            self.composer.update(cx, |input, cx| {
+                input.set_placeholder(placeholder(empty), cx)
+            });
         }
-        let this = cx.entity().downgrade();
-        let menu = ContextMenu::build(window, cx, move |mut menu, _, _| {
-            let mut group = String::new();
-            for option in options {
-                if option.group != group {
-                    if !group.is_empty() {
-                        menu = menu.separator();
-                    }
-                    group = option.group.clone();
-                    menu = menu.header(group.clone());
-                }
-                let this = this.clone();
-                let choice = option.choice.clone();
-                menu = menu.toggleable_entry(
-                    option.label.clone(),
-                    option.choice.key() == current,
-                    IconPosition::Start,
-                    None,
-                    move |_, cx| {
-                        let choice = choice.clone();
-                        this.update(cx, |view, cx| view.set_agent(choice, cx)).ok();
-                    },
-                );
-            }
-            menu.separator().entry("Models and API keys…", None, {
-                let this = this.clone();
-                move |window, cx| {
-                    this.update(cx, |view, cx| view.open_settings(window, cx))
-                        .ok();
-                }
+    }
+
+    /// The rounded card: context chips, the input and the control row.
+    fn render_card(&mut self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let colors = cx.theme().colors().clone();
+        let mode = self.thread.mode;
+        let approval = self.approval();
+        let can_send =
+            !self.composer.read(cx).text().trim().is_empty() || !self.mentions.is_empty();
+        let small_button = |id: &'static str, label: &'static str, icon: IconName| {
+            Button::new(id, label)
+                .style(ButtonStyle::Subtle)
+                .label_size(LabelSize::Small)
+                .color(Color::Muted)
+                .start_icon(Icon::new(icon).size(IconSize::XSmall).color(Color::Muted))
+                .end_icon(
+                    Icon::new(IconName::ChevronDown)
+                        .size(IconSize::XSmall)
+                        .color(Color::Muted),
+                )
+        };
+        let agent = h_flex()
+            .gap_1()
+            .max_w(px(180.))
+            .when_some(self.agent_logo(), |this, logo| {
+                this.child(ferrum_ui::agent_logo(logo, px(14.), cx))
             })
-        });
-        self.agent_menu = Some((signature, menu.clone()));
-        menu
+            .child(
+                div().min_w_0().overflow_hidden().child(
+                    Label::new(self.agent_label())
+                        .size(LabelSize::Small)
+                        .single_line()
+                        .truncate(),
+                ),
+            )
+            .child(
+                Icon::new(IconName::ChevronDown)
+                    .size(IconSize::XSmall)
+                    .color(Color::Muted),
+            );
+        let send = div()
+            .id(if self.busy { "chat-stop" } else { "chat-send" })
+            .flex_none()
+            .size(px(26.))
+            .ml_0p5()
+            .flex()
+            .items_center()
+            .justify_center()
+            .rounded_full()
+            .cursor_pointer()
+            .bg(if self.busy || can_send {
+                colors.text
+            } else {
+                colors.text.opacity(0.3)
+            })
+            .child(
+                Icon::new(if self.busy {
+                    IconName::Stop
+                } else {
+                    IconName::ArrowUp
+                })
+                .size(IconSize::Small)
+                .color(Color::Custom(colors.editor_background)),
+            )
+            .tooltip(Tooltip::text(if self.busy {
+                "Stop (Esc)"
+            } else {
+                "Send (⏎)"
+            }))
+            .on_click(cx.listener(|this, _, window, cx| {
+                if this.busy {
+                    this.stop(&Stop, window, cx);
+                } else {
+                    this.send(&Send, window, cx);
+                }
+            }));
+        v_flex()
+            .rounded(px(12.))
+            .border_1()
+            .border_color(colors.border)
+            .bg(colors.editor_background)
+            .when(!self.mentions.is_empty(), |this| {
+                this.child(h_flex().px_2().pt_2().gap_1().flex_wrap().children(
+                    self.mentions.iter().enumerate().map(|(i, m)| {
+                        h_flex()
+                            .pl_1p5()
+                            .gap_1()
+                            .rounded(px(6.))
+                            .bg(ferrum_ui::active_fill(cx))
+                            .child(
+                                Icon::new(mention_icon(m))
+                                    .size(IconSize::XSmall)
+                                    .color(Color::Muted),
+                            )
+                            .child(
+                                Label::new(m.label())
+                                    .size(LabelSize::XSmall)
+                                    .single_line()
+                                    .truncate(),
+                            )
+                            .child(
+                                IconButton::new(("chat-chip-x", i), IconName::Close)
+                                    .icon_size(IconSize::XSmall)
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        if i < this.mentions.len() {
+                                            this.mentions.remove(i);
+                                        }
+                                        cx.notify();
+                                    })),
+                            )
+                    }),
+                ))
+            })
+            .child(
+                div()
+                    .key_context(crate::COMPOSER_CONTEXT)
+                    .px_3()
+                    .pt_2()
+                    .max_h(px(220.))
+                    .child(self.composer.clone()),
+            )
+            .child(
+                h_flex()
+                    .px_1p5()
+                    .pt_1()
+                    .pb_1p5()
+                    .gap_1()
+                    .flex_wrap()
+                    .justify_between()
+                    .child(
+                        h_flex()
+                            .gap_0p5()
+                            .child(
+                                PopoverMenu::new("chat-add")
+                                    .trigger(ferrum_ui::title_button(
+                                        "chat-add-button",
+                                        IconName::Plus,
+                                        "Add context",
+                                    ))
+                                    .anchor(Anchor::BottomLeft)
+                                    .menu(self.add_context_menu(cx)),
+                            )
+                            .child(
+                                ferrum_ui::title_button(
+                                    "chat-attach",
+                                    IconName::Link,
+                                    "Attach files",
+                                )
+                                .on_click(cx.listener(|this, _, _, cx| this.pick_paths(true, cx))),
+                            )
+                            .child(
+                                PopoverMenu::new("chat-mode")
+                                    .trigger(
+                                        small_button(
+                                            "chat-mode-button",
+                                            mode.label(),
+                                            mode_icon(mode),
+                                        )
+                                        .tooltip(Tooltip::text("Mode (⇧Tab cycles)")),
+                                    )
+                                    .anchor(Anchor::BottomLeft)
+                                    .menu(self.mode_menu(cx)),
+                            )
+                            .child(
+                                PopoverMenu::new("chat-approval")
+                                    .trigger(
+                                        small_button(
+                                            "chat-approval-button",
+                                            approval.label(),
+                                            approval_icon(approval),
+                                        )
+                                        .tooltip(Tooltip::text(approval.description())),
+                                    )
+                                    .anchor(Anchor::BottomLeft)
+                                    .menu(self.approval_menu(cx)),
+                            ),
+                    )
+                    .child(
+                        h_flex()
+                            .ml_auto()
+                            .gap_0p5()
+                            .child(
+                                PopoverMenu::new("chat-agent")
+                                    .trigger(
+                                        ContentButton::new("chat-agent-button", agent)
+                                            .style(ButtonStyle::Subtle)
+                                            .tooltip(Tooltip::text("Model or agent")),
+                                    )
+                                    .anchor(Anchor::BottomRight)
+                                    .menu(self.agent_menu(cx)),
+                            )
+                            .child(
+                                ContentButton::new("chat-mic", mic_glyph(colors.text_muted))
+                                    .style(ButtonStyle::Subtle)
+                                    .tooltip(Tooltip::text(DICTATION_HINT))
+                                    .on_click(
+                                        cx.listener(|this, _, window, cx| this.dictate(window, cx)),
+                                    ),
+                            )
+                            .child(send),
+                    ),
+            )
     }
 
     pub(crate) fn render_composer(
         &mut self,
-        window: &mut Window,
+        _: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let colors = cx.theme().colors().clone();
@@ -253,15 +411,14 @@ impl ChatView {
             .filter(|p| !visible_tools.contains(&p.tool_call_id))
             .cloned()
             .collect();
-        let mode = self.thread.mode;
-        let used = self.thread.context_tokens;
-        let window_size = self.context_window();
-        let menu = self.agent_menu(window, cx);
+        self.sync_placeholder(cx);
+        let card = self.render_card(cx);
+        let footer = self.render_footer(cx);
         v_flex()
             .flex_none()
-            .border_t_1()
-            .border_color(colors.border)
-            .bg(colors.editor_background)
+            .px_3()
+            .pt_1()
+            .gap_1()
             .children(orphans.into_iter().map(|request| {
                 let id = request.id;
                 v_flex()
@@ -359,14 +516,9 @@ impl ChatView {
                                     .rounded()
                                     .toggle_state(i == picker.selected)
                                     .start_slot(
-                                        Icon::new(match item.mention {
-                                            Mention::Folder { .. } => IconName::Folder,
-                                            Mention::GitDiff => IconName::GitBranch,
-                                            Mention::Url { .. } => IconName::Link,
-                                            _ => IconName::File,
-                                        })
-                                        .size(IconSize::XSmall)
-                                        .color(Color::Muted),
+                                        Icon::new(mention_icon(&item.mention))
+                                            .size(IconSize::XSmall)
+                                            .color(Color::Muted),
                                     )
                                     .child(
                                         Label::new(item.label.clone())
@@ -386,105 +538,28 @@ impl ChatView {
                     )
                 },
             )
-            .when(!self.mentions.is_empty(), |this| {
-                this.child(h_flex().px_2().pt_1().gap_1().flex_wrap().children(
-                    self.mentions.iter().enumerate().map(|(i, m)| {
-                        h_flex()
-                            .pl_1p5()
-                            .rounded_sm()
-                            .bg(colors.ghost_element_selected)
-                            .child(
-                                Label::new(m.label())
-                                    .size(LabelSize::XSmall)
-                                    .single_line()
-                                    .truncate(),
-                            )
-                            .child(
-                                IconButton::new(("chat-chip-x", i), IconName::Close)
-                                    .icon_size(IconSize::XSmall)
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        if i < this.mentions.len() {
-                                            this.mentions.remove(i);
-                                        }
-                                        cx.notify();
-                                    })),
-                            )
-                    }),
-                ))
-            })
-            .child(
-                div()
-                    .key_context(crate::COMPOSER_CONTEXT)
-                    .px_2()
-                    .pt_1()
-                    .max_h(px(220.))
-                    .child(self.composer.clone()),
-            )
-            .child(
-                h_flex()
-                    .px_1()
-                    .pb_1()
-                    .gap_1()
-                    .flex_wrap()
-                    .child(h_flex().gap_0p5().children(Mode::ALL.into_iter().map(|m| {
-                        Button::new(
-                            SharedString::from(format!("chat-mode-{}", m.label())),
-                            m.label(),
-                        )
-                        .style(ButtonStyle::Subtle)
-                        .label_size(LabelSize::XSmall)
-                        .toggle_state(m == mode)
-                        .tooltip(Tooltip::text("⇧Tab cycles modes"))
-                        .on_click(cx.listener(move |this, _, _, cx| this.set_mode(m, cx)))
-                    })))
-                    .when_some(self.agent_logo(), |this, logo| {
-                        this.child(div().ml_1().child(ferrum_ui::agent_logo(logo, px(14.), cx)))
-                    })
-                    .child(
-                        DropdownMenu::new("chat-agent", self.agent_label(), menu)
-                            .style(DropdownStyle::Subtle),
-                    )
-                    .child(div().flex_1())
-                    .when(used > 0, |this| {
-                        let label = match window_size {
-                            Some(size) => format!("{} / {}", tokens(used), tokens(size)),
-                            None => tokens(used),
-                        };
-                        this.child(
-                            h_flex()
-                                .gap_1()
-                                .child(
-                                    Label::new(label)
-                                        .size(LabelSize::XSmall)
-                                        .color(Color::Muted),
-                                )
-                                .when_some(window_size, |this, size| {
-                                    this.child(div().w(px(40.)).child(ProgressBar::new(
-                                        "chat-tokens",
-                                        used as f32,
-                                        size as f32,
-                                        cx,
-                                    )))
-                                }),
-                        )
-                    })
-                    .child(if self.busy {
-                        IconButton::new("chat-stop", IconName::Stop)
-                            .icon_size(IconSize::Small)
-                            .icon_color(Color::Error)
-                            .tooltip(Tooltip::text("Stop (Esc)"))
-                            .on_click(
-                                cx.listener(|this, _, window, cx| this.stop(&Stop, window, cx)),
-                            )
-                    } else {
-                        IconButton::new("chat-send", IconName::ArrowUp)
-                            .icon_size(IconSize::Small)
-                            .tooltip(Tooltip::text("Send (⏎)"))
-                            .on_click(
-                                cx.listener(|this, _, window, cx| this.send(&Send, window, cx)),
-                            )
-                    }),
-            )
+            .child(card)
+            .child(footer)
+    }
+}
+
+/// The composer's placeholder.
+pub(crate) fn placeholder(empty_thread: bool) -> &'static str {
+    if empty_thread {
+        "Describe a task… (@ adds context)"
+    } else {
+        "Continue this session…"
+    }
+}
+
+fn mention_icon(mention: &Mention) -> IconName {
+    match mention {
+        Mention::Folder { .. } => IconName::Folder,
+        Mention::GitDiff => IconName::GitBranch,
+        Mention::Url { .. } => IconName::Link,
+        Mention::Terminal { .. } => IconName::Terminal,
+        Mention::Selection { .. } => IconName::CursorIBeam,
+        Mention::File { .. } => IconName::File,
     }
 }
 

@@ -1,164 +1,37 @@
-//! The columns: headers (drag to reorder, ⋯ menu, close), bodies and the
-//! splitters between them.
+//! The cards: the chat (or the page open in its place), then the Git and
+//! Term panes, with the gaps between them as splitters. Panes have no
+//! header: the title row's toggles show and hide them.
 
-use ferrum_ui::components::{IconButton, IconSize};
 use ferrum_ui::gpui::{Axis, ElementId, MouseButton, relative};
 use ferrum_ui::prelude::*;
 
 use crate::app::FerrumAgentic;
-use crate::layout::{Column, Side};
+use crate::layout::Column;
+use crate::nav::Page;
 
-/// Prefix of the splitters' drag ids; the column on the left follows.
+/// Prefix of the splitters' drag ids; the pane on the left follows.
 const SPLIT_PREFIX: &str = "agentic-split-";
 
 pub(crate) fn id(prefix: &str, column: Column) -> ElementId {
     ElementId::Name(format!("{prefix}-{}", column.key()).into())
 }
 
-pub(crate) fn icon(column: Column) -> IconName {
-    match column {
-        Column::Chat => IconName::Sparkle,
-        Column::Git => IconName::GitBranch,
-        Column::Term => IconName::Terminal,
-    }
-}
-
-/// A menu entry's handler running `f` on the app.
-fn on_app(
-    weak: WeakEntity<FerrumAgentic>,
-    f: impl Fn(&mut FerrumAgentic, &mut Window, &mut Context<FerrumAgentic>) + 'static,
-) -> impl Fn(&mut Window, &mut App) + 'static {
-    move |window, cx| {
-        weak.update(cx, |this, cx| f(this, window, cx)).ok();
-    }
-}
-
-/// Drag payload of a column header; also its drag preview.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DraggedColumn(pub Column);
-
-impl Render for DraggedColumn {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors();
-        h_flex()
-            .gap_1()
-            .px_2()
-            .py_1()
-            .rounded_md()
-            .border_1()
-            .border_color(colors.border_focused)
-            .bg(colors.elevated_surface_background)
-            .child(Icon::new(icon(self.0)).size(IconSize::Small))
-            .child(Label::new(self.0.title()).size(LabelSize::Small))
-    }
-}
-
 impl FerrumAgentic {
-    fn column_menu(&self, column: Column, cx: &mut Context<Self>) -> impl IntoElement {
-        let weak = cx.weak_entity();
-        let can_left = self.layout.neighbour(column, Side::Left).is_some();
-        let can_right = self.layout.neighbour(column, Side::Right).is_some();
-        PopoverMenu::new(id("menu", column))
-            .anchor(gpui::Anchor::TopRight)
-            .trigger(
-                IconButton::new(id("menu-button", column), IconName::Ellipsis)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text("Column options")),
-            )
-            .menu(move |window, cx| {
-                let weak = weak.clone();
-                Some(ContextMenu::build(window, cx, move |menu, _, _| {
-                    let menu = menu.header(column.title());
-                    let menu = if can_left {
-                        menu.icon_entry(
-                            "Move left",
-                            IconName::ArrowLeft,
-                            on_app(weak.clone(), move |this, _, cx| {
-                                this.move_column(column, Side::Left, cx);
-                            }),
-                        )
-                    } else {
-                        menu.disabled_entry("Move left")
-                    };
-                    let menu = if can_right {
-                        menu.icon_entry(
-                            "Move right",
-                            IconName::ArrowRight,
-                            on_app(weak.clone(), move |this, _, cx| {
-                                this.move_column(column, Side::Right, cx);
-                            }),
-                        )
-                    } else {
-                        menu.disabled_entry("Move right")
-                    };
-                    menu.separator().icon_entry(
-                        "Close column",
-                        IconName::Close,
-                        on_app(weak.clone(), move |this, window, cx| {
-                            this.set_visible(column, false, window, cx);
-                        }),
-                    )
-                }))
-            })
-    }
-
-    fn header(&self, column: Column, cx: &mut Context<Self>) -> impl IntoElement {
-        let status = cx.theme().status();
-        let detail: Option<AnyElement> = match column {
-            Column::Chat if self.pending_changes > 0 => Some(
-                badge(
-                    format!("{} to review", self.pending_changes),
-                    status.modified,
-                    cx,
+    fn body(&mut self, column: Column, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        if column == Column::Chat && self.page() != Page::Chat {
+            return v_flex()
+                .size_full()
+                .child(self.page_header(window, cx))
+                .child(
+                    div()
+                        .flex_1()
+                        .min_h_0()
+                        .child(self.render_page(self.page(), window, cx)),
                 )
-                .into_any_element(),
-            ),
-            Column::Term => self.term_title.clone().map(|title| {
-                Label::new(title)
-                    .size(LabelSize::XSmall)
-                    .color(Color::Muted)
-                    .truncate()
-                    .into_any_element()
-            }),
-            _ => None,
-        };
-        ferrum_ui::pane_header(cx)
-            .id(id("header", column))
-            .cursor_grab()
-            .on_drag(DraggedColumn(column), |dragged, _, _, cx| {
-                cx.new(|_| *dragged)
-            })
-            .child(
-                Icon::new(icon(column))
-                    .size(IconSize::Small)
-                    .color(Color::Accent),
-            )
-            .child(
-                Label::new(column.title())
-                    .size(LabelSize::Small)
-                    .weight(gpui::FontWeight::SEMIBOLD),
-            )
-            .child(
-                h_flex()
-                    .flex_1()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .children(detail),
-            )
-            .child(self.column_menu(column, cx))
-            .child(
-                IconButton::new(id("close", column), IconName::Close)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text(format!("Close {}", column.title())))
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.set_visible(column, false, window, cx);
-                    })),
-            )
-    }
-
-    fn body(&self, column: Column, cx: &mut Context<Self>) -> AnyElement {
+                .into_any_element();
+        }
         let view = match column {
-            Column::Chat => self.chat.clone().map(|v| v.into_any_element()),
+            Column::Chat => self.chat().map(|v| v.into_any_element()),
             Column::Git => self.git.clone().map(|v| v.into_any_element()),
             Column::Term => self.term.clone().map(|v| v.into_any_element()),
         };
@@ -172,7 +45,7 @@ impl FerrumAgentic {
             .gap_2()
             .child(empty_state(
                 "No project open",
-                "Open a folder to use this column.",
+                "Open a folder to work on it with an agent.",
             ))
             .child(
                 Button::new(id("open-folder", column), "Open Folder…")
@@ -186,9 +59,13 @@ impl FerrumAgentic {
             .into_any_element()
     }
 
-    fn column(&self, column: Column, fraction: f32, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors();
-        let drop_bg = colors.drop_target_background;
+    fn card(
+        &mut self,
+        column: Column,
+        fraction: f32,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         let active = column == self.active_column;
         ferrum_ui::pane_card(active, cx)
             .id(id("column", column))
@@ -197,9 +74,8 @@ impl FerrumAgentic {
             .flex_basis(relative(fraction))
             .flex_shrink(1.)
             .overflow_hidden()
-            .drag_over::<DraggedColumn>(move |style, _, _, _| style.bg(drop_bg))
-            // A click makes the column the active one, also where its
-            // view takes no focus.
+            // A click makes the pane the active one, also where its view
+            // takes no focus.
             .on_mouse_down(
                 MouseButton::Left,
                 cx.listener(move |this, _, _, cx| {
@@ -209,33 +85,28 @@ impl FerrumAgentic {
                     }
                 }),
             )
-            .on_drop(cx.listener(move |this, dragged: &DraggedColumn, _, cx| {
-                this.drop_column(dragged.0, column, cx);
-            }))
-            .child(self.header(column, cx))
-            .child(div().flex_1().min_h_0().child(self.body(column, cx)))
+            .child(
+                div()
+                    .size_full()
+                    .min_h_0()
+                    .child(self.body(column, window, cx)),
+            )
     }
 
-    pub(crate) fn columns(&self, cx: &mut Context<Self>) -> AnyElement {
+    pub(crate) fn columns(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let fractions = self.layout.fractions();
-        if fractions.is_empty() {
-            return empty_state(
-                "All columns are closed",
-                "Reopen Chat, Git or Term from the title bar.",
-            )
-            .into_any_element();
-        }
         // Rounded cards on the window backdrop, with the gaps as splitters.
         let mut row = h_flex()
             .id("columns")
             .flex_1()
             .min_h_0()
             .w_full()
-            .px(ferrum_ui::PANE_GAP)
-            .pb(ferrum_ui::PANE_GAP);
+            .pr(ferrum_ui::PANE_GAP)
+            .pb(ferrum_ui::PANE_GAP)
+            .when(!self.ui.sidebar_open, |row| row.pl(ferrum_ui::PANE_GAP));
         let count = fractions.len();
         for (i, (column, fraction)) in fractions.into_iter().enumerate() {
-            row = row.child(self.column(column, fraction, cx));
+            row = row.child(self.card(column, fraction, window, cx));
             if i + 1 < count {
                 row = row.child(
                     div()

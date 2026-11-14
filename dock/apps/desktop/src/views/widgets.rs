@@ -6,7 +6,7 @@ use ferrum_ui::components::{
     IconName, IconSize, Label, LabelCommon, LabelSize, Toggleable, Tooltip, h_flex,
 };
 use ferrum_ui::theme::ActiveTheme;
-use gpui::{AnyElement, App, Context, Div, ElementId, Hsla, SharedString, div, prelude::*, px};
+use gpui::{App, Context, Div, ElementId, Hsla, SharedString, div, prelude::*, px};
 use std::rc::Rc;
 
 /// Compact outlined button bound to the root view.
@@ -110,22 +110,6 @@ pub fn row(id: impl Into<ElementId>, selected: bool, cx: &App) -> gpui::Stateful
 /// Coloured dot for a container state.
 pub fn state_dot(color: Hsla) -> Div {
     div().flex_none().size(px(8.)).rounded_full().bg(color)
-}
-
-/// Section header: title, count, then actions on the right.
-pub fn section_bar(title: &str, count: usize, actions: Vec<AnyElement>, cx: &App) -> Div {
-    let colors = cx.theme().colors();
-    h_flex()
-        .flex_none()
-        .h(px(40.))
-        .px_3()
-        .gap_2()
-        .border_b_1()
-        .border_color(colors.border)
-        .child(Label::new(title.to_owned()).size(LabelSize::Large))
-        .child(Label::new(count.to_string()).color(Color::Muted))
-        .child(div().flex_1())
-        .children(actions)
 }
 
 pub fn muted(text: impl Into<SharedString>) -> Label {

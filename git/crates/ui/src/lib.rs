@@ -23,7 +23,8 @@ mod tests;
 pub use app::{GitView, GoBack, GoForward, KEY_CONTEXT, PICKER_CONTEXT, QuickOpen, Reload};
 pub use components::shell::layout::{MIN_WIDTH, WIDE_LAYOUT_MIN_WIDTH};
 pub use embed::{
-    GitServices, GitViewEvent, GitViewOptions, default_data_dir, init, init_with_services,
+    GitServices, GitViewEvent, GitViewOptions, RemoteCommand, RepoSummary, default_data_dir, init,
+    init_with_services,
 };
 pub use ferrumgit_application::AppServices;
 /// SSH passphrase prompts re-run the host executable as `SSH_ASKPASS`:

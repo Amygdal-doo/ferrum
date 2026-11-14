@@ -1,6 +1,8 @@
-//! The body under the toolbar: the app's three columns, or the compact pane
-//! layout (list over diff when narrow, side by side when wide).
+//! The app's body: the list and detail cards (each with its own header row),
+//! or the compact pane layout (list over diff when narrow, side by side when
+//! wide).
 
+use super::headers;
 use crate::app::GitView;
 use crate::components::detail::{middle_column, right_column};
 use crate::components::{home, sidebar};
@@ -33,12 +35,20 @@ pub fn render_body(
     cx: &mut Context<GitView>,
 ) -> AnyElement {
     if !app.state.loaded {
-        return div()
+        let loading = div()
             .flex_1()
             .flex()
             .items_center()
             .justify_center()
-            .child(Label::new("Loading…").color(Color::Muted))
+            .child(Label::new("Loading…").color(Color::Muted));
+        if app.options.compact {
+            return loading.into_any_element();
+        }
+        return ferrum_ui::pane_card(true, cx)
+            .flex_1()
+            .h_full()
+            .child(headers::home_header(app, "FerrumGIT", window, cx))
+            .child(loading)
             .into_any_element();
     }
     if app.state.active.is_none() {
@@ -48,6 +58,7 @@ pub fn render_body(
         return ferrum_ui::pane_card(true, cx)
             .flex_1()
             .h_full()
+            .child(headers::home_header(app, "Repositories", window, cx))
             .child(home::render(app, window, cx))
             .into_any_element();
     }
@@ -58,7 +69,8 @@ pub fn render_body(
     }
 }
 
-/// The list and detail cards; the one used last is lighter.
+/// The list and detail cards, each headed by its title row; the one used
+/// last is lighter.
 fn columns(app: &mut GitView, window: &mut Window, cx: &mut Context<GitView>) -> AnyElement {
     let list_width = px(app.state.detail_width() as f32);
     let active = app.active_pane;
@@ -76,6 +88,7 @@ fn columns(app: &mut GitView, window: &mut Window, cx: &mut Context<GitView>) ->
                     MouseButton::Left,
                     cx.listener(|app, _, _, _| app.active_pane = 0),
                 )
+                .child(headers::list_header(app, window, cx))
                 .child(middle_column(app, window, cx)),
         )
         .child(ferrum_ui::gap_splitter("detail", Axis::Horizontal, cx))
@@ -87,6 +100,7 @@ fn columns(app: &mut GitView, window: &mut Window, cx: &mut Context<GitView>) ->
                     MouseButton::Left,
                     cx.listener(|app, _, _, _| app.active_pane = 1),
                 )
+                .child(headers::detail_header(app, window, cx))
                 .child(right_column(app, window, cx)),
         )
         .into_any_element()
@@ -109,7 +123,7 @@ pub fn sidebar_column(
         .child(
             ferrum_ui::title_row("sidebar-title", true, window)
                 .child(div().flex_1())
-                .child(super::toolbar::title_controls(app, cx)),
+                .child(headers::title_controls(app, cx)),
         )
         .when(show_project, |col| {
             col.child(div().px_1().child(app.project_bar.clone()))
@@ -118,10 +132,9 @@ pub fn sidebar_column(
         .into_any_element()
 }
 
-/// The window layout: sidebar, gap, then the toolbar row over the cards.
+/// The window layout: sidebar, gap, then the cards from the top edge down.
 pub fn window_row(
     sidebar: Option<AnyElement>,
-    toolbar: AnyElement,
     body: AnyElement,
     cx: &mut Context<GitView>,
 ) -> AnyElement {
@@ -133,16 +146,15 @@ pub fn window_row(
                 .child(ferrum_ui::gap_splitter("sidebar", Axis::Horizontal, cx))
         })
         .child(
-            v_flex().flex_1().min_w_0().h_full().child(toolbar).child(
-                div()
-                    .flex()
-                    .flex_1()
-                    .min_h_0()
-                    .pb(ferrum_ui::PANE_GAP)
-                    .pr(ferrum_ui::PANE_GAP)
-                    .when(!has_sidebar, |d| d.pl(ferrum_ui::PANE_GAP))
-                    .child(body),
-            ),
+            div()
+                .flex()
+                .flex_1()
+                .min_w_0()
+                .h_full()
+                .py(ferrum_ui::PANE_GAP)
+                .pr(ferrum_ui::PANE_GAP)
+                .when(!has_sidebar, |d| d.pl(ferrum_ui::PANE_GAP))
+                .child(body),
         )
         .into_any_element()
 }

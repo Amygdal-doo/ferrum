@@ -1,5 +1,7 @@
-//! The root view: title row (project, column toggles), the three columns, and
-//! the wiring between them (chat → terminal, chat → git, files → Editor).
+//! The root view's state: the project, its chat (one per project, kept
+//! alive), the FerrumGIT and FerrumTerm panes, the sidebar and the page
+//! shown in the main card. Rendering lives in `chrome`, `sidebar`,
+//! `columns` and `pages`; navigation in `navigate`; the views in `panes`.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -9,24 +11,48 @@ use std::time::Duration;
 use ferrum_ui::prelude::*;
 use ferrum_ui::project;
 use ferrumagent_ui::{ChatOptions, ChatView};
-use ferrumgit_ui::GitView;
+use ferrumgit_ui::{GitView, RepoSummary};
 use ferrumterm_ui::TermView;
 
-use crate::layout::{self, Column, Layout, Side};
+use crate::layout::{self, Column, Layout};
+use crate::nav::{History, Page, UiState};
+use crate::pages::PageState;
+use crate::threads::ThreadIndex;
 
-actions!(ferrum_agentic, [ToggleChat, ToggleGit, ToggleTerm]);
+actions!(
+    ferrum_agentic,
+    [
+        ToggleGit,
+        ToggleTerm,
+        ToggleSidebar,
+        NewTask,
+        NewDiscussion,
+        GoBack,
+        GoForward,
+        ShowSearch
+    ]
+);
 
 pub const KEY_CONTEXT: &str = "FerrumAgentic";
 /// This app's binary, recorded in `~/.ferrum/projects.json`.
 pub const BINARY: &str = "ferrumagentic";
-/// No column gets narrower than this while resizing.
+/// No pane gets narrower than this while resizing.
 pub const MIN_COLUMN_WIDTH: f32 = 260.;
+/// Folders listed in the sidebar besides the current project.
+pub const SIDEBAR_FOLDERS: usize = 6;
 
 pub fn bind_keys(cx: &mut App) {
+    let context = Some(KEY_CONTEXT);
     cx.bind_keys([
-        KeyBinding::new("cmd-alt-1", ToggleChat, None),
         KeyBinding::new("cmd-alt-2", ToggleGit, None),
         KeyBinding::new("cmd-alt-3", ToggleTerm, None),
+        KeyBinding::new("cmd-\\", ToggleSidebar, context),
+        KeyBinding::new("cmd-b", ToggleSidebar, context),
+        KeyBinding::new("cmd-n", NewTask, context),
+        KeyBinding::new("cmd-shift-n", NewDiscussion, context),
+        KeyBinding::new("cmd-[", GoBack, context),
+        KeyBinding::new("cmd-]", GoForward, context),
+        KeyBinding::new("cmd-shift-f", ShowSearch, context),
     ]);
 }
 
@@ -50,11 +76,16 @@ pub struct Options {
     pub layouts_file: Option<PathBuf>,
     /// The recent-projects list (`None`: not recorded).
     pub projects_file: Option<PathBuf>,
+    /// `~/.ferrum/agentic`: the sidebar state, sites and automations
+    /// (`None`: nothing saved).
+    pub data_dir: Option<PathBuf>,
+    /// FerrumChat's home (threads, `mcp.json`).
+    pub agent_home: PathBuf,
     /// How each chat starts, given its project root.
     pub chat_options: ChatOptionsFn,
     /// Terminals in the shared `fterm` server (else a private one).
     pub term_attach_to_server: bool,
-    /// Opens a file from the chat or git column.
+    /// Opens a file from the chat, git or a page.
     pub open_file: OpenFileFn,
 }
 
@@ -64,6 +95,8 @@ impl Default for Options {
             project: None,
             layouts_file: layout::default_file(),
             projects_file: project::projects_file(),
+            data_dir: ferrum_ui::prefs::path("agentic"),
+            agent_home: ferrumagent_ui::core::paths::agent_home(),
             chat_options: Rc::new(|_| ChatOptions::default()),
             term_attach_to_server: true,
             open_file: Rc::new(project::open_file_in_editor),
@@ -71,20 +104,40 @@ impl Default for Options {
     }
 }
 
+/// Something for a project's chat to do.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChatAction {
+    OpenThread(String),
+    StartTask(ferrumagent_ui::core::Mode, Option<String>),
+    Settings,
+}
+
+/// A project's chat, kept while the window lives so its agent keeps
+/// working when another project is shown.
+pub struct ChatSlot {
+    pub view: Entity<ChatView>,
+    pub(crate) _subscriptions: Vec<Subscription>,
+}
+
 pub struct FerrumAgentic {
+    /// Hidden: hosts the ⌥⌘O switcher and the folder dialog.
     pub(crate) project_bar: Entity<ProjectBar>,
     pub(crate) project: Option<PathBuf>,
+    pub(crate) projects_file: Option<PathBuf>,
+    /// Recent project folders, newest first (the current one included).
+    pub(crate) recent: Vec<PathBuf>,
     pub(crate) layout: Layout,
-    /// The column with focus, or used last: its card is lighter.
+    /// The pane with focus, or used last: its card is lighter.
     pub(crate) active_column: Column,
     layouts_file: Option<PathBuf>,
-    pub(crate) chat: Option<Entity<ChatView>>,
+    pub(crate) chats: HashMap<PathBuf, ChatSlot>,
     pub(crate) git: Option<Entity<GitView>>,
     pub(crate) term: Option<Entity<TermView>>,
+    /// The project's head, mirrored into the chat's footer.
+    pub(crate) git_summary: Option<RepoSummary>,
     /// Files the chat's agent changed that are still to review.
     pub(crate) pending_changes: usize,
-    pub(crate) term_title: Option<SharedString>,
-    /// Times the git column was asked to reload (the chat changed files).
+    /// Times the git pane was asked to reload (the chat changed files).
     pub(crate) git_refreshes: usize,
     pub(crate) notice: Option<Notice>,
     notice_task: Option<Task<()>>,
@@ -92,8 +145,20 @@ pub struct FerrumAgentic {
     pub(crate) chat_options: ChatOptionsFn,
     pub(crate) open_file: OpenFileFn,
     pub(crate) term_attach: bool,
+    pub(crate) agent_home: PathBuf,
+    pub(crate) data_dir: Option<PathBuf>,
+    pub(crate) ui: UiState,
+    pub(crate) resizing_sidebar: bool,
+    /// The chat whose header holds our controls, and whether they include
+    /// the window controls (sidebar folded).
+    pub(crate) header_slots_for: Option<(gpui::EntityId, bool)>,
+    pub(crate) history: History,
+    pub(crate) index: ThreadIndex,
+    pub(crate) index_task: Option<Task<()>>,
+    pub(crate) pages: PageState,
     focus_handle: FocusHandle,
-    pub(crate) view_subscriptions: HashMap<Column, Subscription>,
+    pub(crate) git_subscriptions: Vec<Subscription>,
+    _tasks: Vec<Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -107,23 +172,31 @@ impl FerrumAgentic {
         });
         let subscription = cx.subscribe_in(&project_bar, window, |this, _, event, window, cx| {
             let ProjectBarEvent::Open(path) = event;
-            this.set_project(path.clone(), window, cx);
+            this.open_project(path.clone(), window, cx);
         });
         let layout = match &options.layouts_file {
             Some(file) => layout::load(file, options.project.as_deref()),
             None => Layout::default(),
         };
+        let ui = options
+            .data_dir
+            .as_ref()
+            .map(|dir| UiState::load(&dir.join("ui.json")))
+            .unwrap_or_default();
+        let pages = PageState::new(options.data_dir.as_deref(), window, cx);
         let mut app = Self {
             project_bar,
             project: None,
+            projects_file: options.projects_file,
+            recent: Vec::new(),
             layout,
             active_column: Column::Chat,
             layouts_file: options.layouts_file,
-            chat: None,
+            chats: HashMap::new(),
             git: None,
             term: None,
+            git_summary: None,
             pending_changes: 0,
-            term_title: None,
             git_refreshes: 0,
             notice: None,
             notice_task: None,
@@ -131,8 +204,18 @@ impl FerrumAgentic {
             chat_options: options.chat_options,
             open_file: options.open_file,
             term_attach: options.term_attach_to_server,
+            agent_home: options.agent_home,
+            data_dir: options.data_dir,
+            ui,
+            resizing_sidebar: false,
+            header_slots_for: None,
+            history: History::default(),
+            index: ThreadIndex::default(),
+            index_task: None,
+            pages,
             focus_handle: cx.focus_handle(),
-            view_subscriptions: HashMap::new(),
+            git_subscriptions: Vec::new(),
+            _tasks: vec![crate::pages::automations::start_timer(window, cx)],
             _subscriptions: vec![subscription],
         };
         if let Some(path) = options.project {
@@ -140,13 +223,33 @@ impl FerrumAgentic {
             app.project_bar
                 .update(cx, |bar, cx| bar.set_project(Some(path), cx));
         }
+        app.reload_recent();
         app.ensure_views(window, cx);
+        app.refresh_index(cx);
         window.focus(&app.focus_handle, cx);
         app
     }
 
-    /// Switches every column to `path`: a new chat rooted there, the git
-    /// column on its repository, new terminals opening in it.
+    /// Re-reads the recent projects (the current one first).
+    pub(crate) fn reload_recent(&mut self) {
+        let mut recent: Vec<PathBuf> = self
+            .projects_file
+            .as_deref()
+            .map(project::load)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|p| p.path)
+            .filter(|p| p.is_dir())
+            .collect();
+        if let Some(current) = &self.project {
+            recent.retain(|p| p != current);
+            recent.insert(0, current.clone());
+        }
+        self.recent = recent;
+    }
+
+    /// Switches to `path`: its own chat (started on first use), the git
+    /// pane on its repository, new terminals opening in it.
     pub fn set_project(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
         if self.project.as_deref() == Some(path.as_path()) {
             return;
@@ -158,21 +261,30 @@ impl FerrumAgentic {
         if let Some(file) = &self.layouts_file {
             self.layout = layout::load(file, Some(&path));
         }
-        // The chat's session is tied to its root: start a new one.
-        self.chat = None;
-        self.view_subscriptions.remove(&Column::Chat);
         self.pending_changes = 0;
+        self.git_summary = None;
         if let Some(git) = &self.git {
             git.update(cx, |git, cx| git.set_repo(&path, cx));
         }
         if let Some(term) = &self.term {
             term.update(cx, |term, cx| term.set_cwd(path.clone(), cx));
         }
+        self.reload_recent();
         self.ensure_views(window, cx);
+        self.pages.project_changed(&path, cx);
+        self.refresh_index(cx);
         cx.notify();
     }
 
-    /// Shows or hides a column (creating its view on first show).
+    /// The current project's chat.
+    #[must_use]
+    pub fn chat(&self) -> Option<Entity<ChatView>> {
+        let project = self.project.as_ref()?;
+        self.chats.get(project).map(|slot| slot.view.clone())
+    }
+
+    /// Shows or hides the Git or Term pane (creating its view on first
+    /// show); the chat stays.
     pub fn set_visible(
         &mut self,
         column: Column,
@@ -186,6 +298,11 @@ impl FerrumAgentic {
                 // Catch up on changes made while it was hidden.
                 cx.on_next_frame(window, |this, window, cx| this.refresh_git(window, cx));
             }
+            if visible {
+                self.active_column = column;
+            } else if self.active_column == column {
+                self.active_column = Column::Chat;
+            }
             self.save_layout(cx);
             cx.notify();
         }
@@ -194,22 +311,6 @@ impl FerrumAgentic {
     pub fn toggle(&mut self, column: Column, window: &mut Window, cx: &mut Context<Self>) {
         let visible = !self.layout.is_visible(column);
         self.set_visible(column, visible, window, cx);
-    }
-
-    /// "Move left" / "Move right" in a column's menu.
-    pub fn move_column(&mut self, column: Column, side: Side, cx: &mut Context<Self>) {
-        if self.layout.move_to_side(column, side) {
-            self.save_layout(cx);
-            cx.notify();
-        }
-    }
-
-    /// A column header dropped on `target`.
-    pub fn drop_column(&mut self, column: Column, target: Column, cx: &mut Context<Self>) {
-        if self.layout.move_onto(column, target) {
-            self.save_layout(cx);
-            cx.notify();
-        }
     }
 
     /// Splitter drag: the border right of `column` at `x` px of `width`.
@@ -232,7 +333,7 @@ impl FerrumAgentic {
             return;
         };
         if let Err(error) = layout::save(file, self.project.as_deref(), &self.layout) {
-            tracing::warn!(%error, "could not save the column layout");
+            tracing::warn!(%error, "could not save the pane layout");
         }
     }
 
@@ -246,6 +347,20 @@ impl FerrumAgentic {
         }));
     }
 
+    pub(crate) fn save_ui(&self) {
+        if let Some(dir) = &self.data_dir
+            && let Err(error) = ferrum_ui::prefs::write(&dir.join("ui.json"), &self.ui)
+        {
+            tracing::warn!(%error, "could not save the sidebar state");
+        }
+    }
+
+    pub fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
+        self.ui.sidebar_open = !self.ui.sidebar_open;
+        self.save_ui();
+        cx.notify();
+    }
+
     pub(crate) fn show_notice(&mut self, notice: Notice, cx: &mut Context<Self>) {
         self.notice = Some(notice);
         self.notice_task = Some(Notice::dismiss_later(cx, |this: &mut Self, _| {
@@ -254,32 +369,11 @@ impl FerrumAgentic {
         cx.notify();
     }
 
-    pub(crate) fn on_toggle(
-        &mut self,
-        column: Column,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.toggle(column, window, cx);
-    }
-
-    /// The title row's +: a new thread in the chat column (shown first).
-    pub fn new_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.set_visible(Column::Chat, true, window, cx);
-        if let Some(chat) = &self.chat {
-            let handle = chat.focus_handle(cx);
-            window.focus(&handle, cx);
-            handle.dispatch_action(&ferrumagent_ui::NewThread, window, cx);
-            self.active_column = Column::Chat;
-            cx.notify();
-        }
-    }
-
-    /// Marks the column whose view has focus as the active one (it stays
-    /// active when focus leaves the columns).
+    /// Marks the pane whose view has focus as the active one (it stays
+    /// active when focus leaves the panes).
     pub(crate) fn follow_focus(&mut self, window: &Window, cx: &App) {
         let views = [
-            (Column::Chat, self.chat.as_ref().map(|v| v.focus_handle(cx))),
+            (Column::Chat, self.chat().map(|v| v.focus_handle(cx))),
             (Column::Git, self.git.as_ref().map(|v| v.focus_handle(cx))),
             (Column::Term, self.term.as_ref().map(|v| v.focus_handle(cx))),
         ];
@@ -290,6 +384,15 @@ impl FerrumAgentic {
                     .is_some_and(|h| h.contains_focused(window, cx))
         }) {
             self.active_column = column;
+        }
+    }
+
+    /// The page in the main card (the chat when none).
+    #[must_use]
+    pub fn page(&self) -> Page {
+        match &self.history.current {
+            crate::nav::Location::Page(page) => *page,
+            crate::nav::Location::Thread { .. } => Page::Chat,
         }
     }
 

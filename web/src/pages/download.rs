@@ -268,7 +268,11 @@ mod tests {
         assert!(html.contains("Apple Silicon"));
         assert!(html.contains(site::RELEASES_URL));
         assert!(html.contains("Amygdal-doo/ferrum-releases"));
-        assert_eq!(html.matches(r#"class="btn__note">Coming soon"#).count(), 1, "Windows");
+        assert_eq!(
+            html.matches(r#"class="btn__note">Coming soon"#).count(),
+            1,
+            "Windows"
+        );
         for gone in [
             "private",
             "gh auth login",

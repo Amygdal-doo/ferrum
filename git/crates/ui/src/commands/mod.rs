@@ -3,6 +3,7 @@
 //! GPUI foreground thread.
 
 pub mod history;
+pub mod host;
 pub mod profiles;
 pub mod pulls;
 pub mod repo;

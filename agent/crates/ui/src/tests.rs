@@ -20,7 +20,9 @@ use gpui::{App, Entity, TestAppContext, VisualTestContext, px, size};
 use serde_json::json;
 
 use crate::actions::*;
+use crate::host::{GitRequest, GitStatus};
 use crate::view::{ChatEvent, ChatOptions, ChatView};
+use ferrumagent_core::permissions::Approval;
 
 /// The real app gets these from `ferrum_ui::run`; bound here by action
 /// name (the types are private), before FerrumChat's own.
@@ -216,5 +218,123 @@ fn chat_view_runs_a_turn_at_narrow_width(cx: &mut TestAppContext) {
     cx.dispatch_action(Dismiss);
     cx.run_until_parked();
     assert!(read(&view, cx, |v| v.settings.is_none()));
+    assert_eq!(mock.remaining(), 0);
+}
+
+#[gpui::test]
+fn shell_host_drives_threads_tasks_and_footer(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        bind_text_input_keys(cx);
+        ferrum_ui::init_for_tests(cx);
+        crate::init(cx);
+    });
+    let project = tempfile::tempdir().expect("tempdir");
+    let home = tempfile::tempdir().expect("tempdir");
+    let root = project.path().canonicalize().expect("canonical");
+    let mock = MockProvider::new();
+    mock.push_text("A plan.");
+    let mut config = SessionConfig::isolated(&root, home.path());
+    config.provider_override = Some(Arc::new(mock.clone()));
+    let options = ChatOptions {
+        config: Some(config),
+        shell: true,
+        ..Default::default()
+    };
+    let (view, cx) =
+        cx.add_window_view(|window, cx| ChatView::build(root.clone(), options, window, cx));
+    cx.simulate_resize(size(px(520.), px(640.)));
+    let events: Rc<RefCell<Vec<ChatEvent>>> = Rc::default();
+    cx.update({
+        let events = events.clone();
+        let view = view.clone();
+        move |_, cx| {
+            cx.subscribe(&view, move |_, event: &ChatEvent, _| {
+                events.borrow_mut().push(event.clone())
+            })
+            .detach();
+        }
+    });
+
+    // An automation starts a task before the session is open.
+    view.update_in(cx, |v, window, cx| {
+        v.start_task(Mode::Plan, Some("Plan the work".into()), window, cx)
+    });
+    wait_until(cx, "the task's answer", |cx| {
+        read(&view, cx, |v| {
+            !v.is_busy() && v.thread().messages.len() == 2
+        })
+    });
+    assert_eq!(read(&view, cx, |v| v.thread().mode), Mode::Plan);
+    assert_eq!(
+        read(&view, cx, |v| v.thread().title.clone()),
+        "Plan the work"
+    );
+    assert!(events.borrow().contains(&ChatEvent::ThreadsChanged));
+    let first = read(&view, cx, |v| v.thread().id.clone());
+
+    // The footer shows the host's branch; approvals persist.
+    view.update(cx, |v, cx| {
+        v.set_git_status(
+            Some(GitStatus {
+                branch: "feat/review-brief".into(),
+                ahead: 1,
+                behind: 0,
+                dirty: 2,
+            }),
+            cx,
+        );
+        v.set_approval(Approval::AutoEdits, cx);
+        cx.emit(ChatEvent::Git(GitRequest::Push));
+    });
+    cx.run_until_parked();
+    assert_eq!(read(&view, cx, |v| v.approval()), Approval::AutoEdits);
+    assert!(read(&view, cx, |v| v.mcp_status().is_empty()));
+    assert!(events.borrow().contains(&ChatEvent::Git(GitRequest::Push)));
+
+    // Rename from the ⋯ menu.
+    events.borrow_mut().clear();
+    view.update_in(cx, |v, window, cx| v.start_rename(window, cx));
+    let input =
+        read(&view, cx, |v| v.renaming.as_ref().map(|(i, _)| i.clone())).expect("title field");
+    input.update(cx, |input, cx| input.set_text("Review brief", cx));
+    view.update_in(cx, |v, window, cx| v.commit_rename(window, cx));
+    wait_until(cx, "the renamed thread in the list", |cx| {
+        read(&view, cx, |v| {
+            v.threads.first().is_some_and(|t| t.title == "Review brief")
+        })
+    });
+    assert!(events.borrow().contains(&ChatEvent::ThreadsChanged));
+
+    // A new empty task, then back to the first thread.
+    view.update_in(cx, |v, window, cx| {
+        v.start_task(Mode::Ask, None, window, cx)
+    });
+    wait_until(cx, "the new thread", |cx| {
+        read(&view, cx, |v| v.thread().id != first)
+    });
+    assert_eq!(read(&view, cx, |v| v.thread().mode), Mode::Ask);
+    view.update_in(cx, |v, window, cx| v.open_thread(&first, window, cx));
+    wait_until(cx, "the first thread", |cx| {
+        read(&view, cx, |v| v.thread().id == first)
+    });
+    assert_eq!(
+        read(&view, cx, |v| v.thread().title.clone()),
+        "Review brief"
+    );
+
+    // Copy as Markdown, then delete it.
+    view.update(cx, |v, cx| v.copy_markdown(cx));
+    let copied = cx.update(|_, cx| cx.read_from_clipboard().and_then(|c| c.text()));
+    assert!(copied.is_some_and(|t| t.starts_with("# Review brief")));
+    view.update(cx, |v, cx| v.delete_current_thread(cx));
+    wait_until(cx, "the thread to be deleted", |cx| {
+        read(&view, cx, |v| {
+            v.threads.is_empty() && v.thread().id != first
+        })
+    });
+    view.update_in(cx, |v, window, cx| v.open_settings_page(window, cx));
+    cx.run_until_parked();
+    assert!(read(&view, cx, |v| v.settings.is_some()));
     assert_eq!(mock.remaining(), 0);
 }

@@ -3,12 +3,11 @@
 use crate::app::FerrumContainers;
 use crate::commands::resources::image_label;
 use crate::state::{Section, matches_any};
-use crate::views::widgets::{
-    button, cell, grow_cell, header_row, icon_button, muted, row, section_bar,
-};
+use crate::views::chrome::card_header;
+use crate::views::widgets::{button, cell, grow_cell, header_row, icon_button, muted, row};
 use ferrum_ui::components::{Color, IconName, Label, LabelCommon, LabelSize, h_flex, v_flex};
 use ferrumdock_engine::{Image, format};
-use gpui::{AnyElement, Context, SharedString, prelude::*};
+use gpui::{AnyElement, Context, SharedString, Window, prelude::*};
 
 const COLUMNS: [(&str, Option<f32>); 6] = [
     ("REPOSITORY:TAG", None),
@@ -19,7 +18,12 @@ const COLUMNS: [(&str, Option<f32>); 6] = [
     ("", Some(116.)),
 ];
 
-pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
+/// The images card: its header and its body.
+pub fn render(
+    app: &FerrumContainers,
+    window: &Window,
+    cx: &mut Context<FerrumContainers>,
+) -> (AnyElement, AnyElement) {
     let now = chrono::Utc::now().timestamp();
     let mut images: Vec<&Image> = app
         .state
@@ -70,12 +74,14 @@ pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> Any
             )
             .into_any_element()
     };
-    v_flex()
+    let count = Some(app.state.images.len());
+    let header = card_header(app, "Images", count, actions, window, cx);
+    let list = v_flex()
         .size_full()
-        .child(section_bar("Images", app.state.images.len(), actions, cx))
         .child(header_row(&COLUMNS, cx))
         .child(body)
-        .into_any_element()
+        .into_any_element();
+    (header, list)
 }
 
 fn image_row(

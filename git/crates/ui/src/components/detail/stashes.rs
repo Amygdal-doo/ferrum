@@ -100,7 +100,7 @@ pub fn stash_list(app: &GitView, id: RepoId, cx: &mut Context<GitView>) -> AnyEl
                     d.child(
                         div().p_6().flex().justify_center().child(
                             Label::new(
-                                "No stashes. Use Save in the toolbar to stash your changes.",
+                                "No stashes. Use Save stash in the header to stash your changes.",
                             )
                             .color(Color::Muted),
                         ),

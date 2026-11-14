@@ -4,69 +4,52 @@ fn close(a: f32, b: f32) -> bool {
     (a - b).abs() < 1e-3
 }
 
+fn all_shown() -> Layout {
+    let mut layout = Layout::default();
+    layout.set_visible(Column::Git, true);
+    layout.set_visible(Column::Term, true);
+    layout
+}
+
 #[test]
-fn default_shows_three_columns_in_order() {
+fn default_shows_only_the_chat() {
     let layout = Layout::default();
-    assert_eq!(layout.visible(), Column::ALL);
-    let total: f32 = layout.fractions().iter().map(|(_, f)| f).sum();
+    assert_eq!(layout.order(), Column::ALL);
+    assert_eq!(layout.visible(), [Column::Chat]);
+    assert_eq!(layout.fractions(), [(Column::Chat, 1.0)]);
+    let total: f32 = all_shown().fractions().iter().map(|(_, f)| f).sum();
     assert!(close(total, 1.0));
 }
 
 #[test]
-fn hidden_columns_keep_their_width() {
-    let mut layout = Layout::default();
+fn panes_toggle_but_the_chat_stays() {
+    let mut layout = all_shown();
+    assert!(!layout.set_visible(Column::Chat, false));
+    assert!(layout.is_visible(Column::Chat));
     assert!(layout.set_visible(Column::Git, false));
     assert!(!layout.set_visible(Column::Git, false));
     assert_eq!(layout.visible(), [Column::Chat, Column::Term]);
     let fractions = layout.fractions();
     assert!(close(fractions[0].1 + fractions[1].1, 1.0));
+    // Hidden panes keep their width.
     layout.set_visible(Column::Git, true);
-    assert_eq!(layout, Layout::default());
-    // Every column can be closed.
-    for column in Column::ALL {
-        layout.set_visible(column, false);
-    }
-    assert!(layout.visible().is_empty());
-    assert!(layout.fractions().is_empty());
-}
-
-#[test]
-fn moves_left_right_and_by_drop() {
-    let mut layout = Layout::default();
-    assert!(!layout.move_to_side(Column::Chat, Side::Left));
-    assert!(layout.move_to_side(Column::Chat, Side::Right));
-    assert_eq!(layout.order(), [Column::Git, Column::Chat, Column::Term]);
-    // Hidden columns are skipped: Term moves past the hidden Chat.
-    layout.set_visible(Column::Chat, false);
-    assert_eq!(
-        layout.neighbour(Column::Term, Side::Left),
-        Some(Column::Git)
-    );
-    assert!(layout.move_to_side(Column::Term, Side::Left));
-    assert_eq!(layout.order(), [Column::Term, Column::Git, Column::Chat]);
-    layout.set_visible(Column::Chat, true);
-    // Dropping a header on another column takes that column's place.
-    assert!(layout.move_onto(Column::Term, Column::Chat));
-    assert_eq!(layout.order(), [Column::Git, Column::Chat, Column::Term]);
-    assert!(layout.move_onto(Column::Term, Column::Git));
-    assert_eq!(layout.order(), [Column::Term, Column::Git, Column::Chat]);
-    assert!(!layout.move_onto(Column::Git, Column::Git));
+    assert_eq!(layout, all_shown());
 }
 
 #[test]
 fn resizing_moves_one_border_within_limits() {
-    let mut layout = Layout::default();
-    // Border between Chat and Git to 50%.
-    assert!(layout.resize(Column::Chat, 0.5, 0.1));
+    let mut layout = all_shown();
+    // Border between Chat and Git to 60%.
+    assert!(layout.resize(Column::Chat, 0.6, 0.1));
     let f = layout.fractions();
-    assert!(close(f[0].1, 0.5), "{f:?}");
-    assert!(close(f[1].1, 0.18), "{f:?}");
-    assert!(close(f[2].1, 0.32), "{f:?}");
+    assert!(close(f[0].1, 0.6), "{f:?}");
+    assert!(close(f[1].1, 0.15), "{f:?}");
+    assert!(close(f[2].1, 0.25), "{f:?}");
     // Clamped so Git keeps its minimum.
     layout.resize(Column::Chat, 0.99, 0.1);
     let f = layout.fractions();
     assert!(close(f[1].1, 0.1), "{f:?}");
-    // The last column has no border on its right.
+    // The last pane has no border on its right.
     assert!(!layout.resize(Column::Term, 0.5, 0.1));
     // With Git hidden, Chat's border is with Term.
     layout.set_visible(Column::Git, false);
@@ -84,8 +67,9 @@ fn bad_layouts_are_repaired() {
     let layout = serde_json::from_str::<Layout>(json)
         .expect("parse")
         .normalized();
-    assert_eq!(layout.order(), [Column::Term, Column::Chat, Column::Git]);
-    assert_eq!(layout.visible(), [Column::Term, Column::Git]);
+    // The chat comes first and is shown; the missing Git pane is added.
+    assert_eq!(layout.order(), [Column::Chat, Column::Term, Column::Git]);
+    assert_eq!(layout.visible(), [Column::Chat, Column::Term, Column::Git]);
     assert!(layout.slots.iter().all(|s| s.weight > 0.0));
 }
 
@@ -96,19 +80,19 @@ fn layouts_are_saved_per_project() {
     let (a, b) = (Path::new("/code/a"), Path::new("/code/b"));
     assert_eq!(load(&file, Some(a)), Layout::default());
 
-    let mut only_chat = Layout::default();
-    only_chat.set_visible(Column::Git, false);
-    only_chat.set_visible(Column::Term, false);
-    save(&file, Some(a), &only_chat).expect("save a");
-    let mut reordered = Layout::default();
-    reordered.move_onto(Column::Term, Column::Chat);
-    save(&file, Some(b), &reordered).expect("save b");
+    let mut with_git = Layout::default();
+    with_git.set_visible(Column::Git, true);
+    save(&file, Some(a), &with_git).expect("save a");
+    let mut with_term = Layout::default();
+    with_term.set_visible(Column::Term, true);
+    with_term.resize(Column::Chat, 0.7, 0.1);
+    save(&file, Some(b), &with_term).expect("save b");
 
-    assert_eq!(load(&file, Some(a)), only_chat);
-    assert_eq!(load(&file, Some(b)), reordered);
+    assert_eq!(load(&file, Some(a)), with_git);
+    assert_eq!(load(&file, Some(b)), with_term);
     // A project without its own layout starts from the last one used.
-    assert_eq!(load(&file, Some(Path::new("/code/new"))), reordered);
-    assert_eq!(load(&file, None), reordered);
+    assert_eq!(load(&file, Some(Path::new("/code/new"))), with_term);
+    assert_eq!(load(&file, None), with_term);
     std::fs::write(&file, "not json").expect("write");
     assert_eq!(load(&file, Some(a)), Layout::default());
 }

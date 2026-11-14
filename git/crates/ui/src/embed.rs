@@ -23,6 +23,11 @@ pub struct GitViewOptions {
     /// "Open" buttons on diffs and file history that emit
     /// [`GitViewEvent::OpenFile`] for the host editor.
     pub open_files_in_host: bool,
+    /// The compact layout's toolbar row (branch, fetch / pull / push and
+    /// the other repository buttons). Off for hosts
+    /// that offer those actions themselves (see [`crate::GitView::remote`]);
+    /// the compact page tabs stay.
+    pub show_toolbar: bool,
 }
 
 impl GitViewOptions {
@@ -34,6 +39,7 @@ impl GitViewOptions {
             show_repo_tabs: true,
             show_project_bar: true,
             open_files_in_host: false,
+            show_toolbar: true,
         }
     }
 
@@ -46,8 +52,41 @@ impl GitViewOptions {
             show_repo_tabs: false,
             show_project_bar: false,
             open_files_in_host: true,
+            show_toolbar: true,
         }
     }
+
+    /// Without the toolbar (see [`Self::show_toolbar`]).
+    #[must_use]
+    pub const fn without_toolbar(mut self) -> Self {
+        self.show_toolbar = false;
+        self
+    }
+}
+
+/// A remote operation a host asks for, on the shown repository.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemoteCommand {
+    Fetch,
+    Pull,
+    Push,
+    /// Pull, then push.
+    Sync,
+}
+
+/// The shown repository's head, for a host's status line.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RepoSummary {
+    /// `None` when detached.
+    pub branch: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
+    /// Files with uncommitted changes.
+    pub changed: usize,
+    /// The running operation ("Pushing"…).
+    pub busy: Option<String>,
+    /// The error the view is showing (a failed push…), until dismissed.
+    pub error: Option<String>,
 }
 
 impl Default for GitViewOptions {

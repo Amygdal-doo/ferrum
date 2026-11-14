@@ -374,7 +374,7 @@ pub fn render(app: &GitView, cx: &mut Context<GitView>) -> AnyElement {
     modal("Profiles", cx)
         .width(width(WIDEST))
         .child(hint(
-            "A profile is a commit identity plus the SSH key used for network operations. Assign one per repository in its settings (toolbar → Profile).",
+            "A profile is a commit identity plus the SSH key used for network operations. Assign one per repository in its settings (the identity pill in the header).",
         ))
         .child(
             h_flex()

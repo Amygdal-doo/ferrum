@@ -8,16 +8,27 @@
 //!     ChatEvent::OpenFile { path, line } => { /* open it */ }
 //!     ChatEvent::RunInTerminal { cmd, cwd } => { /* run it */ }
 //!     ChatEvent::ChangesUpdated { files } => { /* refresh views */ }
+//!     ChatEvent::ThreadsChanged => { /* reload a thread sidebar */ }
+//!     ChatEvent::Git(request) => { /* push, pull, commit… */ }
 //! });
 //! ```
+//!
+//! A host that draws its own thread list and window chrome sets
+//! [`ChatOptions::shell`] and drives the chat with
+//! [`ChatView::open_thread`], [`ChatView::start_task`] and
+//! [`ChatView::set_git_status`].
 //!
 //! Everything below the pixels lives in `ferrumagent-core`.
 
 mod actions;
+mod attach;
 mod changes;
 mod composer;
+mod footer;
 mod header;
+mod host;
 mod markdown;
+mod menus;
 mod messages;
 mod settings;
 mod threads;
@@ -29,7 +40,10 @@ mod tests;
 
 pub use actions::*;
 pub use ferrumagent_core as core;
-pub use view::{ChatEvent, ChatOptions, ChatView};
+pub use ferrumagent_core::permissions::Approval;
+pub use ferrumagent_core::session::McpServerStatus;
+pub use host::{GitRequest, GitStatus};
+pub use view::{ChatEvent, ChatOptions, ChatView, HeaderSlot};
 
 use gpui::{App, KeyBinding};
 

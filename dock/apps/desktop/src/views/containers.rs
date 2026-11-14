@@ -2,9 +2,10 @@
 
 use crate::app::FerrumContainers;
 use crate::state::{Row, container_rows};
+use crate::views::chrome::card_header;
 use crate::views::compose_rows;
 use crate::views::widgets::{
-    button, cell, grow_cell, header_row, icon_button, muted, row, section_bar, state_dot,
+    button, cell, grow_cell, header_row, icon_button, muted, row, state_dot,
 };
 use ferrum_ui::components::{
     Button, ButtonCommon, ButtonSize, Clickable, Color, IconName, Label, LabelCommon, LabelSize,
@@ -12,7 +13,7 @@ use ferrum_ui::components::{
 };
 use ferrum_ui::theme::ActiveTheme;
 use ferrumdock_engine::{Container, ContainerAction, ContainerState, format, ops};
-use gpui::{AnyElement, App, Context, Hsla, SharedString, div, prelude::*, px};
+use gpui::{AnyElement, App, Context, Hsla, SharedString, Window, div, prelude::*, px};
 
 const COLUMNS: [(&str, Option<f32>); 7] = [
     ("NAME", None),
@@ -34,7 +35,12 @@ pub fn state_color(state: ContainerState, cx: &App) -> Hsla {
     }
 }
 
-pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
+/// The containers card: its header and its body (columns and rows).
+pub fn render(
+    app: &FerrumContainers,
+    window: &Window,
+    cx: &mut Context<FerrumContainers>,
+) -> (AnyElement, AnyElement) {
     let rows = container_rows(
         &app.state.containers,
         &app.state.filter,
@@ -107,23 +113,21 @@ pub fn render(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> Any
             .into_any_element(),
         );
     }
-    actions.push(
-        button("run-container", "Run…", false, cx, |app, cx| {
-            app.open_run_dialog(None, cx)
-        })
-        .into_any_element(),
+    // Run… is the + in the title controls.
+    let header = card_header(
+        app,
+        "Containers",
+        Some(app.state.containers.len()),
+        actions,
+        window,
+        cx,
     );
-    v_flex()
+    let list = v_flex()
         .size_full()
-        .child(section_bar(
-            "Containers",
-            app.state.containers.len(),
-            actions,
-            cx,
-        ))
         .child(header_row(&COLUMNS, cx))
         .child(body)
-        .into_any_element()
+        .into_any_element();
+    (header, list)
 }
 
 fn container_row(

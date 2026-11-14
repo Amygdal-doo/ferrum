@@ -2,12 +2,11 @@
 
 use crate::app::FerrumContainers;
 use crate::state::{Section, matches_any};
-use crate::views::widgets::{
-    button, cell, grow_cell, header_row, icon_button, muted, row, section_bar,
-};
+use crate::views::chrome::card_header;
+use crate::views::widgets::{button, cell, grow_cell, header_row, icon_button, muted, row};
 use ferrum_ui::components::{Color, IconName, Label, LabelCommon, LabelSize, h_flex, v_flex};
 use ferrumdock_engine::format;
-use gpui::{AnyElement, Context, SharedString, prelude::*, px};
+use gpui::{AnyElement, Context, SharedString, Window, prelude::*, px};
 
 fn list(id: &'static str, loaded: bool, empty: &'static str, rows: Vec<AnyElement>) -> AnyElement {
     if !loaded {
@@ -47,7 +46,12 @@ fn trash(
         .into_any_element()
 }
 
-pub fn volumes(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
+/// The volumes card: its header and its body.
+pub fn volumes(
+    app: &FerrumContainers,
+    window: &Window,
+    cx: &mut Context<FerrumContainers>,
+) -> (AnyElement, AnyElement) {
     const COLUMNS: [(&str, Option<f32>); 6] = [
         ("NAME", None),
         ("PROJECT", Some(140.)),
@@ -118,9 +122,10 @@ pub fn volumes(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> An
                 .into_any_element()
         })
         .collect();
-    v_flex()
+    let count = Some(app.state.volumes.len());
+    let header = card_header(app, "Volumes", count, actions, window, cx);
+    let body = v_flex()
         .size_full()
-        .child(section_bar("Volumes", app.state.volumes.len(), actions, cx))
         .child(header_row(&COLUMNS, cx))
         .child(list(
             "volumes-list",
@@ -128,10 +133,16 @@ pub fn volumes(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> An
             "No volumes",
             rows,
         ))
-        .into_any_element()
+        .into_any_element();
+    (header, body)
 }
 
-pub fn networks(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
+/// The networks card: its header and its body.
+pub fn networks(
+    app: &FerrumContainers,
+    window: &Window,
+    cx: &mut Context<FerrumContainers>,
+) -> (AnyElement, AnyElement) {
     const COLUMNS: [(&str, Option<f32>); 6] = [
         ("NAME", None),
         ("PROJECT", Some(140.)),
@@ -193,14 +204,10 @@ pub fn networks(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> A
                 .into_any_element()
         })
         .collect();
-    v_flex()
+    let count = Some(app.state.networks.len());
+    let header = card_header(app, "Networks", count, actions, window, cx);
+    let body = v_flex()
         .size_full()
-        .child(section_bar(
-            "Networks",
-            app.state.networks.len(),
-            actions,
-            cx,
-        ))
         .child(header_row(&COLUMNS, cx))
         .child(list(
             "networks-list",
@@ -208,5 +215,6 @@ pub fn networks(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> A
             "No networks",
             rows,
         ))
-        .into_any_element()
+        .into_any_element();
+    (header, body)
 }

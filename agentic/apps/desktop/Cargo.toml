@@ -1,6 +1,6 @@
 [package]
 name = "ferrumagentic-desktop"
-description = "FerrumAgentic: FerrumChat, FerrumGIT and FerrumTerm side by side for agentic development. GPUI desktop shell."
+description = "FerrumAgentic: an agent always live in your project, with its threads, FerrumGIT and FerrumTerm. GPUI desktop shell."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,7 @@ name = "ferrumagentic"
 path = "src/main.rs"
 
 [dependencies]
+chrono.workspace = true
 ferrum-ui.workspace = true
 ferrumagent-ui.workspace = true
 ferrumgit-ui.workspace = true

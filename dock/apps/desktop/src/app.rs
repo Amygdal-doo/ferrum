@@ -1,5 +1,5 @@
 //! Root view and window layout: sidebar (title row, project, sections) |
-//! title row / section card (+ detail card) / status line.
+//! section card (header row, body, status line) and the container detail card.
 
 use crate::services::Services;
 use crate::state::{AppState, EngineStatus};
@@ -246,28 +246,21 @@ impl FerrumContainers {
 impl Render for FerrumContainers {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let text = cx.theme().colors().text;
-        let title = views::chrome::title_bar(self, window, cx);
         let body = views::body(self, window, cx);
-        let status = views::chrome::status_bar(self, cx);
         let dialog = views::dialogs::render(self, window, cx);
         let notice = views::chrome::notice(self, cx);
         let sidebar = self
             .sidebar_shown()
             .then(|| views::chrome::sidebar(self, window, cx));
+        // The cards start at the top: each carries its own header row.
         let main = v_flex()
             .flex_1()
             .min_w_0()
             .h_full()
-            .child(title)
-            .child(
-                v_flex()
-                    .flex_1()
-                    .min_h_0()
-                    .pr(ferrum_ui::PANE_GAP)
-                    .when(sidebar.is_none(), |d| d.pl(ferrum_ui::PANE_GAP))
-                    .child(body),
-            )
-            .child(status);
+            .py(ferrum_ui::PANE_GAP)
+            .pr(ferrum_ui::PANE_GAP)
+            .when(sidebar.is_none(), |d| d.pl(ferrum_ui::PANE_GAP))
+            .child(body);
         // Backdrop (drawn by the root) shows through: no background here.
         h_flex()
             .id("ferrumdock")

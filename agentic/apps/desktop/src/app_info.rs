@@ -6,9 +6,13 @@ use ferrum_ui::{AppInfo, PermissionKind};
 
 pub fn app_info() -> AppInfo {
     AppInfo::new("FerrumAgentic", "ferrumagentic")
-        .tagline("Chat, Git and a terminal side by side for agentic development.")
+        .tagline("An agent always live in your project, with Git and a terminal beside it.")
         .icon(IconName::Sparkle, 0xa970ff)
-        .key("Show or hide chat", "cmd-alt-1")
+        .key("New task", "cmd-n")
+        .key("New discussion", "cmd-shift-n")
+        .key("Search threads", "cmd-shift-f")
+        .key("Show or hide the sidebar", "cmd-\\")
+        .key("Back / forward", "cmd-[")
         .key("Show or hide Git", "cmd-alt-2")
         .key("Show or hide terminal", "cmd-alt-3")
         .key("Switch project", "cmd-alt-o")

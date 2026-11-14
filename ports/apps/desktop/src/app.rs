@@ -1,5 +1,5 @@
-//! Root view: title row (lights, project, search, toggles) over the
-//! table card (with its status line) and the detail card.
+//! Root view: the table card (header row with the traffic lights, project,
+//! search and toggles; quiet status line at its foot) and the detail card.
 
 use std::path::{Path, PathBuf};
 
@@ -203,10 +203,10 @@ impl FerrumPorts {
 impl Render for FerrumPorts {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let text = cx.theme().colors().text;
-        let title = chrome::title_bar(self, window, cx);
+        let header = chrome::table_header(self, window, cx);
         let table = crate::table::render(self, cx);
-        let detail = detail::render(self, cx);
-        let status = chrome::status_bar(self, cx);
+        let detail = detail::render(self, window, cx);
+        let footer = chrome::table_footer(self, cx);
         let dialog = chrome::kill_dialog(self, cx);
         let notice = chrome::notice(self, cx);
         let detail_active = self.detail_active && detail.is_some();
@@ -218,8 +218,9 @@ impl Render for FerrumPorts {
                 MouseButton::Left,
                 cx.listener(|app, _, _, _| app.detail_active = false),
             )
+            .child(header)
             .child(table)
-            .child(status);
+            .child(footer);
         let detail_card = detail.map(|detail| {
             ferrum_ui::pane_card(detail_active, cx)
                 .id("detail-card")
@@ -246,14 +247,13 @@ impl Render for FerrumPorts {
             .relative()
             .size_full()
             .text_color(text)
-            .child(title)
+            // No sidebar: the cards start at the top, each with its header.
             .child(
                 h_flex()
                     .flex_1()
                     .min_h_0()
                     .gap(ferrum_ui::PANE_GAP)
-                    .px(ferrum_ui::PANE_GAP)
-                    .pb(ferrum_ui::PANE_GAP)
+                    .p(ferrum_ui::PANE_GAP)
                     .child(table_card)
                     .children(detail_card),
             )

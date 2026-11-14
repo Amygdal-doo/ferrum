@@ -86,6 +86,25 @@ impl InterfaceStyle {
     }
 }
 
+/// The window's title rows: on the backdrop (the default), or on a
+/// tinted strip like a classic title bar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TitleBarStyle {
+    #[default]
+    Transparent,
+    Tinted,
+}
+
+/// The tinted title rows' fill, `None` while [`TitleBarStyle::Transparent`];
+/// kept here for elements built without an `App`.
+static TITLE_BAR_FILL: std::sync::Mutex<Option<Hsla>> = std::sync::Mutex::new(None);
+
+/// The fill of title rows (see [`TitleBarStyle`]); `None`: transparent.
+pub fn title_bar_fill() -> Option<Hsla> {
+    TITLE_BAR_FILL.lock().ok().and_then(|fill| *fill)
+}
+
 /// Interface text size (the window's rem size).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -117,6 +136,7 @@ pub struct AppearancePrefs {
     pub toolbar: ToolbarStyle,
     pub text_size: TextSize,
     pub style: InterfaceStyle,
+    pub title_bar: TitleBarStyle,
 }
 
 impl Default for AppearancePrefs {
@@ -128,6 +148,7 @@ impl Default for AppearancePrefs {
             toolbar: ToolbarStyle::default(),
             text_size: TextSize::default(),
             style: InterfaceStyle::default(),
+            title_bar: TitleBarStyle::default(),
         }
     }
 }
@@ -285,6 +306,15 @@ pub fn apply(cx: &mut App) {
             stylize(&mut theme, cx);
             GlobalTheme::update_theme(cx, Arc::new(theme));
         }
+    }
+    // A strip a shade off the backdrop, visible in every interface style.
+    let fill = (prefs.title_bar == TitleBarStyle::Tinted).then(|| {
+        let base = backdrop(cx).base;
+        let text = crate::theme::ActiveTheme::theme(cx).colors().text;
+        crate::surface::lighten(base, text, 0.06)
+    });
+    if let Ok(mut slot) = TITLE_BAR_FILL.lock() {
+        *slot = fill;
     }
     cx.refresh_windows();
 }

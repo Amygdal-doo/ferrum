@@ -63,7 +63,13 @@ impl Workspace {
         }
         let vertical = dock.stacks_vertically();
         let count = visible.len();
-        let mut column = if vertical { v_flex() } else { h_flex() };
+        // `h_flex` centres its children: stretch them so a bottom dock's
+        // panes fill its height instead of floating in the middle.
+        let mut column = if vertical {
+            v_flex()
+        } else {
+            h_flex().items_stretch()
+        };
         for (i, (kind, share)) in visible.into_iter().enumerate() {
             let pane = self
                 .render_tool_pane(kind, dock, window, cx)

@@ -1,5 +1,6 @@
-//! The column layout, without pixels: which of FerrumChat, FerrumGIT and
-//! FerrumTerm are shown, in what order and how wide. Saved per project in
+//! The pane layout, without pixels: the chat (always shown, on the left)
+//! and the FerrumGIT and FerrumTerm panes beside it, which are shown, in
+//! what order and how wide. Saved per project in
 //! `~/.ferrum/agentic/layouts.json`.
 
 use std::collections::BTreeMap;
@@ -19,7 +20,7 @@ pub enum Column {
 impl Column {
     pub const ALL: [Column; 3] = [Column::Chat, Column::Git, Column::Term];
 
-    /// The column header's title.
+    /// The pane's name (tooltips, the toggles).
     #[must_use]
     pub fn title(self) -> &'static str {
         match self {
@@ -60,13 +61,6 @@ pub struct Layout {
     pub slots: Vec<Slot>,
 }
 
-/// Left or right, for "Move left" / "Move right".
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Side {
-    Left,
-    Right,
-}
-
 const MIN_WEIGHT: f32 = 0.05;
 
 impl Default for Layout {
@@ -78,9 +72,15 @@ impl Default for Layout {
         };
         Self {
             slots: vec![
-                slot(Column::Chat, 0.36),
-                slot(Column::Git, 0.32),
-                slot(Column::Term, 0.32),
+                slot(Column::Chat, 0.5),
+                Slot {
+                    visible: false,
+                    ..slot(Column::Git, 0.25)
+                },
+                Slot {
+                    visible: false,
+                    ..slot(Column::Term, 0.25)
+                },
             ],
         }
     }
@@ -88,7 +88,7 @@ impl Default for Layout {
 
 impl Layout {
     /// Repairs a layout read from disk: drops duplicates, appends missing
-    /// columns, replaces unusable weights.
+    /// columns, replaces unusable weights, puts the chat first and shown.
     #[must_use]
     pub fn normalized(mut self) -> Self {
         let mut seen = Vec::new();
@@ -111,6 +111,10 @@ impl Layout {
                 slot.weight = 1.0 / 3.0;
             }
         }
+        let chat = self.index(Column::Chat);
+        let mut slot = self.slots.remove(chat);
+        slot.visible = true;
+        self.slots.insert(0, slot);
         self
     }
 
@@ -143,8 +147,12 @@ impl Layout {
         self.slots[self.index(column)].visible
     }
 
-    /// Shows or hides `column`; returns whether anything changed.
+    /// Shows or hides `column` (the chat stays); returns whether anything
+    /// changed.
     pub fn set_visible(&mut self, column: Column, visible: bool) -> bool {
+        if column == Column::Chat && !visible {
+            return false;
+        }
         let index = self.index(column);
         let changed = self.slots[index].visible != visible;
         self.slots[index].visible = visible;
@@ -167,43 +175,19 @@ impl Layout {
             .collect()
     }
 
-    /// The shown column next to `column` on `side`.
+    /// The shown column right of `column`.
     #[must_use]
-    pub fn neighbour(&self, column: Column, side: Side) -> Option<Column> {
+    pub fn right_of(&self, column: Column) -> Option<Column> {
         let visible = self.visible();
         let at = visible.iter().position(|c| *c == column)?;
-        match side {
-            Side::Left => at.checked_sub(1).map(|i| visible[i]),
-            Side::Right => visible.get(at + 1).copied(),
-        }
-    }
-
-    /// Swaps `column` with its shown neighbour on `side`.
-    pub fn move_to_side(&mut self, column: Column, side: Side) -> bool {
-        match self.neighbour(column, side) {
-            Some(target) => self.move_onto(column, target),
-            None => false,
-        }
-    }
-
-    /// Puts `column` in `target`'s place (a header dropped on another
-    /// column): before it when moving left, after it when moving right.
-    pub fn move_onto(&mut self, column: Column, target: Column) -> bool {
-        if column == target {
-            return false;
-        }
-        let from = self.index(column);
-        let to = self.index(target);
-        let slot = self.slots.remove(from);
-        self.slots.insert(to, slot);
-        true
+        visible.get(at + 1).copied()
     }
 
     /// Moves the border on the right of `column` to `x`, a fraction of the
     /// row's width (0 = left edge). Neither neighbour gets narrower than
     /// `min` (also a fraction). Returns whether anything changed.
     pub fn resize(&mut self, column: Column, x: f32, min: f32) -> bool {
-        let Some(right) = self.neighbour(column, Side::Right) else {
+        let Some(right) = self.right_of(column) else {
             return false;
         };
         let fractions = self.fractions();
@@ -244,8 +228,7 @@ struct LayoutFile {
 /// `~/.ferrum/agentic/layouts.json`.
 #[must_use]
 pub fn default_file() -> Option<PathBuf> {
-    ferrum_ui::project::home_dir()
-        .map(|home| home.join(".ferrum").join("agentic").join("layouts.json"))
+    ferrum_ui::prefs::path("agentic/layouts.json")
 }
 
 fn read(file: &Path) -> LayoutFile {

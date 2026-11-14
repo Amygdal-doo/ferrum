@@ -192,12 +192,16 @@ impl FerrumLauncher {
 
     pub fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let settings = self.state.settings.clone();
-        let form = cx.new(|cx| SettingsForm::new(settings, window, cx));
+        let hide_dock = self.prefs(AppId::LAUNCHER).hide_from_dock;
+        let form = cx.new(|cx| SettingsForm::new(settings, hide_dock, window, cx));
         let subscription =
             cx.subscribe_in(&form, window, |this, _, event, window, cx| match event {
-                SettingsFormEvent::Saved(settings) => {
+                SettingsFormEvent::Saved(settings, hide_dock) => {
                     this.settings_form = None;
                     this.apply_settings(settings.clone(), window, cx);
+                    if *hide_dock != this.prefs(AppId::LAUNCHER).hide_from_dock {
+                        this.set_hide_from_dock(AppId::LAUNCHER, *hide_dock, cx);
+                    }
                 }
                 SettingsFormEvent::Cancelled => {
                     this.settings_form = None;

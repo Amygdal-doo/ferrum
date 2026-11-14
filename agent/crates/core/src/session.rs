@@ -25,7 +25,7 @@ use crate::changeset::{ChangeSet, CheckpointInfo};
 use crate::context::{self, Mention};
 use crate::mcp::{McpClient, McpConfig};
 use crate::modes::Mode;
-use crate::permissions::{Decision, PermissionBroker, PermissionRequest, Permissions};
+use crate::permissions::{Approval, Decision, PermissionBroker, PermissionRequest, Permissions};
 use crate::provider::{self, Message, ModelInfo, Provider, StopReason};
 use crate::review::FileChange;
 use crate::secrets::{self, ApiKey, KeySource, SecretStore};
@@ -98,6 +98,9 @@ pub enum SessionEvent {
     AgentChanged(AgentChoice),
     Notice(String),
     Mcp(Vec<McpServerStatus>),
+    /// The saved thread list changed: a thread was saved for the first
+    /// time or under a new title, renamed or deleted.
+    ThreadsChanged,
 }
 
 pub struct SessionConfig {
@@ -179,6 +182,9 @@ struct Inner {
     mode: Arc<Mutex<Mode>>,
     thread: Mutex<Thread>,
     store: ThreadStore,
+    /// Id and title of the thread as last saved (to tell the UI when the
+    /// list changes).
+    saved_as: Mutex<(String, String)>,
     changes: Arc<Mutex<ChangeSet>>,
     permissions: Arc<Mutex<Permissions>>,
     pending: Mutex<HashMap<u64, oneshot::Sender<Decision>>>,
@@ -235,7 +241,9 @@ impl ChatSession {
         let agent = AgentChoice::parse(&thread.agent).unwrap_or(agent);
         thread.agent = agent.key();
         let (tx, rx) = unbounded();
-        let permissions = Permissions::load(&crate::paths::permissions_file(&config.home));
+        let mut permissions = Permissions::load(&crate::paths::permissions_file(&config.home));
+        permissions.set_approval(config.settings.approval);
+        let saved_as = (thread.id.clone(), thread.title.clone());
         let inner = Arc::new_cyclic(|me| Inner {
             me: me.clone(),
             sandbox,
@@ -246,6 +254,7 @@ impl ChatSession {
             mode: Arc::new(Mutex::new(thread.mode)),
             thread: Mutex::new(thread),
             store,
+            saved_as: Mutex::new(saved_as),
             changes: Arc::new(Mutex::new(changes)),
             permissions: Arc::new(Mutex::new(permissions)),
             pending: Mutex::new(HashMap::new()),
@@ -402,9 +411,15 @@ impl ChatSession {
     }
 
     pub fn new_thread(&self) {
+        self.new_thread_in(self.mode());
+    }
+
+    /// A new thread in `mode` (the current one is saved first).
+    pub fn new_thread_in(&self, mode: Mode) {
         self.cancel();
         self.inner.save();
-        let thread = Thread::new(self.inner.project.clone(), self.agent().key(), self.mode());
+        *lock(&self.inner.mode) = mode;
+        let thread = Thread::new(self.inner.project.clone(), self.agent().key(), mode);
         *lock(&self.inner.thread) = thread;
         self.inner.drop_acp();
         let _ = self
@@ -433,8 +448,32 @@ impl ChatSession {
     pub fn delete_thread(&self, id: &str) -> Result<(), String> {
         self.inner.store.delete(id).map_err(|e| e.to_string())?;
         if lock(&self.inner.thread).id == id {
+            // Not saved again on the way out.
+            lock(&self.inner.thread).messages.clear();
             self.new_thread();
         }
+        self.inner.threads_changed();
+        Ok(())
+    }
+
+    /// Retitles a thread: the current one (saved if it has messages) or a
+    /// saved one.
+    pub fn rename_thread(&self, id: &str, title: &str) -> Result<(), String> {
+        let title = title.trim();
+        if title.is_empty() {
+            return Err("The title is empty.".into());
+        }
+        if lock(&self.inner.thread).id == id {
+            self.inner
+                .emit_thread(ThreadEvent::TitleChanged(title.to_string()));
+            self.inner.save();
+        } else {
+            self.inner
+                .store
+                .rename(id, title)
+                .map_err(|e| e.to_string())?;
+        }
+        self.inner.threads_changed();
         Ok(())
     }
 
@@ -525,12 +564,31 @@ impl ChatSession {
         lock(&self.inner.settings).clone()
     }
 
-    pub fn update_settings(&self, settings: AgentSettings) -> Result<(), String> {
+    /// Saves provider settings; the approval level is kept as it is (see
+    /// [`Self::set_approval`]).
+    pub fn update_settings(&self, mut settings: AgentSettings) -> Result<(), String> {
+        settings.approval = self.approval();
         settings
             .save(&crate::paths::settings_file(&self.inner.home))
             .map_err(|e| e.to_string())?;
         *lock(&self.inner.settings) = settings;
         Ok(())
+    }
+
+    pub fn approval(&self) -> Approval {
+        lock(&self.inner.permissions).approval()
+    }
+
+    /// Changes what runs without asking, now and in the saved settings.
+    pub fn set_approval(&self, approval: Approval) -> Result<(), String> {
+        lock(&self.inner.permissions).set_approval(approval);
+        let mut settings = self.settings();
+        settings.approval = approval;
+        let saved = settings
+            .save(&crate::paths::settings_file(&self.inner.home))
+            .map_err(|e| e.to_string());
+        *lock(&self.inner.settings) = settings;
+        saved
     }
 
     pub fn acp_agents(&self) -> &[AcpAgentConfig] {
@@ -635,7 +693,16 @@ impl Inner {
         }
         if let Err(e) = self.store.save(&thread) {
             tracing::warn!("saving thread: {e}");
+            return;
         }
+        let key = (thread.id, thread.title);
+        if std::mem::replace(&mut *lock(&self.saved_as), key.clone()) != key {
+            self.threads_changed();
+        }
+    }
+
+    fn threads_changed(&self) {
+        let _ = self.events.unbounded_send(SessionEvent::ThreadsChanged);
     }
 
     fn drop_acp(&self) {

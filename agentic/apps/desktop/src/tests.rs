@@ -1,19 +1,24 @@
-//! Headless GPUI tests of the whole window: the three real views (chat on
-//! an isolated config, git on temporary services, terminals on a private
+//! Headless GPUI tests of the whole window: the real views (chats on an
+//! isolated config, git on temporary services, terminals on a private
 //! in-process server), drawn and driven without showing a window.
 
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+use ferrumagent_ui::core::Mode;
 use ferrumagent_ui::core::session::SessionConfig;
-use ferrumagent_ui::{ChatEvent, ChatOptions};
+use ferrumagent_ui::core::store::ThreadStore;
+use ferrumagent_ui::core::thread::{Thread, ThreadEvent};
+use ferrumagent_ui::{ChatEvent, ChatOptions, GitRequest};
 use ferrumgit_ui::GitViewEvent;
 use gpui::{Entity, Modifiers, MouseButton, TestAppContext, VisualTestContext, point, px, size};
 use tempfile::TempDir;
 
 use crate::app::{FerrumAgentic, Options};
-use crate::layout::{self, Column, Layout, Side};
+use crate::automations::{Automation, Schedule};
+use crate::layout::{self, Column, Layout};
+use crate::nav::Page;
 
 type Opened = Rc<RefCell<Vec<(Option<PathBuf>, PathBuf, Option<u32>)>>>;
 
@@ -25,7 +30,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let dir = tempfile::tempdir().expect("tempdir");
-        for sub in ["a", "b", "home", "git-data"] {
+        for sub in ["a", "b", "home", "git-data", "data"] {
             std::fs::create_dir_all(dir.path().join(sub)).expect("mkdir");
         }
         Self {
@@ -42,6 +47,22 @@ impl Fixture {
         self.dir.path().join("layouts.json")
     }
 
+    /// A saved thread of `project` in the chats' home.
+    fn thread(&self, project: &Path, title: &str, text: &str, mode: Mode) -> String {
+        let mut thread = Thread::new(project.to_path_buf(), "test", mode);
+        thread.apply(&ThreadEvent::UserMessage {
+            id: 1,
+            text: text.into(),
+            attachments: vec![],
+            checkpoint: None,
+        });
+        thread.apply(&ThreadEvent::TitleChanged(title.into()));
+        ThreadStore::new(&self.path("home"), project)
+            .save(&thread)
+            .expect("save thread");
+        thread.id
+    }
+
     fn options(&self, project: Option<PathBuf>) -> Options {
         let home = self.path("home");
         let opened = self.opened.clone();
@@ -49,6 +70,8 @@ impl Fixture {
             project,
             layouts_file: Some(self.layouts_file()),
             projects_file: Some(self.dir.path().join("projects.json")),
+            data_dir: Some(self.path("data")),
+            agent_home: home.clone(),
             chat_options: Rc::new(move |root: &Path| ChatOptions {
                 config: Some(SessionConfig::isolated(root, &home)),
                 ..Default::default()
@@ -101,7 +124,16 @@ fn read<R>(
     app.read_with(cx, |app, _| f(app))
 }
 
-/// Columns drawn on screen, left to right.
+fn update(
+    app: &Entity<FerrumAgentic>,
+    cx: &mut VisualTestContext,
+    f: impl FnOnce(&mut FerrumAgentic, &mut gpui::Window, &mut gpui::Context<FerrumAgentic>),
+) {
+    cx.update(|window, cx| app.update(cx, |app, cx| f(app, window, cx)));
+    draw(cx);
+}
+
+/// Panes drawn on screen, left to right.
 fn drawn(cx: &mut VisualTestContext) -> Vec<Column> {
     let mut shown: Vec<(f32, Column)> = Column::ALL
         .into_iter()
@@ -122,21 +154,87 @@ fn width(cx: &mut VisualTestContext, key: &'static str) -> f32 {
     f32::from(cx.debug_bounds(key).expect(key).size.width)
 }
 
+/// Waits (on real threads and timers) until `done` holds.
+fn wait(
+    app: &Entity<FerrumAgentic>,
+    cx: &mut VisualTestContext,
+    done: impl Fn(&FerrumAgentic) -> bool,
+) {
+    for _ in 0..400 {
+        // Test timers only fire when the clock is moved.
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(50));
+        draw(cx);
+        if read(app, cx, &done) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("timed out");
+}
+
 #[gpui::test]
-fn renders_three_columns_and_wires_their_events(cx: &mut TestAppContext) {
+fn the_chat_is_always_shown_and_panes_toggle(cx: &mut TestAppContext) {
+    let fx = Fixture::new();
+    let (app, cx) = fx.open(cx, Some(fx.path("a")));
+    assert_eq!(drawn(cx), [Column::Chat]);
+    assert!(
+        cx.debug_bounds("nav-Search").is_some(),
+        "the sidebar is drawn"
+    );
+    read(&app, cx, |a| {
+        assert!(a.chat().is_some() && a.git.is_some() && a.term.is_none());
+    });
+
+    // ⌥⌘2 / ⌥⌘3 open Git and Term to the right of the chat.
+    cx.simulate_keystrokes("cmd-alt-2");
+    draw(cx);
+    assert_eq!(drawn(cx), [Column::Chat, Column::Git]);
+    cx.simulate_keystrokes("cmd-alt-3");
+    draw(cx);
+    assert_eq!(drawn(cx), Column::ALL);
+    assert!(read(&app, cx, |a| a.term.is_some()));
+    // The chat can't be closed.
+    update(&app, cx, |a, w, cx| {
+        a.set_visible(Column::Chat, false, w, cx)
+    });
+    assert_eq!(drawn(cx), Column::ALL);
+    cx.simulate_keystrokes("cmd-alt-2");
+    draw(cx);
+    assert_eq!(drawn(cx), [Column::Chat, Column::Term]);
+
+    // Narrow windows still lay out.
+    cx.simulate_resize(size(px(760.), px(520.)));
+    draw(cx);
+    assert_eq!(drawn(cx), [Column::Chat, Column::Term]);
+}
+
+#[gpui::test]
+fn the_sidebar_folds_and_remembers(cx: &mut TestAppContext) {
+    let fx = Fixture::new();
+    let (app, cx) = fx.open(cx, Some(fx.path("a")));
+    let wide = width(cx, "column-chat");
+    // Keys go to the window when nothing inside has focus.
+    update(&app, cx, |a, w, cx| w.focus(a.focus_handle(), cx));
+    cx.simulate_keystrokes("cmd-\\");
+    draw(cx);
+    assert!(cx.debug_bounds("nav-Search").is_none());
+    assert!(width(cx, "column-chat") > wide + 150.);
+    let saved = crate::nav::UiState::load(&fx.path("data").join("ui.json"));
+    assert!(!saved.sidebar_open);
+    cx.simulate_keystrokes("cmd-b");
+    draw(cx);
+    assert!(cx.debug_bounds("nav-Search").is_some());
+}
+
+#[gpui::test]
+fn events_from_the_chat_and_git_are_wired(cx: &mut TestAppContext) {
     let fx = Fixture::new();
     let root = fx.path("a");
     let (app, cx) = fx.open(cx, Some(root.clone()));
-    assert_eq!(drawn(cx), Column::ALL);
     let (chat, git) = read(&app, cx, |a| {
-        assert!(a.term.is_some());
-        (a.chat.clone().expect("chat"), a.git.clone().expect("git"))
+        (a.chat().expect("chat"), a.git.clone().expect("git"))
     });
-    // Narrow windows still lay out (each column has a minimum when dragged,
-    // not when the window shrinks).
-    cx.simulate_resize(size(px(760.), px(520.)));
-    draw(cx);
-    assert_eq!(drawn(cx), Column::ALL);
 
     // Files from the chat and from git open in the Editor.
     let file = root.join("src/main.rs");
@@ -160,7 +258,7 @@ fn renders_three_columns_and_wires_their_events(cx: &mut TestAppContext) {
         ]
     );
 
-    // Agent changes reload the git column and show in the chat header.
+    // Agent changes reload the git view.
     let before = read(&app, cx, |a| a.git_refreshes);
     chat.update(cx, |_, cx| cx.emit(ChatEvent::ChangesUpdated { files: 2 }));
     draw(cx);
@@ -169,12 +267,7 @@ fn renders_three_columns_and_wires_their_events(cx: &mut TestAppContext) {
         (2, before + 1)
     );
 
-    // "Run in terminal" reopens a closed terminal column.
-    cx.update(|window, cx| {
-        app.update(cx, |a, cx| a.set_visible(Column::Term, false, window, cx));
-    });
-    draw(cx);
-    assert_eq!(drawn(cx), [Column::Chat, Column::Git]);
+    // "Run in terminal" opens the terminal pane.
     chat.update(cx, |_, cx| {
         cx.emit(ChatEvent::RunInTerminal {
             cmd: "echo hi".into(),
@@ -182,92 +275,171 @@ fn renders_three_columns_and_wires_their_events(cx: &mut TestAppContext) {
         });
     });
     draw(cx);
+    assert_eq!(drawn(cx), [Column::Chat, Column::Term]);
+
+    // The footer's git actions: Commit opens the Git pane; the remote
+    // ones run in the background.
+    chat.update(cx, |_, cx| cx.emit(ChatEvent::Git(GitRequest::Commit)));
+    draw(cx);
     assert_eq!(drawn(cx), Column::ALL);
+    chat.update(cx, |_, cx| cx.emit(ChatEvent::Git(GitRequest::Fetch)));
+    draw(cx);
 }
 
 #[gpui::test]
-fn columns_close_reopen_and_reorder(cx: &mut TestAppContext) {
+fn the_git_summary_reaches_the_chat(cx: &mut TestAppContext) {
+    let fx = Fixture::new();
+    let root = fx.path("a");
+    let git = |args: &[&str]| {
+        let ok = std::process::Command::new("git")
+            .args(["-c", "user.name=T", "-c", "user.email=t@e.x"])
+            .args(args)
+            .current_dir(&root)
+            .status()
+            .expect("git")
+            .success();
+        assert!(ok, "git {args:?}");
+    };
+    git(&["init", "-q", "-b", "feat"]);
+    std::fs::write(root.join("f.txt"), "1").expect("write");
+    git(&["add", "."]);
+    git(&["commit", "-q", "-m", "one"]);
+    std::fs::write(root.join("f.txt"), "2").expect("write");
+    let (app, cx) = fx.open(cx, Some(root.clone()));
+    wait(&app, cx, |a| a.git_summary.is_some());
+    let summary = read(&app, cx, |a| a.git_summary.clone()).expect("summary");
+    assert_eq!(summary.branch.as_deref(), Some("feat"));
+    assert_eq!(summary.changed, 1);
+    let status = crate::panes::git_status(&summary);
+    assert_eq!((status.branch.as_str(), status.dirty), ("feat", 1));
+}
+
+#[gpui::test]
+fn pages_replace_the_chat_and_back_returns(cx: &mut TestAppContext) {
     let fx = Fixture::new();
     let (app, cx) = fx.open(cx, Some(fx.path("a")));
-
-    // ⌥⌘2 hides and shows the git column.
-    cx.simulate_keystrokes("cmd-alt-2");
+    for page in [
+        Page::Projects,
+        Page::Discussions,
+        Page::Search,
+        Page::Knowledge,
+        Page::Sites,
+        Page::Automations,
+        Page::Extensions,
+        Page::Usage,
+    ] {
+        update(&app, cx, |a, w, cx| a.show_page(page, w, cx));
+        // Debug selectors are `&'static str`: one leaked string per page.
+        let key: &'static str = Box::leak(format!("page-{}", page.title()).into_boxed_str());
+        assert!(cx.debug_bounds(key).is_some(), "{page:?}");
+        assert_eq!(read(&app, cx, |a| a.page()), page);
+    }
+    // ⌘[ walks back through the pages to the chat; ⌘] forward again.
+    update(&app, cx, |a, w, cx| w.focus(a.focus_handle(), cx));
+    cx.simulate_keystrokes("cmd-[");
     draw(cx);
-    assert_eq!(drawn(cx), [Column::Chat, Column::Term]);
-    cx.simulate_keystrokes("cmd-alt-2");
-    draw(cx);
-    assert_eq!(drawn(cx), Column::ALL);
-
-    // Every column can be closed; the window then says how to reopen one.
-    cx.update(|window, cx| {
-        app.update(cx, |a, cx| {
-            for column in Column::ALL {
-                a.set_visible(column, false, window, cx);
-            }
-        });
-    });
-    draw(cx);
-    assert!(drawn(cx).is_empty());
-    cx.update(|window, cx| {
-        app.update(cx, |a, cx| {
-            for column in Column::ALL {
-                a.toggle(column, window, cx);
-            }
-        });
-    });
-    draw(cx);
-    assert_eq!(drawn(cx), Column::ALL);
-
-    // ⋯ → Move right / Move left, and dropping a header on another column.
-    app.update(cx, |a, cx| a.move_column(Column::Chat, Side::Right, cx));
-    draw(cx);
-    assert_eq!(drawn(cx), [Column::Git, Column::Chat, Column::Term]);
-    app.update(cx, |a, cx| a.move_column(Column::Term, Side::Left, cx));
-    draw(cx);
-    assert_eq!(drawn(cx), [Column::Git, Column::Term, Column::Chat]);
-    app.update(cx, |a, cx| a.drop_column(Column::Chat, Column::Git, cx));
-    draw(cx);
-    assert_eq!(drawn(cx), [Column::Chat, Column::Git, Column::Term]);
+    assert_eq!(read(&app, cx, |a| a.page()), Page::Extensions);
+    for _ in 0..7 {
+        update(&app, cx, |a, w, cx| a.go_back(w, cx));
+    }
+    assert_eq!(read(&app, cx, |a| a.page()), Page::Chat);
+    assert!(cx.debug_bounds("page-Projects").is_none());
+    update(&app, cx, |a, w, cx| a.go_forward(w, cx));
+    assert_eq!(read(&app, cx, |a| a.page()), Page::Projects);
 }
 
 #[gpui::test]
-fn dragging_a_splitter_resizes_its_neighbours(cx: &mut TestAppContext) {
+fn threads_are_listed_searched_and_opened_across_projects(cx: &mut TestAppContext) {
     let fx = Fixture::new();
-    let (_app, cx) = fx.open(cx, Some(fx.path("a")));
-    let (chat, git, term) = (
-        width(cx, "column-chat"),
-        width(cx, "column-git"),
-        width(cx, "column-term"),
+    let (a, b) = (fx.path("a"), fx.path("b"));
+    let fix = fx.thread(&b, "Fix the deploy", "make deploy idempotent", Mode::Agent);
+    let ask = fx.thread(&a, "Where is the pool?", "postgres pool size", Mode::Ask);
+    // b is a recent project too.
+    ferrum_ui::project::record(&fx.dir.path().join("projects.json"), &b, "ferrumagentic")
+        .expect("record");
+    let (app, cx) = fx.open(cx, Some(a.clone()));
+    wait(&app, cx, |app| app.index.recent(8).len() == 2);
+    let discussions = read(&app, cx, |app| app.index.with_mode(Mode::Ask));
+    assert_eq!(discussions.len(), 1);
+    assert_eq!(discussions[0].thread.id, ask);
+    assert_eq!(
+        read(&app, cx, |app| app.recent.clone()),
+        [a.clone(), b.clone()]
     );
-    let splitter = cx.debug_bounds("splitter-chat").expect("splitter");
-    let start = splitter.center();
-    cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
-    for step in 1..=4 {
-        let at = point(start.x + px(40. * step as f32), start.y);
-        cx.simulate_mouse_move(at, MouseButton::Left, Modifiers::none());
-    }
-    let end = point(start.x + px(160.), start.y);
-    cx.simulate_mouse_up(end, MouseButton::Left, Modifiers::none());
-    draw(cx);
-    let (chat2, git2, term2) = (
-        width(cx, "column-chat"),
-        width(cx, "column-git"),
-        width(cx, "column-term"),
-    );
-    assert!((chat2 - chat - 160.).abs() < 6., "{chat} → {chat2}");
-    assert!((git - git2 - 160.).abs() < 6., "{git} → {git2}");
-    assert!((term2 - term).abs() < 2., "{term} → {term2}");
 
-    // Git never gets narrower than the minimum.
-    let start = cx.debug_bounds("splitter-chat").expect("splitter").center();
-    cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
-    for step in 1..=10 {
-        let at = point(start.x + px(100. * step as f32), start.y);
-        cx.simulate_mouse_move(at, MouseButton::Left, Modifiers::none());
-    }
-    cx.simulate_mouse_up(start, MouseButton::Left, Modifiers::none());
-    draw(cx);
-    assert!(width(cx, "column-git") >= crate::app::MIN_COLUMN_WIDTH - 6.);
+    // Search finds message text in another project.
+    update(&app, cx, |app, w, cx| app.show_page(Page::Search, w, cx));
+    let input = read(&app, cx, |app| app.pages.search.clone());
+    // Typing runs the search; `set_text` (not typing) is followed by it.
+    input.update(cx, |input, cx| input.set_text("idempotent", cx));
+    update(&app, cx, |app, _, cx| app.run_search(cx));
+    wait(&app, cx, |app| !app.pages.hits.is_empty());
+    let hit = read(&app, cx, |app| app.pages.hits[0].clone());
+    assert_eq!(
+        (hit.entry.project.clone(), hit.entry.thread.id.clone()),
+        (b.clone(), fix.clone())
+    );
+
+    // Opening it switches project; back returns to the search.
+    update(&app, cx, |app, w, cx| app.open_thread(&b, &fix, w, cx));
+    assert_eq!(
+        read(&app, cx, |app| (app.project.clone(), app.page())),
+        (Some(b.clone()), Page::Chat)
+    );
+    let chat_b = read(&app, cx, |app| app.chat().expect("chat"));
+    update(&app, cx, |app, w, cx| app.go_back(w, cx));
+    assert_eq!(read(&app, cx, |app| app.page()), Page::Search);
+    // Each project keeps its own chat alive.
+    update(&app, cx, |app, w, cx| app.set_project(a.clone(), w, cx));
+    update(&app, cx, |app, w, cx| app.set_project(b.clone(), w, cx));
+    assert_eq!(
+        read(&app, cx, |app| app.chat().expect("chat").entity_id()),
+        chat_b.entity_id()
+    );
+    assert_eq!(read(&app, cx, |app| app.chats.len()), 2);
+}
+
+#[gpui::test]
+fn automations_run_now_and_on_schedule(cx: &mut TestAppContext) {
+    let fx = Fixture::new();
+    let (a, b) = (fx.path("a"), fx.path("b"));
+    let file = fx.path("data").join("automations.json");
+    let mut due = Automation::new(
+        "Nightly",
+        &b,
+        "update deps",
+        Mode::Agent,
+        Schedule::Every { hours: 1 },
+    );
+    due.created = chrono::Utc::now() - chrono::Duration::hours(2);
+    let manual = Automation::new("Review", &a, "review the diff", Mode::Ask, Schedule::Manual);
+    crate::automations::save(&file, &[due.clone(), manual.clone()]).expect("save");
+    let (app, cx) = fx.open(cx, Some(a.clone()));
+
+    // The due one starts in b's chat without leaving a.
+    update(&app, cx, |app, w, cx| app.run_due(w, cx));
+    read(&app, cx, |app| {
+        assert_eq!(app.project.as_deref(), Some(a.as_path()));
+        assert!(app.chats.contains_key(&b));
+    });
+    let saved = crate::automations::load(&file);
+    assert!(saved[0].last_run.is_some() && saved[1].last_run.is_none());
+    // Not due again right away.
+    update(&app, cx, |app, w, cx| app.run_due(w, cx));
+    assert_eq!(
+        crate::automations::load(&file)[0].last_run,
+        saved[0].last_run
+    );
+
+    // Run now shows the chat of its project.
+    update(&app, cx, |app, w, cx| {
+        app.show_page(Page::Automations, w, cx)
+    });
+    update(&app, cx, |app, w, cx| {
+        app.run_automation(&manual.id, true, w, cx)
+    });
+    assert_eq!(read(&app, cx, |app| app.page()), Page::Chat);
+    assert!(crate::automations::load(&file)[1].last_run.is_some());
 }
 
 #[gpui::test]
@@ -276,64 +448,72 @@ fn layouts_are_kept_per_project(cx: &mut TestAppContext) {
     let (a, b) = (fx.path("a"), fx.path("b"));
     let (app, cx) = fx.open(cx, Some(a.clone()));
 
-    // Project a: git closed, terminal first.
-    cx.update(|window, cx| {
-        app.update(cx, |app, cx| {
-            app.set_visible(Column::Git, false, window, cx);
-            app.drop_column(Column::Term, Column::Chat, cx);
-        });
+    // Project a: git shown, chat wider.
+    update(&app, cx, |app, w, cx| {
+        app.set_visible(Column::Git, true, w, cx)
     });
     let layout_a = read(&app, cx, |app| app.layout.clone());
-    assert_eq!(layout_a.visible(), [Column::Term, Column::Chat]);
     assert_eq!(layout::load(&fx.layouts_file(), Some(&a)), layout_a);
 
-    // Project b starts from the last layout; change it to all three.
-    cx.update(|window, cx| {
-        app.update(cx, |app, cx| app.set_project(b.clone(), window, cx));
+    // Project b starts from the last layout; add the terminal.
+    update(&app, cx, |app, w, cx| app.set_project(b.clone(), w, cx));
+    assert_eq!(drawn(cx), [Column::Chat, Column::Git]);
+    update(&app, cx, |app, w, cx| {
+        app.set_visible(Column::Term, true, w, cx)
     });
-    draw(cx);
-    assert_eq!(read(&app, cx, |app| app.project.clone()), Some(b.clone()));
-    assert_eq!(drawn(cx), [Column::Term, Column::Chat]);
-    cx.update(|window, cx| {
-        app.update(cx, |app, cx| app.set_visible(Column::Git, true, window, cx));
-    });
-    draw(cx);
     let layout_b = read(&app, cx, |app| app.layout.clone());
-    assert_eq!(
-        layout_b.visible(),
-        [Column::Term, Column::Chat, Column::Git]
-    );
+    assert_eq!(drawn(cx), Column::ALL);
 
-    // Back to a: its own layout returns; the chat is a new one for a.
-    let chat_b = read(&app, cx, |app| app.chat.clone().expect("chat"));
-    cx.update(|window, cx| {
-        app.update(cx, |app, cx| app.set_project(a.clone(), window, cx));
-    });
-    draw(cx);
-    assert_eq!(drawn(cx), [Column::Term, Column::Chat]);
-    let chat_a = read(&app, cx, |app| app.chat.clone().expect("chat"));
-    assert_ne!(chat_a.entity_id(), chat_b.entity_id());
-
-    // Round trip through the file.
-    assert_eq!(layout::load(&fx.layouts_file(), Some(&a)), layout_a);
+    // Back to a: its own layout returns.
+    update(&app, cx, |app, w, cx| app.set_project(a.clone(), w, cx));
+    assert_eq!(drawn(cx), [Column::Chat, Column::Git]);
     assert_eq!(layout::load(&fx.layouts_file(), Some(&b)), layout_b);
     assert_ne!(layout_b, Layout::default());
 }
 
 #[gpui::test]
-fn without_a_project_only_the_terminal_starts(cx: &mut TestAppContext) {
+fn dragging_a_splitter_resizes_its_neighbours(cx: &mut TestAppContext) {
+    let fx = Fixture::new();
+    let (app, cx) = fx.open(cx, Some(fx.path("a")));
+    update(&app, cx, |app, w, cx| {
+        app.set_visible(Column::Git, true, w, cx);
+        app.set_visible(Column::Term, true, w, cx);
+    });
+    let (chat, git, term) = (
+        width(cx, "column-chat"),
+        width(cx, "column-git"),
+        width(cx, "column-term"),
+    );
+    let start = cx.debug_bounds("splitter-chat").expect("splitter").center();
+    cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::none());
+    for step in 1..=4 {
+        let at = point(start.x - px(40. * step as f32), start.y);
+        cx.simulate_mouse_move(at, MouseButton::Left, Modifiers::none());
+    }
+    let end = point(start.x - px(160.), start.y);
+    cx.simulate_mouse_up(end, MouseButton::Left, Modifiers::none());
+    draw(cx);
+    let (chat2, git2, term2) = (
+        width(cx, "column-chat"),
+        width(cx, "column-git"),
+        width(cx, "column-term"),
+    );
+    assert!((chat - chat2 - 160.).abs() < 6., "{chat} → {chat2}");
+    assert!((git2 - git - 160.).abs() < 6., "{git} → {git2}");
+    assert!((term2 - term).abs() < 2., "{term} → {term2}");
+}
+
+#[gpui::test]
+fn without_a_project_nothing_starts_until_one_opens(cx: &mut TestAppContext) {
     let fx = Fixture::new();
     let (app, cx) = fx.open(cx, None);
-    assert_eq!(drawn(cx), Column::ALL);
+    assert_eq!(drawn(cx), [Column::Chat]);
     read(&app, cx, |app| {
-        assert!(app.chat.is_none() && app.git.is_none() && app.term.is_some());
+        assert!(app.chat().is_none() && app.git.is_none() && app.term.is_none());
     });
-    cx.update(|window, cx| {
-        app.update(cx, |app, cx| app.set_project(fx.path("a"), window, cx));
-    });
-    draw(cx);
+    update(&app, cx, |app, w, cx| app.open_project(fx.path("a"), w, cx));
     read(&app, cx, |app| {
-        assert!(app.chat.is_some() && app.git.is_some())
+        assert!(app.chat().is_some() && app.git.is_some())
     });
 }
 

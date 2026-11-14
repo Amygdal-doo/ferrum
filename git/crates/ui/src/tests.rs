@@ -248,3 +248,38 @@ fn desktop_view_shares_the_process_services(cx: &mut TestAppContext) {
     let second = cx.update(|window, cx| GitView::new(None, GitViewOptions::embedded(), window, cx));
     wait_for(cx, &second, |v| v.state.loaded);
 }
+
+#[gpui::test]
+fn a_host_without_the_toolbar_drives_the_repository(cx: &mut TestAppContext) {
+    let data = tempfile::tempdir().expect("data dir");
+    let repo = repo();
+    init(data.path(), cx);
+    let options = GitViewOptions::embedded().without_toolbar();
+    assert!(!options.show_toolbar && GitViewOptions::embedded().show_toolbar);
+    let (host, cx) = host(Some(repo.path().to_path_buf()), options, cx);
+    let git = host.read_with(cx, |h, _| h.git.clone());
+    assert_eq!(git.read_with(cx, |v, _| v.summary()), None);
+    wait_for(cx, &git, |v| v.summary().is_some());
+
+    // The head for the host's status line.
+    let summary = git.read_with(cx, |v, _| v.summary()).expect("summary");
+    assert_eq!(summary.branch.as_deref(), Some("main"));
+    assert_eq!((summary.ahead, summary.behind), (0, 0));
+    assert_eq!(summary.changed, 1);
+    assert_eq!(summary.busy, None);
+
+    // The branch drawer and the commit form open on request.
+    git.update(cx, |view, cx| view.show_branches(cx));
+    cx.run_until_parked();
+    assert!(git.read_with(cx, |v, _| v.drawer_open));
+    cx.update(|window, cx| git.update(cx, |view, cx| view.start_commit(window, cx)));
+    cx.run_until_parked();
+    git.read_with(cx, |view, _| {
+        let id = view.state.active.expect("active");
+        assert_eq!(view.state.view(id).page, Page::WorkingCopy);
+    });
+
+    // Fetch without a remote fails without wedging the view.
+    git.update(cx, |view, cx| view.remote(crate::RemoteCommand::Fetch, cx));
+    wait_for(cx, &git, |v| v.summary().is_some_and(|s| s.busy.is_none()));
+}

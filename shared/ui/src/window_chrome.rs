@@ -53,6 +53,9 @@ pub fn title_row(id: impl Into<ElementId>, lights: bool, window: &Window) -> Sta
         .px_2()
         .gap_0p5()
         .when(lights, |row| row.pl(TRAFFIC_LIGHTS_WIDTH))
+        .when_some(crate::appearance::title_bar_fill(), |row, fill| {
+            row.bg(fill)
+        })
         .window_control_area(WindowControlArea::Drag)
         .on_mouse_down(MouseButton::Left, |event, window, _| {
             if event.click_count == 2 {

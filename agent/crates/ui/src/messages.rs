@@ -1,5 +1,7 @@
 //! The message list: user messages (with their checkpoint), assistant
-//! text, thinking, tool cards, plans and errors; the plan-ready card.
+//! text, thinking, tool cards, plans and errors without bubbles; after a
+//! turn, copy / retry and the summary of changed files; the plan-ready
+//! card.
 
 use ferrum_ui::prelude::*;
 use ferrumagent_core::modes::Mode;
@@ -19,6 +21,7 @@ impl ChatView {
     ) -> impl IntoElement + use<> {
         let messages = self.thread.messages.clone();
         let last_is_user = messages.last().is_none_or(|m| m.role == Role::User);
+        let turn_done = !self.busy && !last_is_user;
         let show_plan = self.thread.mode == Mode::Plan && !self.busy && self.thread.plan.is_some();
         div()
             .id("chat-messages")
@@ -56,6 +59,10 @@ impl ChatView {
                                 .px_1()
                                 .child(LoadingLabel::new("Thinking").color(Color::Muted)),
                         )
+                    })
+                    .when(turn_done, |this| this.child(self.render_turn_actions(cx)))
+                    .when(turn_done && !self.changes.is_empty(), |this| {
+                        this.child(self.render_change_summary(cx))
                     })
                     .when(show_plan, |this| this.child(self.render_plan_ready(cx))),
             )
@@ -100,46 +107,43 @@ impl ChatView {
         message: &ThreadMessage,
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
-        let colors = cx.theme().colors().clone();
         let id = message.id;
         let has_checkpoint = message.checkpoint.is_some();
-        v_flex()
-            .w_full()
-            .gap_1()
-            .p_2()
-            .rounded_md()
-            .border_1()
-            .border_color(colors.border_variant)
-            .bg(colors.element_background)
-            .child(
-                h_flex()
-                    .items_start()
-                    .gap_1()
-                    .child(div().flex_1().min_w_0().text_sm().child(message.text()))
-                    .when(has_checkpoint && !self.busy, |this| {
-                        this.child(
-                            IconButton::new(("chat-restore", id), IconName::Undo)
-                                .icon_size(IconSize::XSmall)
-                                .icon_color(Color::Muted)
-                                .tooltip(Tooltip::text("Restore files to before this message"))
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.run_blocking(cx, move |s| {
-                                        s.restore_checkpoint(id).map(|_| ())
-                                    });
-                                })),
-                        )
-                    }),
-            )
-            .when(!message.attachments.is_empty(), |this| {
-                this.child(
+        let bubble =
+            v_flex()
+                .max_w(relative(0.85))
+                .min_w_0()
+                .gap_1()
+                .px_3()
+                .py_2()
+                .rounded(px(12.))
+                .bg(ferrum_ui::active_fill(cx))
+                .child(
                     h_flex()
-                        .flex_wrap()
+                        .items_start()
                         .gap_1()
-                        .children(message.attachments.iter().map(|a| {
+                        .child(div().flex_1().min_w_0().text_sm().child(message.text()))
+                        .when(has_checkpoint && !self.busy, |this| {
+                            this.child(
+                                IconButton::new(("chat-restore", id), IconName::Undo)
+                                    .icon_size(IconSize::XSmall)
+                                    .icon_color(Color::Muted)
+                                    .tooltip(Tooltip::text("Restore files to before this message"))
+                                    .on_click(cx.listener(move |this, _, _, cx| {
+                                        this.run_blocking(cx, move |s| {
+                                            s.restore_checkpoint(id).map(|_| ())
+                                        });
+                                    })),
+                            )
+                        }),
+                )
+                .when(!message.attachments.is_empty(), |this| {
+                    this.child(h_flex().flex_wrap().gap_1().children(
+                        message.attachments.iter().map(|a| {
                             div()
                                 .px_1p5()
                                 .rounded_sm()
-                                .bg(colors.ghost_element_selected)
+                                .bg(ferrum_ui::hover_fill(cx))
                                 .child(
                                     Label::new(a.label.clone())
                                         .size(LabelSize::XSmall)
@@ -147,6 +151,51 @@ impl ChatView {
                                         .single_line()
                                         .truncate(),
                                 )
+                        }),
+                    ))
+                });
+        h_flex().w_full().justify_end().child(bubble)
+    }
+
+    /// Copy and retry under the last answer.
+    fn render_turn_actions(&self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+        let answer = self
+            .thread
+            .messages
+            .last()
+            .map(|m| m.text())
+            .unwrap_or_default();
+        let prompt = self
+            .thread
+            .messages
+            .iter()
+            .rev()
+            .find(|m| m.role == Role::User)
+            .map(|m| m.text());
+        h_flex()
+            .px_1()
+            .mt(px(-8.))
+            .gap_0p5()
+            .when(!answer.is_empty(), |this| {
+                this.child(
+                    ferrum_ui::title_button("chat-copy-answer", IconName::Copy, "Copy answer")
+                        .icon_size(IconSize::XSmall)
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            cx.write_to_clipboard(gpui::ClipboardItem::new_string(answer.clone()));
+                            this.show_notice(ferrum_ui::Notice::info("Copied."), cx);
+                        })),
+                )
+            })
+            .when_some(prompt, |this, prompt| {
+                this.child(
+                    ferrum_ui::title_button("chat-retry", IconName::RotateCw, "Send again")
+                        .icon_size(IconSize::XSmall)
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            if let Some(session) = &this.session {
+                                session.send(&prompt, Vec::new());
+                                this.follow = true;
+                            }
+                            cx.notify();
                         })),
                 )
             })

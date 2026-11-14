@@ -6,7 +6,8 @@ use ferrum_ui::prelude::*;
 use ferrumlauncher_core::Settings;
 
 pub enum SettingsFormEvent {
-    Saved(Settings),
+    /// The settings, and whether the launcher runs without a Dock icon.
+    Saved(Settings, bool),
     Cancelled,
 }
 
@@ -15,6 +16,8 @@ pub struct SettingsForm {
     keep: Entity<TextInput>,
     /// Show the launcher in the menu bar (macOS).
     menu_bar: bool,
+    /// Run the launcher without a Dock icon (macOS).
+    hide_dock: bool,
     error: Option<SharedString>,
     _subscriptions: Vec<Subscription>,
 }
@@ -22,7 +25,12 @@ pub struct SettingsForm {
 impl EventEmitter<SettingsFormEvent> for SettingsForm {}
 
 impl SettingsForm {
-    pub fn new(settings: Settings, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        settings: Settings,
+        hide_dock: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let interval = cx.new(|cx| {
             TextInput::new(window, cx).with_text(settings.check_interval_hours.to_string())
         });
@@ -40,6 +48,7 @@ impl SettingsForm {
         let menu_bar = settings.menu_bar;
         Self {
             menu_bar,
+            hide_dock,
             interval,
             keep,
             error: None,
@@ -54,7 +63,7 @@ impl SettingsForm {
 
     fn save(&mut self, cx: &mut Context<Self>) {
         match self.collect(cx) {
-            Ok(settings) => cx.emit(SettingsFormEvent::Saved(settings)),
+            Ok(settings) => cx.emit(SettingsFormEvent::Saved(settings, self.hide_dock)),
             Err(message) => {
                 self.error = Some(message.into());
                 cx.notify();
@@ -131,6 +140,10 @@ impl Render for SettingsForm {
                             .on_click(cx.listener(
                                 |this: &mut Self, state: &ToggleState, _, cx| {
                                     this.menu_bar = state.selected();
+                                    // Hidden from the Dock, the menu bar is the way in.
+                                    if !this.menu_bar {
+                                        this.hide_dock = false;
+                                    }
                                     cx.notify();
                                 },
                             )),
@@ -138,6 +151,34 @@ impl Render for SettingsForm {
                         .child(
                             Label::new(
                                 "Open any app from the menu bar. Closing the window keeps the launcher running there, so app shortcuts keep working.",
+                            )
+                            .size(LabelSize::XSmall)
+                            .color(Color::Muted),
+                        )
+                        .child(
+                            Checkbox::new(
+                                "settings-hide-dock",
+                                if self.hide_dock {
+                                    ToggleState::Selected
+                                } else {
+                                    ToggleState::Unselected
+                                },
+                            )
+                            .label("Hide Ferrum Launcher from the Dock")
+                            .on_click(cx.listener(
+                                |this: &mut Self, state: &ToggleState, _, cx| {
+                                    this.hide_dock = state.selected();
+                                    // Without a Dock icon the menu bar is the way in.
+                                    if this.hide_dock {
+                                        this.menu_bar = true;
+                                    }
+                                    cx.notify();
+                                },
+                            )),
+                        )
+                        .child(
+                            Label::new(
+                                "No Dock icon and no ⌘-Tab entry; open the launcher from its menu bar icon.",
                             )
                             .size(LabelSize::XSmall)
                             .color(Color::Muted),

@@ -1,4 +1,4 @@
-//! Title row, status line, kill dialog, notices and small shared widgets.
+//! Table card header and footer, kill dialog, notices and small shared widgets.
 
 use ferrum_ui::components::TintColor;
 use ferrum_ui::prelude::*;
@@ -18,7 +18,7 @@ pub fn button(
         .on_click(cx.listener(move |app, _, _, cx| on_click(app, cx)))
 }
 
-/// A two-state button in the title row.
+/// A two-state button in the table header.
 fn toggle(
     id: &'static str,
     label: &'static str,
@@ -37,7 +37,7 @@ fn toggle(
         }))
 }
 
-/// A small text field in the title row.
+/// A small text field in the table header.
 fn field(cx: &App) -> Div {
     let colors = cx.theme().colors();
     h_flex()
@@ -49,17 +49,24 @@ fn field(cx: &App) -> Div {
         .text_ui_sm(cx)
 }
 
-/// The window's single top row: traffic lights, project, search, view
-/// toggles, then the port check, pause and refresh.
-pub fn title_bar(app: &FerrumPorts, window: &Window, cx: &mut Context<FerrumPorts>) -> AnyElement {
+/// The table card's header row (no sidebar, so it starts after the traffic
+/// lights and drags the window): project, search, view toggles, then the
+/// port check, pause and refresh.
+pub fn table_header(
+    app: &FerrumPorts,
+    window: &Window,
+    cx: &mut Context<FerrumPorts>,
+) -> AnyElement {
     let has_project = app.project(cx).is_some();
     let project_tip = if has_project {
         "Only ports of the current project"
     } else {
         "Pick a project first"
     };
-    ferrum_ui::title_row("title", true, window)
+    ferrum_ui::title_row("table-header", true, window)
         .gap_1()
+        .border_b_1()
+        .border_color(cx.theme().colors().border_variant)
         .child(div().flex_none().w(px(260.)).child(app.project_bar.clone()))
         .child(
             field(cx)
@@ -127,7 +134,8 @@ pub fn title_bar(app: &FerrumPorts, window: &Window, cx: &mut Context<FerrumPort
         .into_any_element()
 }
 
-pub fn status_bar(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> AnyElement {
+/// The quiet status line at the bottom of the table card.
+pub fn table_footer(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> AnyElement {
     let status = cx.theme().status();
     let shown = app
         .rows(cx)

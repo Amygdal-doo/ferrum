@@ -20,6 +20,7 @@ use gpui::{
 };
 
 use crate::actions::*;
+use crate::host::{GitRequest, GitStatus};
 use crate::settings::SettingsSheet;
 
 /// What the host learns from the chat.
@@ -31,11 +32,20 @@ pub enum ChatEvent {
     RunInTerminal { cmd: String, cwd: PathBuf },
     /// The agent's pending changes changed (`files` still to review).
     ChangesUpdated { files: usize },
+    /// The project's saved threads changed: one was created, saved under
+    /// a new title, renamed or deleted.
+    ThreadsChanged,
+    /// The footer's branch menu or Push button: the host runs it.
+    Git(GitRequest),
 }
 
 /// How the view starts.
 #[derive(Default)]
 pub struct ChatOptions {
+    /// The host draws the thread list and the window chrome: no thread
+    /// panel or toggle here, and the header is just the thread's title
+    /// and its ⋯ menu.
+    pub shell: bool,
     /// The whole session configuration; `None` loads it from
     /// `~/.ferrum/agent` and the keychain.
     pub config: Option<SessionConfig>,
@@ -54,8 +64,18 @@ pub(crate) struct Picker {
     pub selected: usize,
 }
 
+/// Something a shell host draws inside the chat's header row (see
+/// [`ChatView::set_header_slots`]).
+pub type HeaderSlot = std::rc::Rc<dyn Fn(&mut Window, &mut App) -> gpui::AnyElement>;
+
 pub struct ChatView {
     pub(crate) project: PathBuf,
+    pub(crate) shell: bool,
+    /// Shell host: leave room for the traffic lights in the header row.
+    pub(crate) header_lights: bool,
+    /// Shell host's controls before the title and after the ⋯ menu.
+    pub(crate) header_start: Option<HeaderSlot>,
+    pub(crate) header_end: Option<HeaderSlot>,
     pub(crate) focus: FocusHandle,
     pub(crate) session: Option<ChatSession>,
     pub(crate) load_error: Option<String>,
@@ -83,9 +103,19 @@ pub struct ChatView {
     pub(crate) scroll: ScrollHandle,
     pub(crate) follow: bool,
     pub(crate) mcp_status: Vec<McpServerStatus>,
-    /// The agent selector's menu and what it was built for.
-    pub(crate) agent_menu: Option<(String, Entity<ferrum_ui::components::ContextMenu>)>,
-    tasks: Vec<Task<()>>,
+    /// Branch info pushed by the host, shown in the footer.
+    pub(crate) git_status: Option<GitStatus>,
+    /// The header's title field while renaming.
+    pub(crate) renaming: Option<(Entity<TextInput>, Subscription)>,
+    /// A host call waiting for the session to open.
+    pub(crate) pending: Option<crate::host::HostRequest>,
+    /// A started task's prompt, sent when its thread is switched to.
+    pub(crate) send_after_switch: Option<String>,
+    /// The inline change summary lists every file.
+    pub(crate) all_changed_files: bool,
+    /// The composer's placeholder as last set (empty thread or not).
+    pub(crate) placeholder_empty: Option<bool>,
+    pub(crate) tasks: Vec<Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -120,7 +150,7 @@ impl ChatView {
             TextInput::new(window, cx)
                 .multiline(2)
                 .borderless()
-                .placeholder("Ask anything — @ to add context, ⇧Tab to switch mode")
+                .placeholder(crate::composer::placeholder(true))
         });
         let subscription =
             cx.subscribe_in(
@@ -132,6 +162,7 @@ impl ChatView {
                     TextInputEvent::Blurred => {}
                 },
             );
+        let shell = options.shell;
         let mut config = options
             .config
             .unwrap_or_else(|| SessionConfig::load(&project));
@@ -152,6 +183,9 @@ impl ChatView {
                         this.thread = session.thread();
                         this.threads = session.threads();
                         this.session = Some(session);
+                        if let Some(request) = this.pending.take() {
+                            this.host_request(request, cx);
+                        }
                         this.refresh_changes(cx);
                         cx.notify();
                         Some(rx)
@@ -189,6 +223,10 @@ impl ChatView {
         });
         Self {
             project,
+            shell,
+            header_lights: false,
+            header_start: None,
+            header_end: None,
             focus: cx.focus_handle(),
             session: None,
             load_error: None,
@@ -201,7 +239,7 @@ impl ChatView {
             scanning: false,
             rescan: false,
             expanded_files: HashSet::new(),
-            show_changes: true,
+            show_changes: false,
             show_threads: false,
             threads: Vec::new(),
             settings: None,
@@ -216,7 +254,12 @@ impl ChatView {
             scroll: ScrollHandle::new(),
             follow: true,
             mcp_status: Vec::new(),
-            agent_menu: None,
+            git_status: None,
+            renaming: None,
+            pending: None,
+            send_after_switch: None,
+            all_changed_files: false,
+            placeholder_empty: Some(true),
             tasks: vec![load],
             _subscriptions: vec![subscription],
         }
@@ -278,9 +321,6 @@ impl ChatView {
                 self.busy = busy;
                 if !busy {
                     self.permissions.clear();
-                    if let Some(session) = &self.session {
-                        self.threads = session.threads();
-                    }
                 }
             }
             SessionEvent::Queue(queue) => self.queue = queue,
@@ -289,10 +329,17 @@ impl ChatView {
                     self.thread = session.thread();
                     self.threads = session.threads();
                 }
+                self.renaming = None;
+                self.all_changed_files = false;
                 self.permissions.clear();
                 self.expanded_tools.clear();
                 self.follow = true;
                 self.scroll.scroll_to_bottom();
+                if let Some(prompt) = self.send_after_switch.take()
+                    && let Some(session) = &self.session
+                {
+                    session.send(&prompt, Vec::new());
+                }
             }
             SessionEvent::AgentChanged(_) => {
                 if let Some(session) = &self.session {
@@ -312,6 +359,12 @@ impl ChatView {
                     );
                 }
                 self.mcp_status = status;
+            }
+            SessionEvent::ThreadsChanged => {
+                if let Some(session) = &self.session {
+                    self.threads = session.threads();
+                }
+                cx.emit(ChatEvent::ThreadsChanged);
             }
         }
     }
@@ -428,8 +481,9 @@ impl ChatView {
     }
 
     fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
-        let closed_overlay =
-            self.settings.take().is_some() || std::mem::take(&mut self.show_threads);
+        let closed_overlay = self.settings.take().is_some()
+            || std::mem::take(&mut self.show_threads)
+            || self.renaming.take().is_some();
         if self.picker.take().is_some() {
             // The picker closes first.
         } else if closed_overlay {
@@ -473,7 +527,9 @@ impl ChatView {
     /// Keeps keyboard focus inside the chat when the composer is hidden
     /// (thread list, settings sheet) and returns it to the composer after.
     pub(crate) fn refocus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.show_threads || self.settings.is_some() {
+        if self.renaming.is_some() {
+            // The title field keeps focus.
+        } else if self.show_threads || self.settings.is_some() {
             window.focus(&self.focus, cx);
         } else {
             self.composer
@@ -550,7 +606,7 @@ impl Render for ChatView {
                         .color(Color::Muted),
                 )
                 .into_any_element()
-        } else if self.show_threads {
+        } else if self.show_threads && !self.shell {
             self.render_threads(window, cx).into_any_element()
         } else {
             v_flex()
@@ -591,6 +647,7 @@ impl Render for ChatView {
             .text_color(colors.text)
             .child(self.render_header(window, cx))
             .child(body)
+            .on_action(cx.listener(Self::attach_files))
             .when_some(self.settings.is_some().then_some(()), |this, _| {
                 this.child(self.render_settings(window, cx))
             })

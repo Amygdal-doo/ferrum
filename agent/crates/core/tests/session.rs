@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use common::Events;
 use ferrumagent_core::modes::Mode;
-use ferrumagent_core::permissions::Decision;
+use ferrumagent_core::permissions::{Approval, Decision};
 use ferrumagent_core::provider::mock::MockProvider;
 use ferrumagent_core::provider::{Part, Role};
 use ferrumagent_core::session::{ChatSession, SessionConfig, SessionEvent};
@@ -231,4 +231,71 @@ fn cancel_stops_a_streaming_turn() {
             .iter()
             .all(|b| !matches!(b, Block::Text { text } if text.contains("slow answer")))
     }));
+}
+
+#[test]
+fn approval_levels_rename_and_thread_list_events() {
+    let project = tempfile::tempdir().expect("tempdir");
+    let home = tempfile::tempdir().expect("tempdir");
+    let root = project.path();
+    std::fs::write(root.join("a.txt"), "one\n").expect("write");
+    let mock = MockProvider::new();
+    mock.push_tool(
+        "t1",
+        "edit_file",
+        json!({"path": "a.txt", "old_string": "one", "new_string": "ONE"}),
+    );
+    mock.push_tool("t2", "run_command", json!({"command": "true"}));
+    mock.push_text("Done.");
+    let (session, mut events) = session(root, home.path(), &mock);
+
+    // Auto-accept edits: the edit runs without a prompt, the command asks.
+    session
+        .set_approval(Approval::AutoEdits)
+        .expect("set approval");
+    session.send("Edit and run", vec![]);
+    events.wait("the thread to be listed", |e| {
+        matches!(e, SessionEvent::ThreadsChanged).then_some(())
+    });
+    let request = events.wait("the command prompt", |e| match e {
+        SessionEvent::Permission(r) => Some(r.clone()),
+        _ => None,
+    });
+    assert_eq!(request.tool, "run_command");
+    assert_eq!(tool_status(&session, "t1"), Some(ToolStatus::Completed));
+    session.respond_permission(request.id, Decision::Deny);
+    events.idle();
+    assert_eq!(
+        std::fs::read_to_string(root.join("a.txt")).expect("read"),
+        "ONE\n"
+    );
+
+    // The level is saved with the settings and survives a settings save.
+    let reopened = ferrumagent_core::settings::AgentSettings::load(
+        &ferrumagent_core::paths::settings_file(home.path()),
+    );
+    assert_eq!(reopened.approval, Approval::AutoEdits);
+    session
+        .update_settings(session.settings())
+        .expect("settings");
+    assert_eq!(session.approval(), Approval::AutoEdits);
+
+    // Renaming the current thread, then a saved one.
+    let id = session.thread().id;
+    session.rename_thread(&id, "Loud a").expect("rename");
+    assert_eq!(session.thread().title, "Loud a");
+    assert_eq!(session.threads()[0].title, "Loud a");
+    assert_eq!(session.threads()[0].mode, Mode::Agent);
+    assert!(session.threads()[0].tokens > 0);
+    session.new_thread_in(Mode::Plan);
+    assert_eq!(session.mode(), Mode::Plan);
+    assert_eq!(session.thread().mode, Mode::Plan);
+    session.rename_thread(&id, "Older").expect("rename saved");
+    assert_eq!(session.threads()[0].title, "Older");
+    assert!(session.rename_thread(&id, "  ").is_err());
+    session.delete_thread(&id).expect("delete");
+    assert!(session.threads().is_empty());
+    events.wait("the list change", |e| {
+        matches!(e, SessionEvent::ThreadsChanged).then_some(())
+    });
 }

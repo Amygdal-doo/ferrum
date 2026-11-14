@@ -6,6 +6,7 @@ mod app_info;
 mod commands;
 mod components;
 mod integration;
+mod panel;
 mod services;
 
 use ferrum_ui::AppConfig;
@@ -85,14 +86,26 @@ fn main() {
     ferrum_ui::run(config, move |window, cx| {
         let launcher =
             cx.new(|cx| app::FerrumLauncher::new(services, state, startup_notice, window, cx));
+        let main_window = window.window_handle();
+        launcher.update(cx, |launcher, _| {
+            launcher.integration.main_window = Some(main_window);
+        });
+        // Development aid: the menu bar panel as a regular window at start.
+        if std::env::var_os("FERRUM_LAUNCHER_PANEL_PREVIEW").is_some() {
+            let launcher = launcher.clone();
+            cx.defer(move |cx| panel::open(launcher, None, cx));
+        }
         // In the menu bar, closing the window hides it; the launcher keeps
-        // running for the menu and the app shortcuts.
+        // running for the panel and the app shortcuts. Minimised first:
+        // showing the panel unhides the app, which would bring the window
+        // back with it.
         let weak = launcher.downgrade();
-        window.on_window_should_close(cx, move |_, cx| {
+        window.on_window_should_close(cx, move |window, cx| {
             let keep = weak
                 .upgrade()
                 .is_some_and(|l| l.read(cx).state.settings.menu_bar);
             if keep {
+                window.minimize_window();
                 cx.hide();
             }
             !keep
