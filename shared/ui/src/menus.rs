@@ -223,7 +223,7 @@ mod tests {
     fn every_menu_action_is_enabled_and_handled(cx: &mut gpui::TestAppContext) {
         cx.update(|cx| {
             crate::init_for_tests(cx);
-            crate::appearance::init_at(None, cx);
+            crate::appearance::init_at(None, None, cx);
             register(cx);
             cx.on_action(|_: &OpenSettings, cx| crate::settings::open_settings(None, cx));
             let actions: Vec<Box<dyn gpui::Action>> = vec![

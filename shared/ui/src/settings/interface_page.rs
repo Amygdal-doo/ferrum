@@ -96,7 +96,7 @@ impl SettingsPage for InterfacePage {
         ]
     }
 
-    fn render(&self, _: &mut Window, cx: &mut App) -> AnyElement {
+    fn render(&self, window: &mut Window, cx: &mut App) -> AnyElement {
         let prefs = appearance::current(cx);
         let sizes = [TextSize::Small, TextSize::Default, TextSize::Large];
         let size_index = sizes
@@ -106,15 +106,18 @@ impl SettingsPage for InterfacePage {
         let in_dock = !crate::dock::hidden_by_preference();
         let tinted = usize::from(prefs.title_bar == appearance::TitleBarStyle::Tinted);
         let info = crate::app_info::app_info(cx);
+        let dock_info = info.clone();
+        let extra_rows: Vec<AnyElement> =
+            info.window_rows.iter().map(|row| row(window, cx)).collect();
         gpui::div()
             .flex()
             .flex_col()
             .gap_6()
-            .child(
-                Section::new("Look")
-                    .row(look_pickers(cx))
-                    .footnote("Auto follows the system. Every Ferrum app uses the same look."),
-            )
+            .child(Section::new("Look").row(look_pickers(cx)).footnote(format!(
+                "Auto follows the system. The colour scheme is {}'s own; \
+                         toolbar, style and text size apply to every Ferrum app.",
+                info.name
+            )))
             .child(
                 Section::new("Interface style")
                     .row(style_pickers(cx))
@@ -164,12 +167,17 @@ impl SettingsPage for InterfacePage {
                             .detail("Off: the app runs without a Dock icon or ⌘-Tab entry.")
                             .control(Switch::new("dock-icon-switch", in_dock).on_change(
                                 move |on, _, cx| {
-                                    crate::dock::set_hidden(info.binary, !on);
-                                    crate::dock::set_dock_icon_visible(on);
+                                    if let Some(on_dock) = &dock_info.on_dock {
+                                        on_dock(on, cx);
+                                    } else {
+                                        crate::dock::set_hidden(dock_info.binary, !on);
+                                        crate::dock::set_dock_icon_visible(on);
+                                    }
                                     cx.refresh_windows();
                                 },
                             )),
-                    ),
+                    )
+                    .rows(extra_rows),
             )
             .child(
                 Section::new("Getting started").row(

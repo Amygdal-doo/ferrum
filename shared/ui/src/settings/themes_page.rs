@@ -62,6 +62,7 @@ impl SettingsPage for ThemesPage {
 
     fn render(&self, _: &mut Window, cx: &mut App) -> AnyElement {
         let active = appearance::effective(cx);
+        let name = crate::app_info::app_info(cx).name;
         let heading = |name: &'static str, a: Appearance| {
             let mut section = Section::new(name).row(theme_row(a, cx));
             if a == active {
@@ -78,10 +79,11 @@ impl SettingsPage for ThemesPage {
             .flex_col()
             .gap_6()
             .child(heading("Light Mode", Appearance::Light))
-            .child(heading("Dark Mode", Appearance::Dark).footnote(
-                "With the Auto colour scheme the system decides which of the two is used. \
-                 Ferrum Editor also lists its own and imported themes under Theme: Select.",
-            ))
+            .child(heading("Dark Mode", Appearance::Dark).footnote(format!(
+                "Themes chosen here apply to {name} only; other Ferrum apps keep their own. \
+                     With the Auto colour scheme the system decides which of the two is used. \
+                     Ferrum Editor also lists its own and imported themes under Theme: Select."
+            )))
             .into_any_element()
     }
 }

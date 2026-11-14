@@ -71,6 +71,12 @@ pub struct NotificationEvent {
     pub defaults: crate::notify::Channels,
 }
 
+/// A row the app adds to Settings › Interface › Window.
+pub type WindowRow = Rc<dyn Fn(&mut gpui::Window, &mut App) -> gpui::AnyElement>;
+
+/// See [`AppInfo::on_dock`].
+pub type DockHook = Rc<dyn Fn(bool, &mut App)>;
+
 /// See the module docs.
 #[derive(Clone)]
 pub struct AppInfo {
@@ -87,6 +93,10 @@ pub struct AppInfo {
     pub migration: Option<Migration>,
     pub events: Vec<NotificationEvent>,
     pub pages: Vec<Rc<dyn SettingsPage>>,
+    /// Rows the app adds under Settings › Interface › Window.
+    pub window_rows: Vec<WindowRow>,
+    /// Runs when Show in Dock is switched, instead of the shared handling.
+    pub on_dock: Option<DockHook>,
     /// Show the walkthrough on first launch.
     pub onboarding: bool,
 }
@@ -104,6 +114,8 @@ impl AppInfo {
             migration: None,
             events: Vec::new(),
             pages: Vec::new(),
+            window_rows: Vec::new(),
+            on_dock: None,
             onboarding: true,
         }
     }
@@ -141,6 +153,21 @@ impl AppInfo {
 
     pub fn page(mut self, page: impl SettingsPage + 'static) -> Self {
         self.pages.push(Rc::new(page));
+        self
+    }
+
+    /// Adds a row under Settings › Interface › Window.
+    pub fn window_row(
+        mut self,
+        row: impl Fn(&mut gpui::Window, &mut App) -> gpui::AnyElement + 'static,
+    ) -> Self {
+        self.window_rows.push(Rc::new(row));
+        self
+    }
+
+    /// See [`AppInfo::on_dock`].
+    pub fn on_dock(mut self, f: impl Fn(bool, &mut App) + 'static) -> Self {
+        self.on_dock = Some(Rc::new(f));
         self
     }
 

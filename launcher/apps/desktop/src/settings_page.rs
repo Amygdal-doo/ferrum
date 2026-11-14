@@ -1,6 +1,6 @@
-//! Settings › Launcher (in the shared Settings window, ⌘,): the menu bar
-//! icon, the Dock icon, how often to check for updates and how many
-//! versions to keep.
+//! Settings › Launcher (in the shared Settings window, ⌘,): how often to
+//! check for updates and how many versions to keep. The menu bar and Dock
+//! switches are under Interface › Window.
 
 use ferrum_ui::components::IconName;
 use ferrum_ui::gpui::{
@@ -36,6 +36,45 @@ const KEEP: [(u32, &str); 5] = [
     (0, "All"),
 ];
 
+fn launcher(cx: &App) -> Option<ferrum_ui::gpui::Entity<FerrumLauncher>> {
+    cx.try_global::<LauncherHandle>()
+        .and_then(|h| h.0.upgrade())
+}
+
+/// Interface › Window: the menu bar icon (macOS only).
+pub fn menu_bar_row(_: &mut Window, cx: &mut App) -> AnyElement {
+    let Some(on) = cfg!(target_os = "macos")
+        .then(|| launcher(cx))
+        .flatten()
+        .map(|l| l.read(cx).state.settings.menu_bar)
+    else {
+        return gpui::Empty.into_any_element();
+    };
+    Row::new("menu-bar", "Show in menu bar")
+        .detail(
+            "Its icon lists every app, updates and recent projects. \
+             Closing the window keeps the launcher running there.",
+        )
+        .control(Switch::new("menu-bar-switch", on).on_change(|on, _, cx| {
+            if let Some(l) = launcher(cx) {
+                l.update(cx, |l, cx| {
+                    let mut settings = l.state.settings.clone();
+                    settings.menu_bar = on;
+                    l.apply_settings(settings, cx);
+                });
+            }
+        }))
+        .into_any_element()
+}
+
+/// Interface › Window › Show in Dock: without a Dock icon the launcher
+/// turns its menu bar icon on, so it can still be reached.
+pub fn set_in_dock(on: bool, cx: &mut App) {
+    if let Some(l) = launcher(cx) {
+        l.update(cx, |l, cx| l.set_hide_from_dock(AppId::LAUNCHER, !on, cx));
+    }
+}
+
 #[derive(Default)]
 pub struct LauncherPage;
 
@@ -53,16 +92,7 @@ impl SettingsPage for LauncherPage {
         gpui::rgb(0xe8743b).into()
     }
     fn keywords(&self) -> &'static [&'static str] {
-        &[
-            "menu bar",
-            "dock",
-            "tray",
-            "updates",
-            "check",
-            "versions",
-            "keep",
-            "status bar",
-        ]
+        &["updates", "check", "versions", "keep"]
     }
     fn render(&self, window: &mut Window, cx: &mut App) -> AnyElement {
         let Some(launcher) = cx
@@ -71,13 +101,7 @@ impl SettingsPage for LauncherPage {
         else {
             return gpui::div().into_any_element();
         };
-        let (settings, hide_dock) = {
-            let l = launcher.read(cx);
-            (
-                l.state.settings.clone(),
-                l.prefs(AppId::LAUNCHER).hide_from_dock,
-            )
-        };
+        let settings = launcher.read(cx).state.settings.clone();
         let edit =
             move |cx: &mut App, f: fn(&mut ferrumlauncher_core::Settings, u32), value: u32| {
                 if let Some(l) = cx
@@ -100,41 +124,10 @@ impl SettingsPage for LauncherPage {
             .iter()
             .position(|(k, _)| *k == settings.keep_versions)
             .unwrap_or(0);
-        let menu_bar = cfg!(target_os = "macos").then(|| {
-            Section::new("Menu bar and Dock")
-                .row(
-                    Row::new("menu-bar", "Show Ferrum Launcher in the menu bar")
-                        .detail(
-                            "Click its icon for every app, updates and recent projects. \
-                             Closing the window keeps the launcher running there.",
-                        )
-                        .control(Switch::new("menu-bar-switch", settings.menu_bar).on_change(
-                            move |on, _, cx| edit(cx, |s, v| s.menu_bar = v == 1, u32::from(on)),
-                        )),
-                )
-                .row(
-                    Row::new("hide-dock", "Hide from the Dock")
-                        .detail("No Dock icon or ⌘-Tab entry; the menu bar icon opens it.")
-                        .control(Switch::new("hide-dock-switch", hide_dock).on_change(
-                            |on, _, cx| {
-                                if let Some(l) = cx
-                                    .try_global::<LauncherHandle>()
-                                    .and_then(|h| h.0.upgrade())
-                                {
-                                    l.update(cx, |l, cx| {
-                                        l.set_hide_from_dock(AppId::LAUNCHER, on, cx);
-                                    });
-                                    cx.refresh_windows();
-                                }
-                            },
-                        )),
-                )
-        });
         gpui::div()
             .flex()
             .flex_col()
             .gap_6()
-            .children(menu_bar)
             .child(
                 Section::new("Updates")
                     .row(Row::new("check-every", "Check for updates").control(select(

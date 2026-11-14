@@ -53,9 +53,12 @@ pub fn open_settings(page: Option<&str>, cx: &mut App) {
     let options = WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(bounds)),
         window_min_size: Some(size(px(720.), px(480.))),
+        // No title strip: the backdrop runs to the top as in the app's own
+        // windows; the sidebar and page header are the drag areas.
         titlebar: Some(TitlebarOptions {
             title: Some(format!("{} Settings", info.name).into()),
-            ..Default::default()
+            appears_transparent: true,
+            traffic_light_position: Some(crate::window_chrome::traffic_light_position()),
         }),
         ..Default::default()
     };
@@ -145,7 +148,7 @@ impl SettingsWindow {
             .collect()
     }
 
-    fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_sidebar(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
         let visible = self.visible(cx);
         // Gaps between the look, the app's own and the general pages.
@@ -155,11 +158,14 @@ impl SettingsWindow {
             .flex_none()
             .w(px(230.))
             .h_full()
-            .p_3()
+            .px_3()
+            .pb_3()
             .gap_1()
             .bg(colors.panel_background)
             .border_r_1()
             .border_color(colors.border)
+            // Room for the traffic lights.
+            .child(crate::window_chrome::title_row("settings-lights", false, window).mx_neg_3())
             .child(div().pb_2().child(self.search.clone()))
             .children(visible.into_iter().map(|index| {
                 let page = &self.pages[index];
@@ -207,15 +213,14 @@ impl Render for SettingsWindow {
             .size_full()
             .track_focus(&self.focus)
             .text_color(colors.text)
-            .child(self.render_sidebar(cx))
+            .child(self.render_sidebar(window, cx))
             .child(
                 v_flex()
                     .flex_1()
                     .min_w_0()
                     .h_full()
                     .child(
-                        h_flex()
-                            .flex_none()
+                        crate::window_chrome::title_row("settings-header", false, window)
                             .h(px(52.))
                             .px_4()
                             .gap_3()

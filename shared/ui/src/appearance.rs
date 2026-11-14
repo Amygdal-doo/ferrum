@@ -1,9 +1,11 @@
-//! The suite-wide look, chosen in onboarding or Settings › Interface and
-//! kept in `~/.ferrum/appearance.json`: colour scheme (Auto follows the
-//! system), the dark and light theme, toolbar density and text size.
+//! The look, chosen in onboarding or Settings › Interface and Themes.
 //!
-//! Every Ferrum app applies it at start and picks up changes another app
-//! makes while it runs, so the whole suite changes together.
+//! Toolbar density, text size, interface style and title bar are shared by
+//! the suite (`~/.ferrum/appearance.json`): every app applies them at start
+//! and picks up changes another app makes while it runs. The colour scheme
+//! and the dark and light theme are each app's own
+//! (`~/.ferrum/<binary>/appearance.json`, see [`AppThemes`]); an app that
+//! never chose one uses the suite's.
 
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -207,15 +209,59 @@ impl AppearancePrefs {
     }
 }
 
+/// One app's own colour scheme and themes, laid over the suite's
+/// [`AppearancePrefs`]; `None` fields follow the suite.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AppThemes {
+    pub scheme: Option<ColorScheme>,
+    pub dark_theme: Option<String>,
+    pub light_theme: Option<String>,
+}
+
+impl AppThemes {
+    /// `suite` with this app's choices in place.
+    fn over(&self, suite: &AppearancePrefs) -> AppearancePrefs {
+        AppearancePrefs {
+            scheme: self.scheme.unwrap_or(suite.scheme),
+            dark_theme: self.dark_theme.clone().unwrap_or(suite.dark_theme.clone()),
+            light_theme: self
+                .light_theme
+                .clone()
+                .unwrap_or(suite.light_theme.clone()),
+            ..suite.clone()
+        }
+    }
+
+    /// Keeps what changed between `before` and `after` in the fields an app
+    /// owns.
+    fn absorb(&mut self, before: &AppearancePrefs, after: &AppearancePrefs) {
+        if after.scheme != before.scheme {
+            self.scheme = Some(after.scheme);
+        }
+        if after.dark_theme != before.dark_theme {
+            self.dark_theme = Some(after.dark_theme.clone());
+        }
+        if after.light_theme != before.light_theme {
+            self.light_theme = Some(after.light_theme.clone());
+        }
+    }
+}
+
 /// A host that renders its own themes (Ferrum Editor) installs this to be
 /// told the suite's choice instead of having `ferrum-ui` install a preset.
 /// Return `true` when the host applied a theme itself.
 pub type ThemeHook = Rc<dyn Fn(&AppearancePrefs, Appearance, &mut App) -> bool>;
 
 struct AppearanceState {
-    prefs: AppearancePrefs,
+    /// The suite's preferences, as saved in `appearance.json`.
+    suite: AppearancePrefs,
+    /// This app's own scheme and themes.
+    own: AppThemes,
     file: Option<PathBuf>,
+    own_file: Option<PathBuf>,
     seen: Option<SystemTime>,
+    own_seen: Option<SystemTime>,
     hook: Option<ThemeHook>,
     /// The last appearance applied, to skip identical re-applies.
     applied: Option<(Appearance, String, InterfaceStyle)>,
@@ -223,24 +269,36 @@ struct AppearanceState {
 
 impl Global for AppearanceState {}
 
-fn file() -> Option<PathBuf> {
-    prefs::path("appearance.json")
+impl AppearanceState {
+    fn prefs(&self) -> AppearancePrefs {
+        self.own.over(&self.suite)
+    }
 }
 
 /// Loads the saved appearance and applies it. Called by `ferrum_ui::run`.
 pub(crate) fn init(cx: &mut App) {
-    init_at(file(), cx);
+    let binary = crate::app_info::app_info(cx).binary;
+    init_at(
+        prefs::path("appearance.json"),
+        prefs::path(&format!("{binary}/appearance.json")),
+        cx,
+    );
 }
 
-/// [`init`] with another preferences file (`None`: keep them in memory only,
+/// [`init`] with other preferences files (`None`: keep them in memory only,
 /// as tests do).
-pub(crate) fn init_at(file: Option<PathBuf>, cx: &mut App) {
-    let prefs = file.as_deref().map(prefs::read).unwrap_or_default();
+pub(crate) fn init_at(file: Option<PathBuf>, own_file: Option<PathBuf>, cx: &mut App) {
+    let suite = file.as_deref().map(prefs::read).unwrap_or_default();
+    let own = own_file.as_deref().map(prefs::read).unwrap_or_default();
     let seen = file.as_deref().and_then(prefs::modified);
+    let own_seen = own_file.as_deref().and_then(prefs::modified);
     cx.set_global(AppearanceState {
-        prefs,
+        suite,
+        own,
         file,
+        own_file,
         seen,
+        own_seen,
         hook: None,
         applied: None,
     });
@@ -250,7 +308,7 @@ pub(crate) fn init_at(file: Option<PathBuf>, cx: &mut App) {
 /// The current appearance preferences.
 pub fn current(cx: &App) -> AppearancePrefs {
     cx.try_global::<AppearanceState>()
-        .map(|s| s.prefs.clone())
+        .map(AppearanceState::prefs)
         .unwrap_or_default()
 }
 
@@ -259,20 +317,43 @@ pub fn effective(cx: &App) -> Appearance {
     current(cx).effective(cx.window_appearance())
 }
 
-/// Saves `prefs` for every Ferrum app and applies them here.
+/// Saves `prefs` and applies them here: the colour scheme and themes for
+/// this app only, everything else for every Ferrum app.
 pub fn set(prefs: AppearancePrefs, cx: &mut App) {
     if !cx.has_global::<AppearanceState>() {
         init(cx);
     }
     let state = cx.global_mut::<AppearanceState>();
-    state.prefs = prefs;
-    if let Some(file) = state.file.clone() {
-        if let Err(error) = prefs::write(&file, &state.prefs) {
-            eprintln!("ferrum: could not save {}: {error}", file.display());
+    let before = state.prefs();
+    let mut own = state.own.clone();
+    own.absorb(&before, &prefs);
+    let suite = AppearancePrefs {
+        scheme: state.suite.scheme,
+        dark_theme: state.suite.dark_theme.clone(),
+        light_theme: state.suite.light_theme.clone(),
+        ..prefs
+    };
+    if suite != state.suite {
+        state.suite = suite;
+        if let Some(file) = state.file.clone() {
+            save(&file, &state.suite);
+            state.seen = prefs::modified(&file);
         }
-        state.seen = prefs::modified(&file);
+    }
+    if own != state.own {
+        state.own = own;
+        if let Some(file) = state.own_file.clone() {
+            save(&file, &state.own);
+            state.own_seen = prefs::modified(&file);
+        }
     }
     apply(cx);
+}
+
+fn save(file: &std::path::Path, value: &impl Serialize) {
+    if let Err(error) = prefs::write(file, value) {
+        eprintln!("ferrum: could not save {}: {error}", file.display());
+    }
 }
 
 /// Changes the preferences with `f`, then saves and applies them.
@@ -298,7 +379,7 @@ pub fn apply(cx: &mut App) {
     let Some(state) = cx.try_global::<AppearanceState>() else {
         return;
     };
-    let prefs = state.prefs.clone();
+    let prefs = state.prefs();
     let hook = state.hook.clone();
     COMPACT.store(
         prefs.toolbar == ToolbarStyle::Compact,
@@ -374,7 +455,7 @@ pub fn backdrop(cx: &App) -> Backdrop {
 pub fn stylize(theme: &mut crate::theme::Theme, cx: &mut App) {
     let style = cx
         .try_global::<AppearanceState>()
-        .map(|s| s.prefs.style)
+        .map(|s| s.suite.style)
         .unwrap_or_default();
     let c = &mut theme.styles.colors;
     cx.set_global(Backdrop {
@@ -413,7 +494,7 @@ pub fn stylize(theme: &mut crate::theme::Theme, cx: &mut App) {
 /// The current interface style.
 pub fn style(cx: &App) -> InterfaceStyle {
     cx.try_global::<AppearanceState>()
-        .map(|s| s.prefs.style)
+        .map(|s| s.suite.style)
         .unwrap_or_default()
 }
 
@@ -426,26 +507,29 @@ pub fn reapply(cx: &mut App) {
     apply(cx);
 }
 
-/// Re-reads the file when another app changed it; `true` if it did.
+/// Re-reads the files when they changed on disk (the suite's by another
+/// app); `true` if what this app shows changed.
 fn reload_if_changed(cx: &mut App) -> bool {
-    let Some(state) = cx.try_global::<AppearanceState>() else {
-        return false;
-    };
-    let Some(file) = state.file.clone() else {
-        return false;
-    };
-    let modified = prefs::modified(&file);
-    if modified == state.seen {
+    if !cx.has_global::<AppearanceState>() {
         return false;
     }
-    let prefs = prefs::read(&file);
     let state = cx.global_mut::<AppearanceState>();
-    state.seen = modified;
-    if state.prefs == prefs {
-        return false;
+    let before = state.prefs();
+    if let Some(file) = state.file.clone() {
+        let modified = prefs::modified(&file);
+        if modified != state.seen {
+            state.seen = modified;
+            state.suite = prefs::read(&file);
+        }
     }
-    state.prefs = prefs;
-    true
+    if let Some(file) = state.own_file.clone() {
+        let modified = prefs::modified(&file);
+        if modified != state.own_seen {
+            state.own_seen = modified;
+            state.own = prefs::read(&file);
+        }
+    }
+    state.prefs() != before
 }
 
 /// Follows the system appearance (for Auto) and changes saved by other
@@ -473,7 +557,7 @@ pub(crate) fn watch(cx: &mut App) {
 /// Toolbar height for the current preferences.
 pub fn toolbar_height(cx: &App) -> Pixels {
     cx.try_global::<AppearanceState>()
-        .map(|s| s.prefs.toolbar)
+        .map(|s| s.suite.toolbar)
         .unwrap_or_default()
         .height()
 }
@@ -481,7 +565,7 @@ pub fn toolbar_height(cx: &App) -> Pixels {
 /// Rem size for the current preferences.
 pub fn rem_size(cx: &App) -> Pixels {
     cx.try_global::<AppearanceState>()
-        .map(|s| s.prefs.text_size)
+        .map(|s| s.suite.text_size)
         .unwrap_or_default()
         .rem()
 }
@@ -495,7 +579,7 @@ mod tests {
         use crate::theme::ActiveTheme;
         cx.update(|cx| {
             crate::init_for_tests(cx);
-            init_at(None, cx);
+            init_at(None, None, cx);
             assert_eq!(cx.theme().name.as_ref(), "Ferrum Dark");
             update(cx, |p| p.choose_theme("plum-ink", Appearance::Dark));
             assert_eq!(cx.theme().name.as_ref(), "Plum Ink");
@@ -504,6 +588,34 @@ mod tests {
             update(cx, |p| p.choose_theme("glacier", Appearance::Light));
             assert_eq!(cx.theme().name.as_ref(), "Glacier");
         });
+    }
+
+    /// Two apps sharing one suite file: a theme chosen in one stays there.
+    #[gpui::test]
+    fn each_app_keeps_its_own_theme(cx: &mut gpui::TestAppContext) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let suite = dir.path().join("appearance.json");
+        let editor = dir.path().join("ferrumeditor/appearance.json");
+        let api = dir.path().join("ferrumapi/appearance.json");
+        cx.update(|cx| {
+            crate::init_for_tests(cx);
+            init_at(Some(suite.clone()), Some(editor.clone()), cx);
+            update(cx, |p| p.choose_theme("plum-ink", Appearance::Dark));
+            update(cx, |p| p.text_size = TextSize::Large);
+            // FerrumAPI starts later and picks another theme.
+            init_at(Some(suite.clone()), Some(api.clone()), cx);
+            assert_eq!(current(cx).dark_theme, "ferrum-dark");
+            assert_eq!(current(cx).text_size, TextSize::Large);
+            update(cx, |p| p.choose_theme("glacier", Appearance::Light));
+        });
+        let editor_own: AppThemes = prefs::read(&editor);
+        assert_eq!(editor_own.dark_theme.as_deref(), Some("plum-ink"));
+        assert_eq!(editor_own.light_theme, None);
+        let shared: AppearancePrefs = prefs::read(&suite);
+        assert_eq!(shared.dark_theme, "ferrum-dark");
+        assert_eq!(shared.light_theme, "ferrum-light");
+        assert_eq!(shared.scheme, ColorScheme::Dark);
+        assert_eq!(shared.text_size, TextSize::Large);
     }
 
     #[test]

@@ -195,7 +195,7 @@ impl FerrumLauncher {
     }
 
     /// The window's title row: traffic-light room, the update buttons, then
-    /// the last check and the check / appearance / settings buttons.
+    /// the last check and the check / settings buttons.
     fn render_title_row(&mut self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         use ferrum_ui::components::ButtonSize;
         let last_check = match self.state.last_check {
@@ -280,13 +280,8 @@ impl FerrumLauncher {
                     .on_click(cx.listener(|this, _, _, cx| this.check_for_updates(true, cx))),
             )
             .child(
-                ferrum_ui::title_button(
-                    "appearance",
-                    IconName::Sparkle,
-                    "Look of every Ferrum app: colour scheme, themes, style",
-                )
-                .on_click(|_, _, cx| ferrum_ui::open_settings(Some("interface"), cx)),
-                // Launcher settings are in the same window (⌘,), on their own page.
+                ferrum_ui::title_button("settings", IconName::Settings, "Settings (⌘,)")
+                    .on_click(|_, _, cx| ferrum_ui::open_settings(Some("interface"), cx)),
             )
     }
 }
