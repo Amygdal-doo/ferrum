@@ -22,6 +22,7 @@ pub fn title_controls(app: &FerrumContainers, cx: &mut Context<FerrumContainers>
             ferrum_ui::sidebar_toggle("toggle-sidebar", app.sidebar_open)
                 .on_click(cx.listener(|app, _, _, cx| app.toggle_sidebar(cx))),
         )
+        .child(ferrum_ui::settings_button("open-settings"))
         .child(
             ferrum_ui::command_button("switch-project", "Switch project (⌥⌘O)").on_click(
                 cx.listener(|app, _, window, cx| {

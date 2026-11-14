@@ -22,7 +22,7 @@ use gpui::{
 };
 
 use crate::components::{
-    ButtonCommon, ButtonStyle, Color, IconButton, IconName, IconSize, Tooltip, h_flex,
+    ButtonCommon, ButtonStyle, Clickable, Color, IconButton, IconName, IconSize, Tooltip, h_flex,
 };
 use crate::theme::ActiveTheme;
 
@@ -117,6 +117,12 @@ pub fn sidebar_toggle(id: impl Into<ElementId>, open: bool) -> IconButton {
         },
         if open { "Hide sidebar" } else { "Show sidebar" },
     )
+}
+
+/// The gear next to ◧: opens the app's Settings window (⌘,).
+pub fn settings_button(id: impl Into<ElementId>) -> IconButton {
+    title_button(id, IconName::Settings, "Settings (⌘,)")
+        .on_click(|_, _, cx| crate::open_settings(None, cx))
 }
 
 /// The ⌘ button: the app's command palette or project switcher.

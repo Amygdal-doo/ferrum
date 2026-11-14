@@ -462,6 +462,9 @@ pub fn title_controls(app: &GitView, cx: &mut Context<GitView>) -> impl IntoElem
             )),
         )
         .when(app.options.show_repo_tabs, |row| {
+            row.child(ferrum_ui::settings_button("open-settings"))
+        })
+        .when(app.options.show_repo_tabs, |row| {
             row.child(
                 ferrum_ui::command_button("quick-open", "Quick Open (⌘P)").on_click(
                     cx.listener(|app, _, window, cx| {

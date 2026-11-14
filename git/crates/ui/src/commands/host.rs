@@ -58,6 +58,27 @@ impl GitView {
         cx.notify();
     }
 
+    /// Shows the working copy: uncommitted changes and their diffs. Also
+    /// applies to a repository still being opened with [`Self::set_repo`].
+    pub fn show_changes(&mut self, cx: &mut Context<Self>) {
+        self.show_page(Page::WorkingCopy, cx);
+    }
+
+    /// Shows the commit history (see [`Self::show_changes`]).
+    pub fn show_history(&mut self, cx: &mut Context<Self>) {
+        self.show_page(Page::History, cx);
+    }
+
+    fn show_page(&mut self, page: Page, cx: &mut Context<Self>) {
+        self.pending_page = Some(page);
+        if let Some(id) = self.state.active
+            && self.state.view(id).page != page
+        {
+            self.set_page(id, page, cx);
+        }
+        cx.notify();
+    }
+
     /// Shows the working copy and puts the cursor in the commit summary.
     pub fn start_commit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(id) = self.state.active else {

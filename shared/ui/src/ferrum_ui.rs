@@ -45,8 +45,9 @@ pub use splitter::{DraggedSplitter, splitter};
 pub use surface::{PANE_GAP, backdrop, gap_splitter, pane_frame, pane_header};
 pub use text_input::{TextInput, TextInputEvent};
 pub use window_chrome::{
-    TITLE_ROW_HEIGHT, active_fill, command_button, header_tab, hover_fill, pane_card, sidebar_item,
-    sidebar_label, sidebar_toggle, title_button, title_row, title_row_height,
+    TITLE_ROW_HEIGHT, active_fill, command_button, header_tab, hover_fill, pane_card,
+    settings_button, sidebar_item, sidebar_label, sidebar_toggle, title_button, title_row,
+    title_row_height,
 };
 
 pub use gpui;

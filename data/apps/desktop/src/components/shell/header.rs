@@ -21,6 +21,7 @@ impl FerrumData {
                 ferrum_ui::sidebar_toggle("toggle-sidebar", open)
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_sidebar(cx))),
             )
+            .child(ferrum_ui::settings_button("open-settings"))
             .child(self.connection_menu(cx))
             .child(
                 ferrum_ui::title_button("title-new-connection", IconName::Plus, "New connection")

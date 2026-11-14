@@ -16,6 +16,8 @@ ferrumterm-net.workspace = true
 # Private in-process server when the shared one can't be reached or started.
 ferrumterm-server.workspace = true
 ferrum-ui.workspace = true
+# FerrumGIT beside the terminal (the pane header's FerrumGIT / Changes toggles).
+ferrumgit-ui.workspace = true
 # Named for `gpui::actions!` (which refers to `gpui::…` paths).
 gpui.workspace = true
 futures.workspace = true

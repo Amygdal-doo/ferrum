@@ -33,6 +33,11 @@ pub struct ProjectState {
 }
 
 impl ProjectState {
+    /// Project root of the focused pane's folder.
+    pub(crate) fn root(&self) -> Option<PathBuf> {
+        self.shown.as_ref().map(|(_, dir)| project_root(dir))
+    }
+
     pub fn new(window: &mut Window, cx: &mut Context<TermView>) -> Self {
         let bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx).inline(true));
         let events = cx.subscribe(&bar, |view: &mut TermView, _, event, cx| match event {
@@ -147,6 +152,7 @@ impl TermView {
         let project = focused.as_ref().map(|(_, dir)| project_root(dir));
         state.shown = focused;
         state.bar.update(cx, |bar, cx| bar.set_project(project, cx));
+        self.sync_git(cx);
         if new_block {
             self.check_cwd_soon(cx);
         }

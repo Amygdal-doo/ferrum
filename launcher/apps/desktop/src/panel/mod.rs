@@ -54,7 +54,10 @@ impl LauncherPanel {
                 .placeholder("Search")
                 .borderless()
         });
-        search.update(cx, |input, cx| input.focus(window, cx));
+        // The panel itself takes focus (Escape closes it); the search field
+        // gets the cursor only when clicked.
+        let focus_handle = cx.focus_handle();
+        window.focus(&focus_handle, cx);
         let subscriptions = vec![
             cx.observe(&launcher, |_, _, cx| cx.notify()),
             cx.subscribe(&search, |_, _, event, cx| {
@@ -82,7 +85,7 @@ impl LauncherPanel {
             projects: projects::load(),
             dismissed_update: None,
             preview,
-            focus_handle: cx.focus_handle(),
+            focus_handle,
             _subscriptions: subscriptions,
         }
     }

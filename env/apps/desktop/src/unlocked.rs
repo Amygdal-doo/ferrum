@@ -223,6 +223,7 @@ impl EnvApp {
                     }),
                 ),
             )
+            .child(ferrum_ui::settings_button("open-settings"))
             .child(
                 ferrum_ui::command_button("switch-project", "Open a folder (⌥⌘O)").on_click(
                     cx.listener(|this, _, window, cx| {

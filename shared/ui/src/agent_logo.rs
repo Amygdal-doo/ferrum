@@ -1,7 +1,7 @@
-//! Logos of the coding agents (Claude, Codex, Gemini, OpenCode), shown where
-//! one runs (FerrumTerm tabs, FerrumAgentic), and the plain `>_` tile shown
-//! for everything else. The SVGs live in `assets/logos/` (see the README
-//! there for their sources).
+//! Logos of the coding agents and model makers (Claude, Codex, Gemini,
+//! OpenCode, Muse, DeepSeek, Kimi), shown where one runs (FerrumTerm tabs,
+//! FerrumAgentic), and the plain `>_` tile shown for everything else. The
+//! 128-pixel PNGs live in `assets/logos/` (see the README there).
 
 use std::sync::{Arc, OnceLock};
 
@@ -18,6 +18,9 @@ pub enum AgentLogo {
     Codex,
     Gemini,
     OpenCode,
+    Muse,
+    DeepSeek,
+    Kimi,
 }
 
 macro_rules! logo {
@@ -26,13 +29,18 @@ macro_rules! logo {
     };
 }
 
-/// SVG bytes in [`AgentLogo`] order, then OpenCode for dark themes.
-const LOGOS: [&[u8]; 5] = [
-    logo!("claude.svg"),
-    logo!("codex.svg"),
-    logo!("gemini.svg"),
-    logo!("opencode-light.svg"),
-    logo!("opencode-dark.svg"),
+/// PNG bytes in [`AgentLogo`] order, then the black logos redrawn light
+/// for dark themes (Codex, OpenCode).
+const LOGOS: [&[u8]; 9] = [
+    logo!("claude.png"),
+    logo!("openai-light.png"),
+    logo!("gemini.png"),
+    logo!("opencode-light.png"),
+    logo!("muse.png"),
+    logo!("deepseek.png"),
+    logo!("kimi.png"),
+    logo!("openai-dark.png"),
+    logo!("opencode-dark.png"),
 ];
 
 impl AgentLogo {
@@ -45,6 +53,9 @@ impl AgentLogo {
             "codex" => Some(Self::Codex),
             "gemini" => Some(Self::Gemini),
             "opencode" => Some(Self::OpenCode),
+            "muse" => Some(Self::Muse),
+            "deepseek" => Some(Self::DeepSeek),
+            "kimi" => Some(Self::Kimi),
             _ => None,
         }
     }
@@ -57,6 +68,12 @@ impl AgentLogo {
             Some(Self::Claude)
         } else if model.starts_with("gemini") {
             Some(Self::Gemini)
+        } else if model.starts_with("muse") || model.starts_with("llama") {
+            Some(Self::Muse)
+        } else if model.starts_with("deepseek") {
+            Some(Self::DeepSeek)
+        } else if model.starts_with("kimi") || model.starts_with("moonshot") {
+            Some(Self::Kimi)
         } else if model.starts_with("gpt")
             || model.contains("codex")
             || (model.starts_with('o') && model[1..].starts_with(|c: char| c.is_ascii_digit()))
@@ -73,6 +90,9 @@ impl AgentLogo {
             Self::Codex => "Codex",
             Self::Gemini => "Gemini",
             Self::OpenCode => "OpenCode",
+            Self::Muse => "Muse",
+            Self::DeepSeek => "DeepSeek",
+            Self::Kimi => "Kimi",
         }
     }
 
@@ -81,11 +101,12 @@ impl AgentLogo {
         let images = IMAGES.get_or_init(|| {
             LOGOS
                 .iter()
-                .map(|bytes| Arc::new(Image::from_bytes(ImageFormat::Svg, bytes.to_vec())))
+                .map(|bytes| Arc::new(Image::from_bytes(ImageFormat::Png, bytes.to_vec())))
                 .collect()
         });
         let index = match self {
-            Self::OpenCode if dark => 4,
+            Self::Codex if dark => 7,
+            Self::OpenCode if dark => 8,
             other => other as usize,
         };
         images[index].clone()
@@ -142,14 +163,19 @@ mod tests {
             Some(AgentLogo::Gemini)
         );
         assert_eq!(AgentLogo::for_model("gpt-5-codex"), Some(AgentLogo::Codex));
+        assert_eq!(
+            AgentLogo::for_model("deepseek-v4"),
+            Some(AgentLogo::DeepSeek)
+        );
+        assert_eq!(AgentLogo::for_model("kimi-k3"), Some(AgentLogo::Kimi));
+        assert_eq!(AgentLogo::for_program("kimi"), Some(AgentLogo::Kimi));
+        assert_eq!(AgentLogo::for_model("muse-spark"), Some(AgentLogo::Muse));
     }
 
     #[test]
-    fn logos_are_svg() {
+    fn logos_are_png() {
         for bytes in LOGOS {
-            let text = std::str::from_utf8(bytes).expect("utf-8");
-            assert!(text.starts_with("<svg") && text.contains("viewBox"));
-            assert!(!text.contains("<script"));
+            assert!(bytes.starts_with(b"\x89PNG\r\n\x1a\n"));
         }
     }
 }

@@ -60,6 +60,7 @@ impl FerrumAgentic {
                     }))
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_sidebar(cx))),
             )
+            .child(ferrum_ui::settings_button("open-settings"))
             .child(
                 ferrum_ui::title_button("go-back", IconName::ArrowLeft, "Back (⌘[)")
                     .disabled(!self.history.can_go_back())

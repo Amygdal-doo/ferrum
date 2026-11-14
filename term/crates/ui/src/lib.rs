@@ -30,6 +30,7 @@ mod app_tests;
 mod connection;
 mod dialogs;
 mod events;
+mod git_pane;
 mod input;
 mod options;
 mod paint;

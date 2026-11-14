@@ -128,6 +128,7 @@ impl FerrumKit {
                     }),
                 ),
             )
+            .child(ferrum_ui::settings_button("open-settings"))
             .child(
                 ferrum_ui::command_button("search-tools", "Search tools (⌘K)").on_click(
                     cx.listener(|this, _, window, cx| {

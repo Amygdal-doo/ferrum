@@ -48,6 +48,7 @@ impl Workspace {
                 ferrum_ui::sidebar_toggle("toggle-tree", self.sidebar_shown())
                     .on_click(run("tree-view:toggle", cx)),
             )
+            .child(ferrum_ui::settings_button("open-settings"))
             .child(
                 ferrum_ui::command_button(
                     "command-palette",

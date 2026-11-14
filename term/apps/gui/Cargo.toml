@@ -16,4 +16,5 @@ path = "src/main.rs"
 [dependencies]
 ferrumterm-ui.workspace = true
 ferrum-ui.workspace = true
+ferrumgit-ui.workspace = true
 tracing-subscriber.workspace = true

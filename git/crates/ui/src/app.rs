@@ -62,6 +62,9 @@ pub struct GitView {
     pub(crate) resizing: bool,
     /// Compact layout: branches drawer open.
     pub(crate) drawer_open: bool,
+    /// Page to show once the repository being opened is ready (see
+    /// [`GitView::show_changes`]).
+    pub(crate) pending_page: Option<Page>,
     /// Compact layout: list width (side by side) or height (stacked); not saved.
     pub(crate) compact_split: Option<f32>,
     /// The window's sidebar is shown (◧ in the title row).
@@ -233,6 +236,7 @@ impl GitView {
             notice_task: None,
             resizing: false,
             drawer_open: false,
+            pending_page: None,
             compact_split: None,
             sidebar_open: true,
             active_pane: 0,

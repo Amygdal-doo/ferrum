@@ -181,6 +181,9 @@ impl GitView {
         self.state.repos.insert(0, entry);
         self.state.views.remove(&id);
         self.activate(Some(id), cx);
+        if let Some(page) = self.pending_page.take() {
+            self.set_page(id, page, cx);
+        }
     }
 
     /// Opens (and remembers) the repository containing `path`.

@@ -320,13 +320,16 @@ impl TermView {
             })
     }
 
-    /// ◧, ⌘ and + : in the sidebar's title row, or at the start of the
+    /// ◧, the Settings gear, ⌘ and + : in the sidebar's title row, or at the start of the
     /// terminal's header while the sidebar is hidden.
     fn title_controls(&self, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .flex_none()
             .gap_0p5()
             .child(self.sidebar_toggle(cx))
+            .when(self.options.standalone, |row| {
+                row.child(ferrum_ui::settings_button("open-settings"))
+            })
             .when(self.project.is_some(), |row| {
                 row.child(
                     ferrum_ui::command_button("switch-project", "Switch project (⌥⌘O)").on_click(
@@ -429,11 +432,15 @@ impl TermView {
             );
             row = row.child(tabs);
         }
-        row.child(div().flex_1()).when(!sidebar_open, |row| {
-            row.when_some(self.project.as_ref(), |row, project| {
-                row.child(div().flex_none().max_w(px(320.)).child(project.bar.clone()))
+        row.child(div().flex_1())
+            .when(!sidebar_open, |row| {
+                row.when_some(self.project.as_ref(), |row, project| {
+                    row.child(div().flex_none().max_w(px(320.)).child(project.bar.clone()))
+                })
             })
-        })
+            .when(self.options.standalone, |row| {
+                row.child(self.git_toggles(cx))
+            })
     }
 
     /// The sidebar drawn over the terminal (compact mode).
@@ -573,7 +580,9 @@ impl Render for TermView {
                             .pr(ferrum_ui::PANE_GAP)
                             .when(!sidebar_open, |main| main.pl(ferrum_ui::PANE_GAP))
                     })
-                    .child(terminal),
+                    .gap(ferrum_ui::PANE_GAP)
+                    .child(terminal)
+                    .children(self.git_card(cx)),
             );
         let root = crate::actions::on_actions(v_flex(), cx);
         root.relative()

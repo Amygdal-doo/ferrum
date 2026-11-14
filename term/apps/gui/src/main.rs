@@ -36,6 +36,11 @@ fn on_view_event(event: &TermViewEvent, cx: &mut ferrum_ui::gpui::App) {
 }
 
 fn main() {
+    // Git asks for credentials by running this executable as its askpass
+    // helper (the FerrumGIT pane).
+    if let Some(code) = ferrumgit_ui::askpass_main() {
+        std::process::exit(code);
+    }
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "warn".into()),
@@ -50,6 +55,7 @@ fn main() {
             .app(ferrumterm_ui::app_info()),
         |window, cx| {
             ferrumterm_ui::init(cx);
+            ferrumgit_ui::init(cx);
             let view = TermView::new(TermViewOptions::standalone(), window, cx);
             cx.subscribe(&view, |_, event, cx| on_view_event(event, cx))
                 .detach();

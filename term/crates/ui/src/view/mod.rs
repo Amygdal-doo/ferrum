@@ -62,6 +62,8 @@ pub struct TermView {
     pub(crate) prompt: crate::sidebar::Prompt,
     /// Font the cell metrics were measured with.
     pub(crate) font_key: Option<(f32, gpui::SharedString)>,
+    /// FerrumGIT beside the terminal (desktop window only).
+    pub(crate) git: Option<crate::git_pane::GitPane>,
     _blink: Task<()>,
     _message_timer: Option<Task<()>>,
     _events: Task<()>,
@@ -133,6 +135,7 @@ impl TermView {
             incompatible: None,
             prompt: crate::sidebar::Prompt::default(),
             font_key: None,
+            git: None,
             _blink: blink,
             _message_timer: None,
             _events: events,

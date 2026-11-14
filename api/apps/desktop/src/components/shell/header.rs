@@ -20,6 +20,7 @@ impl FerrumApi {
                 ferrum_ui::sidebar_toggle("toggle-sidebar", self.state.sidebar_open)
                     .on_click(cx.listener(|this, _, _, cx| this.toggle_sidebar(cx))),
             )
+            .child(ferrum_ui::settings_button("open-settings"))
             .child(
                 ferrum_ui::command_button("switch-project", "Switch project (⌥⌘O)").on_click(
                     cx.listener(|this, _, window, cx| {
