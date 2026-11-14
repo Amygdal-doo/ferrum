@@ -51,6 +51,13 @@ fn main() {
             tracing::warn!(error = %e, "could not save the migrated state");
         }
     }
+    // FerrumAgentic became FerrumVibe (new id, binary and bundle): its old
+    // install is removed and FerrumVibe offered instead.
+    if state.retire_agentic(&paths)
+        && let Err(e) = state.save(&paths)
+    {
+        tracing::warn!(error = %e, "could not save after retiring FerrumAgentic");
+    }
     // A renamed app (FerrumDock → FerrumContainers) gets its copy in
     // ~/Applications/Ferrum (or Start Menu shortcut) under the new name.
     for (app, e) in state.retire_former_names(&paths) {

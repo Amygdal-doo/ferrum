@@ -1,20 +1,20 @@
-//! "Ferrum Editor 0.5 and FerrumAgentic" (2026-11-13): the releases of that
-//! day. Claims follow the editor README ("Tool panes"), the FerrumAgentic and
+//! "Ferrum Editor 0.5 and FerrumVibe" (2026-11-13): the releases of that
+//! day. Claims follow the editor README ("Tool panes"), the FerrumVibe and
 //! FerrumChat READMEs, `catalog.json` and the launcher's `shell.rs`.
 
 use maud::{Markup, html};
 
 use super::product_row;
 use crate::pages::tool_demos;
-use crate::products::{FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAGENTIC, FERRUMGIT, FERRUMTERM};
+use crate::products::{FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMGIT, FERRUMTERM, FERRUMVIBE};
 use crate::updates::Post;
 
 pub const POST: Post = Post {
     slug: "ferrum-editor-0-5-and-ferrumagentic",
-    title: "Ferrum Editor 0.5 and FerrumAgentic",
+    title: "Ferrum Editor 0.5 and FerrumVibe",
     date: "2026-11-13",
     byline: "Ferrum Team",
-    summary: "Git, Agent and Term now open inside Ferrum Editor as split panes. FerrumAgentic, \
+    summary: "Git, Agent and Term now open inside Ferrum Editor as split panes. FerrumVibe, \
               a new app, puts FerrumChat, FerrumGIT and FerrumTerm side by side on one project.",
     body,
 };
@@ -27,24 +27,24 @@ const RELEASES: [(crate::products::Product, &str, &str); 5] = [
         "Git, Agent and Term open inside the editor as split panes.",
     ),
     (
-        FERRUMAGENTIC,
+        FERRUMVIBE,
         "0.1.0-alpha.1",
         "New: FerrumChat, FerrumGIT and FerrumTerm in three columns on one project.",
     ),
     (
         FERRUMGIT,
         "0.4.0-alpha.1",
-        "Built on the shared FerrumGIT view that the editor and FerrumAgentic embed.",
+        "Built on the shared FerrumGIT view that the editor and FerrumVibe embed.",
     ),
     (
         FERRUMTERM,
         "0.4.0-alpha.1",
-        "Built on the shared FerrumTerm view that the editor and FerrumAgentic embed.",
+        "Built on the shared FerrumTerm view that the editor and FerrumVibe embed.",
     ),
     (
         FERRUM_LAUNCHER,
         "0.9.0",
-        "Installs FerrumAgentic and offers fex as its shell command.",
+        "Installs FerrumVibe and offers fex as its shell command.",
     ),
 ];
 
@@ -52,7 +52,7 @@ fn body() -> Markup {
     html! {
         p class="post__intro" {
             "Two releases change how the apps fit together. Ferrum Editor opens Git, the agent \
-             chat and the terminal inside its window. FerrumAgentic is a new app that puts the \
+             chat and the terminal inside its window. FerrumVibe is a new app that puts the \
              same three tools side by side, without the editor."
         }
         ul class="post-apps" {
@@ -84,14 +84,14 @@ fn body() -> Markup {
         }
         p { a href={ (FERRUM_EDITOR.path()) "#tools" } { "The tool panes on the Ferrum Editor page" } }
 
-        h2 id="ferrumagentic" { "FerrumAgentic 0.1.0-alpha.1" }
-        figure class="post__figure" style=(FERRUMAGENTIC.accent_style()) {
+        h2 id="ferrumvibe" { "FerrumVibe 0.1.0-alpha.1" }
+        figure class="post__figure" style=(FERRUMVIBE.accent_style()) {
             div class="post__demo" role="img"
-                aria-label="FerrumAgentic with three columns: the chat edits a file, the git column shows the change, and the terminal column runs the tests" {
-                (tool_demos::agentic())
+                aria-label="FerrumVibe with three columns: the chat edits a file, the git column shows the change, and the terminal column runs the tests" {
+                (tool_demos::vibe())
             }
             figcaption {
-                "FerrumAgentic. An animated mock-up of the app, drawn in HTML for this page."
+                "FerrumVibe. An animated mock-up of the app, drawn in HTML for this page."
             }
         }
         ul class="post__list" {
@@ -115,24 +115,24 @@ fn body() -> Markup {
                  Ferrum Launcher. Builds are for macOS and Linux; there is no Windows build."
             }
         }
-        p { a href=(FERRUMAGENTIC.path()) { "More about FerrumAgentic" } }
+        p { a href=(FERRUMVIBE.path()) { "More about FerrumVibe" } }
 
         h2 id="git-and-term" { "FerrumGIT and FerrumTerm 0.4.0-alpha.1" }
         p {
             "Both apps are now built on the same embeddable views that Ferrum Editor and \
-             FerrumAgentic show, so the interface is the same in all three places."
+             FerrumVibe show, so the interface is the same in all three places."
         }
 
         h2 id="launcher" { "Ferrum Launcher 0.9.0" }
         p {
-            "The launcher knows FerrumAgentic: it installs and updates it like the other apps, \
+            "The launcher knows FerrumVibe: it installs and updates it like the other apps, \
              and suggests " code { "fex" } " as its shell command."
         }
 
         h2 id="not-built-yet" { "Not built yet" }
         ul class="post__list" {
-            li { "FerrumAgentic has no editor column: files open in a separate Ferrum Editor window." }
-            li { "One chat per FerrumAgentic window, and no Windows build." }
+            li { "FerrumVibe has no editor column: files open in a separate Ferrum Editor window." }
+            li { "One chat per FerrumVibe window, and no Windows build." }
             li {
                 "The chat's providers are tested against recorded streams; live calls to \
                  Anthropic, OpenAI, Ollama and real ACP agents weren't part of the tests."

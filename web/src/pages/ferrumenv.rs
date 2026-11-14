@@ -118,7 +118,7 @@ const PAGE: ProductPage = ProductPage {
     ],
     specs: &[
         ("Install", "Ferrum Launcher (free, see Download)"),
-        ("Shell command", "fev, turned on in Ferrum Launcher"),
+        ("Shell command", "fen, turned on in Ferrum Launcher"),
         ("Vault file", "~/.ferrum/env/vault.json, encrypted"),
         (
             "Built with",

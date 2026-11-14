@@ -2481,23 +2481,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ferrumagentic-desktop"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "ferrum-ui",
- "ferrumagent-ui",
- "ferrumgit-ui",
- "ferrumterm-ui",
- "gpui",
- "serde",
- "serde_json",
- "tempfile",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "ferrumapi-application"
 version = "0.1.0"
 dependencies = [
@@ -3349,6 +3332,23 @@ dependencies = [
  "tokio",
  "tracing",
  "unicode-width 0.2.2",
+]
+
+[[package]]
+name = "ferrumvibe-desktop"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "ferrum-ui",
+ "ferrumagent-ui",
+ "ferrumgit-ui",
+ "ferrumterm-ui",
+ "gpui",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

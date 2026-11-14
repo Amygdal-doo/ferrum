@@ -34,7 +34,7 @@ members = [
     "logs/crates/*",
     "ci/crates/*",
     "agent/crates/*",
-    "agentic/apps/*",
+    "vibe/apps/*",
 ]
 exclude = ["ide", "web"]
 

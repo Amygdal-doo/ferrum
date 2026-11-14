@@ -68,7 +68,13 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/ferrumports", get(ferrumports))
         .route("/ferrumenv", get(ferrumenv))
-        .route("/ferrumagentic", get(ferrumagentic))
+        .route("/ferrumvibe", get(ferrumvibe))
+        // FerrumAgentic was renamed FerrumVibe.
+        .route(
+            "/ferrumagentic",
+            get(|| async { Redirect::permanent(&products::FERRUMVIBE.path()) }),
+        )
+        .route("/ferrum-system", get(ferrum_system))
         .route("/ferrum-editor", get(ferrum_editor))
         .route("/ferrum-launcher", get(ferrum_launcher))
         .route(
@@ -155,14 +161,18 @@ async fn ferrumkit(State(s): State<AppState>) -> Markup {
 async fn ferrumcontainers(State(s): State<AppState>) -> Markup {
     pages::ferrumcontainers::render(s.site_url())
 }
+async fn ferrum_system(State(s): State<AppState>) -> Markup {
+    pages::ferrum_system::render(s.site_url())
+}
+
 async fn ferrumports(State(s): State<AppState>) -> Markup {
     pages::ferrumports::render(s.site_url())
 }
 async fn ferrumenv(State(s): State<AppState>) -> Markup {
     pages::ferrumenv::render(s.site_url())
 }
-async fn ferrumagentic(State(s): State<AppState>) -> Markup {
-    pages::ferrumagentic::render(s.site_url())
+async fn ferrumvibe(State(s): State<AppState>) -> Markup {
+    pages::ferrumvibe::render(s.site_url())
 }
 async fn ferrum_editor(State(s): State<AppState>) -> Markup {
     pages::ferrum_editor::render(s.site_url())

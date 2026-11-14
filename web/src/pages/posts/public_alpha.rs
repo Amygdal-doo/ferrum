@@ -5,7 +5,7 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::pages::feature_demos;
-use crate::products::{self, FERRUM_LAUNCHER, FERRUMAGENTIC, Product};
+use crate::products::{self, FERRUM_LAUNCHER, FERRUMVIBE, Product};
 use crate::site;
 use crate::updates::Post;
 
@@ -51,10 +51,10 @@ const NOT_BUILT_YET: [(&str, &str); 9] = [
     ("FerrumEnv", "unlocking with Touch ID, and per-person keys"),
 ];
 
-/// The apps this post announced. FerrumAgentic came two days later, in
+/// The apps this post announced. FerrumVibe came two days later, in
 /// [`super::editor_panes_agentic`].
 fn announced() -> impl Iterator<Item = &'static Product> {
-    products::apps().filter(|p| p.slug != FERRUMAGENTIC.slug)
+    products::apps().filter(|p| p.slug != FERRUMVIBE.slug && p.slug != products::FERRUM_SYSTEM.slug)
 }
 
 fn body() -> Markup {
@@ -217,7 +217,7 @@ mod tests {
         assert_eq!(announced().count(), 9);
         for p in products::ALL
             .iter()
-            .filter(|p| p.slug != FERRUMAGENTIC.slug)
+            .filter(|p| p.slug != FERRUMVIBE.slug && p.slug != products::FERRUM_SYSTEM.slug)
         {
             assert!(
                 html.contains(&format!(r#"href="{}""#, p.path())),

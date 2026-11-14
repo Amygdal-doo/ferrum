@@ -6,8 +6,8 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::products::{
-    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAGENTIC, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA,
-    FERRUMENV, FERRUMGIT, FERRUMKIT, FERRUMPORTS, FERRUMTERM, Product,
+    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENV, FERRUMGIT,
+    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVIBE, Product,
 };
 use crate::updates::Post;
 
@@ -44,7 +44,7 @@ const RELEASES: [(Product, &str, &str); 11] = [
         "File tree on the backdrop, tabs in the editor card.",
     ),
     (
-        FERRUMAGENTIC,
+        FERRUMVIBE,
         "0.3.0-alpha.1",
         "One title row; the model's logo in the chat.",
     ),
@@ -120,7 +120,7 @@ fn body() -> Markup {
              Agents and SSH hosts share the bottom 30% of the sidebar (drag the line to resize). \
              Tabs running Claude Code, Codex, Gemini or OpenCode show that agent's logo; other \
              tabs show a plain " code { ">_" } " tile. Pick from 20 icons and 9 colours for any \
-             tab. FerrumAgentic's chat shows the logo of the model you picked."
+             tab. FerrumVibe's chat shows the logo of the model you picked."
         }
 
         h2 id="fec" { "fec: FerrumContainers in the terminal" }

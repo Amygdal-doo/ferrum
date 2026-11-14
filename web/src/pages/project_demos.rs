@@ -193,3 +193,74 @@ pub fn ci() -> Markup {
         },
     )
 }
+
+/// Ferrum System: the banking demo's layers, a card picked, its database
+/// schema sliding in.
+pub fn system() -> Markup {
+    let layers: [(&str, &str, &[(&str, &str, &str)]); 4] = [
+        (
+            "Clients",
+            "#6366f1",
+            &[
+                ("Fl", "iOS / Android app", "Mobile banking"),
+                ("Ng", "Browser", "Online banking"),
+            ],
+        ),
+        (
+            "Edge",
+            "#0ea5e9",
+            &[
+                ("GQL", "API Gateway", "API gateway"),
+                ("KC", "Cognito", "Identity"),
+            ],
+        ),
+        (
+            "Services",
+            "#22c55e",
+            &[
+                ("Go", "EKS service", "Payments"),
+                ("Rs", "EKS service", "Ledger"),
+            ],
+        ),
+        (
+            "Data",
+            "#ec4899",
+            &[
+                ("Pg", "RDS / Aurora", "Ledger DB"),
+                ("Rd", "ElastiCache", "Sessions"),
+            ],
+        ),
+    ];
+    window(
+        "Ferrum System",
+        "sys",
+        html! {
+            (project_strip("nova-bank", "~/code/nova-bank", "main"))
+            div class="sys__tools" {
+                span { "Generic" } span class="is-on" { "AWS" } span { "Azure" } span { "GCP" }
+                span { "Hetzner" } em { "+ Add" }
+            }
+            div class="sys__canvas" {
+                @for (name, color, cards) in layers {
+                    div class="sys__band" style={ "--band: " (color) } {
+                        p class="sys__label" { (name) }
+                        div class="sys__cards" {
+                            @for (mark, service, title) in cards {
+                                div class={ "sys__card" @if *title == "Ledger DB" { " is-picked" } } {
+                                    b { (mark) }
+                                    span { em { (service) } (title) }
+                                }
+                            }
+                        }
+                    }
+                }
+                div class="sys__schema" {
+                    p { b { "entries" } }
+                    p { "id " em { "bigserial" } }
+                    p { "journal_id → journal.id" }
+                    p { "amount " em { "numeric(18,2)" } }
+                }
+            }
+        },
+    )
+}

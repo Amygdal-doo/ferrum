@@ -1,5 +1,5 @@
 //! FerrumChat's GPUI view: a Cursor-like agentic coding chat that a host
-//! embeds as a pane (Ferrum Editor's split, a FerrumAgentic column).
+//! embeds as a pane (Ferrum Editor's split, a FerrumVibe column).
 //!
 //! ```ignore
 //! ferrumagent_ui::init(cx); // once, after ferrum_ui's theme

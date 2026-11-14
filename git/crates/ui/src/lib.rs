@@ -1,7 +1,7 @@
 //! FerrumGIT's interface as an embeddable GPUI view.
 //!
 //! The FerrumGIT app is a window around one [`GitView`]; other Ferrum apps
-//! (Ferrum Editor, FerrumAgentic) show the same view in a split pane:
+//! (Ferrum Editor, FerrumVibe) show the same view in a split pane:
 //!
 //! ```ignore
 //! // At startup (once per process):

@@ -59,8 +59,9 @@ pub fn help_url(binary: &str) -> String {
         "ferrumeditor" => "ferrum-editor",
         "ferrum-launcher" => "ferrum-launcher",
         "ferrumdock" => "ferrumcontainers",
+        "ferrumsystem" => "ferrum-system",
         "ferrumterm" | "ferrumgit" | "ferrumapi" | "ferrumdata" | "ferrumkit" | "ferrumports"
-        | "ferrumenv" | "ferrumagentic" => binary,
+        | "ferrumenv" | "ferrumvibe" => binary,
         _ => "apps",
     };
     format!("{WEBSITE}/{slug}")

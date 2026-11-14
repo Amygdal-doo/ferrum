@@ -44,7 +44,7 @@ own dark ground.
 | Editor: citron | `#C5DC3A` |
 | Ports: cobalt | `#5B8DEF` |
 | Env: vermilion | `#F2665A` |
-| Agentic: aurora | `#4CD97B` |
+| Vibe: aurora | `#4CD97B` |
 
 The rust and patina colours match the website tokens (`web/assets/css/tokens.css`).
 
@@ -63,7 +63,7 @@ The rust and patina colours match the website tokens (`web/assets/css/tokens.css
 | `editor.svg` | FeE | lines of text and an I-beam cursor |
 | `ports.svg` | FeP | plug |
 | `env.svg` | FeE | padlock |
-| `agentic.svg` | FeX | sparkle (a large and a small four-point star) |
+| `vibe.svg` | FeV | sparkle (a large and a small four-point star) |
 | `ferrum-wordmark.svg` | Fe + "Ferrum" | light lettering, for dark backgrounds |
 | `ferrum-wordmark-light.svg` | Fe + "Ferrum" | dark lettering, for light backgrounds |
 

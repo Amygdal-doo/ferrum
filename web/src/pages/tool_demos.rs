@@ -1,4 +1,4 @@
-//! Animated mock windows for the embedded tools: FerrumAgentic's three
+//! Animated mock windows for the embedded tools: FerrumVibe's three
 //! columns, and Ferrum Editor with its Git, Agent and Term panes. Same rules
 //! as `feature_demos` (CSS-only, 9s loop, a still frame under reduced
 //! motion). Styles: `assets/css/features.css` (`.ax*`, `.edp*`).
@@ -19,11 +19,11 @@ fn header(class: &str, title: &str, hint: &str) -> Markup {
     }
 }
 
-/// FerrumAgentic: the chat edits a file, the git column shows the change at
+/// FerrumVibe: the chat edits a file, the git column shows the change at
 /// once, and Run in terminal runs the tests in the terminal column.
-pub fn agentic() -> Markup {
+pub fn vibe() -> Markup {
     window(
-        "FerrumAgentic — shop",
+        "FerrumVibe — shop",
         "ax",
         html! {
             div class="ax__top" {
@@ -52,7 +52,7 @@ pub fn agentic() -> Markup {
                     p class="ax__commit" { "Commit to main" }
                 }
                 div class="ax__col ax__col--term" {
-                    (header("ax__head", "Term", "agentic:shop"))
+                    (header("ax__head", "Term", "vibe:shop"))
                     p class="ax__line" { span class="t-prompt" { "shop ❯ " } "pnpm test" }
                     p class="ax__out" { "✓ cart.test.ts (4)" }
                     p class="ax__out" { "Tests  4 passed" }
@@ -115,8 +115,8 @@ mod tests {
 
     #[test]
     fn show_the_three_tools() {
-        let ax = agentic().into_string();
-        for part in ["Chat", "Git", "Term", "Run in terminal", "agentic:shop"] {
+        let ax = vibe().into_string();
+        for part in ["Chat", "Git", "Term", "Run in terminal", "vibe:shop"] {
             assert!(ax.contains(part), "{part}");
         }
         let ed = editor_panes().into_string();

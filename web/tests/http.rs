@@ -53,7 +53,7 @@ async fn send_with(releases: Releases, req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 39] = [
+const PAGES: [&str; 41] = [
     "/",
     "/apps",
     "/features",
@@ -65,7 +65,8 @@ const PAGES: [&str; 39] = [
     "/ferrumcontainers",
     "/ferrumports",
     "/ferrumenv",
-    "/ferrumagentic",
+    "/ferrumvibe",
+    "/ferrum-system",
     "/ferrum-editor",
     "/ferrum-launcher",
     "/download",
@@ -90,6 +91,7 @@ const PAGES: [&str; 39] = [
     "/updates/ferrumagentic-agent-workspace",
     "/updates/launcher-settings-and-compact-mode",
     "/updates/every-app-keeps-its-own-theme",
+    "/updates/ferrum-system-and-ferrumvibe",
     "/about",
     "/licenses",
     "/privacy",
@@ -189,7 +191,7 @@ async fn new_app_pages_show_their_logo_demo_and_status() {
     for (path, name, logo) in [
         ("/ferrumports", "FerrumPorts", "ports"),
         ("/ferrumenv", "FerrumEnv", "env"),
-        ("/ferrumagentic", "FerrumAgentic", "agentic"),
+        ("/ferrumvibe", "FerrumVibe", "vibe"),
     ] {
         let html = get(path).await.text();
         assert!(html.contains(&format!(">{name}</h1>")), "{path}");

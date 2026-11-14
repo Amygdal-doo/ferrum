@@ -1,18 +1,18 @@
-//! "FerrumAgentic becomes an agent workspace" (2026-11-14). Claims follow
-//! `agentic/apps/desktop`, `agent/crates/ui` and `launcher/apps/desktop/src/panel`.
+//! "FerrumVibe becomes an agent workspace" (2026-11-14). Claims follow
+//! `vibe/apps/desktop`, `agent/crates/ui` and `launcher/apps/desktop/src/panel`.
 
 use maud::{Markup, html};
 
 use super::product_row;
 use crate::products::{
-    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAGENTIC, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA,
-    FERRUMENV, FERRUMGIT, FERRUMKIT, FERRUMPORTS, FERRUMTERM, Product,
+    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENV, FERRUMGIT,
+    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVIBE, Product,
 };
 use crate::updates::Post;
 
 pub const POST: Post = Post {
     slug: "ferrumagentic-agent-workspace",
-    title: "FerrumAgentic becomes an agent workspace",
+    title: "FerrumVibe becomes an agent workspace",
     date: "2026-11-14",
     byline: "Ferrum Team",
     summary: "Tasks, projects, discussions and automations in one sidebar, a new composer, \
@@ -23,7 +23,7 @@ pub const POST: Post = Post {
 /// Today's releases: (product, version, one line).
 const RELEASES: [(Product, &str, &str); 11] = [
     (
-        FERRUMAGENTIC,
+        FERRUMVIBE,
         "0.4.0-alpha.1",
         "Tasks, folders, knowledge, sites, automations and extensions.",
     ),
@@ -55,7 +55,7 @@ const RELEASES: [(Product, &str, &str); 11] = [
     (
         FERRUMTERM,
         "0.9.2-alpha.1",
-        "Title bar setting; works inside the new FerrumAgentic.",
+        "Title bar setting; works inside the new FerrumVibe.",
     ),
     (FERRUMAPI, "0.5.1-alpha.1", "Title bar setting."),
     (FERRUMDATA, "0.5.1-alpha.1", "Title bar setting."),
@@ -66,7 +66,7 @@ const RELEASES: [(Product, &str, &str); 11] = [
 fn body() -> Markup {
     html! {
         p class="post__intro" {
-            "FerrumAgentic now works like a desktop agent app: pick a folder, start a task, \
+            "FerrumVibe now works like a desktop agent app: pick a folder, start a task, \
              and the agent edits that code while you watch the conversation."
         }
         ul class="post-apps" {

@@ -10,6 +10,7 @@ pub mod onboarding_settings;
 pub mod per_app_themes;
 pub mod public_alpha;
 pub mod rex_layout_and_fec;
+pub mod system_and_vibe;
 pub mod term_menu_worktrees;
 
 use maud::{Markup, html};

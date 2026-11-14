@@ -33,8 +33,8 @@ $apps = @{
 if ($App -eq "term") {
     throw "FerrumTerm has no Windows build yet (its server uses Unix sockets)."
 }
-if ($App -eq "agentic") {
-    throw "FerrumAgentic has no Windows build yet (it embeds FerrumTerm, whose server uses Unix sockets)."
+if ($App -eq "vibe") {
+    throw "FerrumVibe has no Windows build yet (it embeds FerrumTerm, whose server uses Unix sockets)."
 }
 if (-not $apps.ContainsKey($App)) {
     throw "unknown app id '$App'"

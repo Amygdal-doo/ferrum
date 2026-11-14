@@ -107,7 +107,7 @@ const TERM: &[Shortcut] = &[
     (&["⌥⌘O"], "Project switcher"),
 ];
 
-const AGENTIC: &[Shortcut] = &[
+const VIBE: &[Shortcut] = &[
     (&["⌥⌘1"], "Show or hide the chat column"),
     (&["⌥⌘2"], "Show or hide the git column"),
     (&["⌥⌘3"], "Show or hide the terminal column"),
@@ -144,6 +144,18 @@ const PORTS: &[Shortcut] = &[
     (&["⌥⌘O"], "Project switcher"),
 ];
 
+const SYSTEM: &[Shortcut] = &[
+    (&["⌘="], "Zoom in"),
+    (&["⌘-"], "Zoom out"),
+    (&["⌘0"], "Fit the diagram"),
+    (&["⌫"], "Delete the selected component"),
+    (
+        &["Esc"],
+        "Close a dialog, stop connecting, clear the selection",
+    ),
+    (&["⌘,"], "Settings"),
+];
+
 const ENV: &[Shortcut] = &[
     (&["⌘L"], "Lock the vault"),
     (&["⌘N"], "New variable"),
@@ -152,9 +164,10 @@ const ENV: &[Shortcut] = &[
 ];
 
 /// Every app with its shortcuts, in site order.
-pub const APPS: [(Product, &[Shortcut]); 10] = [
+pub const APPS: [(Product, &[Shortcut]); 11] = [
     (products::FERRUM_EDITOR, EDITOR),
-    (products::FERRUMAGENTIC, AGENTIC),
+    (products::FERRUMVIBE, VIBE),
+    (products::FERRUM_SYSTEM, SYSTEM),
     (products::FERRUMAPI, API),
     (products::FERRUMGIT, GIT),
     (products::FERRUMDATA, DATA),
@@ -192,7 +205,7 @@ fn table(caption: &str, rows: &[Shortcut]) -> Markup {
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Keyboard shortcuts for every Ferrum app"),
-        "macOS keyboard shortcuts for Ferrum Editor, FerrumAgentic, FerrumAPI, FerrumGIT, \
+        "macOS keyboard shortcuts for Ferrum Editor, FerrumVibe, FerrumAPI, FerrumGIT, \
          FerrumData, FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumEnv.",
         PATH,
         "page-docs",

@@ -357,6 +357,31 @@ impl State {
                 self.apps.entry(app).or_default().channel = UpdateChannel::Beta;
             }
         }
+        // FerrumAgentic became FerrumVibe (FeV), whose command is `fev`, so
+        // FerrumEnv's `fev` becomes `fen`. The old install itself is
+        // removed by `retire_agentic`.
+        if let Some(old) = self.settings.app_prefs.remove(&AppId::LEGACY_VIBE) {
+            let vibe = self.settings.app_prefs.entry(AppId::VIBE).or_default();
+            vibe.hide_from_dock |= old.hide_from_dock;
+            vibe.hotkey = vibe.hotkey.take().or(old.hotkey);
+            if old.command.is_some() {
+                vibe.command = Some("fev".into());
+            }
+        }
+        if let Some(env) = self.settings.app_prefs.get_mut(&AppId::ENV)
+            && env.command.as_deref() == Some("fev")
+        {
+            env.command = Some("fen".into());
+        }
+        if let Some(seen) = &mut self.settings.seen_apps
+            && seen.remove(&AppId::LEGACY_VIBE)
+        {
+            seen.insert(AppId::VIBE);
+        }
+        if let Some(old) = self.apps.get(&AppId::LEGACY_VIBE) {
+            let channel = old.channel;
+            self.apps.entry(AppId::VIBE).or_default().channel = channel;
+        }
         if self.settings.channels_revision < CHANNELS_REVISION {
             for app in AppId::BUILTIN {
                 self.apps.entry(app).or_default().channel = UpdateChannel::Alpha;
@@ -675,6 +700,46 @@ impl State {
                 link_active(paths, &info, &version).err().map(|e| (app, e))
             })
             .collect()
+    }
+
+    /// FerrumAgentic was renamed FerrumVibe with a new id, binary and bundle,
+    /// so its install can't be updated in place: this removes it (versions,
+    /// `FerrumAgentic.app`, the `ferrumagentic` link and the old `fex` / `fev`
+    /// command scripts that pointed at it or at FerrumEnv) and leaves
+    /// FerrumVibe to be installed. Returns whether anything changed.
+    pub fn retire_agentic(&mut self, paths: &Paths) -> bool {
+        let had_install = self.apps.remove(&AppId::LEGACY_VIBE).is_some();
+        let mut changed = had_install;
+        let remove = |path: PathBuf| {
+            if path.is_dir() && !path.is_symlink() {
+                std::fs::remove_dir_all(&path).is_ok()
+            } else {
+                (path.exists() || path.is_symlink()) && std::fs::remove_file(&path).is_ok()
+            }
+        };
+        changed |= remove(
+            paths
+                .data_dir
+                .join("apps")
+                .join(AppId::LEGACY_VIBE.as_str()),
+        );
+        if let Some(dir) = &paths.applications_dir {
+            changed |= remove(dir.join("FerrumAgentic.app"));
+        }
+        changed |= remove(paths.bin_dir.join("ferrumagentic"));
+        // Command scripts: `fex` opened FerrumAgentic; a `fev` that opens
+        // FerrumEnv is rewritten as `fen` (and `fev` for FerrumVibe) by the
+        // shell-command refresh at start.
+        for name in ["fex", "fev"] {
+            let script = paths.bin_dir.join(name);
+            let stale = std::fs::read_to_string(&script).is_ok_and(|s| {
+                s.contains("ferrumagentic") || (name == "fev" && s.contains("ferrumenv"))
+            });
+            if stale {
+                changed |= remove(script);
+            }
+        }
+        changed
     }
 
     /// Removes an installed version. The active one can only be removed when
@@ -1354,6 +1419,51 @@ mod tests {
         assert_eq!(state.app_updates(), vec![(forge, Version::new(1, 1, 0))]);
         state.uninstall(forge, &version, &paths).expect("uninstall");
         assert!(!paths.bin_dir.join("ferrumforge").exists());
+    }
+
+    #[test]
+    fn ferrumagentic_becomes_ferrumvibe() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        let mut state: State = serde_json::from_str(
+            r#"{"settings":{"channels_revision":99,"app_prefs":{"agentic":{"command":"fex","hide_from_dock":true},
+                "env":{"command":"fev"}},"seen_apps":["agentic","env"]},
+                "apps":{"agentic":{"installed":[],"active":null,"channel":"beta"}}}"#,
+        )
+        .expect("state");
+        state.migrate();
+        assert_eq!(
+            state.settings.app_prefs[&AppId::VIBE].command.as_deref(),
+            Some("fev")
+        );
+        assert!(state.settings.app_prefs[&AppId::VIBE].hide_from_dock);
+        assert_eq!(
+            state.settings.app_prefs[&AppId::ENV].command.as_deref(),
+            Some("fen")
+        );
+        assert!(
+            state
+                .settings
+                .seen_apps
+                .as_ref()
+                .expect("seen")
+                .contains(&AppId::VIBE)
+        );
+        assert_eq!(state.apps[&AppId::VIBE].channel, UpdateChannel::Beta);
+
+        let old = dir.path().join("data/apps/agentic/0.4.2-alpha.1");
+        std::fs::create_dir_all(&old).expect("old install");
+        std::fs::create_dir_all(&paths.bin_dir).expect("bin");
+        std::fs::write(paths.bin_dir.join("fev"), "exec ferrumenv").expect("fev");
+        std::fs::write(paths.bin_dir.join("fea"), "exec ferrumapi").expect("fea");
+        assert!(state.retire_agentic(&paths));
+        assert!(!state.apps.contains_key(&AppId::LEGACY_VIBE));
+        assert!(
+            !paths.bin_dir.join("fev").exists(),
+            "rewritten as fen at start"
+        );
+        assert!(paths.bin_dir.join("fea").exists());
+        assert!(!state.retire_agentic(&paths), "nothing left to do");
     }
 
     #[test]

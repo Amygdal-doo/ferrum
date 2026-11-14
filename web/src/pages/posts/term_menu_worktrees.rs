@@ -5,8 +5,8 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::products::{
-    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAGENTIC, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA,
-    FERRUMENV, FERRUMGIT, FERRUMKIT, FERRUMPORTS, FERRUMTERM, Product,
+    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENV, FERRUMGIT,
+    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVIBE, Product,
 };
 use crate::updates::Post;
 
@@ -39,7 +39,7 @@ const RELEASES: [(Product, &str, &str); 11] = [
         "Shared App, Window and Help menus; terminal fixes.",
     ),
     (
-        FERRUMAGENTIC,
+        FERRUMVIBE,
         "0.2.1-alpha.1",
         "Full menu bar; terminal fixes.",
     ),

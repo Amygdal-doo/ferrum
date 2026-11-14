@@ -38,7 +38,7 @@ fn faqs() -> Vec<Faq> {
         Faq {
             q: "What is Ferrum?",
             a: "A family of native developer tools for macOS, written in Rust and drawn on the \
-                GPU with GPUI: Ferrum Editor, FerrumAgentic, FerrumAPI, FerrumGIT, FerrumData, \
+                GPU with GPUI: Ferrum Editor, FerrumVibe, FerrumAPI, FerrumGIT, FerrumData, \
                 FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumEnv. Ferrum \
                 Launcher installs and updates them."
                 .to_owned(),
@@ -71,7 +71,7 @@ fn faqs() -> Vec<Faq> {
             a: "No. Builds are public GitHub releases, and the launcher installs every app \
                 without signing in. Ferrum Editor's CI page asks for a GitHub token only when \
                 you open it, and can reuse the GitHub CLI's. The agent chat in Ferrum Editor and \
-                FerrumAgentic uses your own API key, a local Ollama or an agent you already \
+                FerrumVibe uses your own API key, a local Ollama or an agent you already \
                 have, such as Claude Code."
                 .to_owned(),
             more: None,

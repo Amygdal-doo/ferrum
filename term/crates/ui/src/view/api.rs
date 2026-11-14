@@ -1,5 +1,5 @@
 //! The embeddable API of [`TermView`]: what a host (Ferrum Editor,
-//! FerrumAgentic, the FerrumTerm desktop app) calls.
+//! FerrumVibe, the FerrumTerm desktop app) calls.
 //!
 //! Calls made before the view is connected and showing its session are
 //! queued and run once it is.

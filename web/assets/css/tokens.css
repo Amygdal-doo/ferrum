@@ -114,9 +114,10 @@
   --app-kit: #d46be0;
   --app-dock: #38bdf8;
   --app-ports: #5b8def;
+  --app-system: #2dd4bf;
   --app-env: #f2665a;
   --app-editor: #c5dc3a;
-  --app-agentic: #4cd97b;
+  --app-vibe: #4cd97b;
   --app-accent: var(--straw);
 }
 

@@ -4,7 +4,7 @@
 //! anywhere, even over SSH) to pick up where you left off.
 //!
 //! The window's content is `ferrumterm_ui::TermView`, the same view Ferrum
-//! Editor and FerrumAgentic embed as a pane.
+//! Editor and FerrumVibe embed as a pane.
 
 use ferrum_ui::AppConfig;
 use ferrum_ui::notify;

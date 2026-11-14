@@ -274,7 +274,7 @@ mod tests {
         assert!(html.contains(r#"href="/apps""#));
         assert!(html.contains(r#"id="apps""#));
         assert_eq!(html.matches("<h1").count(), 1);
-        assert_eq!(crate::products::ALL.len(), 11);
+        assert_eq!(crate::products::ALL.len(), 12);
     }
 
     #[test]

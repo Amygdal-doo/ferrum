@@ -15,16 +15,21 @@ pub const PATH: &str = "/docs/shell-commands";
 pub const TITLE: &str = "Shell commands";
 
 /// Suggested command per app (`shell::default_command`), with what it does.
-pub const COMMANDS: [(&str, Product, &str); 11] = [
+pub const COMMANDS: [(&str, Product, &str); 12] = [
     (
         "fee",
         products::FERRUM_EDITOR,
         "Opens Ferrum Editor; `fee .` opens the current folder",
     ),
     (
-        "fex",
-        products::FERRUMAGENTIC,
-        "Opens FerrumAgentic; `fex .` opens it on the current folder",
+        "fev",
+        products::FERRUMVIBE,
+        "Opens FerrumVibe; `fev .` opens it on the current folder",
+    ),
+    (
+        "fes",
+        products::FERRUM_SYSTEM,
+        "Opens Ferrum System; `fes .` opens the current folder's architecture",
     ),
     ("fea", products::FERRUMAPI, "Opens FerrumAPI"),
     (
@@ -45,7 +50,7 @@ pub const COMMANDS: [(&str, Product, &str); 11] = [
         "Opens FerrumContainers; fec start, stop, up, down and any docker command",
     ),
     ("fep", products::FERRUMPORTS, "Opens FerrumPorts"),
-    ("fev", products::FERRUMENV, "Opens FerrumEnv"),
+    ("fen", products::FERRUMENV, "Opens FerrumEnv"),
     ("fel", products::FERRUM_LAUNCHER, "Opens Ferrum Launcher"),
 ];
 
@@ -62,7 +67,7 @@ pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Shell commands: fee, feg, fet and more"),
         "Open Ferrum apps from a terminal: fee for Ferrum Editor, feg for FerrumGIT, fet for \
-         FerrumTerm, fex for FerrumAgentic, and fea, fed, fek, fec, fep, fev and fel for the \
+         FerrumTerm, fev for FerrumVibe, fes for Ferrum System, and fea, fed, fek, fec, fep, fen and fel for the \
          rest.",
         PATH,
         "page-docs",
@@ -164,7 +169,7 @@ mod tests {
             assert!(html.contains(&format!(r#"href="{}""#, p.path())));
         }
         assert!(html.contains("<code>fee .</code>"));
-        assert!(html.contains("<code>fex</code>"));
+        assert!(html.contains("<code>fev</code>"));
         assert_eq!(COMMANDS.len(), products::ALL.len());
     }
 }

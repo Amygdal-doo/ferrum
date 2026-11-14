@@ -30,7 +30,10 @@ impl AppId {
     pub const EDITOR: AppId = AppId("editor");
     pub const PORTS: AppId = AppId("ports");
     pub const ENV: AppId = AppId("env");
-    pub const AGENTIC: AppId = AppId("agentic");
+    pub const VIBE: AppId = AppId("vibe");
+    pub const SYSTEM: AppId = AppId("system");
+    /// FerrumVibe's id while it was FerrumAgentic (see `State::retire_agentic`).
+    pub const LEGACY_VIBE: AppId = AppId("agentic");
     pub const LAUNCHER: AppId = AppId("launcher");
 
     /// The launcher's id before it was renamed from Ferrum Toolbox. Tags
@@ -39,9 +42,10 @@ impl AppId {
     pub const LEGACY_LAUNCHER: &'static str = "toolbox";
 
     /// Apps this build has metadata for, in overview order.
-    pub const BUILTIN: [AppId; 11] = [
+    pub const BUILTIN: [AppId; 12] = [
         AppId::EDITOR,
-        AppId::AGENTIC,
+        AppId::VIBE,
+        AppId::SYSTEM,
         AppId::API,
         AppId::GIT,
         AppId::DATA,
@@ -272,7 +276,7 @@ static RETIRED: [Builtin; 1] = [Builtin {
     order: 10,
 }];
 
-static BUILTIN: [Builtin; 11] = [
+static BUILTIN: [Builtin; 12] = [
     Builtin {
         id: AppId::EDITOR,
         name: "Ferrum Editor",
@@ -285,15 +289,26 @@ static BUILTIN: [Builtin; 11] = [
         order: 10,
     },
     Builtin {
-        id: AppId::AGENTIC,
-        name: "FerrumAgentic",
-        description: "Agentic development window: FerrumChat, FerrumGIT and FerrumTerm side by side.",
-        binary: "ferrumagentic",
+        id: AppId::VIBE,
+        name: "FerrumVibe",
+        description: "Vibe coding window: FerrumChat, FerrumGIT and FerrumTerm side by side.",
+        binary: "ferrumvibe",
         extra_binaries: &[],
-        bundle_name: "FerrumAgentic",
-        former_names: &[],
+        bundle_name: "FerrumVibe",
+        former_names: &["FerrumAgentic"],
         icon: "Sparkle",
         order: 15,
+    },
+    Builtin {
+        id: AppId::SYSTEM,
+        name: "Ferrum System",
+        description: "System architecture diagrams: layers, services on any cloud, data, flows and live pods.",
+        binary: "ferrumsystem",
+        extra_binaries: &[],
+        bundle_name: "Ferrum System",
+        former_names: &[],
+        icon: "Blocks",
+        order: 17,
     },
     Builtin {
         id: AppId::API,
@@ -818,8 +833,8 @@ mod tests {
         assert_eq!(
             order,
             [
-                "editor", "agentic", "api", "git", "data", "term", "kit", "forge", "dock", "ports",
-                "env", "launcher"
+                "editor", "vibe", "system", "api", "git", "data", "term", "kit", "forge", "dock",
+                "ports", "env", "launcher"
             ]
         );
     }

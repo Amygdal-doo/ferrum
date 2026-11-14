@@ -71,9 +71,9 @@ pub const MAIN: [AppEntry; 4] = [
 ];
 
 /// The tools around the main four.
-pub const MORE: [AppEntry; 6] = [
+pub const MORE: [AppEntry; 7] = [
     AppEntry {
-        product: products::FERRUMAGENTIC,
+        product: products::FERRUMVIBE,
         summary: "FerrumChat, FerrumGIT and FerrumTerm side by side on one project, for working \
                   with coding agents.",
         features: &[
@@ -84,6 +84,19 @@ pub const MORE: [AppEntry; 6] = [
             "Review agent edits per hunk, and restore a checkpoint from any turn",
             "Run in terminal sends a command from the chat to the terminal column",
             "Agent edits show up in the git column right away",
+        ],
+    },
+    AppEntry {
+        product: products::FERRUM_SYSTEM,
+        summary: "A project's architecture, kept next to its code: layers, components, \
+                  connections, data and flows, with every cloud's service names.",
+        features: &[
+            "Components on layers with icons for languages, frameworks, databases and AI \
+             tools, and your own icons",
+            "Switch the diagram between AWS, Azure, GCP, Hetzner, DigitalOcean and open source",
+            "Double-click a database for its tables; walk through a flow step by step",
+            "APIs, sockets, reliability notes and where each component runs",
+            "Live Kubernetes pods and Docker containers next to the components",
         ],
     },
     AppEntry {

@@ -669,7 +669,8 @@ fn app_icon(app: AppId) -> Option<tray_icon::menu::Icon> {
     }
     let bytes = match app.as_str() {
         "editor" => logo!("editor"),
-        "agentic" => logo!("agentic"),
+        "vibe" => logo!("vibe"),
+        "system" => logo!("system"),
         "api" => logo!("api"),
         "git" => logo!("git"),
         "data" => logo!("data"),

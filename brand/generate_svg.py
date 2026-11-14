@@ -9,7 +9,7 @@ APPS = {
     # every app is "Fe" + a capital in its accent: FeA, FeG, FeD, FeT, FeL,
     # FeK (Kit), FeC (FerrumContainers), FeE (Editor), FeP (Ports) and
     # FeE (Env: the vault; same letter as the Editor, told apart by the
-    # vermilion accent and the padlock badge), FeX (Agentic: chat, git and
+    # vermilion accent and the padlock badge), FeV (FerrumVibe, formerly FerrumAgentic: chat, git and
     # terminal side by side; aurora accent, spark badge; the app is now
     # FerrumVibe, so its capital is V), FeS (Ferrum System: architecture
     # diagrams; aqua accent, stacked-layers badge).
@@ -24,7 +24,7 @@ APPS = {
     "editor":  ("E", "#C5DC3A", "caret"),
     "ports":   ("P", "#5B8DEF", "plug"),
     "env":     ("E", "#F2665A", "lock"),
-    "agentic": ("V", "#4CD97B", "spark"),
+    "vibe":    ("V", "#4CD97B", "spark"),
     "system":  ("S", "#2DD4BF", "layers"),
 }
 SW = 62  # letter stroke width

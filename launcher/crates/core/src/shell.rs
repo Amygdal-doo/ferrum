@@ -23,7 +23,8 @@ const RC_COMMENT: &str = "# Added by Ferrum Launcher: shell commands for Ferrum 
 
 /// The suggested command for an app: "Fe" plus its logo letter, lowercase.
 /// The letters aren't unique (Ferrum Editor and FerrumEnv are both FeE), so
-/// FerrumEnv keeps `fev` and Ferrum Editor `fee`.
+/// Ferrum Editor has `fee` and FerrumEnv `fen` (it had `fev` until FerrumVibe,
+/// FeV, took it).
 #[must_use]
 pub fn default_command(app: AppId) -> Option<&'static str> {
     Some(match app.as_str() {
@@ -35,8 +36,9 @@ pub fn default_command(app: AppId) -> Option<&'static str> {
         "kit" => "fek",
         "dock" => "fec",
         "ports" => "fep",
-        "env" => "fev",
-        "agentic" => "fex",
+        "env" => "fen",
+        "vibe" => "fev",
+        "system" => "fes",
         "launcher" => "fel",
         _ => return None,
     })
@@ -275,10 +277,11 @@ mod tests {
         );
         assert_eq!(
             default_command(AppId::ENV),
-            Some("fev"),
-            "fee is the Editor's"
+            Some("fen"),
+            "fee is the Editor's, fev FerrumVibe's"
         );
-        assert_eq!(default_command(AppId::AGENTIC), Some("fex"), "FeX");
+        assert_eq!(default_command(AppId::VIBE), Some("fev"), "FeV");
+        assert_eq!(default_command(AppId::SYSTEM), Some("fes"), "FeS");
         let mut seen = std::collections::HashSet::new();
         for app in AppId::BUILTIN {
             let command = default_command(app).expect("default");

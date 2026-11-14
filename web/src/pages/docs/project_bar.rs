@@ -17,7 +17,7 @@ pub const TITLE: &str = "The project bar";
 /// Apps whose project bar switches projects with ⌥⌘O.
 const SWITCHING: [Product; 7] = [
     products::FERRUM_EDITOR,
-    products::FERRUMAGENTIC,
+    products::FERRUMVIBE,
     products::FERRUMGIT,
     products::FERRUMTERM,
     products::FERRUMCONTAINERS,

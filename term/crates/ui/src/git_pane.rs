@@ -1,5 +1,5 @@
 //! FerrumGIT beside the terminal (the desktop window only), as in
-//! FerrumAgentic: the pane header's FerrumGIT and Changes toggles show the
+//! FerrumVibe: the pane header's FerrumGIT and Changes toggles show the
 //! repository of the focused pane's folder, on its history or on the
 //! uncommitted changes and their diffs. It follows the focused pane when
 //! it changes directory; files open in Ferrum Editor.

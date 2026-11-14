@@ -223,7 +223,7 @@ pub fn render(site_url: &str) -> Markup {
                 .lead(html! {
                     p {
                         "The launcher is the only thing you download by hand. Ferrum Editor, \
-                         FerrumAgentic, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, \
+                         FerrumVibe, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, \
                          FerrumContainers, FerrumPorts and FerrumEnv install, update and roll back \
                          from the launcher. Each also has its own DMG and .deb in the releases \
                          if you'd rather install one by hand."

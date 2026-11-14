@@ -14,7 +14,8 @@ macro_rules! logo_bytes {
     ($size:literal) => {
         [
             include_bytes!(concat!("../../../../../brand/png/editor-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/agentic-", $size, ".png")).as_slice(),
+            include_bytes!(concat!("../../../../../brand/png/vibe-", $size, ".png")).as_slice(),
+            include_bytes!(concat!("../../../../../brand/png/system-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/api-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/git-", $size, ".png")).as_slice(),
             include_bytes!(concat!("../../../../../brand/png/data-", $size, ".png")).as_slice(),

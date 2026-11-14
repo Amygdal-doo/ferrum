@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Ferrum vibe</title>
+  <defs>
+    <linearGradient id="vibe-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b241c"/>
+      <stop offset="1" stop-color="#14110d"/>
+    </linearGradient>
+    <radialGradient id="vibe-glow" cx="0.3" cy="0.25" r="0.9">
+      <stop offset="0" stop-color="#4CD97B" stop-opacity="0.22"/>
+      <stop offset="0.6" stop-color="#4CD97B" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="48" y="48" width="928" height="928" rx="208" fill="url(#vibe-bg)"/>
+  <rect x="48" y="48" width="928" height="928" rx="208" fill="url(#vibe-glow)"/>
+  <rect x="96" y="96" width="832" height="832" rx="164" fill="none" stroke="#4CD97B" stroke-width="28"/>
+  <g transform="translate(0 -34)">
+  <g fill="none" stroke="#4CD97B" stroke-opacity="0.18" stroke-width="12" stroke-linejoin="round">
+    <polygon points="830.0,560.0 671.0,835.4 353.0,835.4 194.0,560.0 353.0,284.6 671.0,284.6"/>
+    <polygon points="712.0,560.0 612.0,733.2 412.0,733.2 312.0,560.0 412.0,386.8 612.0,386.8"/>
+  </g>
+  <g fill="#4CD97B" fill-opacity="0.45"><circle cx="830.0" cy="560.0" r="20"/><circle cx="671.0" cy="835.4" r="20"/><circle cx="353.0" cy="835.4" r="20"/><circle cx="194.0" cy="560.0" r="20"/><circle cx="353.0" cy="284.6" r="20"/><circle cx="671.0" cy="284.6" r="20"/></g>
+  <g transform="translate(512 560) scale(0.72) translate(-365.0 -560)"><g fill="none" stroke="#f1e9df" stroke-width="76" stroke-linecap="butt" stroke-linejoin="miter"><path transform="translate(-330 0)" d="M330 730 V390 H530"/><path transform="translate(-330 0)" d="M330 555 H485"/></g><g fill="none" stroke="#f1e9df" stroke-width="76" stroke-linecap="butt" stroke-linejoin="round"><path transform="translate(-334 0)" d="M584 605 H768 A92 126 0 1 0 748 692"/></g><g fill="none" stroke="#4CD97B" stroke-width="76" stroke-linecap="butt" stroke-linejoin="round"><path transform="translate(530 0)" d="M0 390 L100 730 L200 390"/></g></g>
+  </g>
+  <circle cx="800" cy="224" r="128" fill="#16130f"/><circle cx="800" cy="224" r="106" fill="#4CD97B"/><g transform="translate(800 224)"><path fill="#16130f" d="M-14 -60 Q-3.639999999999999 3.639999999999999 60 14 Q-3.639999999999999 24.36 -14 88 Q-24.36 24.36 -88 14 Q-24.36 3.639999999999999 -14 -60 Z"/><path fill="#16130f" d="M52 -82 Q56.2 -56.2 82 -52 Q56.2 -47.8 52 -22 Q47.8 -47.8 22 -52 Q47.8 -56.2 52 -82 Z"/></g>
+</svg>

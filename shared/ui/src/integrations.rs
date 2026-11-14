@@ -110,7 +110,7 @@ pub fn installed_agents() -> Vec<Agent> {
 /// The skill teaching agents to drive the Ferrum apps from the shell.
 pub const SKILL: &str = r#"---
 name: ferrum
-description: Open and drive the Ferrum developer tools (Ferrum Editor, FerrumGIT, FerrumTerm, FerrumAPI, FerrumData, FerrumContainers, FerrumPorts, FerrumEnv, FerrumKit, FerrumAgentic) from the command line. Use when the user asks to open a file or project in Ferrum, show a repo in FerrumGIT, run something in a FerrumTerm pane, or mentions any Ferrum app.
+description: Open and drive the Ferrum developer tools (Ferrum Editor, FerrumGIT, FerrumTerm, FerrumAPI, FerrumData, FerrumContainers, FerrumPorts, FerrumEnv, FerrumKit, FerrumVibe, Ferrum System) from the command line. Use when the user asks to open a file or project in Ferrum, show a repo in FerrumGIT, run something in a FerrumTerm pane, or mentions any Ferrum app.
 ---
 
 # Ferrum tools
@@ -122,14 +122,16 @@ Launcher). Call them by full path if `~/.ferrum/bin` is not on `PATH`.
 - `ferrumeditor path[:line[:column]] …` — open files or a folder in Ferrum Editor
   (no arguments: restore the last session). `ferrumeditor --help` for options.
 - `ferrumgit <repo>` — show a repository in FerrumGIT.
-- `ferrumagentic <folder>` — chat, git and terminal side by side for a project.
+- `ferrumvibe <folder>` — chat, git and terminal side by side for a project.
+- `ferrumsystem <folder>` — the project's architecture diagram (Ferrum System);
+  it is kept in `<folder>/.architecture/system.json`, which you may read or edit.
 - `ferrumdock <folder>` — containers for a project (FerrumContainers).
 - `ferrumports <folder>` — listening ports and their processes.
 - `ferrumapi`, `ferrumdata`, `ferrumenv`, `ferrumkit`, `ferrumterm` — open the app.
 
 Short aliases may be enabled in the launcher: `fee` (editor), `feg` (git),
 `fet` (term), `fea` (api), `fed` (data), `fec` (containers), `fep` (ports),
-`fev` (env), `fek` (kit), `fex` (agentic). `fee .` opens the current folder.
+`fen` (env), `fek` (kit), `fev` (vibe), `fes` (system). `fee .` opens the current folder.
 
 ## Terminals
 FerrumTerm terminals live in a persistent server driven by `fterm`

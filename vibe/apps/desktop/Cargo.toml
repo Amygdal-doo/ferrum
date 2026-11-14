@@ -1,0 +1,31 @@
+[package]
+name = "ferrumvibe-desktop"
+description = "FerrumVibe: an agent always live in your project, with its threads, FerrumGIT and FerrumTerm. GPUI desktop shell."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "ferrumvibe"
+path = "src/main.rs"
+
+[dependencies]
+chrono.workspace = true
+ferrum-ui.workspace = true
+ferrumagent-ui.workspace = true
+ferrumgit-ui.workspace = true
+ferrumterm-ui.workspace = true
+gpui.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+# Headless GPUI test harness (TestAppContext); no window is shown.
+gpui = { workspace = true, features = ["test-support"] }
+tempfile.workspace = true
+
+[lints]
+workspace = true

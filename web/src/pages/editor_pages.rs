@@ -33,7 +33,7 @@ pub const TOOLS: EditorPage = EditorPage {
     meta: "FerrumGIT, FerrumChat and FerrumTerm · tool panes",
     lead: "The Git, Agent and Term buttons at the top right open each tool inside the window \
            as a split pane. Each is the tool's own view, from the same library the FerrumGIT \
-           and FerrumTerm apps and FerrumAgentic are built on.",
+           and FerrumTerm apps and FerrumVibe are built on.",
     points: &[
         (
             "All of them at once",

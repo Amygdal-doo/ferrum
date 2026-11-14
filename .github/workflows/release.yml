@@ -68,7 +68,8 @@ jobs:
             kit)     package=ferrumkit-desktop;     binaries="ferrumkit" ;;
             dock)    package="ferrumdock-desktop ferrumdock-cli"; binaries="ferrumdock ferrumdock-cli" ;;
             editor)  package=ferrumeditor-desktop;  binaries="ferrumeditor" ;;
-            agentic) package=ferrumagentic-desktop; binaries="ferrumagentic" ;;
+            vibe) package=ferrumvibe-desktop; binaries="ferrumvibe" ;;
+            system) package=ferrumsystem-desktop; binaries="ferrumsystem" ;;
             ports)   package=ferrumports-desktop;   binaries="ferrumports" ;;
             env)     package=ferrumenv-desktop;     binaries="ferrumenv" ;;
             launcher) package=ferrumlauncher-desktop; binaries="ferrum-launcher" ;;
@@ -132,8 +133,8 @@ jobs:
             echo "FerrumTerm has no Windows build yet; skipping."
             echo "FERRUM_SKIP=true" >> "$GITHUB_ENV"
           fi
-          if [ "${{ runner.os }}" = "Windows" ] && [ "$APP" = "agentic" ]; then
-            echo "FerrumAgentic embeds FerrumTerm and has no Windows build yet; skipping."
+          if [ "${{ runner.os }}" = "Windows" ] && [ "$APP" = "vibe" ]; then
+            echo "FerrumVibe embeds FerrumTerm and has no Windows build yet; skipping."
             echo "FERRUM_SKIP=true" >> "$GITHUB_ENV"
           fi
       - uses: actions/checkout@v4

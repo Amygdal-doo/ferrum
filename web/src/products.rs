@@ -54,12 +54,12 @@ impl Product {
     }
 }
 
-pub const FERRUMAGENTIC: Product = Product {
-    slug: "ferrumagentic",
-    name: "FerrumAgentic",
-    logo: "agentic",
-    accent_var: "--app-agentic",
-    kind: "Agentic development",
+pub const FERRUMVIBE: Product = Product {
+    slug: "ferrumvibe",
+    name: "FerrumVibe",
+    logo: "vibe",
+    accent_var: "--app-vibe",
+    kind: "Vibe coding",
     tagline: "FerrumChat, FerrumGIT and FerrumTerm side by side on one project, in one window.",
     status: Status::Alpha,
 };
@@ -126,6 +126,17 @@ pub const FERRUMCONTAINERS: Product = Product {
     status: Status::Alpha,
 };
 
+pub const FERRUM_SYSTEM: Product = Product {
+    slug: "ferrum-system",
+    name: "Ferrum System",
+    logo: "system",
+    accent_var: "--app-system",
+    kind: "Architecture diagrams",
+    tagline: "Design a system's architecture in its own repo: layers, services on any cloud, \
+              data, flows and the pods that run it.",
+    status: Status::Alpha,
+};
+
 pub const FERRUMPORTS: Product = Product {
     slug: "ferrumports",
     name: "FerrumPorts",
@@ -169,9 +180,10 @@ pub const FERRUM_LAUNCHER: Product = Product {
 };
 
 /// Site order: Ferrum Editor, the suite's code editor, leads, as in catalog.json.
-pub const ALL: [Product; 11] = [
+pub const ALL: [Product; 12] = [
     FERRUM_EDITOR,
-    FERRUMAGENTIC,
+    FERRUMVIBE,
+    FERRUM_SYSTEM,
     FERRUMAPI,
     FERRUMGIT,
     FERRUMDATA,

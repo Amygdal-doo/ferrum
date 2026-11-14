@@ -5,8 +5,8 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::products::{
-    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAGENTIC, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA,
-    FERRUMENV, FERRUMGIT, FERRUMKIT, FERRUMPORTS, FERRUMTERM, Product,
+    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENV, FERRUMGIT,
+    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVIBE, Product,
 };
 use crate::updates::Post;
 
@@ -16,7 +16,7 @@ pub const POST: Post = Post {
     date: "2026-11-14",
     byline: "Ferrum Team",
     summary: "A new Interface style setting (Solid, Gradient or Glass), pane cards in Ferrum \
-              Editor, FerrumAgentic and FerrumTerm, a cleaner onboarding, and commit messages \
+              Editor, FerrumVibe and FerrumTerm, a cleaner onboarding, and commit messages \
               that fold to one line in FerrumGIT.",
     body,
 };
@@ -29,7 +29,7 @@ const RELEASES: [(Product, &str, &str); 11] = [
         "Pane cards; follows the suite's built-in themes.",
     ),
     (
-        FERRUMAGENTIC,
+        FERRUMVIBE,
         "0.2.0-alpha.1",
         "Chat, Git and Term columns as pane cards.",
     ),
@@ -102,7 +102,7 @@ fn body() -> Markup {
         h2 id="cards" { "Pane cards" }
         p {
             "Ferrum Editor (the file tree, the editor and the Git, Agent, Term, CI and Logs \
-             panes), FerrumAgentic's three columns and FerrumTerm's terminal and sidebar are \
+             panes), FerrumVibe's three columns and FerrumTerm's terminal and sidebar are \
              now rounded cards with gaps between them. Drag a gap to resize. FerrumTerm's tabs \
              are pills. Ferrum Editor now follows the built-in theme you pick for the suite, \
              unless you chose one of its own themes."

@@ -5,8 +5,8 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::products::{
-    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAGENTIC, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA,
-    FERRUMENV, FERRUMGIT, FERRUMKIT, FERRUMPORTS, FERRUMTERM, Product,
+    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENV, FERRUMGIT,
+    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVIBE, Product,
 };
 use crate::updates::Post;
 
@@ -34,7 +34,7 @@ const RELEASES: [(Product, &str, &str); 11] = [
         "Onboarding and the shared Settings window.",
     ),
     (
-        FERRUMAGENTIC,
+        FERRUMVIBE,
         "0.1.2-alpha.1",
         "Onboarding and the shared Settings window.",
     ),
@@ -142,7 +142,7 @@ fn body() -> Markup {
             li {
                 strong { "Terminal" } ": font and size, cursor style and blink, Option as Meta, \
                  copy on selection, activity in tabs and a startup command. They apply to the \
-                 terminal panes in Ferrum Editor and FerrumAgentic too."
+                 terminal panes in Ferrum Editor and FerrumVibe too."
             }
             li {
                 strong { "Remote Hosts" } ": add and remove saved SSH hosts, see the hosts from "

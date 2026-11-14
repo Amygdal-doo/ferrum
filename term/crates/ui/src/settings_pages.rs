@@ -233,7 +233,7 @@ impl Render for TerminalSettingsView {
                             .detail(
                                 "In the sidebar, under their session, or across the top of the \
                                  terminal (the sidebar then lists sessions). Also in Ferrum \
-                                 Editor's and FerrumAgentic's terminals.",
+                                 Editor's and FerrumVibe's terminals.",
                             )
                             .control(
                                 Segmented::new("tab-position-segments", tab_index)
@@ -326,7 +326,7 @@ impl Render for TerminalSettingsView {
                         s.option_as_meta,
                         |s, on| s.option_as_meta = on,
                     ))
-                    .footnote("Applies to every terminal on this Mac, including the panes in Ferrum Editor and FerrumAgentic."),
+                    .footnote("Applies to every terminal on this Mac, including the panes in Ferrum Editor and FerrumVibe."),
             )
             .child(
                 Section::new("Selection").row(switch_row(

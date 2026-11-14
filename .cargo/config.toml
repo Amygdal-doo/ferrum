@@ -11,7 +11,8 @@ launcher = "run -p ferrumlauncher-desktop"
 editor = "run -p ferrumeditor-desktop"
 ports = "run -p ferrumports-desktop"
 env-ui = "run -p ferrumenv-desktop"
-agentic = "run -p ferrumagentic-desktop --"
+vibe = "run -p ferrumvibe-desktop --"
+system = "run -p ferrumsystem-desktop --"
 lint = "clippy --workspace --all-targets -- -D warnings"
 
 [env]

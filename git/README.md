@@ -119,7 +119,7 @@ docs/                ARCHITECTURE
 ## Embedding FerrumGIT in another Ferrum app
 `ferrumgit-ui` is the complete client (graph, hunk/line staging, blame, branches, merge/rebase,
 stash, conflicts, pull requests, profiles…) as one GPUI view. The FerrumGIT app uses it with
-`GitViewOptions::desktop()`; Ferrum Editor and FerrumAgentic show it as a split pane:
+`GitViewOptions::desktop()`; Ferrum Editor and FerrumVibe show it as a split pane:
 
 ```rust
 use ferrumgit_ui::{GitView, GitViewEvent, GitViewOptions};

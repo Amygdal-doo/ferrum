@@ -23,7 +23,7 @@ struct AppFeatures {
     demo_label: &'static str,
 }
 
-const APPS: [AppFeatures; 10] = [
+const APPS: [AppFeatures; 11] = [
     AppFeatures {
         product: products::FERRUM_EDITOR,
         version: "0.5.0-alpha.1",
@@ -83,7 +83,7 @@ const APPS: [AppFeatures; 10] = [
                      the command palette filters commands on toggle",
     },
     AppFeatures {
-        product: products::FERRUMAGENTIC,
+        product: products::FERRUMVIBE,
         version: "0.1.0-alpha.1",
         summary: "New: FerrumChat, FerrumGIT and FerrumTerm side by side on one project, in one \
                   window for working with coding agents.",
@@ -109,8 +109,8 @@ const APPS: [AppFeatures; 10] = [
                  edits show up in the git column right away.",
             ),
         ],
-        demo: tool_demos::agentic,
-        demo_label: "FerrumAgentic with three columns: the chat edits a file, the git column \
+        demo: tool_demos::vibe,
+        demo_label: "FerrumVibe with three columns: the chat edits a file, the git column \
                      shows the change, and the terminal column runs the tests",
     },
     AppFeatures {
@@ -283,6 +283,34 @@ const APPS: [AppFeatures; 10] = [
                      bars and their logs",
     },
     AppFeatures {
+        product: products::FERRUM_SYSTEM,
+        version: "0.1.0-alpha.1",
+        summary: "New: design a system's architecture next to its code, on any cloud.",
+        points: &[
+            (
+                "Layers and connections",
+                "Components on layers, connected as requests, RPC, async messages, sockets or \
+                 change data capture, dragged into place.",
+            ),
+            (
+                "Every cloud's names",
+                "Generic, AWS, Azure, GCP, Hetzner, DigitalOcean or open source, one switch.",
+            ),
+            (
+                "Data and flows",
+                "Double-click a database for its tables; walk a request through, hop by hop.",
+            ),
+            (
+                "What runs it",
+                "Pods, containers, VMs or managed services, with live status from kubectl and \
+                 docker.",
+            ),
+        ],
+        demo: project_demos::system,
+        demo_label: "Ferrum System with the core banking demo on AWS: layers of components, \
+                     the ledger database picked and its schema opening.",
+    },
+    AppFeatures {
         product: products::FERRUMPORTS,
         version: "0.1.0-alpha.1",
         summary: "New: which process is on port 3000, which project it belongs to, and a \
@@ -348,7 +376,7 @@ const APPS: [AppFeatures; 10] = [
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Features of every Ferrum app"),
-        "What every Ferrum app can do in the current alpha: Ferrum Editor, FerrumAgentic, \
+        "What every Ferrum app can do in the current alpha: Ferrum Editor, FerrumVibe, \
          FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts \
          and FerrumEnv.",
         PATH,

@@ -1,7 +1,7 @@
 # FerrumChat
 
 A Cursor-like agentic coding chat, built as two reusable crates. It is embedded
-as the Agent pane in Ferrum Editor and as the Chat column in the FerrumAgentic
+as the Agent pane in Ferrum Editor and as the Chat column in the FerrumVibe
 app.
 
 | Crate | What it is |
