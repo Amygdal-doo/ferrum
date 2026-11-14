@@ -53,11 +53,14 @@ for pair in "$@"; do
   echo "=== $tag: publish"
   notes="$(git tag -l --format='%(contents)' "$tag")"
   [ -n "$notes" ] || notes="$tag"
+  # A new release stays a draft until every file is up, so Ferrum Launcher
+  # never offers a version whose build is still uploading. Not marked
+  # pre-release: the launcher reads the channel from the version.
   if ! gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then
-    # Not marked pre-release: Ferrum Launcher reads the channel from the version.
     gh release create "$tag" --repo "$REPO" --target main --title "$APP_NAME $version" \
-      --notes "- $notes"
+      --notes "- $notes" --draft
   fi
   gh release upload "$tag" --repo "$REPO" --clobber "$dir"/*
+  gh release edit "$tag" --repo "$REPO" --draft=false >/dev/null
   echo "=== $tag: done"
 done

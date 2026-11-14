@@ -14,16 +14,23 @@ use crate::components::{
 use crate::layout::{PageMeta, page};
 use crate::{products, site};
 
-const DESCRIPTION: &str = "Download Ferrum Launcher for macOS (Apple Silicon) and install every \
+const DESCRIPTION: &str = "Download Ferrum Launcher for macOS or Linux and install every \
      Ferrum app from it. Free public builds: no GitHub account, no sign-in.";
 
 /// Per-OS launcher installers: (system, file, how to install, published yet).
-/// Only the launcher has installers; it installs the other apps.
-const INSTALLERS: [(&str, &str, &str, bool); 3] = [
+/// The launcher installs the other apps; their own DMGs and .debs are in the
+/// releases for installing by hand.
+const INSTALLERS: [(&str, &str, &str, bool); 4] = [
     (
-        "macOS",
+        "macOS (Apple Silicon)",
         "FerrumLauncher-<version>-aarch64.dmg",
-        "open it and drag Ferrum Launcher onto Applications. Apple Silicon only.",
+        "open it and drag Ferrum Launcher onto Applications.",
+        true,
+    ),
+    (
+        "macOS (Intel)",
+        "FerrumLauncher-<version>-x86_64.dmg",
+        "open it and drag Ferrum Launcher onto Applications.",
         true,
     ),
     (
@@ -35,8 +42,9 @@ const INSTALLERS: [(&str, &str, &str, bool); 3] = [
     (
         "Linux",
         "ferrum-launcher_<version>_amd64.deb",
-        "coming soon (Debian and Ubuntu).",
-        false,
+        "install it with sudo apt install ./ferrum-launcher_<version>_amd64.deb (Debian, \
+         Ubuntu and derivatives, x86_64).",
+        true,
     ),
 ];
 
@@ -47,8 +55,9 @@ fn get_launcher_steps() -> [(&'static str, Markup); 3] {
             html! {
                 p {
                     "Click " strong { "Download for macOS" } " to get the newest "
-                    code { "FerrumLauncher-<version>-aarch64.dmg" } ". It needs a Mac with Apple \
-                    Silicon. Every build is also listed in the "
+                    code { "FerrumLauncher-<version>-aarch64.dmg" } " for Apple Silicon. Intel \
+                    Macs use the " code { "x86_64.dmg" } " and Linux the " code { ".deb" } ", \
+                    both in the "
                     a href=(site::RELEASES_URL) rel="noopener" { "public releases" }
                     " on GitHub."
                 }
@@ -175,7 +184,7 @@ pub fn render(site_url: &str) -> Markup {
                 .actions(html! {
                     (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
                     (button::disabled("Windows", "Coming soon"))
-                    (button::disabled("Linux", "Coming soon"))
+                    (button::link("Linux (.deb)", site::RELEASES_URL, Variant::Secondary))
                 })
                 .render())
             (Section::new("terminal", "Or install from Terminal")
@@ -215,8 +224,9 @@ pub fn render(site_url: &str) -> Markup {
                     p {
                         "The launcher is the only thing you download by hand. Ferrum Editor, \
                          FerrumAgentic, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, \
-                         FerrumContainers, FerrumPorts and FerrumEnv have no separate installers: \
-                         install, update and remove them from the launcher."
+                         FerrumContainers, FerrumPorts and FerrumEnv install, update and roll back \
+                         from the launcher. Each also has its own DMG and .deb in the releases \
+                         if you'd rather install one by hand."
                     }
                 })
                 .render(html! {
@@ -258,7 +268,7 @@ mod tests {
         assert!(html.contains("Apple Silicon"));
         assert!(html.contains(site::RELEASES_URL));
         assert!(html.contains("Amygdal-doo/ferrum-releases"));
-        assert_eq!(html.matches(r#"class="btn__note">Coming soon"#).count(), 2);
+        assert_eq!(html.matches(r#"class="btn__note">Coming soon"#).count(), 1, "Windows");
         for gone in [
             "private",
             "gh auth login",
@@ -285,8 +295,9 @@ mod tests {
         let html = rendered();
         assert!(html.contains("Launcher installers"));
         assert!(html.contains("FerrumLauncher-&lt;version&gt;-aarch64.dmg"));
-        assert!(!html.contains("x86_64.dmg"));
-        for os in ["macOS", "Windows", "Linux"] {
+        assert!(html.contains("FerrumLauncher-&lt;version&gt;-x86_64.dmg"));
+        assert!(html.contains("_amd64.deb"));
+        for os in ["macOS (Apple Silicon)", "macOS (Intel)", "Windows", "Linux"] {
             assert!(html.contains(&format!(r#"<dt>{os}</dt>"#)), "{os}");
         }
     }
