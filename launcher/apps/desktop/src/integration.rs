@@ -126,6 +126,18 @@ impl FerrumLauncher {
         input
     }
 
+    /// Brings the enabled shell commands up to date with this launcher.
+    pub fn refresh_shell_commands(&self) {
+        let paths = self.services.paths.clone();
+        for (app, prefs) in &self.state.settings.app_prefs {
+            if let Some(command) = &prefs.command
+                && let Err(error) = shell::refresh(&paths, &self.state.info(*app), command)
+            {
+                tracing::warn!(%error, command, "could not refresh a shell command");
+            }
+        }
+    }
+
     /// Turns `app`'s shell command on (with the name in its field) or off.
     pub fn set_shell_command(&mut self, app: AppId, enabled: bool, cx: &mut Context<Self>) {
         let info = self.state.info(app);
@@ -185,6 +197,11 @@ impl FerrumLauncher {
         self.set_prefs(app, prefs, cx);
         let usage = if app == AppId::TERM {
             format!("`{typed}` opens FerrumTerm in the current folder")
+        } else if app.as_str() == "dock" {
+            format!(
+                "`{typed}` opens {}; `{typed} start`, `stop`, `up`, `ps`… run the VM and docker",
+                info.name
+            )
         } else if matches!(app.as_str(), "editor" | "git") {
             format!("`{typed} .` opens {} on the current folder", info.name)
         } else {

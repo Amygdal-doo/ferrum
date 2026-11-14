@@ -2,7 +2,6 @@
 //! open an ssh tab), their port forwards (click to start / stop; a dot shows
 //! running, failed or stopped), and the "What's using a port?" action.
 
-use super::heading;
 use crate::view::TermView;
 use ferrum_ui::components::{
     ButtonCommon, Clickable, IconButton, IconName, IconSize, Tooltip, h_flex, v_flex,
@@ -15,15 +14,13 @@ impl TermView {
     pub(crate) fn render_hosts(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let hosts = self.app.ssh.hosts();
-        let mut section = v_flex().mt_2().child(
+        let mut section = v_flex().child(
             h_flex()
-                .pr_1()
-                .child(heading("SSH hosts", cx))
+                .pr_2()
+                .child(ferrum_ui::sidebar_label("SSH hosts", cx))
                 .child(div().flex_1())
                 .child(
-                    IconButton::new("add-ssh-host", IconName::Plus)
-                        .icon_size(IconSize::Small)
-                        .tooltip(Tooltip::text("Add SSH host"))
+                    ferrum_ui::title_button("add-ssh-host", IconName::Plus, "Add SSH host")
                         .on_click(cx.listener(|view, _, window, cx| {
                             view.open_host_form(None, window, cx);
                         })),
@@ -46,11 +43,13 @@ impl TermView {
                 h_flex()
                     .id(SharedString::from(format!("ssh-host-{i}")))
                     .group("ssh-host")
-                    .px_3()
+                    .mx_1p5()
+                    .px_2()
                     .py(px(3.))
                     .gap_1p5()
+                    .rounded(px(8.))
                     .cursor_pointer()
-                    .hover(|style| style.bg(colors.ghost_element_hover))
+                    .hover(|style| style.bg(ferrum_ui::hover_fill(cx)))
                     .tooltip(Tooltip::text(format!(
                         "Open ssh {} in a new tab",
                         host.name
@@ -119,12 +118,14 @@ impl TermView {
             h_flex()
                 .id("whats-on-port")
                 .mt_1()
-                .px_3()
+                .mx_1p5()
+                .px_2()
                 .py(px(3.))
                 .gap_1p5()
+                .rounded(px(8.))
                 .cursor_pointer()
                 .text_color(colors.text_muted)
-                .hover(|style| style.bg(colors.ghost_element_hover).text_color(colors.text))
+                .hover(|style| style.bg(ferrum_ui::hover_fill(cx)).text_color(colors.text))
                 .on_click(cx.listener(|view, _, window, cx| view.open_ports(window, cx)))
                 .child(
                     ferrum_ui::components::Icon::new(IconName::MagnifyingGlass)
@@ -157,11 +158,13 @@ impl TermView {
         let (host, spec) = (host.to_owned(), spec.clone());
         v_flex()
             .id(SharedString::from(id.clone()))
+            .mx_1p5()
             .pl(px(22.))
             .pr_1()
             .py(px(2.))
+            .rounded(px(8.))
             .cursor_pointer()
-            .hover(|style| style.bg(colors.ghost_element_hover))
+            .hover(|style| style.bg(ferrum_ui::hover_fill(cx)))
             .tooltip(Tooltip::text(format!("{spec} · {tip}")))
             .on_click(cx.listener(move |view, _, _, cx| {
                 view.app.toggle_forward(&host, &spec);

@@ -48,6 +48,9 @@ pub struct ProjectBar {
     title: Option<SharedString>,
     branch: Option<String>,
     switchable: bool,
+    /// Drawn inside a sidebar or title row: name and branch only, no path,
+    /// icon-only app buttons, no background.
+    inline: bool,
     recent: Vec<RecentProject>,
     switcher_open: bool,
     query: Entity<TextInput>,
@@ -91,6 +94,7 @@ impl ProjectBar {
             title: None,
             branch: None,
             switchable: true,
+            inline: false,
             recent: project::projects_file()
                 .map(|file| project::load(&file))
                 .unwrap_or_default(),
@@ -119,6 +123,14 @@ impl ProjectBar {
     #[must_use]
     pub fn switchable(mut self, switchable: bool) -> Self {
         self.switchable = switchable;
+        self
+    }
+
+    /// Draws the bar inline (in a sidebar or title row): the project name
+    /// and branch, icon-only buttons for the other apps, no path.
+    #[must_use]
+    pub fn inline(mut self, inline: bool) -> Self {
+        self.inline = inline;
         self
     }
 
@@ -340,7 +352,8 @@ impl ProjectBar {
         let colors = cx.theme().colors();
         let mut name_el = h_flex()
             .id("project-name")
-            .flex_none()
+            .when(self.inline, |el| el.flex_shrink(1.).min_w_0())
+            .when(!self.inline, |el| el.flex_none())
             .gap_1()
             .px_1p5()
             .h(px(22.))
@@ -352,6 +365,8 @@ impl ProjectBar {
             )
             .child(
                 div()
+                    .min_w_0()
+                    .truncate()
                     .text_ui_sm(cx)
                     .font_weight(gpui::FontWeight::SEMIBOLD)
                     .text_color(if named {
@@ -598,6 +613,22 @@ impl Render for ProjectBar {
                     FerrumApp::Git => IconName::GitBranch,
                     FerrumApp::Term => IconName::Terminal,
                 };
+                if self.inline {
+                    right = right.child(
+                        IconButton::new(
+                            SharedString::from(format!("open-in-{}", app.binary())),
+                            icon,
+                        )
+                        .icon_size(IconSize::Small)
+                        .icon_color(Color::Muted)
+                        .tooltip(Tooltip::text(format!(
+                            "Open this project in {}",
+                            app.name()
+                        )))
+                        .on_click(cx.listener(move |this, _, _, cx| this.open_in(app, cx))),
+                    );
+                    continue;
+                }
                 right = right.child(
                     Button::new(
                         SharedString::from(format!("open-in-{}", app.binary())),
@@ -627,15 +658,20 @@ impl Render for ProjectBar {
             .h(px(30.))
             .px_2()
             .gap_2()
-            .bg(colors.title_bar_background)
-            .border_b_1()
-            .border_color(colors.border_variant)
+            .when(!self.inline, |bar| {
+                bar.bg(colors.title_bar_background)
+                    .border_b_1()
+                    .border_color(colors.border_variant)
+            })
             .child(self.render_name(cx))
-            .children(self.render_path(cx))
+            .children((!self.inline).then(|| self.render_path(cx)).flatten())
             .when_some(self.branch.clone(), |row, branch| {
                 row.child(
                     h_flex()
-                        .flex_none()
+                        .when(self.inline, |el| {
+                            el.flex_shrink(1.).min_w_0().overflow_hidden()
+                        })
+                        .when(!self.inline, |el| el.flex_none())
                         .gap_1()
                         .child(
                             Icon::new(IconName::GitBranch)
@@ -645,7 +681,8 @@ impl Render for ProjectBar {
                         .child(
                             Label::new(branch)
                                 .size(LabelSize::XSmall)
-                                .color(Color::Muted),
+                                .color(Color::Muted)
+                                .truncate(),
                         ),
                 )
             })

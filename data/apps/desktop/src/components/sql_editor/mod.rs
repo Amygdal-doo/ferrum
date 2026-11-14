@@ -13,12 +13,14 @@ impl FerrumData {
         v_flex()
             .flex_1()
             .min_h_0()
-            .child(self.render_tab_bar(cx))
+            .child(self.render_tab_bar(window, cx))
             .child(self.render_editor(window, cx))
             .into_any_element()
     }
 
-    pub fn render_tab_bar(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    /// The top card's header: tabs, then the connection flags and the
+    /// Run / Cancel / Theme tools; ◧ ⌘ + first while the sidebar is hidden.
+    pub fn render_tab_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let colors = cx.theme().colors().clone();
         let active = self.state.active_tab;
         let tabs: Vec<AnyElement> = self
@@ -28,25 +30,9 @@ impl FerrumData {
             .map(|tab| {
                 let id = tab.id;
                 let selected = active == Some(id);
-                h_flex()
-                    .id(SharedString::from(format!("tab-{id}")))
-                    .flex_none()
-                    .h(px(32.))
-                    .gap_2()
-                    .px_3()
-                    .rounded_t_md()
+                ferrum_ui::header_tab(SharedString::from(format!("tab-{id}")), selected, cx)
+                    .pr_0p5()
                     .text_xs()
-                    .when(selected, |this| {
-                        this.bg(colors.tab_active_background)
-                            .border_x_1()
-                            .border_t_1()
-                            .border_color(colors.border)
-                            .text_color(colors.text)
-                    })
-                    .when(!selected, |this| {
-                        this.text_color(colors.text_muted)
-                            .hover(|s| s.text_color(colors.text))
-                    })
                     .on_click(cx.listener(move |this, _, _, cx| {
                         this.state.active_tab = Some(id);
                         cx.notify();
@@ -81,25 +67,36 @@ impl FerrumData {
             })
             .collect();
 
-        h_flex()
-            .id("tab-bar")
-            .flex_none()
-            .h(px(36.))
-            .items_end()
-            .gap_0p5()
-            .px_2()
-            .overflow_x_scroll()
-            .bg(colors.tab_bar_background)
+        let sidebar_open = !self.state.sidebar_hidden;
+        let controls = (!sidebar_open).then(|| self.render_title_controls(cx));
+        let tools = self.render_header_tools(cx);
+        ferrum_ui::title_row("tab-bar-row", !sidebar_open, window)
+            .gap_1()
             .border_b_1()
-            .border_color(colors.border)
-            .children(tabs)
+            .border_color(colors.border_variant)
+            .children(controls)
             .child(
-                div().mb_1().child(
-                    IconButton::new("new-tab", IconName::Plus)
-                        .tooltip(Tooltip::text("New tab"))
-                        .on_click(cx.listener(|this, _, _, cx| this.new_tab(cx))),
-                ),
+                h_flex()
+                    .id("tab-bar")
+                    .flex_1()
+                    .min_w_0()
+                    .gap_1()
+                    .overflow_x_scroll()
+                    .children(tabs)
+                    .child(
+                        ferrum_ui::title_button("new-tab", IconName::Plus, "New tab")
+                            .on_click(cx.listener(|this, _, _, cx| this.new_tab(cx))),
+                    ),
             )
+            .when(!sidebar_open, |row| {
+                row.child(
+                    div()
+                        .flex_none()
+                        .max_w(px(240.))
+                        .child(self.project_bar.clone()),
+                )
+            })
+            .child(tools)
             .into_any_element()
     }
 
@@ -122,7 +119,6 @@ impl FerrumData {
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
-            .bg(colors.editor_background)
             .font_buffer(cx)
             .text_buffer(cx)
             .child(
@@ -137,8 +133,7 @@ impl FerrumData {
                             .py_2()
                             .pr_2()
                             .border_r_1()
-                            .border_color(colors.border)
-                            .bg(colors.editor_gutter_background)
+                            .border_color(colors.border_variant)
                             .text_right()
                             .text_color(colors.editor_line_number)
                             .whitespace_nowrap()

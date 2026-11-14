@@ -5,7 +5,7 @@
 use super::{MESSAGE_TTL, TermView};
 use crate::paint::{CellMetrics, paint_terminal, update_grid};
 use ferrum_ui::ToggleProjectSwitcher;
-use ferrum_ui::components::{StyledTypography, h_flex, v_flex};
+use ferrum_ui::components::{Clickable, StyledTypography, h_flex, v_flex};
 use ferrum_ui::gpui::{
     self, Axis, Context, ElementId, Hsla, MouseButton, SharedString, Window, canvas, div,
     prelude::*, px,
@@ -81,7 +81,7 @@ impl TermView {
                 && crate::settings::get().tab_position == crate::settings::TabPosition::Sidebar;
             for window in session.windows.iter().filter(|_| !in_sidebar) {
                 let active = window.id == session.active_window;
-                let chip = self.tab_chip(window.id.to_string(), cx);
+                let chip = self.tab_chip(window, cx);
                 tabs.push(
                     h_flex()
                         .h_full()
@@ -239,42 +239,49 @@ impl TermView {
 
     /// The button before a tab's name: its icon in its colour; click it to
     /// pick another (the tab itself keeps the normal background).
-    pub(crate) fn tab_chip(&self, window_id: String, cx: &mut Context<Self>) -> impl IntoElement {
-        use crate::tab_style::{COLORS, ICONS};
+    pub(crate) fn tab_chip(&self, window: &WindowInfo, cx: &mut Context<Self>) -> impl IntoElement {
+        use crate::tab_style::{COLORS, ICONS, TabStyle};
         use ferrum_ui::components::{
-            ButtonCommon, Color, ContextMenu, IconButton, IconPosition, IconSize, PopoverMenu,
-            Tooltip,
+            ButtonCommon, Color, ContentButton, ContextMenu, Icon, IconPosition, IconSize,
+            PopoverMenu, Tooltip,
         };
-        let style = self
-            .app
-            .ui
-            .tab_styles
-            .get(&window_id)
-            .cloned()
-            .unwrap_or_default();
+        let window_id = window.id.to_string();
+        let custom = self.app.ui.tab_styles.get(&window_id).cloned();
+        let style = custom.clone().unwrap_or_else(|| TabStyle::auto(window));
+        // Unstyled tabs show the agent's logo, or the plain `>_` tile.
+        let mark = match (&custom, TabStyle::agent_logo(window)) {
+            (Some(style), _) => Icon::new(style.icon_name())
+                .size(IconSize::Small)
+                .color(Color::Custom(style.hsla()))
+                .into_any_element(),
+            (None, Some(logo)) => ferrum_ui::agent_logo(logo, px(15.), cx).into_any_element(),
+            (None, None) => ferrum_ui::terminal_tile(px(17.), cx).into_any_element(),
+        };
         let weak = cx.weak_entity();
         let id = window_id;
         PopoverMenu::new(SharedString::from(format!("chip-{id}")))
             .trigger(
-                IconButton::new(
-                    SharedString::from(format!("chip-button-{id}")),
-                    style.icon_name(),
-                )
-                .icon_size(IconSize::Small)
-                .icon_color(Color::Custom(style.hsla()))
-                .tooltip(Tooltip::text("Tab icon and colour")),
+                ContentButton::new(SharedString::from(format!("chip-button-{id}")), mark)
+                    .tooltip(Tooltip::text("Tab icon and colour")),
             )
             .menu(move |window, cx| {
                 let weak = weak.clone();
                 let id = id.clone();
                 let current = style.clone();
                 Some(ContextMenu::build(window, cx, move |mut menu, _, _| {
+                    let current = current.clone();
                     let set = |icon: Option<&'static str>, color: Option<&'static str>| {
                         let weak = weak.clone();
                         let id = id.clone();
+                        let current = current.clone();
                         move |_: &mut Window, cx: &mut gpui::App| {
                             let _ = weak.update(cx, |view, cx| {
-                                let style = view.app.ui.tab_styles.entry(id.clone()).or_default();
+                                let style = view
+                                    .app
+                                    .ui
+                                    .tab_styles
+                                    .entry(id.clone())
+                                    .or_insert_with(|| current.clone());
                                 if let Some(icon) = icon {
                                     style.icon = icon.to_owned();
                                 }
@@ -313,6 +320,120 @@ impl TermView {
             })
     }
 
+    /// ◧, ⌘ and + : in the sidebar's title row, or at the start of the
+    /// terminal's header while the sidebar is hidden.
+    fn title_controls(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        h_flex()
+            .flex_none()
+            .gap_0p5()
+            .child(self.sidebar_toggle(cx))
+            .when(self.project.is_some(), |row| {
+                row.child(
+                    ferrum_ui::command_button("switch-project", "Switch project (⌥⌘O)").on_click(
+                        cx.listener(|view, _, window, cx| {
+                            if let Some(project) = &view.project {
+                                project
+                                    .bar
+                                    .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
+                            }
+                        }),
+                    ),
+                )
+            })
+            .child(self.new_menu("new-menu", cx))
+    }
+
+    /// The window's sidebar: title row (traffic lights, ◧ ⌘ +), project,
+    /// then tabs, agents and hosts.
+    fn sidebar_column(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let width = self.app.ui.sidebar_width;
+        v_flex()
+            .flex_none()
+            .w(px(width))
+            .h_full()
+            .child(
+                ferrum_ui::title_row("sidebar-title", true, window)
+                    .child(div().flex_1())
+                    .child(self.title_controls(cx)),
+            )
+            .when_some(self.project.as_ref(), |col, project| {
+                col.child(div().px_1().child(project.bar.clone()))
+            })
+            .child(self.render_sidebar(width, cx))
+    }
+
+    /// The terminal card's header: the tabs (or, with tabs in the sidebar,
+    /// the active tab's icon and name), and while the sidebar is hidden the
+    /// window controls and project.
+    fn render_pane_header(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
+        let sidebar_open = self.app.ui.sidebar_open;
+        let in_sidebar =
+            crate::settings::get().tab_position == crate::settings::TabPosition::Sidebar;
+        let mut row = ferrum_ui::title_row("pane-header", !sidebar_open, window)
+            .gap_1()
+            .border_b_1()
+            .border_color(colors.border_variant)
+            .font_ui(cx)
+            .text_size(px(13.));
+        if !sidebar_open {
+            row = row.child(self.title_controls(cx)).child(div().w(px(6.)));
+        }
+        if in_sidebar {
+            if let Some(w) = self.app.window() {
+                row = row.child(self.tab_chip(w, cx)).child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .text_color(colors.text)
+                        .child(tab_label(w, 60)),
+                );
+            }
+        } else if let Some(session) = self.app.session() {
+            let mut tabs = h_flex()
+                .id("tabs")
+                .flex_1()
+                .min_w_0()
+                .gap_1()
+                .overflow_x_scroll();
+            for w in &session.windows {
+                let active = w.id == session.active_window;
+                let kind = TabKind::Window(w.id.to_string());
+                tabs = tabs.child(
+                    ferrum_ui::header_tab(
+                        ElementId::Name(format!("window-{}", w.id).into()),
+                        active,
+                        cx,
+                    )
+                    .pl_0p5()
+                    .child(self.tab_chip(w, cx))
+                    .child(tab_label(w, 28))
+                    .on_click(cx.listener(move |view, _, _, cx| {
+                        view.app.click_tab(kind.clone());
+                        view.after_change(cx);
+                    })),
+                );
+            }
+            tabs = tabs.child(
+                ferrum_ui::title_button(
+                    "new-window",
+                    ferrum_ui::components::IconName::Plus,
+                    "New tab (⌘T)",
+                )
+                .on_click(cx.listener(|view, _, _, cx| {
+                    view.app.click_tab(TabKind::NewWindow);
+                    view.after_change(cx);
+                })),
+            );
+            row = row.child(tabs);
+        }
+        row.child(div().flex_1()).when(!sidebar_open, |row| {
+            row.when_some(self.project.as_ref(), |row, project| {
+                row.child(div().flex_none().max_w(px(320.)).child(project.bar.clone()))
+            })
+        })
+    }
+
     /// The sidebar drawn over the terminal (compact mode).
     fn sidebar_overlay(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
@@ -327,7 +448,20 @@ impl TermView {
             .border_r_1()
             .border_color(colors.border)
             .shadow_lg()
-            .child(self.render_sidebar(self.app.ui.sidebar_width.min(COMPACT_SIDEBAR), cx))
+            .bg(colors.panel_background)
+            .child(
+                v_flex()
+                    .h_full()
+                    .child(
+                        h_flex()
+                            .flex_none()
+                            .h(px(32.))
+                            .px_1()
+                            .child(div().flex_1())
+                            .child(self.new_menu("new-menu", cx)),
+                    )
+                    .child(self.render_sidebar(self.app.ui.sidebar_width.min(COMPACT_SIDEBAR), cx)),
+            )
     }
 }
 
@@ -385,53 +519,60 @@ impl Render for TermView {
                 )
                 .size_full(),
             );
-        // The window draws the terminal and the sidebar as cards on the
-        // window backdrop; embedded panes stay flat (the host frames them).
+        // The window: sidebar on the backdrop, the terminal in a card (lighter
+        // while focused). Embedded panes stay flat (the host frames them).
         let cards = !compact;
-        let terminal = v_flex()
+        let terminal_area = div()
+            .relative()
             .flex_1()
-            .min_w_0()
-            .h_full()
-            .when(cards, |t| {
-                t.rounded(px(10.))
-                    .overflow_hidden()
-                    .border_1()
-                    .border_color(colors.border_variant)
-                    .bg(colors.terminal_background)
-                    .shadow_sm()
+            .min_h_0()
+            .w_full()
+            .bg(colors.terminal_background)
+            .child(panes_area)
+            .when_some(self.incompatible.clone(), |area, why| {
+                area.child(self.render_incompatible(why, cx))
             })
-            .child(self.render_tab_bar(cx))
-            .child(
-                div()
-                    .relative()
-                    .flex_1()
-                    .min_h_0()
-                    .w_full()
-                    .child(panes_area)
-                    .when_some(self.incompatible.clone(), |area, why| {
-                        area.child(self.render_incompatible(why, cx))
-                    })
-                    .when(compact && sidebar_open, |area| {
-                        area.child(self.sidebar_overlay(cx))
-                    }),
-            );
+            .when(compact && sidebar_open, |area| {
+                area.child(self.sidebar_overlay(cx))
+            });
+        let terminal = if cards {
+            let active = self.focus_handle.contains_focused(window, cx);
+            ferrum_ui::pane_card(active, cx)
+                .flex_1()
+                .h_full()
+                .child(self.render_pane_header(window, cx))
+                .child(terminal_area)
+        } else {
+            v_flex()
+                .flex_1()
+                .min_w_0()
+                .h_full()
+                .child(self.render_tab_bar(cx))
+                .child(terminal_area)
+        };
 
         let dialog = self.render_dialog(cx);
         let panes = h_flex()
             .flex_1()
             .min_h_0()
             .w_full()
-            .when(cards, |row| row.p(ferrum_ui::PANE_GAP))
-            .when(sidebar_open && !compact, |root| {
-                root.child(
-                    ferrum_ui::pane_frame(cx)
-                        .flex_none()
-                        .h_full()
-                        .child(self.render_sidebar(self.app.ui.sidebar_width, cx)),
-                )
-                .child(ferrum_ui::gap_splitter("sidebar", Axis::Horizontal, cx))
+            .when(sidebar_open && cards, |root| {
+                root.child(self.sidebar_column(window, cx))
+                    .child(ferrum_ui::gap_splitter("sidebar", Axis::Horizontal, cx))
             })
-            .child(terminal);
+            .child(
+                div()
+                    .flex()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .when(cards, |main| {
+                        main.py(ferrum_ui::PANE_GAP)
+                            .pr(ferrum_ui::PANE_GAP)
+                            .when(!sidebar_open, |main| main.pl(ferrum_ui::PANE_GAP))
+                    })
+                    .child(terminal),
+            );
         let root = crate::actions::on_actions(v_flex(), cx);
         root.relative()
             .size_full()
@@ -461,9 +602,10 @@ impl Render for TermView {
             )
             .when(!cards, |root| root.bg(colors.terminal_background))
             .text_color(colors.terminal_foreground)
-            .when_some(self.project.as_ref(), |root, project| {
-                root.child(project.bar.clone())
-            })
+            .when_some(
+                self.project.as_ref().filter(|_| compact),
+                |root, project| root.child(project.bar.clone()),
+            )
             .child(panes)
             .when_some(message, |root, message| {
                 root.child(

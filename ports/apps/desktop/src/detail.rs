@@ -94,9 +94,6 @@ pub fn render(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> Option<AnyEle
             .overflow_y_scroll()
             .p_3()
             .gap_3()
-            .bg(colors.panel_background)
-            .border_l_1()
-            .border_color(colors.border)
             .child(
                 h_flex()
                     .justify_between()

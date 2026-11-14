@@ -21,7 +21,7 @@ mod tooltip;
 mod traits;
 
 pub use button::{ButtonSize, ButtonStyle};
-pub use buttons::{Button, IconButton};
+pub use buttons::{Button, ContentButton, IconButton};
 pub use color::{Color, TintColor};
 pub use context_menu::ContextMenu;
 pub use divider::{Divider, ProgressBar};

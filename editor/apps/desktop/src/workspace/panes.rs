@@ -324,16 +324,11 @@ impl Workspace {
         }
     }
 
-    pub(super) fn render_layout(
-        &self,
-        node: &PaneNode,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
+    pub(super) fn render_layout(&self, node: &PaneNode, cx: &mut Context<Self>) -> AnyElement {
         match node {
-            PaneNode::Leaf(id) => self.render_pane(*id, window, cx),
+            PaneNode::Leaf(id) => self.render_pane(*id, cx),
             PaneNode::Split { axis, children } => {
-                let border = cx.theme().colors().border;
+                let border = cx.theme().colors().border_variant;
                 let mut container = match axis {
                     SplitAxis::Horizontal => h_flex(),
                     SplitAxis::Vertical => v_flex(),
@@ -352,7 +347,7 @@ impl Workspace {
                             .flex_1()
                             .min_w_0()
                             .min_h_0()
-                            .child(self.render_layout(child, window, cx)),
+                            .child(self.render_layout(child, cx)),
                     );
                 }
                 container.into_any_element()
@@ -360,15 +355,17 @@ impl Workspace {
         }
     }
 
-    fn render_pane(&self, id: usize, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let Some(index) = self.pane_index(id) else {
-            return div().into_any_element();
+    /// The tabs of pane `index`: rounded, the active one lighter.
+    pub(super) fn pane_tabs(&self, index: usize, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let Some(pane) = self.panes.get(index) else {
+            return Vec::new();
         };
-        let pane = &self.panes[index];
-        let colors = cx.theme().colors();
-        let is_active_pane = index == self.active_pane && self.panes.len() > 1;
-        let tabs =
-            pane.items.iter().enumerate().map(|(i, item)| {
+        let id = pane.id;
+        let accent = cx.theme().colors().text_accent;
+        pane.items
+            .iter()
+            .enumerate()
+            .map(|(i, item)| {
                 let (title, dirty, path) = match item {
                     PaneItem::Editor(editor) => {
                         let editor = editor.read(cx);
@@ -384,24 +381,11 @@ impl Workspace {
                     )
                 });
                 let active = i == pane.active;
-                h_flex()
-                    .id(("tab", id * 10_000 + i))
+                ferrum_ui::header_tab(("tab", id * 10_000 + i), active, cx)
                     .group("tab")
-                    .flex_none()
-                    .h_full()
-                    .pl_3()
-                    .pr_1()
+                    .pl_2()
+                    .pr_0p5()
                     .gap_1()
-                    .border_r_1()
-                    .border_color(colors.border)
-                    .bg(if active {
-                        colors.tab_active_background
-                    } else {
-                        colors.tab_inactive_background
-                    })
-                    .when(active && is_active_pane, |this| {
-                        this.border_t_2().border_color(colors.text_accent)
-                    })
                     .when_some(icon, |this, icon| this.child(icon))
                     .child(Label::new(title).size(LabelSize::Small).color(if active {
                         Color::Default
@@ -418,7 +402,7 @@ impl Workspace {
                                     div()
                                         .size(px(7.))
                                         .rounded_full()
-                                        .bg(colors.text_accent)
+                                        .bg(accent)
                                         .group_hover("tab", |s| s.invisible()),
                                 )
                             })
@@ -447,7 +431,25 @@ impl Workspace {
                     .on_click(cx.listener(move |this, _, window, cx| {
                         this.activate_item(index, i, window, cx)
                     }))
-            });
+                    .into_any_element()
+            })
+            .collect()
+    }
+
+    /// One pane: its tab bar (unless the tabs are in the editor card's
+    /// header, as with a single pane) and its active item.
+    fn render_pane(&self, id: usize, cx: &mut Context<Self>) -> AnyElement {
+        let Some(index) = self.pane_index(id) else {
+            return div().into_any_element();
+        };
+        let pane = &self.panes[index];
+        let colors = cx.theme().colors().clone();
+        let own_tab_bar = !matches!(self.layout, PaneNode::Leaf(_)) && !pane.items.is_empty();
+        let tabs = if own_tab_bar {
+            self.pane_tabs(index, cx)
+        } else {
+            Vec::new()
+        };
         let content = match pane.active_item() {
             Some(PaneItem::Editor(editor)) => editor.clone().into_any_element(),
             Some(PaneItem::Preview(preview, _)) => preview.clone().into_any_element(),
@@ -468,17 +470,20 @@ impl Workspace {
                     }
                 }),
             )
-            .when(!pane.items.is_empty(), |this| {
+            .when(own_tab_bar, |this| {
                 this.child(
                     h_flex()
                         .id(("tab-bar", id))
                         .flex_none()
-                        .h(px(32.))
+                        .h(px(34.))
                         .w_full()
+                        .px_1()
+                        .gap_1()
                         .overflow_x_scroll()
-                        .bg(colors.tab_bar_background)
                         .border_b_1()
-                        .border_color(colors.border)
+                        .border_color(colors.border_variant)
+                        // The active pane's tabs at full strength.
+                        .when(index != self.active_pane, |bar| bar.opacity(0.75))
                         .children(tabs),
                 )
             })

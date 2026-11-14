@@ -2,7 +2,7 @@
 //! splitters between them.
 
 use ferrum_ui::components::{IconButton, IconSize};
-use ferrum_ui::gpui::{Axis, ElementId, relative};
+use ferrum_ui::gpui::{Axis, ElementId, MouseButton, relative};
 use ferrum_ui::prelude::*;
 
 use crate::app::FerrumAgentic;
@@ -189,7 +189,8 @@ impl FerrumAgentic {
     fn column(&self, column: Column, fraction: f32, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
         let drop_bg = colors.drop_target_background;
-        ferrum_ui::pane_frame(cx)
+        let active = column == self.active_column;
+        ferrum_ui::pane_card(active, cx)
             .id(id("column", column))
             .debug_selector(|| format!("column-{}", column.key()))
             .h_full()
@@ -197,6 +198,17 @@ impl FerrumAgentic {
             .flex_shrink(1.)
             .overflow_hidden()
             .drag_over::<DraggedColumn>(move |style, _, _, _| style.bg(drop_bg))
+            // A click makes the column the active one, also where its
+            // view takes no focus.
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _, _, cx| {
+                    if this.active_column != column {
+                        this.active_column = column;
+                        cx.notify();
+                    }
+                }),
+            )
             .on_drop(cx.listener(move |this, dragged: &DraggedColumn, _, cx| {
                 this.drop_column(dragged.0, column, cx);
             }))
@@ -209,7 +221,7 @@ impl FerrumAgentic {
         if fractions.is_empty() {
             return empty_state(
                 "All columns are closed",
-                "Reopen Chat, Git or Term from the top bar.",
+                "Reopen Chat, Git or Term from the title bar.",
             )
             .into_any_element();
         }
@@ -219,7 +231,8 @@ impl FerrumAgentic {
             .flex_1()
             .min_h_0()
             .w_full()
-            .p(ferrum_ui::PANE_GAP);
+            .px(ferrum_ui::PANE_GAP)
+            .pb(ferrum_ui::PANE_GAP);
         let count = fractions.len();
         for (i, (column, fraction)) in fractions.into_iter().enumerate() {
             row = row.child(self.column(column, fraction, cx));

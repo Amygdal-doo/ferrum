@@ -56,26 +56,23 @@ impl FerrumData {
             ResultsPane::Results => self.render_empty(tab_id, cx),
         };
         let pane_button = |id: &'static str, label: &'static str, target: ResultsPane| {
-            Button::new(id, label)
-                .label_size(LabelSize::Small)
-                .toggle_state(pane == target)
-                .selected_style(ButtonStyle::Filled)
+            ferrum_ui::header_tab(id, pane == target, cx)
+                .child(label)
                 .on_click(cx.listener(move |this, _, _, cx| this.show_pane(target, cx)))
         };
 
         v_flex()
             .size_full()
             .min_h_0()
-            .bg(colors.editor_background)
             .child(
                 h_flex()
                     .flex_none()
-                    .h(px(32.))
+                    .h(px(36.))
                     .gap_3()
                     .px_2()
                     .text_xs()
                     .border_b_1()
-                    .border_color(colors.border)
+                    .border_color(colors.border_variant)
                     .child(
                         h_flex()
                             .flex_none()

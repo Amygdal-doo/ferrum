@@ -160,6 +160,10 @@ pub struct AppState {
     pub key_browsers: HashMap<ProfileId, KeyBrowser>,
     /// Value of the key shown in each key tab.
     pub key_views: HashMap<EditorTabId, KeyViewLoad>,
+    /// The sidebar is hidden (⌘B).
+    pub sidebar_hidden: bool,
+    /// The results card was used last (it is drawn lighter), else the editor card.
+    pub results_active: bool,
 }
 
 impl AppState {

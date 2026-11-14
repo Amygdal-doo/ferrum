@@ -77,6 +77,11 @@ impl Workspace {
         left = left.children(self.render_debug_status(cx));
         right = right.children(self.render_lsp_status(cx));
         right = right.child(self.render_terminal_button(cx));
-        status_bar(cx).child(left).child(right)
+        // On the window backdrop, under the cards.
+        status_bar(cx)
+            .bg(gpui::transparent_black())
+            .border_color(gpui::transparent_black())
+            .child(left)
+            .child(right)
     }
 }

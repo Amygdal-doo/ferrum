@@ -68,6 +68,10 @@ pub struct AppState {
     /// WebSocket sessions, per tab.
     pub protocols: protocols::ProtocolState,
     pub results_height: f64,
+    /// Whether the sidebar is shown (⌘B).
+    pub sidebar_open: bool,
+    /// The response card was used last (it is drawn lighter), else the request card.
+    pub response_active: bool,
     pub dialog: Option<Dialog>,
 }
 
@@ -104,6 +108,8 @@ impl AppState {
             load_test: None,
             protocols: protocols::ProtocolState::default(),
             results_height: 320.0,
+            sidebar_open: true,
+            response_active: false,
             dialog: None,
         }
     }

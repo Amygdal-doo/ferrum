@@ -5,7 +5,7 @@ use crate::components::response::BodyDisplay;
 use crate::state::AppState;
 use ferrum_ui::components::{ActiveTheme as _, Color, Label, LabelCommon as _, h_flex, v_flex};
 use ferrum_ui::{
-    DraggedSplitter, Notice, ProjectBar, ToggleProjectSwitcher, render_notice, splitter,
+    DraggedSplitter, Notice, ProjectBar, ToggleProjectSwitcher, gap_splitter, render_notice,
 };
 use ferrumapi_application::AppServices;
 use gpui::{
@@ -21,7 +21,8 @@ actions!(
         SaveRequest,
         FindInResponse,
         FindNext,
-        FindPrevious
+        FindPrevious,
+        ToggleSidebar
     ]
 );
 
@@ -37,6 +38,8 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("ctrl-g", FindNext, None),
         KeyBinding::new("cmd-shift-g", FindPrevious, None),
         KeyBinding::new("ctrl-shift-g", FindPrevious, None),
+        KeyBinding::new("cmd-b", ToggleSidebar, None),
+        KeyBinding::new("ctrl-b", ToggleSidebar, None),
     ]);
 }
 
@@ -55,7 +58,7 @@ pub struct FerrumApi {
     pub body_display: Option<BodyDisplay>,
     /// Scroll position of the response body (for revealing search matches).
     pub response_scroll: ScrollHandle,
-    /// Shared Ferrum project strip above the header.
+    /// Shared Ferrum project bar, inline under the sidebar's title row.
     pub project_bar: Entity<ProjectBar>,
     focus_handle: FocusHandle,
     /// Whether focus was already moved into the open dialog.
@@ -201,43 +204,70 @@ impl Render for FerrumApi {
         self.fields.begin();
         self.sync_project_bar(cx);
         let colors = cx.theme().colors().clone();
-        let header = self.render_header(window, cx);
+        let gap = ferrum_ui::PANE_GAP;
+        let sidebar_open = self.state.sidebar_open;
         let content = if self.state.loaded {
-            let sidebar = self.render_sidebar(window, cx);
+            let sidebar = sidebar_open.then(|| self.render_sidebar(window, cx));
             let request = self.render_request_pane(window, cx);
             let response = self.render_response_panel(window, cx);
+            let response_active = self.state.response_active;
+            let request_card = ferrum_ui::pane_card(!response_active, cx)
+                .flex_1()
+                .w_full()
+                .capture_any_mouse_down(cx.listener(|this, _, _, cx| {
+                    if this.state.response_active {
+                        this.state.response_active = false;
+                        cx.notify();
+                    }
+                }))
+                .child(request);
+            let response_card = ferrum_ui::pane_card(response_active, cx)
+                .flex_none()
+                .w_full()
+                .h(px(self.state.results_height as f32))
+                .capture_any_mouse_down(cx.listener(|this, _, _, cx| {
+                    if !this.state.response_active {
+                        this.state.response_active = true;
+                        cx.notify();
+                    }
+                }))
+                .child(response);
             h_flex()
                 .flex_1()
                 .min_h_0()
-                .items_start()
+                .w_full()
                 .on_drag_move(cx.listener(Self::on_drag_splitter))
                 .on_drop(cx.listener(|this, splitter: &DraggedSplitter, _, cx| {
                     if splitter.id.as_ref() == SIDEBAR_SPLITTER {
                         this.save_settings(cx);
                     }
                 }))
-                .child(
-                    div()
-                        .flex_none()
-                        .h_full()
-                        .w(px(self.state.sidebar_width() as f32))
-                        .overflow_hidden()
-                        .child(sidebar),
-                )
-                .child(splitter(SIDEBAR_SPLITTER, Axis::Horizontal, cx))
+                .when_some(sidebar, |row, sidebar| {
+                    row.child(
+                        div()
+                            .flex_none()
+                            .h_full()
+                            .w(px(self.state.sidebar_width() as f32))
+                            .overflow_hidden()
+                            .child(sidebar),
+                    )
+                    .child(gap_splitter(
+                        SIDEBAR_SPLITTER,
+                        Axis::Horizontal,
+                        cx,
+                    ))
+                })
                 .child(
                     v_flex()
                         .flex_1()
                         .min_w_0()
                         .h_full()
-                        .child(div().flex_1().min_h_0().child(request))
-                        .child(splitter(RESULTS_SPLITTER, Axis::Vertical, cx))
-                        .child(
-                            div()
-                                .flex_none()
-                                .h(px(self.state.results_height as f32))
-                                .child(response),
-                        ),
+                        .pt(gap)
+                        .pr(gap)
+                        .when(!sidebar_open, |main| main.pl(gap))
+                        .child(request_card)
+                        .child(gap_splitter(RESULTS_SPLITTER, Axis::Vertical, cx))
+                        .child(response_card),
                 )
                 .into_any_element()
         } else {
@@ -272,16 +302,14 @@ impl Render for FerrumApi {
             .on_action(cx.listener(Self::on_find))
             .on_action(cx.listener(Self::on_find_next))
             .on_action(cx.listener(Self::on_find_previous))
+            .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| this.toggle_sidebar(cx)))
             .on_action(cx.listener(|this, _: &ToggleProjectSwitcher, window, cx| {
                 this.project_bar
                     .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
             }))
             .relative()
             .size_full()
-            .bg(colors.background)
             .text_color(colors.text)
-            .child(self.project_bar.clone())
-            .child(header)
             .child(content)
             .child(status)
             .children(dialog)

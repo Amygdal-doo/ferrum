@@ -44,6 +44,7 @@ fn main() {
 
     ferrum_ui::run(
         AppConfig::new("FerrumTerm")
+            .unified_titlebar()
             .size(1100., 700.)
             .min_size(420., 260.)
             .app(ferrumterm_ui::app_info()),

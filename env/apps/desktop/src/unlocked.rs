@@ -1,5 +1,6 @@
-//! The unlocked vault: project strip, project sidebar, the selected
-//! project's environments and the status bar. Everything decrypted lives
+//! The unlocked vault: the project sidebar on the window backdrop (title
+//! row, project, search, list, lock status) and the selected project's
+//! card. Everything decrypted lives
 //! in [`Unlocked`], which is dropped (and wiped) when the app locks.
 
 use std::collections::HashSet;
@@ -13,9 +14,11 @@ use ferrumenv_core::lock::AutoLock;
 use ferrumenv_core::model::{Environment, Project};
 use ferrumenv_core::store::Session;
 
-use crate::app::{EnvApp, Lock, OpenSettings};
+use ferrum_ui::components::Clickable;
+
+use crate::app::{EnvApp, Lock, OpenSettings, ToggleSidebar};
 use crate::dialogs::Dialog;
-use crate::widgets::{icon_button, muted, text_button};
+use crate::widgets::{icon_button, muted};
 
 pub(crate) struct Unlocked {
     pub session: Session,
@@ -41,7 +44,7 @@ impl Unlocked {
         window: &mut Window,
         cx: &mut Context<EnvApp>,
     ) -> Self {
-        let bar = cx.new(|cx| ProjectBar::new("ferrumenv", window, cx));
+        let bar = cx.new(|cx| ProjectBar::new("ferrumenv", window, cx).inline(true));
         let search = cx.new(|cx| TextInput::new(window, cx).placeholder("Search projects"));
         let subscriptions = vec![
             cx.subscribe_in(&bar, window, |this, _, event, window, cx| match event {
@@ -174,126 +177,164 @@ impl EnvApp {
         }
     }
 
+    /// The window: sidebar on the backdrop, the project in a card.
     pub(crate) fn render_vault(
         &mut self,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let Some(unlocked) = self.vault() else {
-            return div().into_any_element();
-        };
-        let bar = unlocked.bar.clone();
-        v_flex()
+        let active = self.focus_handle.contains_focused(window, cx)
+            && self.vault().is_some_and(|u| u.dialog.is_none());
+        let sidebar_open = self.sidebar_open;
+        h_flex()
             .size_full()
-            .child(bar)
+            .when(sidebar_open, |root| {
+                root.child(self.render_sidebar(window, cx))
+            })
             .child(
-                h_flex()
+                div()
+                    .flex()
                     .flex_1()
-                    .min_h_0()
-                    .child(self.render_sidebar(cx))
+                    .min_w_0()
+                    .h_full()
+                    .py(ferrum_ui::PANE_GAP)
+                    .pr(ferrum_ui::PANE_GAP)
+                    .when(!sidebar_open, |main| main.pl(ferrum_ui::PANE_GAP))
                     .child(
-                        v_flex()
+                        ferrum_ui::pane_card(active, cx)
                             .flex_1()
-                            .min_w_0()
                             .h_full()
                             .child(self.render_project(window, cx)),
                     ),
             )
-            .child(self.render_status(cx))
             .into_any_element()
     }
 
-    fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors().clone();
-        let mut list = div()
-            .id("project-list")
-            .flex_1()
-            .min_h_0()
-            .overflow_y_scroll()
-            .px_1();
+    /// ◧, ⌘ and + : in the sidebar's title row, or at the start of the
+    /// card's header while the sidebar is hidden.
+    pub(crate) fn title_controls(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        h_flex()
+            .flex_none()
+            .gap_0p5()
+            .child(
+                ferrum_ui::sidebar_toggle("toggle-sidebar", self.sidebar_open).on_click(
+                    cx.listener(|_, _, window, cx| {
+                        window.dispatch_action(Box::new(ToggleSidebar), cx);
+                    }),
+                ),
+            )
+            .child(
+                ferrum_ui::command_button("switch-project", "Open a folder (⌥⌘O)").on_click(
+                    cx.listener(|this, _, window, cx| {
+                        if let Some(bar) = this.vault().map(|u| u.bar.clone()) {
+                            bar.update(cx, |bar, cx| bar.toggle_switcher(window, cx));
+                        }
+                    }),
+                ),
+            )
+            .child(
+                ferrum_ui::title_button("new-project", IconName::Plus, "New project")
+                    .on_click(cx.listener(|this, _, window, cx| this.open_new_project(window, cx))),
+            )
+    }
+
+    fn render_sidebar(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let mut sidebar = v_flex()
             .w(px(240.))
             .flex_none()
             .h_full()
-            .bg(colors.panel_background)
-            .border_r_1()
-            .border_color(colors.border);
-        if let Some(unlocked) = self.vault() {
-            let query = unlocked.search.read(cx).text().to_string();
-            let matches = unlocked.vault.search(&query);
-            let home = project::home_dir();
-            if matches.is_empty() {
-                list = list.child(if unlocked.vault.projects.is_empty() {
-                    empty_state("No projects yet", "Create one with +")
-                } else {
-                    empty_state("No projects match", "Try another word")
-                });
-            }
-            for index in matches {
-                let p = &unlocked.vault.projects[index];
-                let detail = p.path.as_deref().map_or_else(
-                    || "free project".to_string(),
-                    |path| project::display_path(path, home.as_deref()),
-                );
-                list = list.child(
-                    ListItem::new(SharedString::from(format!("project-{index}")))
-                        .rounded()
-                        .toggle_state(unlocked.project == Some(index))
-                        .child(
-                            v_flex()
-                                .child(Label::new(p.name.clone()))
-                                .child(muted(detail).size(LabelSize::XSmall)),
-                        )
-                        .on_click(cx.listener(move |this, _, window, cx| {
-                            this.select_project(index, window, cx);
-                        })),
-                );
-            }
-            sidebar = sidebar.child(
-                h_flex()
-                    .p_2()
-                    .gap_1()
-                    .child(div().flex_1().child(unlocked.search.clone()))
-                    .child(icon_button(
-                        "new-project",
-                        IconName::Plus,
-                        "New project",
-                        cx,
-                        |this, window, cx| {
-                            this.open_new_project(window, cx);
-                        },
-                    )),
+            .text_size(px(13.))
+            .child(
+                ferrum_ui::title_row("sidebar-title", true, window)
+                    .child(div().flex_1())
+                    .child(self.title_controls(cx)),
+            );
+        let Some(unlocked) = self.vault() else {
+            return sidebar;
+        };
+        let mut list = v_flex()
+            .id("project-list")
+            .flex_1()
+            .min_h_0()
+            .gap_0p5()
+            .overflow_y_scroll();
+        let query = unlocked.search.read(cx).text().to_string();
+        let matches = unlocked.vault.search(&query);
+        let home = project::home_dir();
+        if matches.is_empty() {
+            list = list.child(
+                div()
+                    .h(px(120.))
+                    .child(if unlocked.vault.projects.is_empty() {
+                        empty_state("No projects yet", "Create one with +")
+                    } else {
+                        empty_state("No projects match", "Try another word")
+                    }),
             );
         }
-        sidebar.child(section_header("Projects")).child(list).child(
-            v_flex()
-                .p_2()
-                .border_t_1()
-                .border_color(colors.border_variant)
-                .child(
-                    text_button(
-                        "import-bundle",
-                        "Import bundle…",
-                        cx,
-                        |this, window, cx| {
-                            this.open_import_bundle(window, cx);
-                        },
+        for index in matches {
+            let p = &unlocked.vault.projects[index];
+            let active = unlocked.project == Some(index);
+            let detail = p.path.as_deref().map_or_else(
+                || "free project".to_string(),
+                |path| project::display_path(path, home.as_deref()),
+            );
+            list = list.child(
+                ferrum_ui::sidebar_item(SharedString::from(format!("project-{index}")), active, cx)
+                    .py_1()
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .child(div().truncate().child(p.name.clone()))
+                            .child(muted(detail).size(LabelSize::XSmall).truncate()),
                     )
-                    .full_width()
-                    .start_icon(Icon::new(IconName::Download).size(IconSize::Small)),
-                )
-                .child(
-                    text_button("settings", "Settings", cx, |this, window, cx| {
-                        this.open_settings(window, cx);
+                    .when(active, |row| {
+                        row.child(icon_button(
+                            "delete-project",
+                            IconName::Trash,
+                            "Delete project",
+                            cx,
+                            move |this, window, cx| {
+                                this.confirm(
+                                    crate::dialogs::ConfirmAction::DeleteProject(index),
+                                    window,
+                                    cx,
+                                );
+                            },
+                        ))
                     })
-                    .full_width()
-                    .start_icon(Icon::new(IconName::Settings).size(IconSize::Small))
-                    .tooltip(|_, cx| Tooltip::for_action("Settings", &OpenSettings, cx)),
-                ),
-        )
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.select_project(index, window, cx);
+                    })),
+            );
+        }
+        sidebar = sidebar
+            .child(div().px_1().child(unlocked.bar.clone()))
+            .child(div().px_2().pt_1().child(unlocked.search.clone()))
+            .child(ferrum_ui::sidebar_label("Projects", cx))
+            .child(list)
+            .child(
+                ferrum_ui::sidebar_item("import-bundle", false, cx)
+                    .child(Icon::new(IconName::Download).size(IconSize::Small))
+                    .child("Import bundle…")
+                    .on_click(
+                        cx.listener(|this, _, window, cx| this.open_import_bundle(window, cx)),
+                    ),
+            )
+            .child(
+                ferrum_ui::sidebar_item("settings", false, cx)
+                    .child(Icon::new(IconName::Settings).size(IconSize::Small))
+                    .child("Settings")
+                    .tooltip(|_, cx| Tooltip::for_action("Settings", &OpenSettings, cx))
+                    .on_click(cx.listener(|this, _, window, cx| this.open_settings(window, cx))),
+            );
+        sidebar.child(self.render_status(cx))
     }
 
+    /// Vault summary and auto-lock, quietly at the foot of the sidebar.
     fn render_status(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
         let (summary, lock_label) = self.vault().map_or_else(Default::default, |u| {
             let variables: usize = u
                 .vault
@@ -310,20 +351,29 @@ impl EnvApp {
                 u.auto_lock.label(Instant::now()),
             )
         });
-        status_bar(cx)
-            .child(Label::new(summary).size(LabelSize::Small))
+        h_flex()
+            .flex_none()
+            .mx_1p5()
+            .mt_1()
+            .mb_1p5()
+            .px_2()
+            .pt_1p5()
+            .gap_2()
+            .border_t_1()
+            .border_color(colors.border_variant)
             .child(
-                h_flex()
-                    .gap_2()
-                    .child(Label::new(lock_label).size(LabelSize::Small))
-                    .child(
-                        Button::new("lock-now", "Lock")
-                            .size(ButtonSize::Compact)
-                            .label_size(LabelSize::Small)
-                            .start_icon(Icon::new(IconName::Lock).size(IconSize::XSmall))
-                            .tooltip(|_, cx| Tooltip::for_action("Lock now", &Lock, cx))
-                            .on_click(cx.listener(|this, _, window, cx| this.lock(window, cx))),
-                    ),
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .child(muted(lock_label).size(LabelSize::XSmall))
+                    .child(muted(summary).size(LabelSize::XSmall).truncate()),
+            )
+            .child(
+                IconButton::new("lock-now", IconName::Lock)
+                    .icon_size(IconSize::Small)
+                    .icon_color(Color::Muted)
+                    .tooltip(|_, cx| Tooltip::for_action("Lock now", &Lock, cx))
+                    .on_click(cx.listener(|this, _, window, cx| this.lock(window, cx))),
             )
     }
 }

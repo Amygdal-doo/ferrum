@@ -12,6 +12,7 @@ pub fn app_info() -> AppInfo {
         .key("Filter", "cmd-f")
         .key("Switch project", "cmd-alt-o")
         .key("Settings", "cmd-,")
+        .page(crate::views::settings_page::EnginePage::default())
         .permission(
             PermissionKind::Automation,
             "Opens a shell inside a container in Terminal when FerrumTerm isn't installed.",

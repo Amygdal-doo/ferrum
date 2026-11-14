@@ -13,45 +13,41 @@ pub mod logs;
 pub mod resources;
 pub mod run_dialog;
 pub mod services;
+pub mod settings_page;
 pub mod stats;
 pub mod widgets;
 
 use crate::app::FerrumContainers;
 use crate::state::{EngineStatus, Section};
 use ferrum_ui::components::h_flex;
-use ferrum_ui::{DraggedSplitter, splitter};
-use gpui::{AnyElement, Axis, Context, DragMoveEvent, Window, div, prelude::*, px};
+use ferrum_ui::{DraggedSplitter, gap_splitter};
+use gpui::{
+    AnyElement, App, Axis, Context, DragMoveEvent, MouseButton, Window, div, prelude::*, px,
+};
 
-/// Everything between toolbar and status bar.
+/// Everything between the title row and the status line: the section in a
+/// pane card (and the container detail in a second one).
 pub fn body(
     app: &mut FerrumContainers,
     window: &mut Window,
     cx: &mut Context<FerrumContainers>,
 ) -> AnyElement {
-    let main = match &app.status {
-        EngineStatus::Connecting => chrome::connecting(),
+    match &app.status {
+        EngineStatus::Connecting => card(true, chrome::connecting(), cx),
         EngineStatus::Offline(error) => {
             let error = error.clone();
-            chrome::offline(&error, cx)
+            let offline = chrome::offline(&error, cx);
+            card(true, offline, cx)
         }
         EngineStatus::Connected(_) => section(app, window, cx),
-    };
-    let connected = matches!(app.status, EngineStatus::Connected(_));
-    h_flex()
-        .id("ferrumdock-body")
-        .flex_1()
-        .min_h_0()
-        .items_stretch()
-        .when(connected, |d| d.child(chrome::sidebar(app, cx)))
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .h_full()
-                .flex()
-                .flex_col()
-                .child(main),
-        )
+    }
+}
+
+/// `content` in a pane card filling the space it is given.
+fn card(active: bool, content: AnyElement, cx: &App) -> AnyElement {
+    ferrum_ui::pane_card(active, cx)
+        .size_full()
+        .child(content)
         .into_any_element()
 }
 
@@ -64,9 +60,10 @@ fn section(
         Section::Containers => {
             let list = containers::render(app, cx);
             if app.state.detail.is_none() {
-                return list;
+                return card(true, list, cx);
             }
             let panel = detail::render(app, window, cx);
+            let detail_active = app.detail_active;
             h_flex()
                 .id("containers-split")
                 .size_full()
@@ -80,19 +77,39 @@ fn section(
                         }
                     }),
                 )
-                .child(div().flex_1().min_w(px(320.)).h_full().child(list))
-                .child(splitter("detail", Axis::Horizontal, cx))
                 .child(
                     div()
+                        .id("list-card")
+                        .flex_1()
+                        .min_w(px(320.))
+                        .h_full()
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|app, _, _, cx| {
+                                app.set_detail_active(false, cx);
+                            }),
+                        )
+                        .child(card(!detail_active, list, cx)),
+                )
+                .child(gap_splitter("detail", Axis::Horizontal, cx))
+                .child(
+                    div()
+                        .id("detail-card")
                         .flex_none()
                         .w(px(app.detail_width))
                         .h_full()
-                        .child(panel),
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|app, _, _, cx| {
+                                app.set_detail_active(true, cx);
+                            }),
+                        )
+                        .child(card(detail_active, panel, cx)),
                 )
                 .into_any_element()
         }
-        Section::Images => images::render(app, cx),
-        Section::Volumes => resources::volumes(app, cx),
-        Section::Networks => resources::networks(app, cx),
+        Section::Images => card(true, images::render(app, cx), cx),
+        Section::Volumes => card(true, resources::volumes(app, cx), cx),
+        Section::Networks => card(true, resources::networks(app, cx), cx),
     }
 }

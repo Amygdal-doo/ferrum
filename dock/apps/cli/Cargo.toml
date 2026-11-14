@@ -1,0 +1,17 @@
+[package]
+name = "ferrumdock-cli"
+description = "fec: FerrumContainers from the terminal. Starts and stops the VM, runs compose and passes everything else to docker."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "ferrumdock-cli"
+path = "src/main.rs"
+
+[dependencies]
+ferrumdock-engine.workspace = true

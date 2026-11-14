@@ -136,8 +136,10 @@ impl FerrumContainers {
                         app.state.stats = stats;
                         app.state.record_stats(app.started.elapsed().as_secs_f64());
                     }
+                    let any_running = list.iter().any(|c| c.state.is_up());
                     app.state.containers = list;
                     app.state.loaded.insert(Section::Containers);
+                    app.track_idle(any_running, cx);
                     app.sync_detail(cx);
                 }
                 Err(EngineError::Api { message, .. }) => app.notify(message, true, cx),

@@ -35,10 +35,12 @@ pub fn middle_column(
         Page::PullRequests => pull_list::pull_list(app, id, cx),
         _ => empty("Loading…"),
     };
+    // In the window the card behind supplies the background.
+    let flat = app.options.compact;
     v_flex()
         .size_full()
         .min_w_0()
-        .bg(cx.theme().colors().editor_background)
+        .when(flat, |d| d.bg(cx.theme().colors().editor_background))
         .child(body)
         .into_any_element()
 }
@@ -70,11 +72,12 @@ pub fn right_column(app: &mut GitView, _: &mut Window, cx: &mut Context<GitView>
             None => empty("Loading…"),
         },
     };
+    let flat = app.options.compact;
     v_flex()
         .flex_1()
         .h_full()
         .min_w_0()
-        .bg(cx.theme().colors().editor_background)
+        .when(flat, |d| d.bg(cx.theme().colors().editor_background))
         .child(body)
         .into_any_element()
 }

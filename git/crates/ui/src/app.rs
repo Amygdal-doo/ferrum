@@ -64,6 +64,10 @@ pub struct GitView {
     pub(crate) drawer_open: bool,
     /// Compact layout: list width (side by side) or height (stacked); not saved.
     pub(crate) compact_split: Option<f32>,
+    /// The window's sidebar is shown (◧ in the title row).
+    pub(crate) sidebar_open: bool,
+    /// The card used last (lighter): 0 the list, 1 the details.
+    pub(crate) active_pane: u8,
     /// Width the view was last laid out at (measured during paint).
     pub(crate) width: Rc<Cell<Option<Pixels>>>,
     focus_handle: FocusHandle,
@@ -230,6 +234,8 @@ impl GitView {
             resizing: false,
             drawer_open: false,
             compact_split: None,
+            sidebar_open: true,
+            active_pane: 0,
             width: Rc::default(),
             focus_handle: cx.focus_handle(),
             _poll: Self::start_polling(cx),
@@ -341,6 +347,12 @@ impl GitView {
         }
     }
 
+    /// The window layout shows the sidebar column (a repository is open
+    /// and ◧ is on).
+    pub(crate) fn sidebar_shown(&self) -> bool {
+        !self.options.compact && self.sidebar_open && self.state.active.is_some()
+    }
+
     pub(crate) fn on_resize(
         &mut self,
         event: &DragMoveEvent<DraggedSplitter>,
@@ -349,8 +361,10 @@ impl GitView {
     ) {
         let x = f64::from(f32::from(event.event.position.x - event.bounds.left()));
         let y = f32::from(event.event.position.y - event.bounds.top());
+        let gap = f64::from(f32::from(ferrum_ui::PANE_GAP));
         let sidebar = match (self.options.compact, self.drawer_open) {
-            (false, _) => self.state.sidebar_width() + 4.0,
+            (false, _) if self.sidebar_shown() => self.state.sidebar_width() + gap,
+            (false, _) => gap,
             (true, true) => f64::from(layout::drawer_width(self.width.get())),
             (true, false) => 0.0,
         };
@@ -427,12 +441,16 @@ impl Render for GitView {
                 cx,
             )
         });
-        let toolbar = if self.options.compact {
+        let compact = self.options.compact;
+        let toolbar = if compact {
             compact::render(self, window, cx)
         } else {
             toolbar::render(self, window, cx)
         };
         let body = layout::render_body(self, window, cx);
+        let sidebar = self
+            .sidebar_shown()
+            .then(|| layout::sidebar_column(self, window, cx));
         let dialog = dialogs::render(self, window, cx);
         let context_menu = menu::render(self, cx);
         let measure = self.measure(cx);
@@ -456,15 +474,19 @@ impl Render for GitView {
             .size_full()
             .min_w(px(0.))
             .overflow_hidden()
-            .bg(colors.background)
+            .when(compact, |d| d.bg(colors.background))
             .text_color(colors.text)
             .text_sm()
             .child(measure)
-            .when(self.options.show_project_bar, |d| {
-                d.child(self.project_bar.clone())
+            .map(|d| {
+                if compact {
+                    d.child(toolbar).child(body)
+                } else {
+                    // Window: sidebar on the backdrop, then the toolbar row
+                    // over the list and detail cards.
+                    d.child(layout::window_row(sidebar, toolbar, body, cx))
+                }
             })
-            .child(toolbar)
-            .child(body)
             .children(dialog)
             .children(context_menu)
             .children(notice)

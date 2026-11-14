@@ -74,6 +74,7 @@ fn main() {
         CliAction::Run(targets) => targets,
     };
     let config = AppConfig::new("Ferrum Editor")
+        .unified_titlebar()
         .size(1280., 820.)
         .min_size(640., 400.)
         .app(app_info::app_info());

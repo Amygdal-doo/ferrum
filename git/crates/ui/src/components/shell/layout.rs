@@ -42,7 +42,14 @@ pub fn render_body(
             .into_any_element();
     }
     if app.state.active.is_none() {
-        return home::render(app, window, cx);
+        if app.options.compact {
+            return home::render(app, window, cx);
+        }
+        return ferrum_ui::pane_card(true, cx)
+            .flex_1()
+            .h_full()
+            .child(home::render(app, window, cx))
+            .into_any_element();
     }
     if app.options.compact {
         compact_body(app, window, cx)
@@ -51,29 +58,92 @@ pub fn render_body(
     }
 }
 
+/// The list and detail cards; the one used last is lighter.
 fn columns(app: &mut GitView, window: &mut Window, cx: &mut Context<GitView>) -> AnyElement {
-    let sidebar_width = px(app.state.sidebar_width() as f32);
     let list_width = px(app.state.detail_width() as f32);
-    resizable_row(cx)
+    let active = app.active_pane;
+    h_flex()
+        .flex_1()
+        .min_h_0()
+        .min_w_0()
+        .items_stretch()
         .child(
-            div()
-                .flex_none()
-                .w(sidebar_width)
-                .h_full()
-                .overflow_hidden()
-                .child(sidebar::render(app, window, cx)),
-        )
-        .child(splitter("sidebar", Axis::Horizontal, cx))
-        .child(
-            div()
+            ferrum_ui::pane_card(active == 0, cx)
                 .flex_none()
                 .w(list_width)
                 .h_full()
-                .overflow_hidden()
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(|app, _, _, _| app.active_pane = 0),
+                )
                 .child(middle_column(app, window, cx)),
         )
-        .child(splitter("detail", Axis::Horizontal, cx))
-        .child(right_column(app, window, cx))
+        .child(ferrum_ui::gap_splitter("detail", Axis::Horizontal, cx))
+        .child(
+            ferrum_ui::pane_card(active == 1, cx)
+                .flex_1()
+                .h_full()
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(|app, _, _, _| app.active_pane = 1),
+                )
+                .child(right_column(app, window, cx)),
+        )
+        .into_any_element()
+}
+
+/// The window's sidebar: title row (traffic lights, ◧ ⌘ +), the project,
+/// then workspace pages, branches and remotes. On the backdrop, no card.
+pub fn sidebar_column(
+    app: &mut GitView,
+    window: &mut Window,
+    cx: &mut Context<GitView>,
+) -> AnyElement {
+    let width = px(app.state.sidebar_width() as f32);
+    let show_project = app.options.show_project_bar;
+    v_flex()
+        .flex_none()
+        .w(width)
+        .h_full()
+        .overflow_hidden()
+        .child(
+            ferrum_ui::title_row("sidebar-title", true, window)
+                .child(div().flex_1())
+                .child(super::toolbar::title_controls(app, cx)),
+        )
+        .when(show_project, |col| {
+            col.child(div().px_1().child(app.project_bar.clone()))
+        })
+        .child(sidebar::render(app, window, cx))
+        .into_any_element()
+}
+
+/// The window layout: sidebar, gap, then the toolbar row over the cards.
+pub fn window_row(
+    sidebar: Option<AnyElement>,
+    toolbar: AnyElement,
+    body: AnyElement,
+    cx: &mut Context<GitView>,
+) -> AnyElement {
+    let has_sidebar = sidebar.is_some();
+    resizable_row(cx)
+        .size_full()
+        .when_some(sidebar, |row, sidebar| {
+            row.child(sidebar)
+                .child(ferrum_ui::gap_splitter("sidebar", Axis::Horizontal, cx))
+        })
+        .child(
+            v_flex().flex_1().min_w_0().h_full().child(toolbar).child(
+                div()
+                    .flex()
+                    .flex_1()
+                    .min_h_0()
+                    .pb(ferrum_ui::PANE_GAP)
+                    .pr(ferrum_ui::PANE_GAP)
+                    .when(!has_sidebar, |d| d.pl(ferrum_ui::PANE_GAP))
+                    .child(body),
+            ),
+        )
         .into_any_element()
 }
 

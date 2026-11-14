@@ -34,7 +34,7 @@ pub struct ProjectState {
 
 impl ProjectState {
     pub fn new(window: &mut Window, cx: &mut Context<TermView>) -> Self {
-        let bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx));
+        let bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx).inline(true));
         let events = cx.subscribe(&bar, |view: &mut TermView, _, event, cx| match event {
             ProjectBarEvent::Open(path) => {
                 view.app.open_folder(path);

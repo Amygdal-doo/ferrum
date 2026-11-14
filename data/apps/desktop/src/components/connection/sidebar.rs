@@ -6,7 +6,6 @@ use ferrumdata_domain::ConnectionProfile;
 
 impl FerrumData {
     pub fn render_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let colors = cx.theme().colors().clone();
         let needle = self.filter.read(cx).text().to_lowercase();
         let schemas = &self.state.schemas;
         let key_browsers = &self.state.key_browsers;
@@ -39,23 +38,13 @@ impl FerrumData {
 
         v_flex()
             .size_full()
-            .bg(colors.panel_background)
             .child(
-                h_flex()
-                    .h(px(40.))
-                    .flex_none()
-                    .justify_between()
-                    .pl_0()
-                    .pr_2()
-                    .child(section_header("Connections"))
-                    .child(
-                        IconButton::new("new-connection", IconName::Plus)
-                            .tooltip(Tooltip::text("New connection"))
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.open_dialog(Dialog::ConnectionForm(None), window, cx)
-                            })),
-                    ),
+                ferrum_ui::title_row("sidebar-title", true, window)
+                    .child(div().flex_1())
+                    .child(self.render_title_controls(cx)),
             )
+            .child(div().px_1().child(self.project_bar.clone()))
+            .child(ferrum_ui::sidebar_label("Connections", cx))
             .when(!empty, |this| {
                 this.child(div().px_3().pb_2().child(self.filter.clone()))
             })
@@ -141,8 +130,12 @@ impl FerrumData {
             .rounded_md()
             .px_2()
             .py_1p5()
-            .when(active, |this| this.bg(colors.element_selected))
-            .when(!active, |this| this.hover(|s| s.bg(colors.element_hover)))
+            .rounded(px(8.))
+            .when(active, |this| this.bg(ferrum_ui::active_fill(cx)))
+            .when(!active, |this| {
+                let hover = ferrum_ui::hover_fill(cx);
+                this.hover(move |s| s.bg(hover))
+            })
             .child(
                 h_flex()
                     .id(SharedString::from(format!("profile-row-{id}")))

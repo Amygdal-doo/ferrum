@@ -121,7 +121,6 @@ pub fn render(
     };
     v_flex()
         .size_full()
-        .bg(colors.panel_background)
         .child(header)
         .child(tabs)
         .child(content)

@@ -38,7 +38,6 @@ impl FerrumApi {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let colors = cx.theme().colors().clone();
         let tab_id = self.state.active_tab;
         if let Some(tab) = self.state.active_tab()
             && tab.request.kind == ferrumapi_domain::RequestKind::WebSocket
@@ -46,7 +45,6 @@ impl FerrumApi {
             let id = tab.id;
             return v_flex()
                 .size_full()
-                .bg(colors.editor_background)
                 .child(self.render_ws_log(id, window, cx))
                 .into_any_element();
         }
@@ -102,11 +100,7 @@ impl FerrumApi {
                 self.render_response_view(id, *resp, window, cx)
             }
         };
-        v_flex()
-            .size_full()
-            .bg(colors.editor_background)
-            .child(content)
-            .into_any_element()
+        v_flex().size_full().child(content).into_any_element()
     }
 
     fn render_response_view(

@@ -1,11 +1,13 @@
 //! The icon and colour of a tab's chip (chosen from the chip's menu, kept
 //! per window in `gui-state`). Only the chip is coloured, not the tab.
 
+use crate::sidebar::agents::program_name;
 use ferrum_ui::components::IconName;
 use ferrum_ui::gpui::{self, Hsla};
+use ferrumterm_protocol::WindowInfo;
 
 /// Icons offered for a tab: (key, label, icon).
-pub const ICONS: [(&str, &str, IconName); 10] = [
+pub const ICONS: [(&str, &str, IconName); 20] = [
     ("terminal", "Terminal", IconName::Terminal),
     ("code", "Code", IconName::Code),
     ("server", "Server", IconName::Server),
@@ -16,10 +18,20 @@ pub const ICONS: [(&str, &str, IconName); 10] = [
     ("build", "Build", IconName::Hammer),
     ("debug", "Debug", IconName::Debug),
     ("web", "Web", IconName::Public),
+    ("rocket", "Deploy", IconName::Rocket),
+    ("test", "Tests", IconName::Flask),
+    ("cpu", "System", IconName::Cpu),
+    ("zap", "Fast", IconName::Zap),
+    ("star", "Star", IconName::Star),
+    ("flame", "Hot", IconName::Flame),
+    ("cloud", "Cloud", IconName::Cloud),
+    ("monitor", "Monitor", IconName::Monitor),
+    ("heart", "Favourite", IconName::Heart),
+    ("logs", "Logs", IconName::File),
 ];
 
 /// Colours offered for a tab: (key, label, `0xRRGGBB`).
-pub const COLORS: [(&str, &str, u32); 8] = [
+pub const COLORS: [(&str, &str, u32); 9] = [
     ("gray", "Gray", 0x8b8b90),
     ("blue", "Blue", 0x4c8bf5),
     ("green", "Green", 0x3dd68c),
@@ -28,6 +40,7 @@ pub const COLORS: [(&str, &str, u32); 8] = [
     ("red", "Red", 0xf2555a),
     ("purple", "Purple", 0xa970ff),
     ("teal", "Teal", 0x3fb8a0),
+    ("pink", "Pink", 0xf06ba8),
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,6 +61,37 @@ impl Default for TabStyle {
 }
 
 impl TabStyle {
+    /// The logo of the agent a tab runs (Claude, Codex, Gemini, OpenCode).
+    #[must_use]
+    pub fn agent_logo(window: &WindowInfo) -> Option<ferrum_ui::AgentLogo> {
+        let block = window
+            .blocks
+            .iter()
+            .find(|b| b.id == window.focused)
+            .or(window.blocks.first())?;
+        program_name(&block.command).and_then(ferrum_ui::AgentLogo::for_program)
+    }
+
+    /// The default for a tab nobody styled: an agent gets ✳ in orange, an
+    /// SSH session a server in blue, a shell `>_` in gray.
+    #[must_use]
+    pub fn auto(window: &WindowInfo) -> Self {
+        let block = window
+            .blocks
+            .iter()
+            .find(|b| b.id == window.focused)
+            .or(window.blocks.first());
+        let (icon, color) = match block {
+            Some(b) if crate::sidebar::agents::runs_agent(b) => ("agent", "orange"),
+            Some(b) if program_name(&b.command) == Some("ssh") => ("server", "blue"),
+            _ => ("terminal", "gray"),
+        };
+        Self {
+            icon: icon.into(),
+            color: color.into(),
+        }
+    }
+
     /// From saved keys; unknown keys fall back to the defaults.
     #[must_use]
     pub fn parse(icon: Option<&str>, color: Option<&str>) -> Option<Self> {

@@ -24,6 +24,9 @@ pub struct AppConfig {
     /// Onboarding, Settings pages and notifications; a bare one named after
     /// the title when not given.
     pub app: Option<AppInfo>,
+    /// Hide the native title bar: the traffic lights float over the app,
+    /// which draws its own title row (see [`crate::window_chrome`]).
+    pub unified_titlebar: bool,
 }
 
 impl AppConfig {
@@ -33,12 +36,19 @@ impl AppConfig {
             size: size(px(1360.), px(860.)),
             min_size: size(px(900.), px(560.)),
             app: None,
+            unified_titlebar: false,
         }
     }
 
     /// Describes the app for onboarding and Settings.
     pub fn app(mut self, info: AppInfo) -> Self {
         self.app = Some(info);
+        self
+    }
+
+    /// The app draws its own title row (see [`crate::window_chrome`]).
+    pub fn unified_titlebar(mut self) -> Self {
+        self.unified_titlebar = true;
         self
     }
 
@@ -76,7 +86,10 @@ pub fn run<V: Render + 'static>(
                 window_min_size: Some(config.min_size),
                 titlebar: Some(TitlebarOptions {
                     title: Some(config.title.into()),
-                    ..Default::default()
+                    appears_transparent: config.unified_titlebar,
+                    traffic_light_position: config
+                        .unified_titlebar
+                        .then(crate::window_chrome::traffic_light_position),
                 }),
                 app_id: Some(config.title.to_lowercase()),
                 ..Default::default()

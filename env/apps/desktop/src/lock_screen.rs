@@ -113,19 +113,18 @@ impl EnvApp {
         .detach();
     }
 
-    pub(crate) fn render_lock_screen(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let colors = cx.theme().colors().clone();
+    pub(crate) fn render_lock_screen(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let setup = matches!(self.screen, Screen::Setup);
         let busy = self.form.busy;
         let strength = password::strength(self.form.password.read(cx).text());
-        let mut card = v_flex()
+        let mut card = ferrum_ui::pane_card(true, cx)
             .w(px(400.))
             .gap_3()
             .p_6()
-            .rounded_lg()
-            .border_1()
-            .border_color(colors.border)
-            .bg(colors.elevated_surface_background)
             .child(
                 h_flex()
                     .gap_2()
@@ -145,10 +144,12 @@ impl EnvApp {
                         .bg(cx.theme().status().warning_background)
                         .child(Icon::new(IconName::Warning).color(Color::Warning))
                         .child(
-                            Label::new(
-                                "There is no way to recover it. If you forget this password, the vault cannot be opened.",
-                            )
-                            .size(LabelSize::Small),
+                            div().flex_1().min_w_0().child(
+                                Label::new(
+                                    "There is no way to recover it. If you forget this password, the vault cannot be opened.",
+                                )
+                                .size(LabelSize::Small),
+                            ),
                         ),
                 )
                 .child(field("Master password", self.form.password.clone()))
@@ -179,11 +180,19 @@ impl EnvApp {
                     .disabled(busy)
                     .on_click(cx.listener(|this, _, window, cx| this.submit_lock_form(window, cx))),
             );
+        // A bare title row (traffic lights, window drag) over the centred card.
         v_flex()
             .size_full()
-            .items_center()
-            .justify_center()
-            .child(card)
+            .child(ferrum_ui::title_row("lock-title", true, window))
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_h_0()
+                    .items_center()
+                    .justify_center()
+                    .pb(ferrum_ui::window_chrome::TITLE_ROW_HEIGHT)
+                    .child(card),
+            )
             .into_any_element()
     }
 }

@@ -126,6 +126,16 @@ icon_names! {
     Warning => "triangle-alert",
     WholeWord => "whole-word",
     XCircle => "circle-x",
+    Cloud => "cloud",
+    Command => "command",
+    Cpu => "cpu",
+    Flame => "flame",
+    Flask => "flask-conical",
+    Heart => "heart",
+    Monitor => "monitor",
+    Rocket => "rocket",
+    Star => "star",
+    Zap => "zap",
 }
 
 fn snake_case(name: &str) -> String {

@@ -53,7 +53,7 @@ async fn send_with(releases: Releases, req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 35] = [
+const PAGES: [&str; 36] = [
     "/",
     "/apps",
     "/features",
@@ -86,6 +86,7 @@ const PAGES: [&str; 35] = [
     "/updates/onboarding-and-settings",
     "/updates/glass-gradients-and-pane-cards",
     "/updates/ferrumterm-0-7-menu-and-worktrees",
+    "/updates/calmer-windows-agent-logos-and-fec",
     "/about",
     "/licenses",
     "/privacy",

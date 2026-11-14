@@ -1,4 +1,4 @@
-//! The shared Ferrum project bar above the header.
+//! The shared Ferrum project bar, inline under the sidebar's title row.
 //!
 //! A FerrumAPI project is a folder (usually a git repository), shared with
 //! the other Ferrum apps through the bar's recent-projects switcher.
@@ -21,7 +21,7 @@ pub fn new_bar(
     window: &mut Window,
     cx: &mut Context<FerrumApi>,
 ) -> (Entity<ProjectBar>, Subscription) {
-    let bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx));
+    let bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx).inline(true));
     let subscription = cx.subscribe(&bar, |app: &mut FerrumApi, _, event, cx| match event {
         ProjectBarEvent::Open(path) => app.open_project(Some(path.clone()), cx),
     });

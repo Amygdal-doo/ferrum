@@ -81,6 +81,7 @@ impl FerrumContainers {
         let mut detail = DetailState::for_project(project, ids);
         detail.tab = tab;
         self.state.detail = Some(detail);
+        self.detail_active = true;
         self.inputs
             .log_search
             .update(cx, |input, cx| input.set_text("", cx));

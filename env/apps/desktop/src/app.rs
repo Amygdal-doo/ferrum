@@ -14,7 +14,7 @@ use crate::lock_screen::LockForm;
 use crate::secrets::{CLIPBOARD_CLEAR_AFTER, ClipboardGuard};
 use crate::unlocked::Unlocked;
 
-actions!(ferrum_env, [Lock, NewVariable, OpenSettings]);
+actions!(ferrum_env, [Lock, NewVariable, OpenSettings, ToggleSidebar]);
 
 /// How often the auto-lock deadline is checked (and the status bar's
 /// "Locks in …" refreshed).
@@ -28,6 +28,8 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("ctrl-n", NewVariable, None),
         KeyBinding::new("cmd-,", OpenSettings, None),
         KeyBinding::new("ctrl-,", OpenSettings, None),
+        KeyBinding::new("cmd-b", ToggleSidebar, None),
+        KeyBinding::new("ctrl-b", ToggleSidebar, None),
     ]);
 }
 
@@ -68,6 +70,8 @@ pub struct EnvApp {
     notice_task: Option<Task<()>>,
     pub(crate) clipboard: ClipboardGuard,
     pub(crate) focus_handle: FocusHandle,
+    /// The project sidebar of the unlocked vault is shown (⌘B).
+    pub(crate) sidebar_open: bool,
     _ticker: Task<()>,
 }
 
@@ -98,6 +102,7 @@ impl EnvApp {
             notice_task: None,
             clipboard: ClipboardGuard::default(),
             focus_handle: cx.focus_handle(),
+            sidebar_open: true,
             _ticker: ticker,
         };
         this.form.focus(window, cx);
@@ -263,14 +268,13 @@ impl Render for EnvApp {
         let colors = cx.theme().colors().clone();
         let body = match &self.screen {
             Screen::Unlocked(_) => self.render_vault(window, cx),
-            Screen::Setup | Screen::Locked => self.render_lock_screen(cx),
+            Screen::Setup | Screen::Locked => self.render_lock_screen(window, cx),
         };
         v_flex()
             .id("ferrum-env")
             .key_context("FerrumEnv")
             .relative()
             .size_full()
-            .bg(colors.background)
             .text_color(colors.text)
             .track_focus(&self.focus_handle)
             .capture_key_down(cx.listener(|this, _, _, _| this.touch()))
@@ -282,6 +286,10 @@ impl Render for EnvApp {
             .on_action(cx.listener(Self::on_cancel))
             .on_action(cx.listener(|this, _: &NewVariable, window, cx| {
                 this.open_variable_dialog(None, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| {
+                this.sidebar_open = !this.sidebar_open;
+                cx.notify();
             }))
             .on_action(cx.listener(|this, _: &OpenSettings, window, cx| {
                 this.open_settings(window, cx);

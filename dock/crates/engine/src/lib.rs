@@ -25,6 +25,7 @@ pub mod pull;
 mod rawhttp;
 pub mod shell;
 pub mod stats;
+pub mod vm;
 
 pub use cli::DockerCli;
 pub use docker::DockerEngine;

@@ -1,4 +1,4 @@
-//! The shared Ferrum project bar above the header: the active tab's
+//! The shared Ferrum project bar, inline under the sidebar's title row: the active tab's
 //! connection (`PostgreSQL · app_db @ localhost:5432`), never credentials.
 //!
 //! Connections are not folders, so the switcher is off. A SQLite file
@@ -16,7 +16,11 @@ use std::path::{Path, PathBuf};
 const APP_BINARY: &str = "ferrumdata";
 
 pub fn new_bar(window: &mut Window, cx: &mut Context<FerrumData>) -> Entity<ProjectBar> {
-    cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx).switchable(false))
+    cx.new(|cx| {
+        ProjectBar::new(APP_BINARY, window, cx)
+            .switchable(false)
+            .inline(true)
+    })
 }
 
 /// What the bar shows for a connection.

@@ -1,10 +1,10 @@
-//! Root view and window layout: project bar / toolbar / sidebar | section
-//! (+ detail) / status bar.
+//! Root view and window layout: sidebar (title row, project, sections) |
+//! title row / section card (+ detail card) / status line.
 
 use crate::services::Services;
 use crate::state::{AppState, EngineStatus};
 use crate::views;
-use ferrum_ui::components::v_flex;
+use ferrum_ui::components::{h_flex, v_flex};
 use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{ProjectBar, ProjectBarEvent, TextInput, TextInputEvent, ToggleProjectSwitcher};
 use ferrumdock_engine::DockerCli;
@@ -13,7 +13,7 @@ use gpui::{
     Window, actions, prelude::*,
 };
 
-actions!(ferrumdock, [Refresh, FocusFilter]);
+actions!(ferrumdock, [Refresh, FocusFilter, ToggleSidebar]);
 
 /// The executable name recorded in `~/.ferrum/projects.json`.
 pub const APP_BINARY: &str = "ferrumdock";
@@ -27,6 +27,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("ctrl-r", Refresh, context),
         KeyBinding::new("cmd-f", FocusFilter, context),
         KeyBinding::new("ctrl-f", FocusFilter, context),
+        KeyBinding::new("cmd-b", ToggleSidebar, context),
     ]);
 }
 
@@ -85,10 +86,17 @@ pub struct FerrumContainers {
     pub project_bar: Entity<ProjectBar>,
     pub log_scroll: UniformListScrollHandle,
     pub detail_width: f32,
+    pub sidebar_open: bool,
+    /// The detail card was used last (it is drawn a little lighter).
+    pub detail_active: bool,
     /// Clock for stats history timestamps.
     pub started: std::time::Instant,
     pub(crate) connecting: bool,
     pub(crate) polling: bool,
+    /// Since when no container has run (for the VM's auto-stop).
+    pub(crate) idle_since: Option<std::time::Instant>,
+    /// The VM is being started or stopped.
+    pub(crate) vm_busy: bool,
     pub(crate) log_task: Option<(Task<()>, tokio::task::AbortHandle)>,
     pub(crate) notice_task: Option<Task<()>>,
     focus_handle: FocusHandle,
@@ -124,7 +132,7 @@ impl FerrumContainers {
                 .monospace()
         });
         let run = RunInputs::new(window, cx);
-        let project_bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx));
+        let project_bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx).inline(true));
         let subscriptions = vec![
             cx.subscribe(&filter, |app: &mut Self, input, event, cx| {
                 if *event == TextInputEvent::Changed {
@@ -172,8 +180,12 @@ impl FerrumContainers {
             project_bar,
             log_scroll: UniformListScrollHandle::new(),
             detail_width: 560.,
+            sidebar_open: true,
+            detail_active: false,
             started: std::time::Instant::now(),
             connecting: false,
+            idle_since: None,
+            vm_busy: false,
             polling: false,
             log_task: None,
             notice_task: None,
@@ -184,6 +196,23 @@ impl FerrumContainers {
         window.focus(&app.focus_handle, cx);
         app.connect(false, cx);
         app
+    }
+
+    pub fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
+        self.sidebar_open = !self.sidebar_open;
+        cx.notify();
+    }
+
+    pub fn set_detail_active(&mut self, active: bool, cx: &mut Context<Self>) {
+        if self.detail_active != active {
+            self.detail_active = active;
+            cx.notify();
+        }
+    }
+
+    /// The sidebar is drawn (open, and an engine is connected).
+    pub fn sidebar_shown(&self) -> bool {
+        self.sidebar_open && matches!(self.status, EngineStatus::Connected(_))
     }
 
     fn on_refresh(&mut self, _: &Refresh, _: &mut Window, cx: &mut Context<Self>) {
@@ -216,33 +245,49 @@ impl FerrumContainers {
 
 impl Render for FerrumContainers {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors();
-        let (background, text) = (colors.background, colors.text);
-        let toolbar = views::chrome::toolbar(self, cx);
+        let text = cx.theme().colors().text;
+        let title = views::chrome::title_bar(self, window, cx);
         let body = views::body(self, window, cx);
         let status = views::chrome::status_bar(self, cx);
         let dialog = views::dialogs::render(self, window, cx);
         let notice = views::chrome::notice(self, cx);
-        v_flex()
+        let sidebar = self
+            .sidebar_shown()
+            .then(|| views::chrome::sidebar(self, window, cx));
+        let main = v_flex()
+            .flex_1()
+            .min_w_0()
+            .h_full()
+            .child(title)
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_h_0()
+                    .pr(ferrum_ui::PANE_GAP)
+                    .when(sidebar.is_none(), |d| d.pl(ferrum_ui::PANE_GAP))
+                    .child(body),
+            )
+            .child(status);
+        // Backdrop (drawn by the root) shows through: no background here.
+        h_flex()
             .id("ferrumdock")
             .key_context(KEY_CONTEXT)
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::on_refresh))
             .on_action(cx.listener(Self::on_focus_filter))
             .on_action(cx.listener(Self::on_cancel))
+            .on_action(cx.listener(|app, _: &ToggleSidebar, _, cx| app.toggle_sidebar(cx)))
             .on_action(cx.listener(|app, _: &ToggleProjectSwitcher, window, cx| {
                 app.project_bar
                     .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
             }))
             .relative()
             .size_full()
-            .bg(background)
+            .items_stretch()
             .text_color(text)
             .text_sm()
-            .child(self.project_bar.clone())
-            .child(toolbar)
-            .child(body)
-            .child(status)
+            .children(sidebar)
+            .child(main)
             .children(dialog)
             .children(notice)
     }

@@ -39,7 +39,11 @@ pub const COMMANDS: [(&str, Product, &str); 11] = [
         "Opens FerrumTerm with a session in the current folder (or the folder given)",
     ),
     ("fek", products::FERRUMKIT, "Opens FerrumKit"),
-    ("fec", products::FERRUMCONTAINERS, "Opens FerrumContainers"),
+    (
+        "fec",
+        products::FERRUMCONTAINERS,
+        "Opens FerrumContainers; fec start, stop, up, down and any docker command",
+    ),
     ("fep", products::FERRUMPORTS, "Opens FerrumPorts"),
     ("fev", products::FERRUMENV, "Opens FerrumEnv"),
     ("fel", products::FERRUM_LAUNCHER, "Opens Ferrum Launcher"),

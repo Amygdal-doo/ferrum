@@ -23,6 +23,8 @@ pub struct Row {
     /// The pane on screen right now.
     pub active: bool,
     pub attention: bool,
+    /// The coding agent it runs, if it has a logo.
+    pub logo: Option<ferrum_ui::AgentLogo>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -104,6 +106,8 @@ impl Model {
                         nested: i > 0,
                         active: shown && w.focused == b.id,
                         attention: seen.needs_attention(b),
+                        logo: super::agents::program_name(&b.command)
+                            .and_then(ferrum_ui::AgentLogo::for_program),
                     };
                     if is_agent(b) {
                         model.attention += usize::from(row.attention);

@@ -3,6 +3,7 @@
 //! set and bundled icons/fonts, so every tool looks and behaves alike.
 //! Built directly on `gpui` (Apache-2.0).
 
+pub mod agent_logo;
 mod app;
 mod app_info;
 pub mod appearance;
@@ -28,7 +29,9 @@ mod splitter;
 pub mod surface;
 mod text_input;
 pub mod theme;
+pub mod window_chrome;
 
+pub use agent_logo::{AgentLogo, agent_logo, terminal_tile};
 pub use app::{AppConfig, Quit, init_for_tests, run};
 pub use app_info::{
     AppInfo, KeyHint, Migration, NotificationEvent, Permission, PermissionKind, app_info,
@@ -41,6 +44,10 @@ pub use settings::{OpenSettings, ShowOnboarding, open_settings};
 pub use splitter::{DraggedSplitter, splitter};
 pub use surface::{PANE_GAP, backdrop, gap_splitter, pane_frame, pane_header};
 pub use text_input::{TextInput, TextInputEvent};
+pub use window_chrome::{
+    TITLE_ROW_HEIGHT, active_fill, command_button, header_tab, hover_fill, pane_card, sidebar_item,
+    sidebar_label, sidebar_toggle, title_button, title_row,
+};
 
 pub use gpui;
 

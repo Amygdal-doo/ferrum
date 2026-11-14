@@ -1,4 +1,4 @@
-//! Toolbar, status bar, kill dialog, notices and small shared widgets.
+//! Title row, status line, kill dialog, notices and small shared widgets.
 
 use ferrum_ui::components::TintColor;
 use ferrum_ui::prelude::*;
@@ -18,7 +18,7 @@ pub fn button(
         .on_click(cx.listener(move |app, _, _, cx| on_click(app, cx)))
 }
 
-/// A two-state toolbar button.
+/// A two-state button in the title row.
 fn toggle(
     id: &'static str,
     label: &'static str,
@@ -29,6 +29,7 @@ fn toggle(
     Button::new(id, label)
         .style(ButtonStyle::Subtle)
         .size(ButtonSize::Compact)
+        .label_size(LabelSize::Small)
         .toggle_state(on)
         .on_click(cx.listener(move |app, _, _, cx| {
             on_click(app, cx);
@@ -36,43 +37,48 @@ fn toggle(
         }))
 }
 
-fn field(input: AnyElement, width: f32, cx: &App) -> Div {
+/// A small text field in the title row.
+fn field(cx: &App) -> Div {
     let colors = cx.theme().colors();
-    div()
-        .w(px(width))
+    h_flex()
+        .h(px(26.))
         .px_2()
-        .rounded_md()
-        .border_1()
-        .border_color(colors.border)
-        .bg(colors.editor_background)
-        .child(input)
+        .gap_1p5()
+        .rounded(px(7.))
+        .bg(colors.text.opacity(0.06))
+        .text_ui_sm(cx)
 }
 
-pub fn toolbar(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> AnyElement {
+/// The window's single top row: traffic lights, project, search, view
+/// toggles, then the port check, pause and refresh.
+pub fn title_bar(app: &FerrumPorts, window: &Window, cx: &mut Context<FerrumPorts>) -> AnyElement {
     let has_project = app.project(cx).is_some();
     let project_tip = if has_project {
-        "Only ports of the project in the strip above"
+        "Only ports of the current project"
     } else {
-        "Pick a project in the strip above first"
+        "Pick a project first"
     };
-    ferrum_ui::toolbar(cx)
+    ferrum_ui::title_row("title", true, window)
+        .gap_1()
+        .child(div().flex_none().w(px(260.)).child(app.project_bar.clone()))
         .child(
-            Icon::new(IconName::Server)
-                .size(IconSize::Small)
-                .color(Color::Accent),
+            field(cx)
+                .flex_1()
+                .min_w(px(140.))
+                .max_w(px(320.))
+                .child(
+                    Icon::new(IconName::MagnifyingGlass)
+                        .size(IconSize::XSmall)
+                        .color(Color::Muted),
+                )
+                .child(div().flex_1().min_w_0().child(app.search.clone())),
         )
-        .child(Label::new("FerrumPorts").weight(gpui::FontWeight::SEMIBOLD))
-        .child(field(app.search.clone().into_any_element(), 280., cx))
-        .child(kbd("⌘F", cx))
-        .child(toggle(
-            "group",
-            "Group by project",
-            app.grouped,
-            cx,
-            |app, _| {
+        .child(
+            toggle("group", "Group", app.grouped, cx, |app, _| {
                 app.grouped = !app.grouped;
-            },
-        ))
+            })
+            .tooltip(Tooltip::text("Group by project")),
+        )
         .child(
             toggle(
                 "only-project",
@@ -89,17 +95,35 @@ pub fn toolbar(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> AnyElement {
                 .tooltip(Tooltip::text("Also list bound UDP sockets")),
         )
         .child(div().flex_1())
-        .child(field(app.port_input.clone().into_any_element(), 110., cx))
-        .child(button("check-port", "Check", cx, |app, cx| {
-            app.check_port(cx)
-        }))
-        .child(button(
-            "pause",
-            if app.paused { "Resume" } else { "Pause" },
-            cx,
-            |app, cx| app.toggle_pause(cx),
-        ))
-        .child(button("refresh", "Refresh", cx, |app, cx| app.refresh(cx)))
+        .child(
+            field(cx)
+                .w(px(96.))
+                .child(div().flex_1().min_w_0().child(app.port_input.clone())),
+        )
+        .child(
+            ferrum_ui::title_button("check-port", IconName::Check, "Is this port free?")
+                .on_click(cx.listener(|app, _, _, cx| app.check_port(cx))),
+        )
+        .child(
+            ferrum_ui::title_button(
+                "pause",
+                if app.paused {
+                    IconName::PlayFilled
+                } else {
+                    IconName::DebugPause
+                },
+                if app.paused {
+                    "Resume auto-refresh (⇧⌘P)"
+                } else {
+                    "Pause auto-refresh (⇧⌘P)"
+                },
+            )
+            .on_click(cx.listener(|app, _, _, cx| app.toggle_pause(cx))),
+        )
+        .child(
+            ferrum_ui::title_button("refresh", IconName::ArrowCircle, "Refresh (⌘R)")
+                .on_click(cx.listener(|app, _, _, cx| app.refresh(cx))),
+        )
         .into_any_element()
 }
 
@@ -120,7 +144,17 @@ pub fn status_bar(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> AnyElemen
         (None, _) => "Scanning…".to_string(),
     };
     let problem = app.error.clone().or_else(|| app.warnings.first().cloned());
-    ferrum_ui::status_bar(cx)
+    let colors = cx.theme().colors();
+    h_flex()
+        .flex_none()
+        .h(px(24.))
+        .px_3()
+        .gap_3()
+        .justify_between()
+        .border_t_1()
+        .border_color(colors.border_variant)
+        .text_ui_xs(cx)
+        .text_color(colors.text_muted)
         .child(div().truncate().child(left))
         .when_some(problem, |bar, problem| {
             bar.child(

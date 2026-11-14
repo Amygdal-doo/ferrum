@@ -32,13 +32,13 @@ pub fn muted(text: impl Into<SharedString>) -> Label {
 pub fn icon_button(
     id: impl Into<ElementId>,
     icon: IconName,
-    tooltip: &'static str,
+    tooltip: impl Into<SharedString>,
     cx: &mut Context<EnvApp>,
     on_click: impl Fn(&mut EnvApp, &mut Window, &mut Context<EnvApp>) + 'static,
 ) -> IconButton {
     IconButton::new(id, icon)
         .icon_size(IconSize::Small)
-        .tooltip(Tooltip::text(tooltip))
+        .tooltip(Tooltip::text(tooltip.into()))
         .on_click(cx.listener(move |this, _, window, cx| on_click(this, window, cx)))
 }
 

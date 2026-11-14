@@ -5,7 +5,7 @@ use crate::app::FerrumApi;
 use crate::components::{MenuHandler, menu_item, request_badge};
 use crate::state::Dialog;
 use ferrum_ui::components::{
-    ActiveTheme as _, Color, Icon, IconName, IconSize, Label, LabelCommon as _, LabelSize, Tooltip,
+    Color, Icon, IconName, IconSize, Label, LabelCommon as _, LabelSize, Tooltip,
     VisibleOnHover as _, h_flex,
 };
 use ferrumapi_domain::{
@@ -185,7 +185,6 @@ impl FerrumApi {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let colors = cx.theme().colors().clone();
         let RowSpec {
             uid,
             cid,
@@ -302,13 +301,14 @@ impl FerrumApi {
             .gap_1p5()
             .pr_1()
             .pl(px((8 + depth * 14) as f32))
-            .rounded_md()
+            .rounded(px(8.))
             .cursor_default()
             .map(|this| {
                 if active {
-                    this.bg(colors.element_selected)
+                    this.bg(ferrum_ui::active_fill(cx))
                 } else {
-                    this.hover(|s| s.bg(colors.element_hover))
+                    let hover = ferrum_ui::hover_fill(cx);
+                    this.hover(move |s| s.bg(hover))
                 }
             })
             .on_click(cx.listener(move |this, _, _, cx| {

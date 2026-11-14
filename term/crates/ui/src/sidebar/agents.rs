@@ -56,6 +56,15 @@ pub fn is_agent(b: &BlockInfo) -> bool {
         || program_name(&b.command).is_some_and(|p| KNOWN.contains(&p))
 }
 
+/// Whether `b` runs a known coding agent (or is labelled as one), not
+/// just a shell reporting its status.
+pub fn runs_agent(b: &BlockInfo) -> bool {
+    b.label
+        .as_deref()
+        .is_some_and(|l| l.to_ascii_lowercase().starts_with("agent"))
+        || program_name(&b.command).is_some_and(|p| KNOWN.contains(&p))
+}
+
 /// `base`, or `base-2`, `base-3`… if a block already has that label.
 #[must_use]
 pub fn unique_label(base: &str, sessions: &[SessionInfo]) -> String {

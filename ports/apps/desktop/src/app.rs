@@ -1,9 +1,10 @@
-//! Root view: project strip / toolbar / table | detail / status bar.
+//! Root view: title row (lights, project, search, toggles) over the
+//! table card (with its status line) and the detail card.
 
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Local};
-use ferrum_ui::gpui::KeyBinding;
+use ferrum_ui::gpui::{KeyBinding, MouseButton};
 use ferrum_ui::prelude::*;
 use ferrumports_core::{Listener, ListenerKey, Row, View, table};
 
@@ -70,6 +71,8 @@ pub struct FerrumPorts {
     pub(crate) dialog: Option<KillDialog>,
     pub(crate) notice: Option<Notice>,
     pub(crate) notice_task: Option<Task<()>>,
+    /// The detail card was clicked last (it is drawn a little lighter).
+    pub(crate) detail_active: bool,
     focus_handle: FocusHandle,
     _poll: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
@@ -77,13 +80,13 @@ pub struct FerrumPorts {
 
 impl FerrumPorts {
     pub fn new(options: Options, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let project_bar = cx.new(|cx| ProjectBar::new("ferrumports", window, cx));
+        let project_bar = cx.new(|cx| ProjectBar::new("ferrumports", window, cx).inline(true));
         if let Some(path) = options.project {
             project_bar.update(cx, |bar, cx| bar.set_project(Some(path), cx));
         }
         let search = cx.new(|cx| {
             TextInput::new(window, cx)
-                .placeholder("Search port, process, command, project")
+                .placeholder("Search ports, processes, projects  ⌘F")
                 .borderless()
         });
         let port_input = cx.new(|cx| {
@@ -129,6 +132,7 @@ impl FerrumPorts {
             dialog: None,
             notice: None,
             notice_task: None,
+            detail_active: false,
             focus_handle: cx.focus_handle(),
             _poll: None,
             _subscriptions: subscriptions,
@@ -197,15 +201,36 @@ impl FerrumPorts {
 }
 
 impl Render for FerrumPorts {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors();
-        let (background, text) = (colors.background, colors.text);
-        let toolbar = chrome::toolbar(self, cx);
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let text = cx.theme().colors().text;
+        let title = chrome::title_bar(self, window, cx);
         let table = crate::table::render(self, cx);
         let detail = detail::render(self, cx);
         let status = chrome::status_bar(self, cx);
         let dialog = chrome::kill_dialog(self, cx);
         let notice = chrome::notice(self, cx);
+        let detail_active = self.detail_active && detail.is_some();
+        let table_card = ferrum_ui::pane_card(!detail_active, cx)
+            .id("table-card")
+            .flex_1()
+            .h_full()
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(|app, _, _, _| app.detail_active = false),
+            )
+            .child(table)
+            .child(status);
+        let detail_card = detail.map(|detail| {
+            ferrum_ui::pane_card(detail_active, cx)
+                .id("detail-card")
+                .flex_none()
+                .h_full()
+                .on_mouse_down(
+                    MouseButton::Left,
+                    cx.listener(|app, _, _, _| app.detail_active = true),
+                )
+                .child(detail)
+        });
         v_flex()
             .id("ferrumports")
             .key_context(KEY_CONTEXT)
@@ -220,12 +245,18 @@ impl Render for FerrumPorts {
             }))
             .relative()
             .size_full()
-            .bg(background)
             .text_color(text)
-            .child(self.project_bar.clone())
-            .child(toolbar)
-            .child(h_flex().flex_1().min_h_0().child(table).children(detail))
-            .child(status)
+            .child(title)
+            .child(
+                h_flex()
+                    .flex_1()
+                    .min_h_0()
+                    .gap(ferrum_ui::PANE_GAP)
+                    .px(ferrum_ui::PANE_GAP)
+                    .pb(ferrum_ui::PANE_GAP)
+                    .child(table_card)
+                    .children(detail_card),
+            )
             .children(dialog)
             .children(notice)
     }

@@ -25,72 +25,87 @@ impl TermView {
         let colors = cx.theme().colors().clone();
         let model = Model::build(&self.app.sessions, self.app.window(), &self.app.seen);
 
-        // Top: every session's tabs and panes, then the SSH hosts.
+        // Top: the tabs (or every pane). Session names only matter once
+        // there is more than one session.
         let mut terminals = v_flex()
             .id("sidebar-terminals")
             .flex_1()
             .min_h_0()
+            .gap_0p5()
             .overflow_y_scroll()
+            .pt_1()
             .pb_2();
         let settings = crate::settings::get();
         let tabs_here = settings.tab_position == crate::settings::TabPosition::Sidebar;
+        let named = self.app.sessions.len() > 1;
         if model.sessions.is_empty() {
             terminals = terminals.child(placeholder("No terminals yet. Start one with +", cx));
         }
         if tabs_here {
-            // Tabs mode: every session's tabs, with their chip and a close button.
             for session in &self.app.sessions {
-                terminals = terminals.child(heading(session.name.clone(), cx).mt_1());
+                if named {
+                    terminals =
+                        terminals.child(ferrum_ui::sidebar_label(session_name(&session.name), cx));
+                }
                 for window in &session.windows {
                     terminals = terminals.child(self.render_tab_row(session, window, cx));
                 }
             }
         } else {
             for section in &model.sessions {
-                terminals = terminals.child(heading(section.title.clone(), cx).mt_1());
+                if named {
+                    terminals =
+                        terminals.child(ferrum_ui::sidebar_label(session_name(&section.title), cx));
+                }
                 for row in &section.rows {
                     terminals =
                         terminals.child(self.render_row(format!("row-{}", row.block), row, cx));
                 }
             }
         }
-        if settings.sidebar_hosts {
-            terminals = terminals.child(self.render_hosts(cx));
-        }
-        let show_agents = settings.sidebar_agents;
 
-        // Bottom: the agents, in their own scrolling section.
-        let mut agents = v_flex()
+        // Bottom (a movable share, 30% at first): agents and SSH hosts.
+        let (show_agents, show_hosts) = (settings.sidebar_agents, settings.sidebar_hosts);
+        let mut bottom = v_flex()
             .id("sidebar-agents")
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
             .pb_2();
-        if model.agents.is_empty() {
-            agents = agents.child(placeholder("No agents yet. Start one with +", cx));
+        if show_agents {
+            bottom = bottom.child(
+                h_flex()
+                    .gap_1()
+                    .child(ferrum_ui::sidebar_label("Agents", cx))
+                    .when(model.attention > 0, |header| {
+                        header.child(badge(
+                            model.attention.to_string(),
+                            cx.theme().status().warning,
+                            cx,
+                        ))
+                    }),
+            );
+            if model.agents.is_empty() {
+                bottom = bottom.child(placeholder("No agents yet. Start one with +", cx));
+            }
+            for row in &model.agents {
+                bottom = bottom.child(self.render_row(format!("agent-{}", row.block), row, cx));
+            }
         }
-        for row in &model.agents {
-            agents = agents.child(self.render_row(format!("agent-{}", row.block), row, cx));
+        if show_hosts {
+            bottom = bottom.child(self.render_hosts(cx));
         }
 
         let fraction = self.app.ui.agents_fraction;
         v_flex()
             .id("sidebar")
-            .flex_none()
+            .flex_1()
+            .min_h_0()
             .w(px(width))
-            .h_full()
             .font_ui(cx)
             .text_size(px(13.))
             .text_color(colors.text)
             .on_drag_move(cx.listener(Self::resize_agents))
-            .child(
-                ferrum_ui::pane_header(cx)
-                    .pl_3()
-                    .pr_1()
-                    .child(heading("Terminals", cx).px_0())
-                    .child(div().flex_1())
-                    .child(self.new_menu("new-menu", cx)),
-            )
             .when_some(self.custom_agent.clone(), |sidebar, input| {
                 sidebar.child(
                     v_flex()
@@ -107,38 +122,21 @@ impl TermView {
                 )
             })
             .child(terminals)
-            .when(show_agents, |sidebar| {
-                sidebar.child(ferrum_ui::gap_splitter(
-                    AGENTS_SPLITTER,
-                    gpui::Axis::Vertical,
-                    cx,
-                ))
-            })
-            .when(show_agents, |sidebar| {
-                sidebar.child(
-                    v_flex()
-                        .flex_none()
-                        .h(gpui::relative(fraction))
-                        .min_h(px(80.))
-                        .border_t_1()
-                        .border_color(colors.border_variant)
-                        .child(
-                            ferrum_ui::pane_header(cx)
-                                .pl_3()
-                                .pr_1()
-                                .child(heading("Agents", cx).px_0())
-                                .when(model.attention > 0, |header| {
-                                    header.child(badge(
-                                        model.attention.to_string(),
-                                        cx.theme().status().warning,
-                                        cx,
-                                    ))
-                                })
-                                .child(div().flex_1())
-                                .child(self.new_menu("new-agent-menu", cx)),
-                        )
-                        .child(agents),
-                )
+            .when(show_agents || show_hosts, |sidebar| {
+                sidebar
+                    .child(div().flex_none().mx_3().h(px(1.)).bg(colors.border_variant))
+                    .child(ferrum_ui::gap_splitter(
+                        AGENTS_SPLITTER,
+                        gpui::Axis::Vertical,
+                        cx,
+                    ))
+                    .child(
+                        v_flex()
+                            .flex_none()
+                            .h(gpui::relative(fraction))
+                            .min_h(px(80.))
+                            .child(bottom),
+                    )
             })
     }
 
@@ -149,56 +147,51 @@ impl TermView {
         window: &ferrumterm_protocol::WindowInfo,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let colors = cx.theme().colors().clone();
         let active = Some(session.id) == self.app.session().map(|s| s.id)
             && window.id == session.active_window;
         let (session_id, block) = (session.id, window.focused);
         let target = window.id.to_string();
-        h_flex()
-            .id(SharedString::from(format!("tab-row-{}", window.id)))
-            .group("tab-row")
-            .mx_1()
-            .px_1()
-            .py(px(2.))
-            .gap_1()
-            .rounded_md()
-            .cursor_pointer()
-            .hover(|style| style.bg(colors.ghost_element_hover))
-            .when(active, |r| r.bg(colors.element_selected))
-            .on_click(cx.listener(move |view, _, window, cx| {
-                window.focus(&view.focus_handle, cx);
-                view.app.focus_block(session_id, block);
-                view.close_overlay_sidebar();
-                view.after_change(cx);
-            }))
-            .child(self.tab_chip(window.id.to_string(), cx))
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .truncate()
-                    .when(!active, |d| d.text_color(colors.text_muted))
-                    .child(crate::view::tab_label(window, 40)),
-            )
-            .child(
-                div()
-                    .invisible()
-                    .group_hover("tab-row", |s| s.visible())
-                    .child(
-                        IconButton::new(
-                            SharedString::from(format!("close-tab-{}", window.id)),
-                            IconName::Close,
-                        )
-                        .icon_size(IconSize::Small)
-                        .tooltip(Tooltip::text("Close tab"))
-                        .on_click(cx.listener(move |view, _, _, cx| {
-                            view.app.send(ferrumterm_protocol::Request::Close {
-                                target: target.clone(),
-                            });
-                            view.after_change(cx);
-                        })),
-                    ),
-            )
+        ferrum_ui::sidebar_item(
+            SharedString::from(format!("tab-row-{}", window.id)),
+            active,
+            cx,
+        )
+        .group("tab-row")
+        .pl_0p5()
+        .gap_1()
+        .on_click(cx.listener(move |view, _, window, cx| {
+            window.focus(&view.focus_handle, cx);
+            view.app.focus_block(session_id, block);
+            view.close_overlay_sidebar();
+            view.after_change(cx);
+        }))
+        .child(self.tab_chip(window, cx))
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .truncate()
+                .child(crate::view::tab_label(window, 40)),
+        )
+        .child(
+            div()
+                .invisible()
+                .group_hover("tab-row", |s| s.visible())
+                .child(
+                    IconButton::new(
+                        SharedString::from(format!("close-tab-{}", window.id)),
+                        IconName::Close,
+                    )
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("Close tab"))
+                    .on_click(cx.listener(move |view, _, _, cx| {
+                        view.app.send(ferrumterm_protocol::Request::Close {
+                            target: target.clone(),
+                        });
+                        view.after_change(cx);
+                    })),
+                ),
+        )
     }
 
     /// Drag of the divider above the Agents section.
@@ -232,14 +225,18 @@ impl TermView {
             .and_then(|s| s.message.clone())
             .filter(|m| !m.is_empty())
             .unwrap_or_else(|| row.detail.clone());
+        let (active_bg, hover_bg) = (ferrum_ui::active_fill(cx), ferrum_ui::hover_fill(cx));
         v_flex()
             .id(SharedString::from(id))
-            .px_3()
-            .py(px(3.))
-            .when(row.nested, |r| r.pl(px(26.)))
+            .mx_1p5()
+            .px_2()
+            .py(px(4.))
+            .rounded(px(8.))
+            .when(row.nested, |r| r.pl(px(22.)))
             .cursor_pointer()
-            .hover(|style| style.bg(colors.ghost_element_hover))
-            .when(row.active, |r| r.bg(colors.ghost_element_selected))
+            .when(!row.active, |r| r.text_color(colors.text_muted))
+            .hover(move |style| style.bg(hover_bg))
+            .when(row.active, |r| r.bg(active_bg))
             .on_click(cx.listener(move |view, _, window, cx| {
                 window.focus(&view.focus_handle, cx);
                 view.app.focus_block(session, block);
@@ -250,6 +247,10 @@ impl TermView {
                 h_flex()
                     .gap_1p5()
                     .min_w_0()
+                    .map(|line| match row.logo {
+                        Some(logo) => line.child(ferrum_ui::agent_logo(logo, px(14.), cx)),
+                        None => line,
+                    })
                     .when_some(dot, |line, color| {
                         line.child(div().flex_none().size(px(7.)).rounded_full().bg(color))
                     })
@@ -286,11 +287,11 @@ impl TermView {
         let hosts: Vec<String> = self.app.ssh.hosts().into_iter().map(|h| h.name).collect();
         PopoverMenu::new(id)
             .anchor(gpui::Anchor::TopRight)
-            .trigger(
-                IconButton::new(SharedString::from(format!("{id}-button")), IconName::Plus)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text("New terminal, agent, worktree…")),
-            )
+            .trigger(ferrum_ui::title_button(
+                SharedString::from(format!("{id}-button")),
+                IconName::Plus,
+                "New terminal, agent, worktree…",
+            ))
             .menu(move |window, cx| {
                 let weak = weak.clone();
                 let recent = recent.clone();
@@ -498,26 +499,17 @@ impl TermView {
         h_flex()
             .flex_none()
             .gap_1()
-            .mr(px(4.))
             .child(
-                IconButton::new(
-                    "toggle-sidebar",
-                    if open {
-                        IconName::ThreadsSidebarLeftOpen
+                ferrum_ui::sidebar_toggle("toggle-sidebar", open)
+                    .tooltip(Tooltip::text(if open {
+                        "Hide sidebar (⌘B)"
                     } else {
-                        IconName::ThreadsSidebarLeftClosed
-                    },
-                )
-                .icon_size(IconSize::Small)
-                .tooltip(Tooltip::text(if open {
-                    "Hide sidebar (⌘B)"
-                } else {
-                    "Show sidebar (⌘B)"
-                }))
-                .on_click(cx.listener(|view, _, _, cx| {
-                    view.app.toggle_sidebar();
-                    view.after_change(cx);
-                })),
+                        "Show sidebar (⌘B)"
+                    }))
+                    .on_click(cx.listener(|view, _, _, cx| {
+                        view.app.toggle_sidebar();
+                        view.after_change(cx);
+                    })),
             )
             .when(attention > 0, |toggle| {
                 toggle.child(badge(
@@ -562,6 +554,15 @@ impl Prompt {
     }
 }
 
+/// `3` → `Session 3`; named sessions keep their name.
+fn session_name(name: &str) -> String {
+    if !name.is_empty() && name.chars().all(|c| c.is_ascii_digit()) {
+        format!("Session {name}")
+    } else {
+        name.to_owned()
+    }
+}
+
 fn placeholder(text: &'static str, cx: &gpui::App) -> gpui::Div {
     div()
         .px_3()
@@ -569,16 +570,6 @@ fn placeholder(text: &'static str, cx: &gpui::App) -> gpui::Div {
         .text_size(px(12.))
         .text_color(cx.theme().colors().text_placeholder)
         .child(text)
-}
-
-fn heading(title: impl Into<SharedString>, cx: &gpui::App) -> gpui::Div {
-    div()
-        .px_3()
-        .py_1()
-        .text_size(px(11.))
-        .font_weight(gpui::FontWeight::SEMIBOLD)
-        .text_color(cx.theme().colors().text_muted)
-        .child(title.into().to_uppercase())
 }
 
 fn state_color(state: ProgramState, cx: &gpui::App) -> Hsla {

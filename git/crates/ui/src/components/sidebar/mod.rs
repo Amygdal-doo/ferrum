@@ -81,23 +81,19 @@ fn nav_item(
         .w_full()
         .gap_2p5()
         .px_2p5()
-        .rounded_md()
+        .rounded(px(8.))
         .cursor_pointer()
-        .when(active, |d| d.bg(colors.element_selected))
-        .when(!active, |d| d.hover(|s| s.bg(colors.element_hover)))
+        .when(active, |d| d.bg(ferrum_ui::active_fill(cx)))
+        .when(!active, |d| d.hover(|s| s.bg(ferrum_ui::hover_fill(cx))))
         .child(icon.icon().size(IconSize::Small).color(if active {
-            Color::Accent
-        } else {
             Color::Default
+        } else {
+            Color::Muted
         }))
         .child(
             div().flex_1().min_w_0().child(
                 Label::new(label)
-                    .color(if active {
-                        Color::Accent
-                    } else {
-                        Color::Default
-                    })
+                    .color(if active { Color::Default } else { Color::Muted })
                     .truncate(),
             ),
         )
@@ -319,7 +315,7 @@ pub fn render(app: &GitView, _: &mut Window, cx: &mut Context<GitView>) -> AnyEl
 
     v_flex()
         .size_full()
-        .bg(colors.panel_background)
+        .when(app.options.compact, |d| d.bg(colors.panel_background))
         .child(
             v_flex()
                 .id("sidebar-scroll")

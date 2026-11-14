@@ -1,12 +1,13 @@
-//! Toolbar (Tower style): repositories / profiles over the sidebar, then
-//! quick open, back / forward, the repo title, actions and search.
+//! The main column's title row: (◧ ⌘ + while the sidebar is hidden), back /
+//! forward / undo, the repo title, the quick actions as small icon buttons,
+//! and search. The window's traffic lights sit over the sidebar's own row.
 
 use crate::app::GitView;
 use crate::commands::workspace::{open_terminal, reveal};
 use crate::components::icons::Icon;
 use crate::state::{Dialog, Page, PromptKind};
 use ferrum_ui::components::{
-    Color, IconSize, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex, v_flex,
+    Color, IconSize, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex,
 };
 use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_domain::RepoOp;
@@ -28,35 +29,30 @@ fn tool(
         .id(id)
         .relative()
         .flex()
-        .flex_col()
+        .flex_none()
         .items_center()
         .justify_center()
-        .gap_0p5()
-        .h(px(44.))
-        .min_w(px(48.))
-        .px_1p5()
-        .rounded_md()
-        .text_ui_xs(cx)
+        .size(px(28.))
+        .rounded(px(7.))
         .text_color(colors.text_muted)
         .tooltip(Tooltip::text(label))
         .when(disabled, |d| d.opacity(0.35))
         .when(!disabled, |d| {
             d.cursor_pointer()
-                .hover(|s| s.bg(colors.element_hover).text_color(colors.text))
+                .hover(|s| s.bg(ferrum_ui::hover_fill(cx)).text_color(colors.text))
                 .on_click(cx.listener(on_click))
         })
-        .child(icon.icon().size(IconSize::Medium).color(Color::Default))
-        .child(label)
+        .child(icon.icon().size(IconSize::Small).color(Color::Muted))
         .children(badge.filter(|n| *n > 0).map(|n| {
             div()
                 .absolute()
-                .right(px(2.))
-                .top(px(2.))
-                .px_1()
+                .right(px(-2.))
+                .top(px(-2.))
+                .px(px(3.))
                 .rounded_full()
                 .bg(colors.text_accent)
                 .text_color(on_accent)
-                .text_ui_xs(cx)
+                .text_size(px(9.))
                 .child(n.to_string())
         }))
         .into_any_element()
@@ -65,59 +61,26 @@ fn tool(
 fn separator(cx: &Context<GitView>) -> impl IntoElement {
     div()
         .mx_1()
-        .h(px(28.))
+        .h(px(16.))
         .w(px(1.))
-        .bg(cx.theme().colors().border)
+        .bg(cx.theme().colors().border_variant)
 }
 
-pub fn render(app: &GitView, _: &mut Window, cx: &mut Context<GitView>) -> AnyElement {
+pub fn render(app: &GitView, window: &mut Window, cx: &mut Context<GitView>) -> AnyElement {
     let theme = cx.theme().clone();
     let colors = theme.colors();
-    let sidebar = px(app.state.sidebar_width() as f32);
-    let left = h_flex()
-        .flex_none()
-        .h_full()
-        .w(sidebar)
-        .justify_end()
-        .gap_1()
-        .pr_2()
-        .border_r_1()
-        .border_color(colors.border)
-        .when(app.options.show_repo_tabs, |d| {
-            d.child(tool(
-                "tool-repos",
-                Icon::Bookmark,
-                "Repositories",
-                false,
-                None,
-                |app, _, _, cx| app.activate(None, cx),
-                cx,
-            ))
-        })
-        .child(tool(
-            "tool-profiles",
-            Icon::User,
-            "Profiles",
-            false,
-            None,
-            |app, _, window, cx| app.open_dialog(Dialog::Profiles(None), window, cx),
-            cx,
-        ));
-    let bar = h_flex()
-        .flex_none()
-        .h(px(52.))
-        .border_b_1()
-        .border_color(colors.border)
-        .bg(colors.title_bar_background)
-        .child(left);
-
+    let sidebar_shown = app.sidebar_shown();
+    let bar = ferrum_ui::title_row("ferrumgit-toolbar", !sidebar_shown, window)
+        .when(!sidebar_shown, |row| {
+            row.child(title_controls(app, cx)).child(div().w(px(6.)))
+        });
     let Some(entry) = app.state.active_entry() else {
         return bar
             .child(
                 div()
                     .flex_1()
-                    .px_4()
-                    .child(Label::new("FerrumGIT").weight(gpui::FontWeight::SEMIBOLD)),
+                    .px_2()
+                    .child(Label::new("Repositories").weight(gpui::FontWeight::SEMIBOLD)),
             )
             .into_any_element();
     };
@@ -163,14 +126,14 @@ pub fn render(app: &GitView, _: &mut Window, cx: &mut Context<GitView>) -> AnyEl
     let detached = status.branch.head.is_none();
     let (path_term, path_finder) = (entry.path.clone(), entry.path.clone());
 
-    let title = v_flex()
+    let title = h_flex()
         .flex_1()
         .min_w_0()
-        .justify_center()
-        .px_2()
+        .gap_2()
+        .px_1()
         .child(
             h_flex()
-                .min_w_0()
+                .flex_none()
                 .gap_2()
                 .child(
                     Label::new(entry.name.clone())
@@ -230,19 +193,8 @@ pub fn render(app: &GitView, _: &mut Window, cx: &mut Context<GitView>) -> AnyEl
         });
 
     let nav = h_flex()
+        .flex_none()
         .gap_0p5()
-        .px_2()
-        .when(app.options.show_repo_tabs, |d| {
-            d.child(tool(
-                "tool-quick-open",
-                Icon::QuickOpen,
-                "Quick Open",
-                false,
-                None,
-                |app, _, window, cx| app.open_dialog(Dialog::QuickOpen, window, cx),
-                cx,
-            ))
-        })
         .child(tool(
             "tool-prev",
             Icon::ChevronLeft,
@@ -272,8 +224,18 @@ pub fn render(app: &GitView, _: &mut Window, cx: &mut Context<GitView>) -> AnyEl
         ));
 
     let actions = h_flex()
+        .flex_none()
         .gap_0p5()
         .px_1()
+        .child(tool(
+            "tool-profiles",
+            Icon::User,
+            "Profiles",
+            false,
+            None,
+            |app, _, window, cx| app.open_dialog(Dialog::Profiles(None), window, cx),
+            cx,
+        ))
         .child(tool(
             "tool-terminal",
             Icon::Terminal,
@@ -406,16 +368,13 @@ pub fn render(app: &GitView, _: &mut Window, cx: &mut Context<GitView>) -> AnyEl
 
     let search = h_flex()
         .flex_none()
-        .mr_3()
         .ml_1()
-        .h(px(32.))
-        .w(px(208.))
+        .h(px(28.))
+        .w(px(200.))
         .gap_1p5()
         .px_2()
-        .rounded_md()
-        .border_1()
-        .border_color(colors.border)
-        .bg(colors.editor_background)
+        .rounded(px(7.))
+        .bg(ferrum_ui::hover_fill(cx))
         .child(
             Icon::Search
                 .icon()
@@ -429,4 +388,38 @@ pub fn render(app: &GitView, _: &mut Window, cx: &mut Context<GitView>) -> AnyEl
         .child(actions)
         .child(search)
         .into_any_element()
+}
+
+/// ◧ (sidebar), ⌘ (quick open) and + (repositories): in the sidebar's
+/// title row, or at the start of the toolbar while the sidebar is hidden.
+pub fn title_controls(app: &GitView, cx: &mut Context<GitView>) -> impl IntoElement {
+    use ferrum_ui::components::{Clickable, IconName};
+    h_flex()
+        .flex_none()
+        .gap_0p5()
+        .child(
+            ferrum_ui::sidebar_toggle("toggle-sidebar", app.sidebar_open).on_click(cx.listener(
+                |app, _, _, cx| {
+                    app.sidebar_open = !app.sidebar_open;
+                    cx.notify();
+                },
+            )),
+        )
+        .when(app.options.show_repo_tabs, |row| {
+            row.child(
+                ferrum_ui::command_button("quick-open", "Quick Open (⌘P)").on_click(
+                    cx.listener(|app, _, window, cx| {
+                        app.open_dialog(Dialog::QuickOpen, window, cx)
+                    }),
+                ),
+            )
+            .child(
+                ferrum_ui::title_button(
+                    "repositories",
+                    IconName::Plus,
+                    "Repositories: add, clone or init",
+                )
+                .on_click(cx.listener(|app, _, _, cx| app.activate(None, cx))),
+            )
+        })
 }

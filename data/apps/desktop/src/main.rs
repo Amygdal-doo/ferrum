@@ -30,7 +30,8 @@ fn main() {
     let config = AppConfig::new("FerrumData")
         .size(1360., 860.)
         .min_size(900., 560.)
-        .app(app_info::app_info());
+        .app(app_info::app_info())
+        .unified_titlebar();
     ferrum_ui::run(config, move |window, cx| {
         cx.new(|cx| app::FerrumData::new(services, window, cx))
     });

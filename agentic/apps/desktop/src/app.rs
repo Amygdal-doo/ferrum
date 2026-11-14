@@ -1,4 +1,4 @@
-//! The root view: project bar, column toggles and the three columns, and
+//! The root view: title row (project, column toggles), the three columns, and
 //! the wiring between them (chat → terminal, chat → git, files → Editor).
 
 use std::collections::HashMap;
@@ -75,6 +75,8 @@ pub struct FerrumAgentic {
     pub(crate) project_bar: Entity<ProjectBar>,
     pub(crate) project: Option<PathBuf>,
     pub(crate) layout: Layout,
+    /// The column with focus, or used last: its card is lighter.
+    pub(crate) active_column: Column,
     layouts_file: Option<PathBuf>,
     pub(crate) chat: Option<Entity<ChatView>>,
     pub(crate) git: Option<Entity<GitView>>,
@@ -98,8 +100,11 @@ pub struct FerrumAgentic {
 impl FerrumAgentic {
     pub fn new(options: Options, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let projects_file = options.projects_file.clone();
-        let project_bar =
-            cx.new(|cx| ProjectBar::new(BINARY, window, cx).projects_file(projects_file));
+        let project_bar = cx.new(|cx| {
+            ProjectBar::new(BINARY, window, cx)
+                .projects_file(projects_file)
+                .inline(true)
+        });
         let subscription = cx.subscribe_in(&project_bar, window, |this, _, event, window, cx| {
             let ProjectBarEvent::Open(path) = event;
             this.set_project(path.clone(), window, cx);
@@ -112,6 +117,7 @@ impl FerrumAgentic {
             project_bar,
             project: None,
             layout,
+            active_column: Column::Chat,
             layouts_file: options.layouts_file,
             chat: None,
             git: None,
@@ -255,6 +261,36 @@ impl FerrumAgentic {
         cx: &mut Context<Self>,
     ) {
         self.toggle(column, window, cx);
+    }
+
+    /// The title row's +: a new thread in the chat column (shown first).
+    pub fn new_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.set_visible(Column::Chat, true, window, cx);
+        if let Some(chat) = &self.chat {
+            let handle = chat.focus_handle(cx);
+            window.focus(&handle, cx);
+            handle.dispatch_action(&ferrumagent_ui::NewThread, window, cx);
+            self.active_column = Column::Chat;
+            cx.notify();
+        }
+    }
+
+    /// Marks the column whose view has focus as the active one (it stays
+    /// active when focus leaves the columns).
+    pub(crate) fn follow_focus(&mut self, window: &Window, cx: &App) {
+        let views = [
+            (Column::Chat, self.chat.as_ref().map(|v| v.focus_handle(cx))),
+            (Column::Git, self.git.as_ref().map(|v| v.focus_handle(cx))),
+            (Column::Term, self.term.as_ref().map(|v| v.focus_handle(cx))),
+        ];
+        if let Some((column, _)) = views.into_iter().find(|(column, handle)| {
+            self.layout.is_visible(*column)
+                && handle
+                    .as_ref()
+                    .is_some_and(|h| h.contains_focused(window, cx))
+        }) {
+            self.active_column = column;
+        }
     }
 
     pub(crate) fn focus_handle(&self) -> &FocusHandle {

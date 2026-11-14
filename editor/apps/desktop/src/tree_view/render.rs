@@ -1,6 +1,6 @@
 //! Rendering of the tree view: header, entry list and context menu.
 
-use ferrum_ui::components::{Icon, IconButton, IconName, IconSize};
+use ferrum_ui::components::{Clickable, Icon, IconName, IconSize};
 use ferrum_ui::prelude::*;
 use gpui::{MouseButton, MouseDownEvent, anchored, deferred, point};
 
@@ -14,30 +14,25 @@ const REVEAL_LABEL: &str = if cfg!(target_os = "macos") {
 };
 
 impl TreeView {
+    /// A quiet "Files" label with new file / folder and collapse buttons
+    /// (the project name is in the project bar above).
     fn render_header(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let name = self.root().file_name().map_or_else(
-            || self.root().display().to_string(),
-            |n| n.to_string_lossy().to_string(),
-        );
         h_flex()
             .flex_none()
             .h(px(30.))
             .pl_3()
-            .pr_1()
+            .pr_1p5()
             .justify_between()
             .child(
-                Label::new(name.to_uppercase())
-                    .size(LabelSize::XSmall)
-                    .color(Color::Muted)
-                    .truncate(),
+                Label::new("Files")
+                    .size(LabelSize::Small)
+                    .color(Color::Muted),
             )
             .child(
                 h_flex()
                     .gap_0p5()
                     .child(
-                        IconButton::new("tree-new-file", IconName::Plus)
-                            .icon_size(IconSize::Small)
-                            .tooltip(Tooltip::text("New File"))
+                        ferrum_ui::title_button("tree-new-file", IconName::Plus, "New File")
                             .on_click(cx.listener(|this, _, _, cx| {
                                 cx.emit(TreeEvent::NewFile {
                                     dir: this.target_dir(),
@@ -45,9 +40,7 @@ impl TreeView {
                             })),
                     )
                     .child(
-                        IconButton::new("tree-new-folder", IconName::Folder)
-                            .icon_size(IconSize::Small)
-                            .tooltip(Tooltip::text("New Folder"))
+                        ferrum_ui::title_button("tree-new-folder", IconName::Folder, "New Folder")
                             .on_click(cx.listener(|this, _, _, cx| {
                                 cx.emit(TreeEvent::NewFolder {
                                     dir: this.target_dir(),
@@ -55,10 +48,12 @@ impl TreeView {
                             })),
                     )
                     .child(
-                        IconButton::new("tree-collapse-all", IconName::ChevronDown)
-                            .icon_size(IconSize::Small)
-                            .tooltip(Tooltip::text("Collapse All"))
-                            .on_click(cx.listener(|this, _, _, cx| this.collapse_all(cx))),
+                        ferrum_ui::title_button(
+                            "tree-collapse-all",
+                            IconName::ChevronDown,
+                            "Collapse All",
+                        )
+                        .on_click(cx.listener(|this, _, _, cx| this.collapse_all(cx))),
                     ),
             )
     }
@@ -213,7 +208,6 @@ impl TreeView {
 
 impl Render for TreeView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let panel = cx.theme().colors().panel_background;
         let count = self.entries.len();
         let list = uniform_list(
             "tree-entries",
@@ -241,8 +235,8 @@ impl Render for TreeView {
                     this.focus(window, cx);
                 }),
             )
+            // On the window backdrop: the tree is the window's sidebar.
             .size_full()
-            .bg(panel)
             .child(self.render_header(cx))
             .when(count == 0, |this| {
                 this.child(empty_state("Empty folder", ""))

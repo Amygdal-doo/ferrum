@@ -1,16 +1,51 @@
-//! Toolbar, sidebar, status bar, notices and the connecting / offline screens.
+//! Title row, sidebar, status line, notices and the connecting / offline screens.
 
 use crate::app::FerrumContainers;
 use crate::state::{EngineStatus, Section};
 use crate::views::widgets::{button, muted};
+use ferrum_ui::components::Clickable;
 use ferrum_ui::components::{
     Color, Icon, IconName, IconSize, Label, LabelCommon, LabelSize, h_flex, v_flex,
 };
 use ferrum_ui::theme::ActiveTheme;
-use ferrum_ui::{Notice, badge, render_notice, section_header};
-use gpui::{AnyElement, Context, div, prelude::*, px};
+use ferrum_ui::{Notice, badge, render_notice};
+use gpui::{AnyElement, Context, Window, div, prelude::*, px};
 
-pub fn toolbar(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
+/// ◧, ⌘ and + : in the sidebar's title row, or at the start of the main
+/// title row while the sidebar is hidden.
+pub fn title_controls(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
+    let connected = matches!(app.status, EngineStatus::Connected(_));
+    h_flex()
+        .flex_none()
+        .gap_0p5()
+        .child(
+            ferrum_ui::sidebar_toggle("toggle-sidebar", app.sidebar_open)
+                .on_click(cx.listener(|app, _, _, cx| app.toggle_sidebar(cx))),
+        )
+        .child(
+            ferrum_ui::command_button("switch-project", "Switch project (⌥⌘O)").on_click(
+                cx.listener(|app, _, window, cx| {
+                    app.project_bar
+                        .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
+                }),
+            ),
+        )
+        .when(connected, |row| {
+            row.child(
+                ferrum_ui::title_button("new-container", IconName::Plus, "Run a container…")
+                    .on_click(cx.listener(|app, _, _, cx| app.open_run_dialog(None, cx))),
+            )
+        })
+        .into_any_element()
+}
+
+/// The main title row: (window controls and project while the sidebar is
+/// hidden), the engine, then filter and Refresh.
+pub fn title_bar(
+    app: &FerrumContainers,
+    window: &Window,
+    cx: &mut Context<FerrumContainers>,
+) -> AnyElement {
     let theme = cx.theme().clone();
     let status = theme.status();
     let engine_badge = match &app.status {
@@ -31,49 +66,72 @@ pub fn toolbar(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> An
         EngineStatus::Offline(_) => badge("No engine", status.error, cx).into_any_element(),
     };
     let connected = matches!(app.status, EngineStatus::Connected(_));
+    let sidebar = app.sidebar_shown();
     let context = match &app.status {
         EngineStatus::Connected(c) => c.candidate.context.clone(),
         _ => None,
     };
-    ferrum_ui::toolbar(cx)
-        .child(
-            Icon::new(IconName::Box)
-                .size(IconSize::Small)
-                .color(Color::Accent),
-        )
-        .child(Label::new("FerrumContainers").weight(gpui::FontWeight::SEMIBOLD))
-        .child(engine_badge)
-        .when_some(context, |bar, name| {
-            bar.child(muted(format!("context {name}")))
+    ferrum_ui::title_row("main-title", !sidebar, window)
+        .gap_2()
+        .when(!sidebar, |row| {
+            row.child(title_controls(app, cx)).child(
+                div()
+                    .flex_none()
+                    .max_w(px(320.))
+                    .child(app.project_bar.clone()),
+            )
         })
+        .when(sidebar, |row| row.pl(ferrum_ui::PANE_GAP))
+        .child(engine_badge)
+        .when_some(context, |bar, name| bar.child(muted(name)))
         .when(!matches!(app.status, EngineStatus::Connecting), |bar| {
-            bar.child(button("pick-engine", "Engine…", false, cx, |app, cx| {
-                app.open_engine_picker(cx)
-            }))
+            bar.child(
+                ferrum_ui::title_button("pick-engine", IconName::Server, "Choose engine…")
+                    .on_click(cx.listener(|app, _, _, cx| app.open_engine_picker(cx))),
+            )
+        })
+        .when_some(app.connected_vm(), |bar, vm| {
+            bar.child(
+                ferrum_ui::title_button(
+                    "stop-vm",
+                    IconName::Stop,
+                    format!("Stop {} (fec stop)", vm.name()),
+                )
+                .on_click(cx.listener(move |app, _, _, cx| app.stop_vm(vm, None, cx))),
+            )
         })
         .child(div().flex_1())
         .when(connected, |bar| {
             bar.child(
-                div()
-                    .w(px(260.))
+                h_flex()
+                    .w(px(240.))
+                    .h(px(26.))
                     .px_2()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(theme.colors().border)
-                    .bg(theme.colors().editor_background)
-                    .child(app.inputs.filter.clone()),
+                    .gap_1p5()
+                    .rounded(px(7.))
+                    .bg(ferrum_ui::hover_fill(cx))
+                    .child(
+                        Icon::new(IconName::MagnifyingGlass)
+                            .size(IconSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .child(div().flex_1().min_w_0().child(app.inputs.filter.clone())),
             )
-            .child(button("refresh", "Refresh", false, cx, |app, cx| {
-                app.refresh(app.state.section, cx);
-            }))
+            .child(
+                ferrum_ui::title_button("refresh", IconName::RotateCw, "Refresh (⌘R)")
+                    .on_click(cx.listener(|app, _, _, cx| app.refresh(app.state.section, cx))),
+            )
         })
         .into_any_element()
 }
 
-pub fn sidebar(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
-    let theme = cx.theme().clone();
-    let colors = theme.colors();
-    let (hover, selected_bg) = (colors.element_hover, colors.element_selected);
+/// The sidebar, on the window backdrop: title row (traffic lights, ◧ ⌘ +),
+/// project, then the engine's sections.
+pub fn sidebar(
+    app: &FerrumContainers,
+    window: &Window,
+    cx: &mut Context<FerrumContainers>,
+) -> AnyElement {
     let items = Section::ALL.into_iter().map(|section| {
         let (icon, count) = match section {
             Section::Containers => (IconName::Box, app.state.containers.len()),
@@ -83,35 +141,35 @@ pub fn sidebar(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> An
         };
         let selected = app.state.section == section;
         let loaded = app.state.loaded.contains(&section);
-        h_flex()
-            .id(section.title())
-            .mx_2()
-            .px_2()
-            .py_1()
-            .gap_2()
-            .rounded_md()
-            .cursor_pointer()
-            .hover(|s| s.bg(hover))
-            .when(selected, |d| d.bg(selected_bg))
-            .child(Icon::new(icon).size(IconSize::Small).color(Color::Muted))
-            .child(Label::new(section.title()).size(LabelSize::Small))
-            .child(div().flex_1())
+        ferrum_ui::sidebar_item(section.title(), selected, cx)
+            .child(Icon::new(icon).size(IconSize::Small).color(if selected {
+                Color::Default
+            } else {
+                Color::Muted
+            }))
+            .child(div().flex_1().child(section.title()))
             .when(loaded, |d| d.child(muted(count.to_string())))
             .on_click(cx.listener(move |app, _, _, cx| app.select_section(section, cx)))
     });
+    let items: Vec<_> = items.collect();
+    let controls = title_controls(app, cx);
     v_flex()
         .flex_none()
-        .w(px(190.))
+        .w(px(SIDEBAR_WIDTH))
         .h_full()
-        .pt_2()
         .gap_0p5()
-        .bg(colors.panel_background)
-        .border_r_1()
-        .border_color(colors.border)
-        .child(section_header("Engine"))
+        .child(
+            ferrum_ui::title_row("sidebar-title", true, window)
+                .child(div().flex_1())
+                .child(controls),
+        )
+        .child(div().px_1().child(app.project_bar.clone()))
+        .child(ferrum_ui::sidebar_label("Engine", cx))
         .children(items)
         .into_any_element()
 }
+
+pub const SIDEBAR_WIDTH: f32 = 248.;
 
 pub fn status_bar(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElement {
     let left = match &app.status {
@@ -137,7 +195,15 @@ pub fn status_bar(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) ->
             app.state.containers.len()
         ));
     }
-    ferrum_ui::status_bar(cx)
+    // A quiet line under the cards, on the backdrop.
+    h_flex()
+        .flex_none()
+        .h(px(22.))
+        .px_2()
+        .gap_3()
+        .justify_between()
+        .text_xs()
+        .text_color(cx.theme().colors().text_muted)
         .child(div().truncate().child(left))
         .child(div().truncate().child(right.join("   ")))
         .into_any_element()
@@ -188,13 +254,24 @@ pub fn offline(error: &str, cx: &mut Context<FerrumContainers>) -> AnyElement {
                 .color(Color::Muted),
         )
         .child(Label::new("No container engine is running").size(LabelSize::Large))
-        .child(
-            Label::new("Start Docker Desktop, OrbStack or Colima, then Retry.").color(Color::Muted),
-        )
+        .child(Label::new("Start a VM below (or `fec start` in a terminal).").color(Color::Muted))
         .child(div().max_w(px(560.)).child(muted(detail)))
-        .child(button("retry", "Retry", false, cx, |app, cx| {
-            app.connect(false, cx)
-        }))
+        .child(
+            h_flex()
+                .gap_2()
+                .children(ferrumdock_engine::vm::installed().into_iter().map(|vm| {
+                    button(
+                        gpui::SharedString::from(format!("start-{}", vm.key())),
+                        format!("Start {}", vm.name()),
+                        false,
+                        cx,
+                        move |app, cx| app.start_vm(vm, cx),
+                    )
+                }))
+                .child(button("retry", "Retry", false, cx, |app, cx| {
+                    app.connect(false, cx)
+                })),
+        )
         .child(
             muted("FerrumContainers also retries on its own every few seconds.")
                 .color(Color::Placeholder),

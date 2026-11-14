@@ -8,6 +8,7 @@ pub mod logs;
 pub mod project;
 pub mod resources;
 pub mod run;
+pub mod vm;
 
 use crate::app::FerrumContainers;
 use crate::state::{EngineStatus, Notice};

@@ -92,6 +92,15 @@ pub fn script(info: &AppInfo, command: &str, entry: &Path) -> String {
              [ -x \"$fterm\" ] && \"$fterm\" new \"$(basename \"$dir\")\" -c \"$dir\" >/dev/null 2>&1\n\
              cd \"$dir\" && nohup {target} >/dev/null 2>&1 &\n"
         )
+    } else if info.id.as_str() == "dock" {
+        // `fec` is FerrumContainers' command line (VM start/stop, compose,
+        // docker); it opens the app itself for `fec` and `fec <folder>`.
+        format!(
+            "real=$(readlink {target} || echo {target})\n\
+             cli=\"$(dirname \"$real\")/ferrumdock-cli\"\n\
+             [ -x \"$cli\" ] && exec \"$cli\" \"$@\"\n\
+             nohup {target} \"$@\" >/dev/null 2>&1 &\n"
+        )
     } else {
         format!("nohup {target} \"$@\" >/dev/null 2>&1 &\n")
     };
@@ -129,6 +138,21 @@ pub fn install(paths: &Paths, info: &AppInfo, command: &str) -> Result<PathBuf, 
             .map_err(|e| e.to_string())?;
     }
     Ok(file)
+}
+
+/// Rewrites `command` with the current script if this module wrote it
+/// (launcher updates change what a command does, e.g. `fec`).
+pub fn refresh(paths: &Paths, info: &AppInfo, command: &str) -> Result<(), String> {
+    let file = paths.bin_dir.join(command);
+    if !file.exists() || !is_ours(&file) {
+        return Ok(());
+    }
+    let entry = paths.bin_dir.join(paths.platform.cli_entry(&info.binary));
+    let script = script(info, command, &entry);
+    if std::fs::read_to_string(&file).is_ok_and(|current| current == script) {
+        return Ok(());
+    }
+    std::fs::write(&file, script).map_err(|e| e.to_string())
 }
 
 /// Removes `command` if this module wrote it.
@@ -265,6 +289,47 @@ mod tests {
         assert!(validate("1x").is_err());
         assert!(validate("a b").is_err());
         assert!(validate("").is_err());
+    }
+
+    #[test]
+    fn fec_runs_the_containers_command_line() {
+        let text = script(&info(AppId::DOCK), "fec", Path::new("/b/ferrumdock"));
+        assert!(text.contains("cli=\"$(dirname \"$real\")/ferrumdock-cli\""));
+        assert!(
+            text.contains("exec \"$cli\" \"$@\""),
+            "in the foreground, output kept"
+        );
+        assert!(
+            text.contains("nohup '/b/ferrumdock'"),
+            "older apps without the CLI"
+        );
+    }
+
+    #[test]
+    fn refresh_rewrites_only_its_own_scripts() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        std::fs::create_dir_all(&paths.bin_dir).expect("bin");
+        let dock = info(AppId::DOCK);
+        let fec = paths.bin_dir.join("fec");
+        std::fs::write(
+            &fec,
+            format!("#!/bin/sh\n{MARKER} for FerrumContainers\nold\n"),
+        )
+        .expect("write");
+        refresh(&paths, &dock, "fec").expect("refresh");
+        assert!(
+            std::fs::read_to_string(&fec)
+                .expect("read")
+                .contains("ferrumdock-cli")
+        );
+        let mine = paths.bin_dir.join("mine");
+        std::fs::write(&mine, "#!/bin/sh\necho mine\n").expect("write");
+        refresh(&paths, &dock, "mine").expect("refresh");
+        assert_eq!(
+            std::fs::read_to_string(&mine).expect("read"),
+            "#!/bin/sh\necho mine\n"
+        );
     }
 
     #[test]

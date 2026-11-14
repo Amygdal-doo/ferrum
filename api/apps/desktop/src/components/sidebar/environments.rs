@@ -189,9 +189,10 @@ impl FerrumApi {
             .rounded_md()
             .map(|this| {
                 if active {
-                    this.bg(colors.element_selected)
+                    this.bg(ferrum_ui::active_fill(cx))
                 } else {
-                    this.hover(|s| s.bg(colors.element_hover))
+                    let hover = ferrum_ui::hover_fill(cx);
+                    this.hover(move |s| s.bg(hover))
                 }
             })
             .on_click(cx.listener(move |this, _, _, cx| {

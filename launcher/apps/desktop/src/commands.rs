@@ -3,7 +3,6 @@
 
 use crate::app::{Download, FerrumLauncher, NewAppNotice};
 use crate::components::onboarding::{Onboarding, OnboardingEvent};
-use crate::components::settings::TokenChange;
 use crate::services::client_for;
 use ferrum_ui::prelude::*;
 use ferrumlauncher_core::{AppId, Settings, State, UpdateChannel, auth, current_target, store};
@@ -553,19 +552,11 @@ impl FerrumLauncher {
         }
     }
 
-    /// Saves settings and (optionally) the token, then re-checks.
-    pub fn apply_settings(
-        &mut self,
-        settings: Settings,
-        token: TokenChange,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        // The form edits these four; everything else (seen apps, migration
-        // flags, channels revision) stays as it is.
+    /// Saves settings, then re-checks.
+    pub fn apply_settings(&mut self, settings: Settings, _: &mut Window, cx: &mut Context<Self>) {
+        // The form edits these three; everything else (release repository,
+        // seen apps, migration flags, channels revision) stays as it is.
         let settings = Settings {
-            repo_owner: settings.repo_owner,
-            repo_name: settings.repo_name,
             check_interval_hours: settings.check_interval_hours,
             keep_versions: settings.keep_versions,
             menu_bar: settings.menu_bar,
@@ -574,15 +565,9 @@ impl FerrumLauncher {
         let menu_bar_changed = settings.menu_bar != self.state.settings.menu_bar;
         let interval_changed =
             settings.check_interval_hours != self.state.settings.check_interval_hours;
-        let repo_changed = settings.repo_owner != self.state.settings.repo_owner
-            || settings.repo_name != self.state.settings.repo_name;
         self.state.settings = settings;
         if menu_bar_changed {
             self.refresh_menu_bar(cx);
-        }
-        if repo_changed {
-            self.state.releases.clear();
-            self.state.last_check = None;
         }
         self.persist(cx);
         let installed: Vec<AppId> = self.state.apps.keys().copied().collect();
@@ -590,38 +575,11 @@ impl FerrumLauncher {
             self.prune(app, cx);
         }
 
-        let services = self.services.clone();
-        cx.spawn(async move |this, cx| {
-            let token_result = match token {
-                TokenChange::Keep => Ok(None),
-                TokenChange::Set(value) => services
-                    .blocking(move || auth::save_token(&value).map_err(|e| e.to_string()))
-                    .await
-                    .and_then(|r| r)
-                    .map(|()| Some("Token saved to the keychain.")),
-                TokenChange::Clear => services
-                    .blocking(|| auth::clear_token().map_err(|e| e.to_string()))
-                    .await
-                    .and_then(|r| r)
-                    .map(|()| Some("Token removed from the keychain.")),
-            };
-            this.update(cx, |this, cx| {
-                match token_result {
-                    Ok(Some(message)) => this.notify_user(message, false, cx),
-                    Ok(None) => {}
-                    Err(e) => {
-                        this.notify_user(format!("Could not update the token: {e}"), true, cx)
-                    }
-                }
-                if interval_changed {
-                    this.restart_check_loop(cx);
-                } else {
-                    this.check_for_updates(false, cx);
-                }
-            })
-            .ok();
-        })
-        .detach();
+        if interval_changed {
+            self.restart_check_loop(cx);
+        } else {
+            self.check_for_updates(false, cx);
+        }
         cx.notify();
     }
 

@@ -66,7 +66,7 @@ jobs:
             data)    package=ferrumdata-desktop;    binaries="ferrumdata" ;;
             term)    package="ferrumterm-gui ferrumterm-cli"; binaries="ferrumterm fterm" ;;
             kit)     package=ferrumkit-desktop;     binaries="ferrumkit" ;;
-            dock)    package=ferrumdock-desktop;    binaries="ferrumdock" ;;
+            dock)    package="ferrumdock-desktop ferrumdock-cli"; binaries="ferrumdock ferrumdock-cli" ;;
             editor)  package=ferrumeditor-desktop;  binaries="ferrumeditor" ;;
             agentic) package=ferrumagentic-desktop; binaries="ferrumagentic" ;;
             ports)   package=ferrumports-desktop;   binaries="ferrumports" ;;
@@ -223,19 +223,17 @@ jobs:
             tar -C "$bundles" -czf "$app_archive" "$(basename "$bundle")"
             checksum "$app_archive"
 
-            # Only the launcher gets an installer; the other apps are
-            # installed through it from the archives above.
-            if [ "$APP" = "launcher" ]; then
-              arch="${{ matrix.target }}"
-              arch="${arch%%-*}"
-              dmg="${APP_FILE_NAME}-${VERSION}-${arch}.dmg"
-              scripts/make-dmg.sh "$bundle" "$dmg" "$APP_NAME"
-              if [ -n "${FERRUM_NOTARY_KEY:-}" ]; then
-                scripts/notarize-macos.sh "$dmg"
-              fi
-              checksum "$dmg"
+            # Every app gets a disk image for installing it by hand; the
+            # launcher installs from the archives above.
+            arch="${{ matrix.target }}"
+            arch="${arch%%-*}"
+            dmg="${APP_FILE_NAME}-${VERSION}-${arch}.dmg"
+            scripts/make-dmg.sh "$bundle" "$dmg" "$APP_NAME"
+            if [ -n "${FERRUM_NOTARY_KEY:-}" ]; then
+              scripts/notarize-macos.sh "$dmg"
             fi
-          elif [ "$APP" = "launcher" ]; then
+            checksum "$dmg"
+          else
             deb="$(scripts/package-deb.sh "$APP" "$VERSION" "$TARGET_DIR" .)"
             checksum "$(basename "$deb")"
           fi

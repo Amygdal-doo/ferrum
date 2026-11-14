@@ -3,7 +3,7 @@ use crate::state::{Dialog, TabResponse};
 use ferrum_ui::components::{Tooltip, h_flex};
 use ferrum_ui::status_bar;
 use ferrumapi_domain::text::{human_duration_ms, human_size};
-use gpui::{AnyElement, Context, div, prelude::*};
+use gpui::{AnyElement, Context, div, prelude::*, px};
 
 impl FerrumApi {
     pub fn render_status_bar(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -62,7 +62,11 @@ impl FerrumApi {
             format!("Load test {done}/{total}")
         });
 
+        // On the backdrop under the cards: no fill or rule of its own.
         status_bar(cx)
+            .h(px(24.))
+            .bg(gpui::transparent_black())
+            .border_t_0()
             .child(h_flex().gap_4().child(env_label).child(origin_label))
             .child(
                 h_flex()

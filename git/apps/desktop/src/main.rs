@@ -30,6 +30,7 @@ fn main() {
     let open_at = repo_argument(std::env::args_os().skip(1));
 
     let config = AppConfig::new("FerrumGIT")
+        .unified_titlebar()
         .size(1440., 900.)
         .min_size(980., 600.)
         .app(app_info::app_info());

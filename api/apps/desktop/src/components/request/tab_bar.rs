@@ -1,4 +1,5 @@
-//! Request tab strip: switch, close, new, dirty dot, double-click rename.
+//! The request card's header: tabs (switch, close, new, dirty dot,
+//! double-click rename), then the environment and tool buttons.
 
 use crate::app::FerrumApi;
 use crate::components::fields::{FieldEvent, FieldSpec};
@@ -54,27 +55,10 @@ impl FerrumApi {
                 div().truncate().child(title.clone()).into_any_element()
             };
             tabs.push(
-                h_flex()
-                    .id(SharedString::from(format!("tab-{id}")))
-                    .flex_none()
+                ferrum_ui::header_tab(SharedString::from(format!("tab-{id}")), selected, cx)
                     .max_w(px(224.))
-                    .h_8()
-                    .gap_1p5()
-                    .px_3()
-                    .rounded_t_md()
+                    .pr_0p5()
                     .text_xs()
-                    .map(|this| {
-                        if selected {
-                            this.bg(colors.tab_active_background)
-                                .border_x_1()
-                                .border_t_1()
-                                .border_color(colors.border)
-                                .text_color(colors.text)
-                        } else {
-                            this.text_color(colors.text_muted)
-                                .hover(|s| s.text_color(colors.text))
-                        }
-                    })
                     .tooltip(Tooltip::text(title))
                     .on_click(cx.listener(move |this, event: &ClickEvent, _, cx| {
                         if event.click_count() >= 2 {
@@ -113,25 +97,24 @@ impl FerrumApi {
             );
         }
 
-        h_flex()
-            .id("request-tabs")
-            .flex_none()
-            .h_9()
-            .items_end()
-            .gap_0p5()
-            .px_2()
-            .overflow_x_scroll()
-            .bg(colors.tab_bar_background)
+        let sidebar_open = self.state.sidebar_open;
+        let controls = (!sidebar_open).then(|| self.render_title_controls(cx));
+        let tools = self.render_header_tools(window, cx);
+        ferrum_ui::title_row("request-header", !sidebar_open, window)
+            .gap_1()
             .border_b_1()
-            .border_color(colors.border)
-            .children(tabs)
+            .border_color(colors.border_variant)
+            .children(controls)
             .child(
                 h_flex()
-                    .mb_1()
+                    .id("request-tabs")
+                    .flex_1()
+                    .min_w_0()
+                    .gap_1()
+                    .overflow_x_scroll()
+                    .children(tabs)
                     .child(
-                        IconButton::new("new-tab", IconName::Plus)
-                            .icon_size(IconSize::Small)
-                            .tooltip(Tooltip::text("New HTTP request tab"))
+                        ferrum_ui::title_button("new-tab", IconName::Plus, "New HTTP request tab")
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.new_tab();
                                 cx.notify();
@@ -142,6 +125,15 @@ impl FerrumApi {
                         cx,
                     )),
             )
+            .when(!sidebar_open, |row| {
+                row.child(
+                    div()
+                        .flex_none()
+                        .max_w(px(240.))
+                        .child(self.project_bar.clone()),
+                )
+            })
+            .child(tools)
             .into_any_element()
     }
 }

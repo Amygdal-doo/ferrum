@@ -32,6 +32,14 @@ fn mix(a: Hsla, b: Hsla, t: f32) -> Hsla {
     .into()
 }
 
+/// `base` moved `t` of the way towards `toward`, keeping `base`'s alpha.
+pub(crate) fn lighten(base: Hsla, toward: Hsla, t: f32) -> Hsla {
+    Hsla {
+        a: base.a,
+        ..mix(base, toward, t)
+    }
+}
+
 /// `div` filled with the window backdrop. `overlay`: drawn over other
 /// content (onboarding), so it stays nearly opaque even in Glass.
 pub fn backdrop(overlay: bool, cx: &App) -> Div {

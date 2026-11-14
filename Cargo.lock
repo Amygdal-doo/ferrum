@@ -2862,6 +2862,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrumdock-cli"
+version = "0.1.0"
+dependencies = [
+ "ferrumdock-engine",
+]
+
+[[package]]
 name = "ferrumdock-desktop"
 version = "0.1.0"
 dependencies = [

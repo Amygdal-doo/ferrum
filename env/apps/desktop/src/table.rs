@@ -1,201 +1,218 @@
-//! The selected project: header, environment tabs, environment actions
-//! and the variable table (values masked until revealed).
+//! The selected project's card: a header row with the environment tabs and
+//! the environment / project actions, then the variable table (values
+//! masked until revealed).
 
+use ferrum_ui::components::Clickable;
 use ferrum_ui::prelude::*;
 use ferrumenv_core::dotenv;
 
 use crate::app::{EnvApp, NewVariable};
 use crate::dialogs::ConfirmAction;
 use crate::secrets::{MASK, preview};
-use crate::widgets::{icon_button, muted, text_button};
+use crate::widgets::{icon_button, muted};
 
 impl EnvApp {
-    pub(crate) fn render_project(&self, _: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    /// The card's body: header row, then the variables (or an empty state).
+    pub(crate) fn render_project(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let Some(unlocked) = self.vault() else {
             return div().into_any_element();
         };
-        let Some(project) = unlocked.project() else {
-            return empty_state(
-                "No project selected",
-                "Create a project, or open a folder from the project strip (⌥⌘O)",
-            )
-            .into_any_element();
-        };
-        let colors = cx.theme().colors().clone();
-        let key_badge = match &project.share_key {
-            Some(key) => format!("Share key {}", key.fingerprint()),
-            None => "No share key".to_string(),
-        };
-        let header = h_flex()
-            .flex_none()
-            .px_4()
-            .pt_3()
-            .pb_2()
-            .gap_2()
-            .justify_between()
-            .child(
-                v_flex()
-                    .min_w_0()
-                    .child(Headline::new(project.name.clone()).size(HeadlineSize::Small))
-                    .child(muted(project.path.as_ref().map_or_else(
-                        || "Not linked to a folder".to_string(),
-                        |p| p.display().to_string(),
-                    ))),
-            )
-            .child(
-                h_flex()
-                    .gap_1()
-                    .child(
-                        text_button("share-key", key_badge, cx, |this, window, cx| {
-                            this.open_share_key(window, cx);
-                        })
-                        .start_icon(Icon::new(IconName::Lock).size(IconSize::XSmall)),
-                    )
-                    .child(
-                        text_button("share", "Share…", cx, |this, window, cx| {
-                            this.open_share(window, cx);
-                        })
-                        .start_icon(Icon::new(IconName::Share).size(IconSize::XSmall)),
-                    )
-                    .child(icon_button(
-                        "delete-project",
-                        IconName::Trash,
-                        "Delete project",
-                        cx,
-                        |this, window, cx| {
-                            if let Some(index) = this.vault().and_then(|u| u.project) {
-                                this.confirm(ConfirmAction::DeleteProject(index), window, cx);
-                            }
-                        },
-                    )),
-            );
-
-        let mut tabs = TabBar::new("env-tabs");
-        for (index, env) in project.environments.iter().enumerate() {
-            tabs = tabs.child(
-                Tab::new(SharedString::from(format!("env-{index}")))
-                    .toggle_state(index == unlocked.env)
-                    .child(Label::new(env.name.clone()).size(LabelSize::Small))
-                    .on_click(
-                        cx.listener(move |this, _, _, cx| this.select_environment(index, cx)),
-                    ),
-            );
+        let header = self.render_card_header(window, cx);
+        if unlocked.project().is_none() {
+            return v_flex()
+                .size_full()
+                .child(header)
+                .child(empty_state(
+                    "No project selected",
+                    "Create a project with +, or open a folder (⌥⌘O)",
+                ))
+                .into_any_element();
         }
-        tabs = tabs.end_child(icon_button(
-            "new-env",
-            IconName::Plus,
-            "New environment",
-            cx,
-            |this, window, cx| this.open_environment_name(None, window, cx),
-        ));
-
         v_flex()
             .size_full()
             .child(header)
-            .child(tabs)
-            .child(self.render_env_toolbar(cx))
             .child(
                 div()
                     .id("variables")
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .border_t_1()
-                    .border_color(colors.border_variant)
                     .child(self.render_variables(cx)),
             )
             .into_any_element()
     }
 
-    fn render_env_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let reveal_all = self.vault().is_some_and(|u| u.reveal_all);
-        let has_env = self.vault().and_then(|u| u.environment()).is_some();
-        let row = h_flex().flex_none().px_3().py_1().gap_1().flex_wrap();
-        if !has_env {
-            return row.child(muted("No environments. Add one with +."));
+    /// The card's 40px header: (window controls and project while the
+    /// sidebar is hidden,) environment tabs, then the actions as icons.
+    fn render_card_header(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
+        let sidebar_open = self.sidebar_open;
+        let mut row = ferrum_ui::title_row("pane-header", !sidebar_open, window)
+            .gap_1()
+            .border_b_1()
+            .border_color(colors.border_variant)
+            .text_ui_sm(cx);
+        let Some(unlocked) = self.vault() else {
+            return row;
+        };
+        if !sidebar_open {
+            row = row
+                .child(self.title_controls(cx))
+                .child(
+                    div()
+                        .flex_none()
+                        .max_w(px(260.))
+                        .child(unlocked.bar.clone()),
+                )
+                .child(div().w(px(6.)));
         }
-        row.child(
-            Button::new("add-var", "Add variable")
-                .style(ButtonStyle::Filled)
-                .size(ButtonSize::Compact)
-                .label_size(LabelSize::Small)
-                .start_icon(Icon::new(IconName::Plus).size(IconSize::XSmall))
-                .tooltip(|_, cx| Tooltip::for_action("Add variable", &NewVariable, cx))
-                .on_click(cx.listener(|this, _, window, cx| {
-                    this.open_variable_dialog(None, window, cx);
-                })),
-        )
-        .child(text_button(
-            "reveal-all",
-            if reveal_all { "Hide all" } else { "Reveal all" },
-            cx,
-            |this, _, cx| {
-                if let Some(u) = this.vault_mut() {
-                    u.reveal_all = !u.reveal_all;
-                    u.revealed.clear();
-                }
-                cx.notify();
-            },
-        ))
-        .child(text_button(
-            "import-env",
-            "Import .env…",
-            cx,
-            |this, window, cx| {
-                this.open_import_dotenv(window, cx);
-            },
-        ))
-        .child(text_button(
-            "export-env",
-            "Write .env…",
-            cx,
-            |this, window, cx| {
-                this.open_export_dotenv(window, cx);
-            },
-        ))
-        .child(text_button(
-            "copy-env",
-            "Copy as .env",
-            cx,
-            |this, _, cx| {
-                let text = this
-                    .vault()
-                    .and_then(|u| u.environment())
-                    .map(|e| dotenv::to_dotenv(&e.variables));
-                if let Some(text) = text {
-                    this.copy_secret(&text, ".env text", cx);
-                }
-            },
-        ))
-        .child(text_button(
-            "compare",
-            "Compare…",
-            cx,
-            |this, window, cx| {
-                this.open_compare(window, cx);
-            },
-        ))
-        .child(div().flex_1())
-        .child(text_button(
-            "rename-env",
-            "Rename",
-            cx,
-            |this, window, cx| {
-                let index = this.vault().map(|u| u.env);
-                this.open_environment_name(index, window, cx);
-            },
-        ))
-        .child(icon_button(
-            "delete-env",
-            IconName::Trash,
-            "Delete environment",
-            cx,
-            |this, window, cx| {
-                if let Some(index) = this.vault().map(|u| u.env) {
-                    this.confirm(ConfirmAction::DeleteEnvironment(index), window, cx);
-                }
-            },
-        ))
+        let Some(project) = unlocked.project() else {
+            return row;
+        };
+        let mut tabs = h_flex()
+            .id("env-tabs")
+            .flex_1()
+            .min_w_0()
+            .gap_1()
+            .overflow_x_scroll();
+        for (index, env) in project.environments.iter().enumerate() {
+            tabs = tabs.child(
+                ferrum_ui::header_tab(
+                    SharedString::from(format!("env-{index}")),
+                    index == unlocked.env,
+                    cx,
+                )
+                .child(env.name.clone())
+                .on_click(cx.listener(move |this, _, _, cx| this.select_environment(index, cx))),
+            );
+        }
+        tabs = tabs.child(
+            ferrum_ui::title_button("new-env", IconName::Plus, "New environment").on_click(
+                cx.listener(|this, _, window, cx| this.open_environment_name(None, window, cx)),
+            ),
+        );
+        let key_tooltip = match &project.share_key {
+            Some(key) => format!("Share key {}", key.fingerprint()),
+            None => "No share key: set one up".to_string(),
+        };
+        row.child(tabs)
+            .when(unlocked.environment().is_some(), |row| {
+                row.child(self.env_actions(cx))
+            })
+            .child(div().w(px(1.)).h(px(16.)).mx_1().bg(colors.border_variant))
+            .child(icon_button(
+                "share-key",
+                IconName::Hash,
+                key_tooltip,
+                cx,
+                |this, window, cx| this.open_share_key(window, cx),
+            ))
+            .child(icon_button(
+                "share",
+                IconName::Share,
+                "Share…",
+                cx,
+                |this, window, cx| this.open_share(window, cx),
+            ))
+            .when(!sidebar_open, |row| {
+                row.child(icon_button(
+                    "lock-now-header",
+                    IconName::Lock,
+                    "Lock now (⌘L)",
+                    cx,
+                    |this, window, cx| this.lock(window, cx),
+                ))
+            })
+    }
+
+    /// Actions on the current environment, as small icon buttons.
+    fn env_actions(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let reveal_all = self.vault().is_some_and(|u| u.reveal_all);
+        h_flex()
+            .flex_none()
+            .gap_0p5()
+            .child(
+                IconButton::new("add-var", IconName::Plus)
+                    .icon_size(IconSize::Small)
+                    .tooltip(|_, cx| Tooltip::for_action("Add variable", &NewVariable, cx))
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.open_variable_dialog(None, window, cx);
+                    })),
+            )
+            .child(icon_button(
+                "reveal-all",
+                if reveal_all {
+                    IconName::EyeOff
+                } else {
+                    IconName::Eye
+                },
+                if reveal_all { "Hide all" } else { "Reveal all" },
+                cx,
+                |this, _, cx| {
+                    if let Some(u) = this.vault_mut() {
+                        u.reveal_all = !u.reveal_all;
+                        u.revealed.clear();
+                    }
+                    cx.notify();
+                },
+            ))
+            .child(icon_button(
+                "import-env",
+                IconName::Download,
+                "Import .env…",
+                cx,
+                |this, window, cx| this.open_import_dotenv(window, cx),
+            ))
+            .child(icon_button(
+                "export-env",
+                IconName::File,
+                "Write .env…",
+                cx,
+                |this, window, cx| this.open_export_dotenv(window, cx),
+            ))
+            .child(icon_button(
+                "copy-env",
+                IconName::Copy,
+                "Copy as .env",
+                cx,
+                |this, _, cx| {
+                    let text = this
+                        .vault()
+                        .and_then(|u| u.environment())
+                        .map(|e| dotenv::to_dotenv(&e.variables));
+                    if let Some(text) = text {
+                        this.copy_secret(&text, ".env text", cx);
+                    }
+                },
+            ))
+            .child(icon_button(
+                "compare",
+                IconName::ArrowRightLeft,
+                "Compare…",
+                cx,
+                |this, window, cx| this.open_compare(window, cx),
+            ))
+            .child(icon_button(
+                "rename-env",
+                IconName::Pencil,
+                "Rename environment",
+                cx,
+                |this, window, cx| {
+                    let index = this.vault().map(|u| u.env);
+                    this.open_environment_name(index, window, cx);
+                },
+            ))
+            .child(icon_button(
+                "delete-env",
+                IconName::Trash,
+                "Delete environment",
+                cx,
+                |this, window, cx| {
+                    if let Some(index) = this.vault().map(|u| u.env) {
+                        this.confirm(ConfirmAction::DeleteEnvironment(index), window, cx);
+                    }
+                },
+            ))
     }
 
     fn render_variables(&self, cx: &mut Context<Self>) -> AnyElement {

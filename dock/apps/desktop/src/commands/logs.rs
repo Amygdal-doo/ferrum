@@ -20,6 +20,7 @@ impl FerrumContainers {
             return;
         }
         self.state.detail = Some(DetailState::new(id.to_owned()));
+        self.detail_active = true;
         self.inputs
             .log_search
             .update(cx, |input, cx| input.set_text("", cx));
@@ -31,6 +32,7 @@ impl FerrumContainers {
     pub fn close_detail(&mut self, cx: &mut Context<Self>) {
         self.stop_logs();
         self.state.detail = None;
+        self.detail_active = false;
         cx.notify();
     }
 

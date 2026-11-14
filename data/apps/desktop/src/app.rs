@@ -3,11 +3,13 @@
 use crate::commands::keys::KeyInputs;
 use crate::components::connection::{ConnectionForm, ConnectionFormEvent};
 use crate::state::{AppState, Dialog};
-use ferrum_ui::gpui::{Axis, UniformListScrollHandle};
+use ferrum_ui::gpui::{Axis, MouseDownEvent, UniformListScrollHandle};
 use ferrum_ui::prelude::*;
 use ferrumdata_application::AppServices;
 use ferrumdata_domain::{DatabaseEngine, EditorTabId, ProfileId};
 use std::collections::HashMap;
+
+actions!(ferrum_data, [ToggleSidebar]);
 
 const SIDEBAR_SPLITTER: &str = "sidebar";
 const RESULTS_SPLITTER: &str = "results";
@@ -48,7 +50,7 @@ pub struct FerrumData {
     pub form: Option<Entity<ConnectionForm>>,
     pub grid_scroll: UniformListScrollHandle,
     pub notice: Option<Notice>,
-    /// Shared Ferrum project strip above the header.
+    /// Shared Ferrum project bar, inline under the sidebar's title row.
     pub project_bar: Entity<ProjectBar>,
     /// Connection the bar was last set from (`Some(None)`: none).
     pub(crate) project_synced: Option<Option<String>>,
@@ -69,6 +71,10 @@ impl FerrumData {
         let focus_handle = cx.focus_handle();
         window.focus(&focus_handle, cx);
         crate::components::result_grid::bind_grid_keys(cx);
+        cx.bind_keys([
+            KeyBinding::new("cmd-b", ToggleSidebar, None),
+            KeyBinding::new("ctrl-b", ToggleSidebar, None),
+        ]);
         let project_bar = crate::components::shell::project::new_bar(window, cx);
 
         let mut this = Self {
@@ -268,36 +274,64 @@ impl FerrumData {
         cx.notify();
     }
 
+    /// Sidebar on the window backdrop, then the cards: the editor (tabs in
+    /// its header) and the results, or one card for a table / key tab.
     fn render_main(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let layout = self.state.settings.layout.clamped();
+        let gap = ferrum_ui::PANE_GAP;
+        let sidebar_open = !self.state.sidebar_hidden;
         let table_tab = self.state.active_tab().is_some_and(|t| t.table.is_some());
         let key_tab = self.state.active_tab().is_some_and(|t| t.key.is_some());
+        let results_active = self.state.results_active;
+        let use_editor = cx.listener(|this, _: &MouseDownEvent, _, cx| {
+            if this.state.results_active {
+                this.state.results_active = false;
+                cx.notify();
+            }
+        });
         let main = if table_tab || key_tab {
-            // Tab bar stays visible; the table/key view replaces editor + results.
+            // Tabs stay in the header; the table/key view replaces editor + results.
             let view = if key_tab {
                 self.render_key_view(window, cx)
             } else {
                 self.render_table_view(window, cx)
             };
-            v_flex()
+            ferrum_ui::pane_card(true, cx)
                 .flex_1()
-                .min_w_0()
-                .min_h_0()
-                .child(self.render_tab_bar(cx))
+                .w_full()
+                .child(self.render_tab_bar(window, cx))
                 .child(view)
                 .into_any_element()
         } else {
+            let use_results = cx.listener(|this, _: &MouseDownEvent, _, cx| {
+                if !this.state.results_active {
+                    this.state.results_active = true;
+                    cx.notify();
+                }
+            });
             v_flex()
                 .flex_1()
-                .min_w_0()
                 .min_h_0()
+                .w_full()
                 .on_drag_move(cx.listener(Self::on_drag_results))
-                .child(self.render_editor_pane(window, cx))
-                .child(splitter(RESULTS_SPLITTER, Axis::Vertical, cx))
                 .child(
-                    div()
+                    ferrum_ui::pane_card(!results_active, cx)
+                        .flex_1()
+                        .w_full()
+                        .capture_any_mouse_down(use_editor)
+                        .child(self.render_editor_pane(window, cx)),
+                )
+                .child(ferrum_ui::gap_splitter(
+                    RESULTS_SPLITTER,
+                    Axis::Vertical,
+                    cx,
+                ))
+                .child(
+                    ferrum_ui::pane_card(results_active, cx)
                         .flex_none()
+                        .w_full()
                         .h(px(layout.results_height as f32))
+                        .capture_any_mouse_down(use_results)
                         .child(self.render_results(window, cx)),
                 )
                 .into_any_element()
@@ -308,16 +342,31 @@ impl FerrumData {
             .min_h_0()
             .items_stretch()
             .on_drag_move(cx.listener(Self::on_drag_sidebar))
+            .when(sidebar_open, |row| {
+                row.child(
+                    div()
+                        .flex_none()
+                        .h_full()
+                        .overflow_hidden()
+                        .w(px(layout.sidebar_width as f32))
+                        .child(self.render_sidebar(window, cx)),
+                )
+                .child(ferrum_ui::gap_splitter(
+                    SIDEBAR_SPLITTER,
+                    Axis::Horizontal,
+                    cx,
+                ))
+            })
             .child(
-                div()
-                    .flex_none()
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
                     .h_full()
-                    .overflow_hidden()
-                    .w(px(layout.sidebar_width as f32))
-                    .child(self.render_sidebar(window, cx)),
+                    .pt(gap)
+                    .pr(gap)
+                    .when(!sidebar_open, |main| main.pl(gap))
+                    .child(main),
             )
-            .child(splitter(SIDEBAR_SPLITTER, Axis::Horizontal, cx))
-            .child(main)
             .into_any_element()
     }
 }
@@ -343,7 +392,6 @@ impl Render for FerrumData {
                 )
                 .into_any_element()
         };
-        let header = self.render_header(window, cx);
         let status = self.render_status_bar(cx);
         let dialog = self.render_dialog(cx);
 
@@ -352,7 +400,7 @@ impl Render for FerrumData {
             .size_full()
             .track_focus(&self.focus_handle)
             .key_context("FerrumData")
-            .bg(colors.background)
+            .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| this.toggle_sidebar(cx)))
             .text_color(colors.text)
             .on_action(
                 cx.listener(|this, _: &ferrum_ui::menu::Cancel, window, cx| {
@@ -370,8 +418,6 @@ impl Render for FerrumData {
                 this.project_bar
                     .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
             }))
-            .child(self.project_bar.clone())
-            .child(header)
             .child(body)
             .child(status)
             .children(dialog)

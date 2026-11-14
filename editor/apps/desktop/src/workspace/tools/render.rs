@@ -54,6 +54,7 @@ impl Workspace {
     pub(in crate::workspace) fn render_dock(
         &self,
         dock: Dock,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let visible = self.tools.layout.visible(dock);
@@ -65,7 +66,7 @@ impl Workspace {
         let mut column = if vertical { v_flex() } else { h_flex() };
         for (i, (kind, share)) in visible.into_iter().enumerate() {
             let pane = self
-                .render_tool_pane(kind, dock, cx)
+                .render_tool_pane(kind, dock, window, cx)
                 .flex_basis(px(0.))
                 .flex_grow(share)
                 .when(!vertical, |d| d.min_w(px(kind.min_width())))
@@ -151,11 +152,14 @@ impl Workspace {
         &self,
         kind: ToolKind,
         dock: Dock,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Stateful<Div> {
         let id =
             |part: &str| SharedString::from(format!("tool-{}-{part}", kind.title().to_lowercase()));
+        // As tall as the editor card's header beside it.
         let header = ferrum_ui::pane_header(cx)
+            .h(ferrum_ui::TITLE_ROW_HEIGHT)
             .id(id("header"))
             .pr_1()
             .cursor_grab()
@@ -190,7 +194,8 @@ impl Workspace {
                         cx.listener(move |this, _, window, cx| this.close_tool(kind, window, cx)),
                     ),
             );
-        ferrum_ui::pane_frame(cx)
+        // Lighter while the tool has focus.
+        ferrum_ui::pane_card(self.tool_focused(kind, window, cx), cx)
             .id(id("pane"))
             .debug_selector(move || format!("tool-pane-{}", kind.title().to_lowercase()))
             .drag_over::<DraggedTool>(move |style, dragged, _, cx| {

@@ -31,6 +31,7 @@ fn main() {
     let project = folder_argument(std::env::args_os().skip(1)).or_else(app::last_project);
 
     let config = AppConfig::new("FerrumAgentic")
+        .unified_titlebar()
         .size(1560., 920.)
         .min_size(720., 480.)
         .app(app_info::app_info());

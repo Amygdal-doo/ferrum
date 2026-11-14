@@ -58,7 +58,6 @@ impl FerrumApi {
                                 div()
                                     .px_2()
                                     .py_1()
-                                    .bg(colors.panel_background)
                                     .text_xs()
                                     .font_weight(gpui::FontWeight::SEMIBOLD)
                                     .text_color(colors.text_muted)

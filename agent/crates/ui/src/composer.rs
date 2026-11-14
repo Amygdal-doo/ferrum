@@ -146,6 +146,16 @@ impl ChatView {
             })
     }
 
+    /// The logo of the chosen model's maker or ACP agent, if it has one.
+    fn agent_logo(&self) -> Option<ferrum_ui::AgentLogo> {
+        match AgentChoice::parse(&self.thread.agent)? {
+            AgentChoice::Native { model, .. } => ferrum_ui::AgentLogo::for_model(&model),
+            AgentChoice::Acp { agent } => {
+                ferrum_ui::AgentLogo::for_program(agent.split(['-', ' ']).next().unwrap_or(&agent))
+            }
+        }
+    }
+
     fn agent_label(&self) -> String {
         match AgentChoice::parse(&self.thread.agent) {
             Some(AgentChoice::Native { model, .. }) => model,
@@ -427,6 +437,9 @@ impl ChatView {
                         .tooltip(Tooltip::text("⇧Tab cycles modes"))
                         .on_click(cx.listener(move |this, _, _, cx| this.set_mode(m, cx)))
                     })))
+                    .when_some(self.agent_logo(), |this, logo| {
+                        this.child(div().ml_1().child(ferrum_ui::agent_logo(logo, px(14.), cx)))
+                    })
                     .child(
                         DropdownMenu::new("chat-agent", self.agent_label(), menu)
                             .style(DropdownStyle::Subtle),

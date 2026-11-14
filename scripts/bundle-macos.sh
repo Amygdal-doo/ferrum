@@ -29,7 +29,7 @@ case "$app" in
   data)    name="FerrumData";     binaries="ferrumdata" ;;
   term)    name="FerrumTerm";     binaries="ferrumterm fterm" ;;
   kit)     name="FerrumKit";      binaries="ferrumkit" ;;
-  dock)    name="FerrumContainers"; binaries="ferrumdock" ;;
+  dock)    name="FerrumContainers"; binaries="ferrumdock ferrumdock-cli" ;;
   editor)  name="Ferrum Editor";  binaries="ferrumeditor" ;;
   agentic) name="FerrumAgentic";  binaries="ferrumagentic" ;;
   ports)   name="FerrumPorts";    binaries="ferrumports" ;;

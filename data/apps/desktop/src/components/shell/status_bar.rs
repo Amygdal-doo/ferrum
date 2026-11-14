@@ -33,7 +33,11 @@ impl FerrumData {
             .unwrap_or_default();
         let vault = format!("Secrets: {}", self.services.connections.vault_name());
 
+        // On the backdrop under the cards: no fill or rule of its own.
         status_bar(cx)
+            .h(px(24.))
+            .bg(ferrum_ui::gpui::transparent_black())
+            .border_t_0()
             .child(
                 h_flex()
                     .gap_4()

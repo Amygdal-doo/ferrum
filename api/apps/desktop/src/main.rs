@@ -30,7 +30,9 @@ fn main() {
     tracing::info!(data_dir = %dirs.data_dir().display(), "starting FerrumAPI");
 
     ferrum_ui::run(
-        AppConfig::new("FerrumAPI").app(app_info::app_info()),
+        AppConfig::new("FerrumAPI")
+            .app(app_info::app_info())
+            .unified_titlebar(),
         move |window, cx| {
             app::bind_keys(cx);
             cx.new(|cx| app::FerrumApi::new(services, window, cx))

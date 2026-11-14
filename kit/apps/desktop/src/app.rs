@@ -1,4 +1,5 @@
-//! Root view: searchable tool list on the left, the selected tool on the right.
+//! Root view: searchable tool list in a sidebar on the window backdrop, the
+//! selected tool in a pane card on the right.
 
 use crate::tools;
 use crate::widgets::KitEvent;
@@ -7,12 +8,15 @@ use ferrum_ui::prelude::*;
 use ferrumkit_core::{Tool, filter_tools};
 use std::collections::HashMap;
 
-actions!(ferrum_kit, [FocusSearch]);
+actions!(ferrum_kit, [FocusSearch, ToggleSidebar]);
+
+const SIDEBAR_WIDTH: f32 = 232.;
 
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
         KeyBinding::new("cmd-k", FocusSearch, None),
         KeyBinding::new("ctrl-k", FocusSearch, None),
+        KeyBinding::new("cmd-b", ToggleSidebar, None),
     ]);
 }
 
@@ -24,6 +28,9 @@ pub struct FerrumKit {
     views: HashMap<Tool, AnyView>,
     /// Keeps the root in the dispatch path so ⌘K works with nothing focused.
     focus_handle: FocusHandle,
+    /// Inside the tool card; the card is lighter while it holds focus.
+    card_focus: FocusHandle,
+    sidebar_open: bool,
     notice: Option<Notice>,
     notice_task: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
@@ -51,6 +58,8 @@ impl FerrumKit {
             selected: Tool::Json,
             views: HashMap::new(),
             focus_handle: cx.focus_handle(),
+            card_focus: cx.focus_handle(),
+            sidebar_open: true,
             notice: None,
             notice_task: None,
             _subscriptions: subscriptions,
@@ -101,45 +110,117 @@ impl FerrumKit {
         });
     }
 
-    fn render_sidebar(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors();
+    fn toggle_sidebar(&mut self, _: &ToggleSidebar, _: &mut Window, cx: &mut Context<Self>) {
+        self.sidebar_open = !self.sidebar_open;
+        cx.notify();
+    }
+
+    /// ◧ and ⌘: in the sidebar's title row, or at the start of the tool
+    /// card's header while the sidebar is hidden.
+    fn title_controls(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        h_flex()
+            .flex_none()
+            .gap_0p5()
+            .child(
+                ferrum_ui::sidebar_toggle("toggle-sidebar", self.sidebar_open).on_click(
+                    cx.listener(|this, _, window, cx| {
+                        this.toggle_sidebar(&ToggleSidebar, window, cx)
+                    }),
+                ),
+            )
+            .child(
+                ferrum_ui::command_button("search-tools", "Search tools (⌘K)").on_click(
+                    cx.listener(|this, _, window, cx| {
+                        this.sidebar_open = true;
+                        this.focus_search(&FocusSearch, window, cx);
+                        cx.notify();
+                    }),
+                ),
+            )
+    }
+
+    /// The sidebar on the window backdrop: title row (traffic lights, ◧ ⌘),
+    /// search, then the tools.
+    fn render_sidebar(&mut self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
         let query = self.search.read(cx).text().to_string();
         let matches = filter_tools(&query);
         v_flex()
-            .w(px(232.))
+            .w(px(SIDEBAR_WIDTH))
             .flex_none()
             .h_full()
-            .bg(colors.panel_background)
-            .border_r_1()
-            .border_color(colors.border)
             .child(
-                h_flex()
-                    .p_2()
-                    .gap_1()
-                    .child(self.search.clone())
-                    .child(kbd("⌘K", cx)),
+                ferrum_ui::title_row("sidebar-title", true, window)
+                    .child(div().flex_1())
+                    .child(self.title_controls(cx)),
             )
+            .child(div().flex_none().px_2().pb_2().child(self.search.clone()))
             .child(
-                div()
+                v_flex()
                     .id("tool-list")
                     .flex_1()
                     .min_h_0()
                     .overflow_y_scroll()
-                    .px_1()
                     .when(matches.is_empty(), |this| {
                         this.child(empty_state("No tools match", "Try another word"))
                     })
                     .children(matches.into_iter().map(|tool| {
-                        ListItem::new(SharedString::from(format!("tool-{tool:?}")))
-                            .rounded()
-                            .toggle_state(tool == self.selected)
-                            .tooltip(Tooltip::text(tool.description()))
-                            .child(Label::new(tool.name()))
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.select(tool);
-                                cx.notify();
-                            }))
+                        ferrum_ui::sidebar_item(
+                            SharedString::from(format!("tool-{tool:?}")),
+                            tool == self.selected,
+                            cx,
+                        )
+                        .tooltip(Tooltip::text(tool.description()))
+                        .text_sm()
+                        .child(div().min_w_0().truncate().child(tool.name()))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.select(tool);
+                            cx.notify();
+                        }))
                     })),
+            )
+            .child(
+                div()
+                    .flex_none()
+                    .px_3p5()
+                    .py_2()
+                    .text_xs()
+                    .text_color(colors.text_muted)
+                    .child(format!("{} tools · offline", Tool::ALL.len())),
+            )
+    }
+
+    /// The tool card's header: (◧ ⌘ while the sidebar is hidden), the
+    /// tool's name and what it does.
+    fn render_tool_header(
+        &self,
+        tool: Tool,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
+        ferrum_ui::title_row("tool-header", !self.sidebar_open, window)
+            .gap_2()
+            .border_b_1()
+            .border_color(colors.border_variant)
+            .when(!self.sidebar_open, |row| {
+                row.child(self.title_controls(cx)).child(div().w(px(4.)))
+            })
+            .child(
+                div()
+                    .flex_none()
+                    .pl_1()
+                    .text_sm()
+                    .text_color(colors.text)
+                    .child(tool.name()),
+            )
+            .child(
+                div()
+                    .min_w_0()
+                    .truncate()
+                    .text_xs()
+                    .text_color(colors.text_muted)
+                    .child(tool.description()),
             )
     }
 }
@@ -148,57 +229,35 @@ impl Render for FerrumKit {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let tool = self.selected;
         let view = self.ensure_view(tool, window, cx);
-        let colors = cx.theme().colors();
-        v_flex()
+        let colors = cx.theme().colors().clone();
+        let sidebar_open = self.sidebar_open;
+        let active = self.card_focus.contains_focused(window, cx);
+        let card = ferrum_ui::pane_card(active, cx)
+            .track_focus(&self.card_focus)
+            .flex_1()
+            .h_full()
+            .child(self.render_tool_header(tool, window, cx))
+            .child(div().flex_1().min_h_0().px_4().py_3().child(view));
+        h_flex()
             .relative()
             .size_full()
-            .bg(colors.background)
             .text_color(colors.text)
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::focus_search))
+            .on_action(cx.listener(Self::toggle_sidebar))
+            .when(sidebar_open, |root| {
+                root.child(self.render_sidebar(window, cx))
+            })
             .child(
-                toolbar(cx)
-                    .justify_between()
-                    .child(Label::new("FerrumKit"))
-                    .child(
-                        Label::new("Runs locally · nothing is sent over the network")
-                            .size(LabelSize::Small)
-                            .color(Color::Muted),
-                    ),
-            )
-            .child(
-                h_flex()
+                div()
+                    .flex()
                     .flex_1()
-                    .min_h_0()
-                    .child(self.render_sidebar(cx))
-                    .child(
-                        v_flex()
-                            .flex_1()
-                            .min_w_0()
-                            .h_full()
-                            .child(
-                                v_flex()
-                                    .flex_none()
-                                    .px_4()
-                                    .pt_3()
-                                    .pb_2()
-                                    .child(Headline::new(tool.name()).size(HeadlineSize::Small))
-                                    .child(
-                                        Label::new(tool.description())
-                                            .size(LabelSize::Small)
-                                            .color(Color::Muted),
-                                    ),
-                            )
-                            .child(div().flex_1().min_h_0().px_4().pb_3().child(view)),
-                    ),
-            )
-            .child(
-                status_bar(cx)
-                    .child(Label::new(format!("{} tools", Tool::ALL.len())).size(LabelSize::Small))
-                    .child(
-                        Label::new("Offline · inputs are kept in memory only")
-                            .size(LabelSize::Small),
-                    ),
+                    .min_w_0()
+                    .h_full()
+                    .py(ferrum_ui::PANE_GAP)
+                    .pr(ferrum_ui::PANE_GAP)
+                    .pl(ferrum_ui::PANE_GAP)
+                    .child(card),
             )
             .when_some(self.notice.as_ref(), |this, notice| {
                 this.child(render_notice(

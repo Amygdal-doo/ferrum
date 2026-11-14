@@ -25,6 +25,7 @@ fn main() {
     let config = AppConfig::new("FerrumPorts")
         .size(1240., 760.)
         .min_size(900., 480.)
+        .unified_titlebar()
         .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         app::bind_keys(cx);

@@ -10,26 +10,23 @@ use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change};
 use crate::state::SidebarView;
 use ferrum_ui::components::{
-    ActiveTheme as _, Button, ButtonCommon as _, ButtonStyle, Clickable as _, Color, IconButton,
-    IconName, IconSize, Label, LabelCommon as _, LabelSize, Toggleable as _, Tooltip, h_flex,
-    v_flex,
+    Button, ButtonCommon as _, ButtonStyle, Clickable as _, Color, IconButton, IconName, IconSize,
+    Label, LabelCommon as _, LabelSize, Tooltip, h_flex, v_flex,
 };
 use ferrum_ui::empty_state;
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*};
 
-/// Section header with a title and trailing actions.
+/// Section header: a quiet label and trailing actions.
 fn section_header(title: &'static str, actions: Vec<AnyElement>) -> impl IntoElement {
     h_flex()
         .flex_none()
-        .h_9()
-        .px_3()
+        .h_8()
+        .px_3p5()
         .gap_1()
         .child(
-            div().flex_1().child(
-                Label::new(title.to_uppercase())
-                    .size(LabelSize::XSmall)
-                    .color(Color::Muted),
-            ),
+            div()
+                .flex_1()
+                .child(Label::new(title).size(LabelSize::Small).color(Color::Muted)),
         )
         .children(actions)
 }
@@ -52,8 +49,10 @@ fn icon_action(
 }
 
 impl FerrumApi {
+    /// The sidebar, on the window backdrop: title row (traffic lights,
+    /// ◧ ⌘ +), the project, the Collections / Environments / History
+    /// switcher, then the chosen list.
     pub fn render_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
-        let colors = cx.theme().colors().clone();
         let current = self.state.sidebar_view;
         let views = [
             (SidebarView::Collections, "Collections"),
@@ -67,19 +66,22 @@ impl FerrumApi {
         };
         v_flex()
             .size_full()
-            .bg(colors.panel_background)
+            .child(
+                ferrum_ui::title_row("sidebar-title", true, window)
+                    .child(div().flex_1())
+                    .child(self.render_title_controls(cx)),
+            )
+            .child(div().px_1().child(self.project_bar.clone()))
             .child(
                 h_flex()
                     .flex_none()
-                    .h_10()
+                    .h_9()
                     .gap_1()
                     .px_2()
-                    .border_b_1()
-                    .border_color(colors.border)
+                    .text_size(gpui::px(13.))
                     .children(views.into_iter().map(|(view, label)| {
-                        Button::new(SharedString::from(label), label)
-                            .style(ButtonStyle::Subtle)
-                            .toggle_state(view == current)
+                        ferrum_ui::header_tab(SharedString::from(label), view == current, cx)
+                            .child(label)
                             .on_click(cx.listener(move |this, _, _, cx| {
                                 this.state.sidebar_view = view;
                                 cx.notify();

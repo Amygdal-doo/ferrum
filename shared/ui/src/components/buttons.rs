@@ -1,6 +1,6 @@
 //! [`Button`] (label with an optional icon) and [`IconButton`].
 
-use gpui::{App, ElementId, IntoElement, RenderOnce, SharedString, Window};
+use gpui::{AnyElement, App, ElementId, IntoElement, RenderOnce, SharedString, Window};
 
 use super::button::ButtonBase;
 use super::button_traits::button_traits;
@@ -162,6 +162,30 @@ impl RenderOnce for IconButton {
         };
         let icon = Icon::new(name).size(self.icon_size).color(color);
         self.base.render(vec![icon.into_any_element()], cx)
+    }
+}
+
+/// A button around any content, e.g. a logo or a tile.
+#[derive(IntoElement)]
+pub struct ContentButton {
+    base: ButtonBase,
+    content: AnyElement,
+}
+
+impl ContentButton {
+    pub fn new(id: impl Into<ElementId>, content: impl IntoElement) -> Self {
+        Self {
+            base: ButtonBase::new(id),
+            content: content.into_any_element(),
+        }
+    }
+}
+
+button_traits!(ContentButton);
+
+impl RenderOnce for ContentButton {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        self.base.render(vec![self.content], cx)
     }
 }
 

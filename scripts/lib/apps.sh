@@ -26,7 +26,7 @@ ferrum_app() {
       APP_NAME="FerrumKit"; APP_BINARIES="ferrumkit"; DEB_PACKAGE="ferrumkit"
       APP_SUMMARY="Developer utilities: JSON, Base64, JWT, regex, hashes and more" ;;
     dock)
-      APP_NAME="FerrumContainers"; APP_BINARIES="ferrumdock"; DEB_PACKAGE="ferrumdock"
+      APP_NAME="FerrumContainers"; APP_BINARIES="ferrumdock ferrumdock-cli"; DEB_PACKAGE="ferrumdock"
       APP_SUMMARY="Native container manager for Docker-compatible engines" ;;
     editor)
       APP_NAME="Ferrum Editor"; APP_BINARIES="ferrumeditor"; DEB_PACKAGE="ferrum-editor"

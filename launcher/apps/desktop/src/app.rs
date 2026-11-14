@@ -117,6 +117,7 @@ impl FerrumLauncher {
         // are announced; the catalog fetch announces later ones.
         this.announce_new_apps(cx);
         this.load_logos(cx);
+        this.refresh_shell_commands();
         this.detect_token(window, cx);
         this.start_integration(cx);
         this
@@ -191,13 +192,12 @@ impl FerrumLauncher {
 
     pub fn open_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let settings = self.state.settings.clone();
-        let token_source = self.token_source;
-        let form = cx.new(|cx| SettingsForm::new(settings, token_source, window, cx));
+        let form = cx.new(|cx| SettingsForm::new(settings, window, cx));
         let subscription =
             cx.subscribe_in(&form, window, |this, _, event, window, cx| match event {
-                SettingsFormEvent::Saved { settings, token } => {
+                SettingsFormEvent::Saved(settings) => {
                     this.settings_form = None;
-                    this.apply_settings(settings.clone(), token.clone(), window, cx);
+                    this.apply_settings(settings.clone(), window, cx);
                 }
                 SettingsFormEvent::Cancelled => {
                     this.settings_form = None;
@@ -210,7 +210,10 @@ impl FerrumLauncher {
         cx.notify();
     }
 
-    fn render_toolbar(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+    /// The window's title row: traffic-light room, the update buttons, then
+    /// the last check and the check / appearance / settings buttons.
+    fn render_title_row(&mut self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
+        use ferrum_ui::components::ButtonSize;
         let last_check = match self.state.last_check {
             Some(time) => format!(
                 "Checked {}",
@@ -224,108 +227,85 @@ impl FerrumLauncher {
             .update_for(AppId::LAUNCHER)
             .map(|release| (release.version.clone(), release.html_url.clone()));
         let self_updatable = self.running_bundle.is_some();
-        toolbar(cx)
-            .justify_between()
+        ferrum_ui::title_row("title-row", true, window)
+            .gap_1()
+            .child(div().flex_none().w(px(8.)))
+            // A bundled launcher swaps itself for the new version and
+            // restarts; otherwise (cargo run, Windows, Linux) the release
+            // page has the installer.
+            .when_some(launcher_update, |this, (version, url)| {
+                let updating = self.self_update.is_some();
+                let button = Button::new(
+                    "launcher-update",
+                    if updating {
+                        format!("Updating to v{version}…")
+                    } else {
+                        format!("Update Launcher to v{version}")
+                    },
+                )
+                .size(ButtonSize::Compact)
+                .style(ButtonStyle::Tinted(ferrum_ui::components::TintColor::Accent))
+                .start_icon(Icon::new(IconName::Download).size(IconSize::Small))
+                .disabled(updating);
+                this.child(if self_updatable {
+                    button
+                        .tooltip(Tooltip::text(
+                            "Downloads the new version, replaces this app and restarts it",
+                        ))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.update_launcher(version.clone(), cx)
+                        }))
+                } else {
+                    button
+                        .tooltip(Tooltip::text(
+                            "Opens the release page to download the new installer",
+                        ))
+                        .on_click(move |_, _, cx| cx.open_url(&url))
+                })
+            })
+            .when(updates > 0, |this| {
+                this.child(
+                    Button::new(
+                        "update-all",
+                        format!("Update All ({updates})"),
+                    )
+                    .size(ButtonSize::Compact)
+                    .style(ButtonStyle::Tinted(ferrum_ui::components::TintColor::Accent))
+                    .start_icon(Icon::new(IconName::Download).size(IconSize::Small))
+                    .tooltip(Tooltip::text(format!(
+                        "{updates} update{} available: downloads and activates the newest version of every app",
+                        if updates == 1 { "" } else { "s" }
+                    )))
+                    .on_click(cx.listener(|this, _, _, cx| this.update_all(cx))),
+                )
+            })
+            .child(div().flex_1())
             .child(
-                h_flex()
-                    .gap_2()
-                    .child(self.logo(AppId::LAUNCHER, px(22.)))
-                    .child(Label::new(self.state.info(AppId::LAUNCHER).name))
-                    .when_some(self.state.running_launcher.clone(), |this, version| {
-                        this.child(
-                            Label::new(format!("v{version}"))
-                                .size(LabelSize::Small)
-                                .color(Color::Muted),
-                        )
-                    })
-                    // A bundled launcher swaps itself for the new version and
-                    // restarts; otherwise (cargo run, Windows, Linux) the
-                    // release page has the installer.
-                    .when_some(launcher_update, |this, (version, url)| {
-                        let updating = self.self_update.is_some();
-                        let button = Button::new(
-                            "launcher-update",
-                            if updating {
-                                format!("Updating to v{version}…")
-                            } else {
-                                format!("Update Launcher to v{version}")
-                            },
-                        )
-                        .style(ButtonStyle::Tinted(
-                            ferrum_ui::components::TintColor::Accent,
-                        ))
-                        .start_icon(Icon::new(IconName::Download))
-                        .disabled(updating);
-                        this.child(if self_updatable {
-                            button
-                                .tooltip(Tooltip::text(
-                                    "Downloads the new version, replaces this app and restarts it",
-                                ))
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.update_launcher(version.clone(), cx)
-                                }))
-                        } else {
-                            button
-                                .tooltip(Tooltip::text(
-                                    "Opens the release page to download the new installer",
-                                ))
-                                .on_click(move |_, _, cx| cx.open_url(&url))
-                        })
-                    })
-                    .when(updates > 0, |this| {
-                        this.child(badge(
-                            format!("{updates} update{}", if updates == 1 { "" } else { "s" }),
-                            cx.theme().status().info,
-                            cx,
-                        ))
-                        .child(
-                            Button::new("update-all", "Update All")
-                                .style(ButtonStyle::Tinted(
-                                    ferrum_ui::components::TintColor::Accent,
-                                ))
-                                .start_icon(Icon::new(IconName::Download))
-                                .tooltip(Tooltip::text(
-                                    "Downloads and activates the newest version of every app",
-                                ))
-                                .on_click(cx.listener(|this, _, _, cx| this.update_all(cx))),
-                        )
-                    }),
+                Label::new(if self.checking {
+                    "Checking…".to_string()
+                } else {
+                    last_check
+                })
+                .size(LabelSize::Small)
+                .color(Color::Muted),
+            )
+            .child(div().w(px(4.)))
+            .child(
+                ferrum_ui::title_button("check-updates", IconName::RotateCw, "Check for updates")
+                    .disabled(self.checking)
+                    .on_click(cx.listener(|this, _, _, cx| this.check_for_updates(true, cx))),
             )
             .child(
-                h_flex()
-                    .gap_2()
-                    .child(
-                        Label::new(last_check)
-                            .size(LabelSize::Small)
-                            .color(Color::Muted),
-                    )
-                    .child(
-                        Button::new(
-                            "check-updates",
-                            if self.checking {
-                                "Checking…"
-                            } else {
-                                "Check for updates"
-                            },
-                        )
-                        .start_icon(Icon::new(IconName::RotateCw))
-                        .disabled(self.checking)
-                        .on_click(cx.listener(|this, _, _, cx| this.check_for_updates(true, cx))),
-                    )
-                    .child(
-                        IconButton::new("appearance", IconName::Sparkle)
-                            .tooltip(Tooltip::text(
-                                "Look of every Ferrum app: colour scheme, themes, style",
-                            ))
-                            .on_click(|_, _, cx| ferrum_ui::open_settings(Some("interface"), cx)),
-                    )
-                    .child(
-                        IconButton::new("settings", IconName::Settings)
-                            .tooltip(Tooltip::text("Launcher settings"))
-                            .on_click(
-                                cx.listener(|this, _, window, cx| this.open_settings(window, cx)),
-                            ),
-                    ),
+                ferrum_ui::title_button(
+                    "appearance",
+                    IconName::Sparkle,
+                    "Look of every Ferrum app: colour scheme, themes, style",
+                )
+                .on_click(|_, _, cx| ferrum_ui::open_settings(Some("interface"), cx)),
+            )
+            .child(
+                ferrum_ui::title_button("settings", IconName::Settings, "Launcher settings")
+                    .on_click(cx.listener(|this, _, window, cx| this.open_settings(window, cx))),
             )
     }
 }
@@ -367,44 +347,51 @@ impl FerrumLauncher {
 impl Render for FerrumLauncher {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
-        let repo = format!(
-            "{}/{}",
-            self.state.settings.repo_owner, self.state.settings.repo_name
-        );
-        let auth = match self.token_source {
-            Some(source) => format!("Token: {source}"),
-            None => "No token (public repos only)".to_string(),
-        };
         let downloads = self.downloads.len();
+
+        let colors = colors.clone();
+        // Only while something downloads; where releases come from is not
+        // the user's concern.
+        let footer = (downloads > 0).then(|| {
+            h_flex()
+                .flex_none()
+                .h(px(26.))
+                .px_3()
+                .justify_end()
+                .border_t_1()
+                .border_color(colors.border_variant)
+                .child(
+                    Label::new(format!("{downloads} downloading"))
+                        .size(LabelSize::Small)
+                        .color(Color::Accent),
+                )
+        });
+        // The app table (or an app's page) in one card under the title row.
+        let card = ferrum_ui::pane_card(true, cx)
+            .flex_1()
+            .min_h_0()
+            .w_full()
+            .children(self.render_new_app_notice(cx))
+            .child(div().flex_1().min_h_0().child(match self.page {
+                Page::Overview => self.render_overview(cx).into_any_element(),
+                Page::App => self.render_detail(window, cx).into_any_element(),
+            }))
+            .children(footer);
 
         v_flex()
             .relative()
             .size_full()
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(Self::on_key_down))
-            .bg(colors.background)
             .text_color(colors.text)
-            .child(self.render_toolbar(cx))
-            .children(self.render_new_app_notice(cx))
-            .child(div().flex_1().min_h_0().child(match self.page {
-                Page::Overview => self.render_overview(cx).into_any_element(),
-                Page::App => self.render_detail(window, cx).into_any_element(),
-            }))
+            .child(self.render_title_row(window, cx))
             .child(
-                status_bar(cx)
-                    .child(Label::new(repo).size(LabelSize::Small).color(Color::Muted))
-                    .child(
-                        h_flex()
-                            .gap_3()
-                            .when(downloads > 0, |this| {
-                                this.child(
-                                    Label::new(format!("{downloads} downloading"))
-                                        .size(LabelSize::Small)
-                                        .color(Color::Accent),
-                                )
-                            })
-                            .child(Label::new(auth).size(LabelSize::Small).color(Color::Muted)),
-                    ),
+                v_flex()
+                    .flex_1()
+                    .min_h_0()
+                    .px(ferrum_ui::PANE_GAP)
+                    .pb(ferrum_ui::PANE_GAP)
+                    .child(card),
             )
             .when_some(self.onboarding.clone(), |this, onboarding| {
                 this.child(onboarding)

@@ -29,16 +29,6 @@ impl Column {
         }
     }
 
-    /// The top-bar toggle's label.
-    #[must_use]
-    pub fn label(self) -> &'static str {
-        match self {
-            Column::Chat => "Chat",
-            Column::Git => "Git",
-            Column::Term => "Term",
-        }
-    }
-
     /// Element id fragment, e.g. `chat`.
     #[must_use]
     pub fn key(self) -> &'static str {

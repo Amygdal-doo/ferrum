@@ -16,7 +16,7 @@ pub fn new_bar(
     window: &mut Window,
     cx: &mut Context<GitView>,
 ) -> (Entity<ProjectBar>, Subscription) {
-    let bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx));
+    let bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx).inline(true));
     let subscription = cx.subscribe(&bar, |app: &mut GitView, _, event, cx| match event {
         ProjectBarEvent::Open(path) => app.open_project(path.clone(), cx),
     });
