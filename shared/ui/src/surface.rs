@@ -71,9 +71,10 @@ pub fn pane_frame(cx: &App) -> Div {
 /// The header strip of a pane card: icon, title and actions in a row.
 pub fn pane_header(cx: &App) -> Div {
     let colors = cx.theme().colors();
+    let compact = appearance::current(cx).toolbar == crate::appearance::ToolbarStyle::Compact;
     h_flex()
         .flex_none()
-        .h(px(32.))
+        .h(if compact { px(26.) } else { px(34.) })
         .px_2()
         .gap_1p5()
         .border_b_1()

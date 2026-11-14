@@ -15,6 +15,20 @@ pub struct UiState {
     pub sidebar_width: f32,
     /// Custom agent command lines, most recent first.
     pub recent_agents: Vec<String>,
+    /// Share of the sidebar's height the Agents section takes (bottom).
+    pub agents_fraction: f32,
+    /// Saved "New tab" configurations: (name, command line; empty = shell).
+    pub tab_configs: Vec<(String, String)>,
+}
+
+/// Default and limits of [`UiState::agents_fraction`].
+pub const AGENTS_FRACTION: f32 = 0.3;
+const AGENTS_FRACTION_RANGE: (f32, f32) = (0.12, 0.85);
+
+/// `fraction` kept inside the allowed range.
+#[must_use]
+pub fn clamp_agents_fraction(fraction: f32) -> f32 {
+    fraction.clamp(AGENTS_FRACTION_RANGE.0, AGENTS_FRACTION_RANGE.1)
 }
 
 impl Default for UiState {
@@ -23,6 +37,8 @@ impl Default for UiState {
             sidebar_open: true,
             sidebar_width: 240.0,
             recent_agents: Vec::new(),
+            agents_fraction: AGENTS_FRACTION,
+            tab_configs: Vec::new(),
         }
     }
 }
@@ -52,8 +68,9 @@ impl UiState {
     /// state (an embedded view shares the file with the desktop window).
     pub fn save_recent_agents(&self) {
         let mut saved = Self::load();
-        if saved.recent_agents != self.recent_agents {
+        if saved.recent_agents != self.recent_agents || saved.tab_configs != self.tab_configs {
             saved.recent_agents.clone_from(&self.recent_agents);
+            saved.tab_configs.clone_from(&self.tab_configs);
             saved.save();
         }
     }
@@ -76,6 +93,19 @@ impl UiState {
                 "agent" if !value.is_empty() && s.recent_agents.len() < MAX_RECENT => {
                     s.recent_agents.push(value.to_owned());
                 }
+                "agents_fraction" => {
+                    if let Ok(f) = value.parse::<f32>() {
+                        s.agents_fraction = clamp_agents_fraction(f);
+                    }
+                }
+                "tab" => {
+                    if let Some((name, command)) = value.split_once('\t')
+                        && !name.trim().is_empty()
+                    {
+                        s.tab_configs
+                            .push((name.trim().to_owned(), command.trim().to_owned()));
+                    }
+                }
                 _ => {}
             }
         }
@@ -92,7 +122,19 @@ impl UiState {
         for a in &self.recent_agents {
             out.push_str(&format!("agent={a}\n"));
         }
+        out.push_str(&format!("agents_fraction={:.3}\n", self.agents_fraction));
+        for (name, command) in &self.tab_configs {
+            out.push_str(&format!("tab={name}\t{command}\n"));
+        }
         out
+    }
+
+    /// Adds (or replaces) the tab configuration `name`.
+    pub fn save_tab_config(&mut self, name: &str, command: &str) {
+        let name = name.trim().replace(['\n', '\t'], " ");
+        let command = command.trim().replace(['\n', '\t'], " ");
+        self.tab_configs.retain(|(n, _)| *n != name);
+        self.tab_configs.push((name, command));
     }
 
     /// Moves `command_line` to the front of the recent list.
@@ -114,7 +156,10 @@ mod tests {
             sidebar_open: false,
             sidebar_width: 300.0,
             recent_agents: Vec::new(),
+            agents_fraction: 0.4,
+            tab_configs: Vec::new(),
         };
+        s.save_tab_config("dev server", "npm run dev");
         s.remember_agent("aider --model sonnet");
         s.remember_agent("gemini");
         s.remember_agent("aider --model sonnet");

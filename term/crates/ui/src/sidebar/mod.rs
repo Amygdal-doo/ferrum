@@ -24,59 +24,123 @@ impl TermView {
     pub(crate) fn render_sidebar(&self, width: f32, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let model = Model::build(&self.app.sessions, self.app.window(), &self.app.seen);
-        let mut list = v_flex()
-            .id("sidebar-list")
+
+        // Top: every session's tabs and panes, then the SSH hosts.
+        let mut terminals = v_flex()
+            .id("sidebar-terminals")
+            .flex_1()
+            .min_h_0()
+            .overflow_y_scroll()
+            .pb_2();
+        if model.sessions.is_empty() {
+            terminals = terminals.child(placeholder("No terminals yet. Start one with +", cx));
+        }
+        for section in &model.sessions {
+            terminals = terminals.child(heading(section.title.clone(), cx).mt_1());
+            for row in &section.rows {
+                terminals = terminals.child(self.render_row(format!("row-{}", row.block), row, cx));
+            }
+        }
+        terminals = terminals.child(self.render_hosts(cx));
+
+        // Bottom: the agents, in their own scrolling section.
+        let mut agents = v_flex()
+            .id("sidebar-agents")
             .flex_1()
             .min_h_0()
             .overflow_y_scroll()
             .pb_2();
         if model.agents.is_empty() {
-            list = list.child(
-                div()
-                    .px_3()
-                    .py_1()
-                    .text_size(px(12.))
-                    .text_color(colors.text_placeholder)
-                    .child("No agents yet. Start one with +"),
-            );
+            agents = agents.child(placeholder("No agents yet. Start one with +", cx));
         }
         for row in &model.agents {
-            list = list.child(self.render_row(format!("agent-{}", row.block), row, cx));
+            agents = agents.child(self.render_row(format!("agent-{}", row.block), row, cx));
         }
-        for section in &model.sessions {
-            list = list.child(heading(section.title.clone(), cx).mt_2());
-            for row in &section.rows {
-                list = list.child(self.render_row(format!("row-{}", row.block), row, cx));
-            }
-        }
-        list = list.child(self.render_hosts(cx));
 
+        let fraction = self.app.ui.agents_fraction;
         v_flex()
+            .id("sidebar")
             .flex_none()
             .w(px(width))
             .h_full()
             .font_ui(cx)
             .text_size(px(13.))
             .text_color(colors.text)
+            .on_drag_move(cx.listener(Self::resize_agents))
             .child(
                 ferrum_ui::pane_header(cx)
                     .pl_3()
                     .pr_1()
-                    .child(heading("Agents", cx).px_0())
-                    .when(model.attention > 0, |header| {
-                        header.child(badge(
-                            model.attention.to_string(),
-                            cx.theme().status().warning,
-                            cx,
-                        ))
-                    })
+                    .child(heading("Terminals", cx).px_0())
                     .child(div().flex_1())
-                    .child(self.new_agent_menu(cx)),
+                    .child(self.new_menu("new-menu", cx)),
             )
             .when_some(self.custom_agent.clone(), |sidebar, input| {
-                sidebar.child(div().flex_none().p_2().child(input))
+                sidebar.child(
+                    v_flex()
+                        .flex_none()
+                        .p_2()
+                        .gap_1()
+                        .child(
+                            div()
+                                .text_size(px(11.))
+                                .text_color(colors.text_muted)
+                                .child(self.prompt.hint()),
+                        )
+                        .child(input),
+                )
             })
-            .child(list)
+            .child(terminals)
+            .child(ferrum_ui::gap_splitter(
+                AGENTS_SPLITTER,
+                gpui::Axis::Vertical,
+                cx,
+            ))
+            .child(
+                v_flex()
+                    .flex_none()
+                    .h(gpui::relative(fraction))
+                    .min_h(px(80.))
+                    .border_t_1()
+                    .border_color(colors.border_variant)
+                    .child(
+                        ferrum_ui::pane_header(cx)
+                            .pl_3()
+                            .pr_1()
+                            .child(heading("Agents", cx).px_0())
+                            .when(model.attention > 0, |header| {
+                                header.child(badge(
+                                    model.attention.to_string(),
+                                    cx.theme().status().warning,
+                                    cx,
+                                ))
+                            })
+                            .child(div().flex_1())
+                            .child(self.new_menu("new-agent-menu", cx)),
+                    )
+                    .child(agents),
+            )
+    }
+
+    /// Drag of the divider above the Agents section.
+    fn resize_agents(
+        &mut self,
+        event: &DragMoveEvent<DraggedSplitter>,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if event.drag(cx).id.as_ref() != AGENTS_SPLITTER {
+            return;
+        }
+        let bounds = event.bounds;
+        let height = f32::from(bounds.size.height);
+        if height <= 0. {
+            return;
+        }
+        let from_bottom = f32::from(bounds.bottom() - event.event.position.y);
+        self.app.ui.agents_fraction = crate::ui_state::clamp_agents_fraction(from_bottom / height);
+        self.resizing_sidebar = true;
+        cx.notify();
     }
 
     fn render_row(&self, id: String, row: &Row, cx: &mut Context<Self>) -> impl IntoElement {
@@ -134,50 +198,119 @@ impl TermView {
             })
     }
 
-    fn new_agent_menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    /// The "+" menu: a terminal, an agent here or on an SSH host, a git
+    /// worktree, saved tab configurations, and a new session.
+    pub(crate) fn new_menu(&self, id: &'static str, cx: &mut Context<Self>) -> impl IntoElement {
         let weak = cx.weak_entity();
         let recent = self.app.ui.recent_agents.clone();
-        PopoverMenu::new("new-agent")
+        let tabs = self.app.ui.tab_configs.clone();
+        let hosts: Vec<String> = self.app.ssh.hosts().into_iter().map(|h| h.name).collect();
+        PopoverMenu::new(id)
             .anchor(gpui::Anchor::TopRight)
             .trigger(
-                IconButton::new("new-agent-button", IconName::Plus)
+                IconButton::new(SharedString::from(format!("{id}-button")), IconName::Plus)
                     .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text("New agent in a new tab")),
+                    .tooltip(Tooltip::text("New terminal, agent, worktree…")),
             )
             .menu(move |window, cx| {
                 let weak = weak.clone();
                 let recent = recent.clone();
+                let tabs = tabs.clone();
+                let hosts = hosts.clone();
                 Some(ContextMenu::build(window, cx, move |mut menu, _, _| {
-                    menu = menu.header("Start in a new tab");
-                    let launch = |line: String, remember: bool| {
+                    let on = |f: MenuAction| {
                         let weak = weak.clone();
                         move |window: &mut Window, cx: &mut gpui::App| {
                             if let Err(error) = weak.update(cx, |view, cx| {
                                 window.focus(&view.focus_handle, cx);
-                                view.launch_agent(&line, remember, cx);
+                                f(view, window, cx);
+                                view.close_overlay_sidebar();
+                                view.after_change(cx);
                             }) {
-                                tracing::warn!(%error, "sidebar closed before the agent started");
+                                tracing::warn!(%error, "terminal view closed before the menu ran");
                             }
                         }
                     };
+                    menu = menu.icon_entry(
+                        "Terminal",
+                        IconName::Terminal,
+                        on(Box::new(|view, _, _| view.app.new_terminal())),
+                    );
+                    menu = menu.header("Agent");
                     for (title, line) in agents::PRESETS {
-                        menu = menu.entry(title, None, launch(line.to_owned(), false));
+                        menu = menu.icon_entry(
+                            title,
+                            IconName::Sparkle,
+                            on(Box::new(move |view, _, cx| {
+                                view.launch_agent(line, false, cx)
+                            })),
+                        );
                     }
-                    if !recent.is_empty() {
-                        menu = menu.separator();
-                        for line in &recent {
-                            menu = menu.entry(line.clone(), None, launch(line.clone(), true));
+                    for line in &recent {
+                        let line = line.clone();
+                        menu = menu.entry(
+                            line.clone(),
+                            None,
+                            on(Box::new(move |view, _, cx| {
+                                view.launch_agent(&line, true, cx)
+                            })),
+                        );
+                    }
+                    menu = menu.entry(
+                        "Custom agent…",
+                        None,
+                        on(Box::new(|view, window, cx| {
+                            view.begin_prompt(Prompt::CustomAgent, window, cx)
+                        })),
+                    );
+                    if !hosts.is_empty() {
+                        menu = menu.header("Cloud agent (on an SSH host)");
+                        for host in &hosts {
+                            for (title, line) in agents::PRESETS {
+                                let host = host.clone();
+                                menu = menu.entry(
+                                    format!("{title} on {host}"),
+                                    None,
+                                    on(Box::new(move |view, _, _| {
+                                        view.app.start_remote_agent(&host, line)
+                                    })),
+                                );
+                            }
                         }
                     }
-                    let weak = weak.clone();
-                    menu.separator()
-                        .entry("Custom command…", None, move |window, cx| {
-                            if let Err(error) =
-                                weak.update(cx, |view, cx| view.begin_custom_agent(window, cx))
-                            {
-                                tracing::warn!(%error, "sidebar closed before the prompt opened");
-                            }
-                        })
+                    menu = menu.separator();
+                    for (name, command) in &tabs {
+                        let (name, command) = (name.clone(), command.clone());
+                        menu = menu.entry(
+                            format!("New tab: {name}"),
+                            None,
+                            on(Box::new(move |view, _, _| {
+                                view.app.start_tab_config(&name, &command)
+                            })),
+                        );
+                    }
+                    menu.icon_entry(
+                        "New worktree…",
+                        IconName::GitBranch,
+                        on(Box::new(|view, window, cx| {
+                            view.begin_prompt(Prompt::Worktree, window, cx)
+                        })),
+                    )
+                    .icon_entry(
+                        "New tab config…",
+                        IconName::Plus,
+                        on(Box::new(|view, window, cx| {
+                            view.begin_prompt(Prompt::TabConfig, window, cx)
+                        })),
+                    )
+                    .separator()
+                    .entry(
+                        "New session",
+                        None,
+                        on(Box::new(|view, _, _| {
+                            view.app.shortcut(crate::input::Shortcut::NewSession, None)
+                        })),
+                    )
                 }))
             })
     }
@@ -200,15 +333,16 @@ impl TermView {
         self.after_change(cx);
     }
 
-    /// Opens the inline "custom command" field: Enter starts it, Escape or
+    /// Opens the inline field for `prompt`: Enter runs it, Escape or
     /// clicking elsewhere cancels.
-    fn begin_custom_agent(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn begin_prompt(&mut self, prompt: Prompt, window: &mut Window, cx: &mut Context<Self>) {
+        self.prompt = prompt;
         if !self.app.ui.sidebar_open {
             self.app.toggle_sidebar();
         }
         let input = cx.new(|cx| {
             TextInput::new(window, cx)
-                .placeholder("Command, e.g. aider --model sonnet")
+                .placeholder(prompt.placeholder())
                 .monospace()
         });
         let subscription =
@@ -220,7 +354,7 @@ impl TermView {
                         let line = input.read(cx).text().trim().to_owned();
                         view.end_custom_agent(window, cx);
                         if !line.is_empty() {
-                            view.launch_agent(&line, true, cx);
+                            view.run_prompt(&line, cx);
                         }
                     }
                     TextInputEvent::Blurred => view.end_custom_agent(window, cx),
@@ -231,6 +365,21 @@ impl TermView {
         self.custom_agent = Some(input);
         self._custom_agent_events = Some(subscription);
         cx.notify();
+    }
+
+    fn run_prompt(&mut self, line: &str, cx: &mut Context<Self>) {
+        match self.prompt {
+            Prompt::CustomAgent => self.launch_agent(line, true, cx),
+            Prompt::Worktree => self.app.new_worktree(line),
+            Prompt::TabConfig => {
+                // `name = command`; just a name opens a shell.
+                let (name, command) = line.split_once('=').unwrap_or((line, ""));
+                self.app.ui.save_tab_config(name, command);
+                self.app.ui.save_recent_agents();
+                self.app.start_tab_config(name.trim(), command);
+            }
+        }
+        self.after_change(cx);
     }
 
     pub(crate) fn end_custom_agent(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -299,6 +448,48 @@ impl TermView {
                 ))
             })
     }
+}
+
+/// What a "+" menu entry does to the view.
+type MenuAction = Box<dyn Fn(&mut TermView, &mut Window, &mut Context<TermView>)>;
+
+/// Drag id of the divider above the Agents section.
+const AGENTS_SPLITTER: &str = "sidebar-agents";
+
+/// What the sidebar's inline field is for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Prompt {
+    #[default]
+    CustomAgent,
+    Worktree,
+    TabConfig,
+}
+
+impl Prompt {
+    fn placeholder(self) -> &'static str {
+        match self {
+            Self::CustomAgent => "Command, e.g. aider --model sonnet",
+            Self::Worktree => "Branch, e.g. feature/login",
+            Self::TabConfig => "name = command, e.g. dev = npm run dev",
+        }
+    }
+
+    fn hint(self) -> &'static str {
+        match self {
+            Self::CustomAgent => "New agent: the command to run",
+            Self::Worktree => "New worktree next to this repository",
+            Self::TabConfig => "Save a tab config (it appears in the + menu)",
+        }
+    }
+}
+
+fn placeholder(text: &'static str, cx: &gpui::App) -> gpui::Div {
+    div()
+        .px_3()
+        .py_1()
+        .text_size(px(12.))
+        .text_color(cx.theme().colors().text_placeholder)
+        .child(text)
 }
 
 fn heading(title: impl Into<SharedString>, cx: &gpui::App) -> gpui::Div {

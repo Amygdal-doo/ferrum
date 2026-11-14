@@ -79,6 +79,17 @@ pub fn interactive(ssh: &str, host: &Host) -> Result<Vec<String>, String> {
     Ok(argv)
 }
 
+/// `ssh -t <host> <shell> -lic 'exec <command>'`: `command` in a new
+/// terminal on the host, through the remote login shell so its PATH applies
+/// (a "cloud agent": Claude Code or Codex running on another machine).
+pub fn remote_command(ssh: &str, host: &Host, command: &str) -> Result<Vec<String>, String> {
+    let mut argv = vec![ssh.to_owned(), "-t".into()];
+    argv.extend(destination(host)?);
+    let quoted = format!("'{}'", format!("exec {command}").replace('\'', "'\\''"));
+    argv.push(format!("exec \"${{SHELL:-/bin/sh}}\" -lic {quoted}"));
+    Ok(argv)
+}
+
 /// `ssh -N` for one forward. `BatchMode` keeps it from waiting on a prompt
 /// nobody can see (keys must be in ssh-agent / the keychain), and
 /// `ExitOnForwardFailure` makes a refused forward exit instead of idling.

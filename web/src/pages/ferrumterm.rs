@@ -58,6 +58,7 @@ const WORKS_TODAY: &[&str] = &[
     "Settings: font, cursor style and blink, Option as Meta, copy on selection, startup command",
     "Built-in light and dark themes, recordable shortcuts and per-event notifications",
     "Solid, Gradient or Glass interface style; terminal and sidebar as pane cards",
+    "+ menu: terminal, agent, agent on an SSH host, git worktree, saved tab configs",
     "What's using a port, with a confirmed kill (fterm port)",
 ];
 

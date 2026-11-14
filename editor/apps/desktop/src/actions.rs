@@ -134,7 +134,10 @@ pub fn set_menus(cx: &mut App) {
     cx.set_menus([
         Menu::new("Ferrum Editor").items([
             item("About Ferrum Editor", "application:about"),
+            MenuItem::action("Check for Updates…", ferrum_ui::menus::CheckForUpdates),
             MenuItem::separator(),
+            MenuItem::action("Appearance & Suite Settings…", ferrum_ui::OpenSettings),
+            MenuItem::action("Show Onboarding…", ferrum_ui::ShowOnboarding),
             item("Settings…", "application:open-config"),
             item("Keymap…", "application:open-keymap"),
             item("Snippets…", "application:open-snippets"),
@@ -144,6 +147,10 @@ pub fn set_menus(cx: &mut App) {
             item("Install Theme from File…", "theme:install-from-file"),
             item("Import VS Code Theme…", "theme:import-vscode-theme"),
             item("Open Themes Folder", "theme:open-themes-folder"),
+            MenuItem::separator(),
+            MenuItem::action("Hide Ferrum Editor", ferrum_ui::menus::HideApp),
+            MenuItem::action("Hide Others", ferrum_ui::menus::HideOthers),
+            MenuItem::action("Show All", ferrum_ui::menus::ShowAll),
             MenuItem::separator(),
             item("Quit Ferrum Editor", "application:quit"),
         ]),
@@ -250,5 +257,7 @@ pub fn set_menus(cx: &mut App) {
             item("Select Theme…", "theme:select"),
             item("Select Icon Theme…", "icon-theme:select"),
         ]),
+        ferrum_ui::menus::window_menu(),
+        ferrum_ui::menus::help_menu(&ferrum_ui::app_info(cx)),
     ]);
 }

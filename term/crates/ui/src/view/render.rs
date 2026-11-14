@@ -163,6 +163,70 @@ impl TermView {
             .child(label)
     }
 
+    /// Shown instead of the terminals while an older server holds the socket.
+    fn render_incompatible(&self, why: String, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
+        div()
+            .absolute()
+            .inset_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(colors.terminal_background)
+            .font_ui(cx)
+            .child(
+                v_flex()
+                    .max_w(px(520.))
+                    .p_5()
+                    .gap_3()
+                    .rounded_lg()
+                    .border_1()
+                    .border_color(colors.border_variant)
+                    .bg(colors.elevated_surface_background)
+                    .text_color(colors.text)
+                    .child(
+                        div()
+                            .text_size(px(16.))
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child("An older FerrumTerm server is running"),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(13.))
+                            .text_color(colors.text_muted)
+                            .child(if why.starts_with("could not restart") {
+                                why
+                            } else {
+                                "It was started by a previous FerrumTerm build and can't be \
+                                 used by this one. Restarting stops it; programs still running \
+                                 in it are closed."
+                                    .to_owned()
+                            }),
+                    )
+                    .child(
+                        h_flex().justify_end().child(
+                            div()
+                                .id("restart-server")
+                                .px_3()
+                                .py_1p5()
+                                .rounded_md()
+                                .cursor_pointer()
+                                .bg(colors.text_accent)
+                                .text_color(cx.theme().readable_text_on(colors.text_accent))
+                                .text_size(px(13.))
+                                .font_weight(gpui::FontWeight::SEMIBOLD)
+                                .child("Restart server")
+                                .on_click(cx.listener(|view, _, _, cx| {
+                                    view.incompatible = None;
+                                    view.app.notify("Restarting the FerrumTerm server…");
+                                    view.app.restart_server();
+                                    cx.notify();
+                                })),
+                        ),
+                    ),
+            )
+    }
+
     /// The sidebar drawn over the terminal (compact mode).
     fn sidebar_overlay(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
@@ -258,6 +322,9 @@ impl Render for TermView {
                     .min_h_0()
                     .w_full()
                     .child(panes_area)
+                    .when_some(self.incompatible.clone(), |area, why| {
+                        area.child(self.render_incompatible(why, cx))
+                    })
                     .when(compact && sidebar_open, |area| {
                         area.child(self.sidebar_overlay(cx))
                     }),

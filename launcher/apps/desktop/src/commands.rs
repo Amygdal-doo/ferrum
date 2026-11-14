@@ -259,6 +259,22 @@ impl FerrumLauncher {
         cx.notify();
     }
 
+    /// Installs and activates every pending app update at once (the
+    /// launcher's own update stays a separate button: it restarts the app).
+    pub fn update_all(&mut self, cx: &mut Context<Self>) {
+        let updates = self.state.app_updates();
+        if updates.is_empty() {
+            self.notify_user("Every app is up to date.", false, cx);
+            return;
+        }
+        for (app, version) in updates {
+            if !self.downloads.contains_key(&app) {
+                self.install(app, version, true, cx);
+            }
+        }
+        cx.notify();
+    }
+
     /// Downloads and installs `version` of `app`; activates it when it is the
     /// first install or `activate` is set (updates), then prunes old versions.
     pub fn install(

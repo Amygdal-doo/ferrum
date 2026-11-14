@@ -6,6 +6,7 @@ pub mod editor_panes_agentic;
 pub mod glass_and_cards;
 pub mod onboarding_settings;
 pub mod public_alpha;
+pub mod term_menu_worktrees;
 
 use maud::{Markup, html};
 

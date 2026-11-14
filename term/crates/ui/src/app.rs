@@ -28,6 +28,8 @@ pub enum UiEvent {
     Sessions(Vec<SessionInfo>),
     Message(String),
     Disconnected(String),
+    /// The shared server is from an older build; waits for "Restart server".
+    Incompatible(String),
     Clipboard(String),
     Forwards(Vec<ferrumterm_protocol::ForwardInfo>),
     Ports(crate::ssh::PortsResult),
@@ -163,10 +165,27 @@ impl App {
                         "connection to the server was lost".into(),
                     ));
                 }
-                Err(e) => {
-                    let _ = proxy.unbounded_send(UiEvent::Disconnected(e.to_string()));
-                }
+                Err(e) => match e.strip_prefix(connection::INCOMPATIBLE) {
+                    Some(why) => {
+                        let _ = proxy.unbounded_send(UiEvent::Incompatible(why.to_owned()));
+                    }
+                    None => {
+                        let _ = proxy.unbounded_send(UiEvent::Disconnected(e));
+                    }
+                },
             }
+        });
+    }
+
+    /// Stops an incompatible shared server, then connects again.
+    pub fn restart_server(&self) {
+        let proxy = self.proxy.clone();
+        self.rt.spawn(async move {
+            let event = match connection::restart_shared().await {
+                Ok(()) => UiEvent::Disconnected("Restarting the FerrumTerm server".into()),
+                Err(e) => UiEvent::Incompatible(format!("could not restart the server: {e}")),
+            };
+            let _ = proxy.unbounded_send(event);
         });
     }
 
@@ -428,7 +447,7 @@ impl App {
         s.windows.get(idx).map(|w| w.id.to_string())
     }
 
-    fn shortcut(&mut self, s: Shortcut, target: Option<String>) {
+    pub(crate) fn shortcut(&mut self, s: Shortcut, target: Option<String>) {
         let session = self.session().map(|x| x.id.to_string());
         let half = self.window().map_or(10, |w| i32::from(w.rows / 2));
         match s {
@@ -619,6 +638,100 @@ impl App {
                 ..spawn_env()
             },
         });
+    }
+
+    /// The directory new tabs start in: the focused pane's, else the view's.
+    fn current_cwd(&self) -> Option<String> {
+        self.window()
+            .and_then(|w| w.blocks.iter().find(|b| b.id == w.focused))
+            .and_then(|b| b.cwd.clone())
+            .or_else(|| self.default_cwd.as_ref().map(|d| d.display().to_string()))
+    }
+
+    /// A new tab with a shell (⌘T).
+    pub fn new_terminal(&mut self) {
+        self.shortcut(Shortcut::NewTab, None);
+    }
+
+    /// A saved tab configuration: `command` (or the shell) in a tab named `name`.
+    pub fn start_tab_config(&mut self, name: &str, command: &str) {
+        if self.client.is_none() {
+            return;
+        }
+        let command = command.trim();
+        let label = agents::unique_label(name, &self.sessions);
+        self.send(Request::NewWindow {
+            session: self.session().map(|s| s.id.to_string()),
+            name: Some(label.clone()),
+            spawn: Spawn {
+                command: if command.is_empty() {
+                    Vec::new()
+                } else {
+                    agents::shell_command(command)
+                },
+                cwd: self.current_cwd(),
+                label: Some(label),
+                ..spawn_env()
+            },
+        });
+    }
+
+    /// `command_line` on SSH host `host`, in a new tab ("cloud agent").
+    pub fn start_remote_agent(&mut self, host: &str, command_line: &str) {
+        let Some(found) = ferrumterm_net::hosts::find_host(&self.ssh.store, &self.ssh.config, host)
+        else {
+            self.notify(format!("{host} is no longer configured"));
+            return;
+        };
+        match ferrumterm_net::args::remote_command(
+            &ferrumterm_net::args::ssh_binary(),
+            &found,
+            command_line,
+        ) {
+            Ok(command) => {
+                let label = agents::unique_label(
+                    &format!("{}@{host}", agents::label_for(command_line)),
+                    &self.sessions,
+                );
+                self.send(Request::NewWindow {
+                    session: self.session().map(|s| s.id.to_string()),
+                    name: Some(label.clone()),
+                    spawn: Spawn {
+                        command,
+                        label: Some(label),
+                        ..spawn_env()
+                    },
+                });
+            }
+            Err(e) => self.notify(e),
+        }
+    }
+
+    /// Creates a git worktree for `branch` next to the current repository
+    /// (`<repo>-<branch>`, a new branch if it doesn't exist) and opens a
+    /// terminal in it.
+    pub fn new_worktree(&mut self, branch: &str) {
+        let branch = branch.trim();
+        let Some(cwd) = self.current_cwd() else {
+            self.notify("Open a terminal in a git repository first");
+            return;
+        };
+        match crate::worktree::create(std::path::Path::new(&cwd), branch) {
+            Ok(dir) => {
+                let label = agents::unique_label(branch, &self.sessions);
+                self.send(Request::NewWindow {
+                    session: self.session().map(|s| s.id.to_string()),
+                    name: Some(label.clone()),
+                    spawn: Spawn {
+                        cwd: Some(dir.display().to_string()),
+                        label: Some(label),
+                        ..spawn_env()
+                    },
+                });
+                self.notify(format!("Worktree {} created", dir.display()));
+            }
+            Err(e) => self.notify(e),
+        }
     }
 
     /// Focuses the pane under window point `(x, y)`.

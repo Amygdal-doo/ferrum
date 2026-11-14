@@ -269,7 +269,6 @@ impl Onboarding {
                     )
                     .child(theme_row(active, cx)),
             )
-            .child(self.nav("Continue", cx))
             .into_any_element()
     }
 
@@ -413,7 +412,6 @@ impl Onboarding {
                     .clone()
                     .map(|m| Label::new(m).size(LabelSize::Small).color(Color::Muted)),
             )
-            .child(self.nav("Continue", cx))
             .into_any_element()
     }
 
@@ -547,7 +545,6 @@ impl Onboarding {
                     .clone()
                     .map(|m| Label::new(m).size(LabelSize::Small).color(Color::Muted)),
             )
-            .child(self.nav("Continue", cx))
             .into_any_element()
     }
 
@@ -667,16 +664,10 @@ impl Render for Onboarding {
                     .border_b_1()
                     .border_color(colors.border_variant)
                     .child(
-                        h_flex()
-                            .gap_2()
-                            .child(
-                                Icon::new(self.info.icon)
-                                    .color(Color::Custom(gpui::rgb(self.info.tint).into())),
-                            )
-                            .child(
-                                Label::new(format!("Get Started with {}", self.info.name))
-                                    .size(LabelSize::Small),
-                            ),
+                        h_flex().gap_2().child(
+                            Label::new(format!("Get Started with {}", self.info.name))
+                                .size(LabelSize::Small),
+                        ),
                     )
                     .child(
                         IconButton::new("close-onboarding", IconName::Close)
@@ -701,13 +692,34 @@ impl Render for Onboarding {
                     ),
             )
             .child(
-                // Progress: one pill per step, the current one wide and in
-                // the accent colour, the others clearly visible.
+                // Footer: Back, one pill per step (the current one wide and in
+                // the accent colour) and Continue, always on screen.
                 h_flex()
                     .flex_none()
-                    .h(px(44.))
+                    .h(px(56.))
+                    .px_4()
                     .justify_center()
                     .gap_2()
+                    .relative()
+                    .when(index > 0, |bar| {
+                        bar.child(
+                            div().absolute().left_4().child(
+                                Button::new("onboarding-footer-back", "Back")
+                                    .style(ButtonStyle::Subtle)
+                                    .start_icon(Icon::new(IconName::ArrowLeft))
+                                    .on_click(cx.listener(|this, _, _, cx| this.back(cx))),
+                            ),
+                        )
+                    })
+                    .when(index > 0 && index + 1 < total, |bar| {
+                        bar.child(div().absolute().right_4().child(primary_button(
+                            "onboarding-footer-continue",
+                            "Continue",
+                            Some(IconName::ArrowRight),
+                            cx.listener(|this, _, _, cx| this.next(cx)),
+                            cx,
+                        )))
+                    })
                     .border_t_1()
                     .border_color(colors.border_variant)
                     .children((0..total).map(|i| {

@@ -41,6 +41,7 @@ mod sidebar;
 mod ssh;
 mod ui_state;
 mod view;
+mod worktree;
 
 pub use actions::{
     ActivateTab1, ActivateTab2, ActivateTab3, ActivateTab4, ActivateTab5, ActivateTab6,

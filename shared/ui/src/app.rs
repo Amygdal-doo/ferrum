@@ -1,6 +1,6 @@
 use gpui::{
-    App, Bounds, Entity, KeyBinding, Menu, MenuItem, Pixels, Render, Size, TitlebarOptions, Window,
-    WindowBounds, WindowOptions, actions, px, size,
+    App, Bounds, Entity, KeyBinding, Pixels, Render, Size, TitlebarOptions, Window, WindowBounds,
+    WindowOptions, actions, px, size,
 };
 
 use std::rc::Rc;
@@ -11,7 +11,7 @@ use crate::app_info::{AppInfo, AppInfoGlobal};
 use crate::assets::Assets;
 use crate::menu;
 use crate::root::Root;
-use crate::settings::{OpenSettings, ShowOnboarding};
+use crate::settings::OpenSettings;
 use crate::theme::{self, ThemeSettings};
 
 actions!(ferrum, [Quit]);
@@ -127,12 +127,9 @@ fn init(title: &'static str, cx: &mut App) {
     ]);
     cx.on_action(|_: &Quit, cx| cx.quit());
     cx.on_action(|_: &OpenSettings, cx| crate::settings::open_settings(None, cx));
-    cx.set_menus([Menu::new(title).items([
-        MenuItem::action("Settings…", OpenSettings),
-        MenuItem::action("Show Onboarding…", ShowOnboarding),
-        MenuItem::separator(),
-        MenuItem::action("Quit", Quit),
-    ])]);
+    crate::menus::register(cx);
+    let info = crate::app_info::app_info(cx);
+    cx.set_menus(crate::menus::standard(&info));
     cx.on_window_closed(|cx, _| {
         if cx.windows().is_empty() {
             cx.quit();

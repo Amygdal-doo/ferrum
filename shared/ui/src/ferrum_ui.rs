@@ -14,6 +14,7 @@ pub mod integrations;
 pub mod keymap;
 pub mod mac_notifications;
 pub mod menu;
+pub mod menus;
 mod modal;
 mod notice;
 pub mod notify;

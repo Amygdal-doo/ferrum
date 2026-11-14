@@ -184,10 +184,21 @@ pub async fn run(cmd: ServerCmd, ctx: &Ctx) -> Result<ExitCode, String> {
             ));
         }
         ServerCmd::Stop => {
-            let (c, _) = ctx.connect_existing().await?;
-            let _ = c
-                .request_timeout(Request::Shutdown, Duration::from_secs(5))
-                .await;
+            match ctx.connect_existing().await {
+                Ok((c, _)) => {
+                    let _ = c
+                        .request_timeout(Request::Shutdown, Duration::from_secs(5))
+                        .await;
+                }
+                // A server from an older build: stop it by its process.
+                Err(e) => {
+                    let socket = ferrumterm_client::paths::socket();
+                    if !ferrumterm_client::socket_is_live(&socket).await {
+                        return Err(e);
+                    }
+                    ferrumterm_client::force_stop(&socket).await?;
+                }
+            }
             println!("FerrumTerm server stopped");
         }
         ServerCmd::Status => {

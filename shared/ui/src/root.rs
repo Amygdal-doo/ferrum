@@ -17,6 +17,8 @@ use crate::theme::ActiveTheme;
 
 pub struct Root {
     app: AnyView,
+    /// Window size before onboarding enlarged it (restored afterwards).
+    before_onboarding: Option<gpui::Size<gpui::Pixels>>,
     /// Window background last set for the interface style.
     background: Option<gpui::WindowBackgroundAppearance>,
     onboarding: Option<(Entity<Onboarding>, Subscription)>,
@@ -33,6 +35,7 @@ impl Root {
         let mut root = Self {
             app,
             background: None,
+            before_onboarding: None,
             onboarding: None,
             _activation: activation,
         };
@@ -49,16 +52,40 @@ impl Root {
             match event {
                 OnboardingEvent::Finished => {
                     this.onboarding = None;
+                    if let Some(size) = this.before_onboarding.take() {
+                        window.resize(size);
+                    }
                     // Hand focus back to the app's view.
                     window.focus_next(cx);
                     cx.notify();
                 }
             }
         });
+        self.enlarge_for_onboarding(window, cx);
         let focus = view.read(cx).focus_handle(cx);
         window.focus(&focus, cx);
         self.onboarding = Some((view, subscription));
         cx.notify();
+    }
+
+    /// Onboarding needs room: the window grows 20% wider and 8% taller, or
+    /// fills the screen when that would not fit.
+    fn enlarge_for_onboarding(&mut self, window: &mut Window, cx: &App) {
+        if self.before_onboarding.is_some() || window.is_fullscreen() || window.is_maximized() {
+            return;
+        }
+        let current = window.bounds().size;
+        let wanted = gpui::size(current.width * 1.2, current.height * 1.08);
+        let fits = window.display(cx).is_none_or(|display| {
+            let screen = display.visible_bounds().size;
+            wanted.width <= screen.width * 0.95 && wanted.height <= screen.height * 0.95
+        });
+        if fits {
+            self.before_onboarding = Some(current);
+            window.resize(wanted);
+        } else {
+            window.zoom_window();
+        }
     }
 
     fn render_toasts(&self, cx: &App) -> Option<impl IntoElement> {

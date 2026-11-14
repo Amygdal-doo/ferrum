@@ -56,6 +56,10 @@ pub struct TermView {
     selecting: bool,
     /// Blink phase of the focused pane's cursor (see `settings::Blink`).
     pub(crate) cursor_on: bool,
+    /// Why the shared server can't be used (an older build is running).
+    pub(crate) incompatible: Option<String>,
+    /// What the sidebar's inline field does on Enter.
+    pub(crate) prompt: crate::sidebar::Prompt,
     /// Font the cell metrics were measured with.
     pub(crate) font_key: Option<(f32, gpui::SharedString)>,
     _blink: Task<()>,
@@ -126,6 +130,8 @@ impl TermView {
             selection_text: None,
             selecting: false,
             cursor_on: true,
+            incompatible: None,
+            prompt: crate::sidebar::Prompt::default(),
             font_key: None,
             _blink: blink,
             _message_timer: None,
@@ -176,7 +182,12 @@ impl TermView {
             }
             UiEvent::Sessions(sessions) => self.app.set_sessions(sessions),
             UiEvent::Message(message) => self.app.notify(message),
+            UiEvent::Incompatible(why) => {
+                self.app.client = None;
+                self.incompatible = Some(why);
+            }
             UiEvent::Disconnected(why) => {
+                self.incompatible = None;
                 self.app.client = None;
                 self.app.notify(format!("{why} — retrying…"));
                 self.app.connect(Duration::from_secs(2));

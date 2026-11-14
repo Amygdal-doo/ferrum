@@ -38,6 +38,14 @@ pub(crate) fn runtime() -> tokio::runtime::Handle {
         .clone()
 }
 
+/// Prefix of the error [`connect`] returns for a server from an older build.
+pub(crate) const INCOMPATIBLE: &str = "incompatible:";
+
+/// Stops the shared server even if it is too old to talk to.
+pub(crate) async fn restart_shared() -> Result<(), String> {
+    ferrumterm_client::force_stop(&paths::socket()).await
+}
+
 pub(crate) type Connected = (Client, mpsc::UnboundedReceiver<Event>, Backend);
 
 /// Connects to the shared server (starting it when `attach`), else — or,
@@ -46,6 +54,9 @@ pub(crate) async fn connect(attach: bool, fallback: bool) -> Result<Connected, S
     if attach {
         match connect_or_start(&paths::socket(), "ferrumterm").await {
             Ok((client, events)) => return Ok((client, events, Backend::Server)),
+            Err(error @ ferrumterm_client::ClientError::Incompatible(..)) if !fallback => {
+                return Err(format!("{INCOMPATIBLE}{error}"));
+            }
             Err(error) if !fallback => return Err(error.to_string()),
             Err(error) => {
                 tracing::warn!(%error, "shared FerrumTerm server unavailable; using a private one");

@@ -61,6 +61,10 @@ pub enum ClientError {
     Disconnected,
     #[error("the server did not answer within {0:?}")]
     Timeout(Duration),
+    /// Something listens on the socket but does not speak this version's
+    /// protocol: usually a server started by an older build.
+    #[error("an older FerrumTerm server is running at {0} ({1}); restart it to continue")]
+    Incompatible(String, String),
 }
 
 type Pending = Arc<Mutex<HashMap<u64, oneshot::Sender<Response>>>>;
@@ -203,8 +207,17 @@ pub async fn connect_or_start(
     name: &str,
 ) -> Result<(Client, mpsc::UnboundedReceiver<Event>), ClientError> {
     let endpoint = Endpoint::Unix(socket.to_path_buf());
-    if let Ok(c) = Client::connect(&endpoint, name).await {
-        return Ok(c);
+    match Client::connect(&endpoint, name).await {
+        Ok(c) => return Ok(c),
+        // Something answers but refuses us: starting another server would
+        // only fail on the busy socket, so say what is going on instead.
+        Err(e) if socket_is_live(socket).await => {
+            return Err(ClientError::Incompatible(
+                endpoint.to_string(),
+                e.to_string(),
+            ));
+        }
+        Err(_) => {}
     }
     let fterm = std::env::current_exe()
         .ok()
@@ -238,6 +251,54 @@ pub async fn connect_or_start(
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
     Err(last.unwrap_or(ClientError::Disconnected))
+}
+
+/// Whether a process accepts connections on `socket`.
+pub async fn socket_is_live(socket: &Path) -> bool {
+    tokio::net::UnixStream::connect(socket).await.is_ok()
+}
+
+/// Stops the server on `socket` even when it is too old to talk to: asks a
+/// compatible one to shut down, otherwise sends SIGTERM to the process that
+/// holds the socket (found with `lsof`). Every program in it is terminated.
+pub async fn force_stop(socket: &Path) -> Result<(), String> {
+    let endpoint = Endpoint::Unix(socket.to_path_buf());
+    if let Ok((client, _)) = Client::connect(&endpoint, "fterm-stop").await {
+        let _ = client
+            .request_timeout(Request::Shutdown, Duration::from_secs(5))
+            .await;
+    } else if socket_is_live(socket).await {
+        let out = tokio::process::Command::new("lsof")
+            .arg("-t")
+            .arg("--")
+            .arg(socket)
+            .output()
+            .await
+            .map_err(|e| format!("could not run lsof: {e}"))?;
+        let own = std::process::id().to_string();
+        let pids: Vec<String> = String::from_utf8_lossy(&out.stdout)
+            .split_whitespace()
+            .filter(|p| *p != own)
+            .map(str::to_owned)
+            .collect();
+        if pids.is_empty() {
+            return Err(format!("no process found holding {}", socket.display()));
+        }
+        for pid in &pids {
+            let _ = tokio::process::Command::new("kill")
+                .args(["-TERM", pid])
+                .status()
+                .await;
+        }
+    }
+    for _ in 0..50 {
+        if !socket_is_live(socket).await {
+            let _ = std::fs::remove_file(socket);
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    Err(format!("the server on {} did not stop", socket.display()))
 }
 
 #[cfg(test)]

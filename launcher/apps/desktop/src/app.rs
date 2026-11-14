@@ -278,6 +278,17 @@ impl FerrumLauncher {
                             cx.theme().status().info,
                             cx,
                         ))
+                        .child(
+                            Button::new("update-all", "Update All")
+                                .style(ButtonStyle::Tinted(
+                                    ferrum_ui::components::TintColor::Accent,
+                                ))
+                                .start_icon(Icon::new(IconName::Download))
+                                .tooltip(Tooltip::text(
+                                    "Downloads and activates the newest version of every app",
+                                ))
+                                .on_click(cx.listener(|this, _, _, cx| this.update_all(cx))),
+                        )
                     }),
             )
             .child(
@@ -302,8 +313,15 @@ impl FerrumLauncher {
                         .on_click(cx.listener(|this, _, _, cx| this.check_for_updates(true, cx))),
                     )
                     .child(
+                        IconButton::new("appearance", IconName::Sparkle)
+                            .tooltip(Tooltip::text(
+                                "Look of every Ferrum app: colour scheme, themes, style",
+                            ))
+                            .on_click(|_, _, cx| ferrum_ui::open_settings(Some("interface"), cx)),
+                    )
+                    .child(
                         IconButton::new("settings", IconName::Settings)
-                            .tooltip(Tooltip::text("Settings"))
+                            .tooltip(Tooltip::text("Launcher settings"))
                             .on_click(
                                 cx.listener(|this, _, window, cx| this.open_settings(window, cx)),
                             ),

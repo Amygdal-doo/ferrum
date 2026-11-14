@@ -659,23 +659,66 @@ pub fn scheme_preview(scheme: ColorScheme, cx: &App) -> impl IntoElement {
     }
 }
 
-/// Preview for a toolbar density card: the same window with a taller or
-/// shorter title bar.
+/// Preview for a toolbar density card: Comfortable has a tall toolbar and
+/// roomy rows; Compact a thin toolbar and twice the rows in the same space.
 pub fn toolbar_preview(style: ToolbarStyle, cx: &App) -> impl IntoElement {
-    let theme = cx.theme();
-    let colors = theme.colors();
-    let c = MiniColors {
-        bg: colors.background,
-        bar: colors.title_bar_background,
-        pane: colors.editor_background,
-        border: colors.border_variant,
-        ink: colors.text_muted.opacity(0.6),
+    let colors = cx.theme().colors();
+    let compact = style == ToolbarStyle::Compact;
+    let (bar, rows, row_h, gap) = if compact {
+        (px(6.), 6, px(2.), px(2.))
+    } else {
+        (px(13.), 3, px(4.), px(5.))
     };
-    let bar = match style {
-        ToolbarStyle::Comfortable => px(12.),
-        ToolbarStyle::Compact => px(7.),
-    };
-    preview_backdrop(colors.text_accent).child(mini_window(c, bar))
+    let ink = colors.text_muted.opacity(0.7);
+    let window = v_flex()
+        .size_full()
+        .rounded(px(5.))
+        .overflow_hidden()
+        .border_1()
+        .border_color(colors.border_variant)
+        .bg(colors.background)
+        .shadow_md()
+        .child(
+            h_flex()
+                .flex_none()
+                .h(bar)
+                .px(px(4.))
+                .gap(px(3.))
+                .bg(colors.title_bar_background)
+                .border_b_1()
+                .border_color(colors.border_variant)
+                .children([0xff5f57, 0xfebc2e, 0x28c840].map(|rgb| {
+                    div()
+                        .size(px(if compact { 3. } else { 4. }))
+                        .rounded_full()
+                        .bg(gpui::rgb(rgb))
+                })),
+        )
+        .child(
+            v_flex()
+                .flex_1()
+                .p(gap)
+                .gap(gap)
+                .children((0..rows).map(|i| {
+                    h_flex()
+                        .gap(px(3.))
+                        .child(
+                            div()
+                                .w(px(10.))
+                                .h(row_h)
+                                .rounded_full()
+                                .bg(colors.text_accent.opacity(0.7)),
+                        )
+                        .child(
+                            div()
+                                .w(px(28. + (i % 3) as f32 * 10.))
+                                .h(row_h)
+                                .rounded_full()
+                                .bg(ink),
+                        )
+                })),
+        );
+    preview_backdrop(colors.text_accent).child(window)
 }
 
 /// Preview for an interface style card: the same miniature window, flat,

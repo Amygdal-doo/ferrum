@@ -3,6 +3,7 @@
 //! through [`crate::AppInfo::page`] (FerrumTerm's Terminal and Remote Hosts,
 //! …). Pages are drawn with [`widgets`].
 
+pub(crate) mod about_page;
 mod integrations_page;
 pub(crate) mod interface_page;
 mod notifications_page;
@@ -59,6 +60,7 @@ pub(crate) fn shared_pages() -> (Pages, Pages) {
             Rc::new(shortcuts_page::ShortcutsPage::default()),
             Rc::new(integrations_page::IntegrationsPage),
             Rc::new(notifications_page::NotificationsPage),
+            Rc::new(about_page::AboutPage),
         ],
     )
 }
