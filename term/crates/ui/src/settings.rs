@@ -75,9 +75,24 @@ impl Blink {
     }
 }
 
+/// Where the tabs are listed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TabPosition {
+    #[default]
+    Top,
+    Sidebar,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TermSettings {
+    /// Tabs across the top, or listed in the sidebar.
+    pub tab_position: TabPosition,
+    /// Show the Agents section in the sidebar.
+    pub sidebar_agents: bool,
+    /// Show the SSH hosts in the sidebar.
+    pub sidebar_hosts: bool,
     pub cursor_style: CursorStyle,
     /// Ignore programs asking for another cursor shape.
     pub force_cursor_style: bool,
@@ -99,6 +114,9 @@ pub struct TermSettings {
 impl Default for TermSettings {
     fn default() -> Self {
         Self {
+            tab_position: TabPosition::Top,
+            sidebar_agents: true,
+            sidebar_hosts: true,
             cursor_style: CursorStyle::Block,
             force_cursor_style: false,
             cursor_blink: Blink::Off,

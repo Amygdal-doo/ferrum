@@ -14,7 +14,7 @@ use ferrum_ui::gpui::{
     Render, Styled, Subscription, Window, div, px,
 };
 use ferrum_ui::settings::SettingsPage;
-use ferrum_ui::settings::widgets::{Row, Section, Switch, select};
+use ferrum_ui::settings::widgets::{Row, Section, Segmented, Switch, select};
 use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{TextInput, TextInputEvent};
 use ferrumterm_net::hosts::{HostFormFields, HostStore, SavedHost};
@@ -222,9 +222,47 @@ impl Render for TerminalSettingsView {
                 }),
             );
 
+        let tab_index = usize::from(s.tab_position == settings::TabPosition::Sidebar);
         v_flex()
             .w_full()
             .gap_6()
+            .child(
+                Section::new("Tabs and Sidebar")
+                    .row(
+                        Row::new("tab-position", "Tabs")
+                            .detail("Across the top of the terminal, or listed in the sidebar.")
+                            .control(
+                                Segmented::new("tab-position-segments", tab_index)
+                                    .icon_item(IconName::ThreadsSidebarLeftClosed, "Top")
+                                    .icon_item(IconName::ThreadsSidebarLeftOpen, "Sidebar")
+                                    .on_select(|i, _, cx| {
+                                        settings::update(|s| {
+                                            s.tab_position = if i == 1 {
+                                                settings::TabPosition::Sidebar
+                                            } else {
+                                                settings::TabPosition::Top
+                                            }
+                                        });
+                                        cx.refresh_windows();
+                                    }),
+                            ),
+                    )
+                    .row(switch_row(
+                        "sidebar-agents",
+                        "Show agents",
+                        Some("The Agents section at the bottom of the sidebar."),
+                        s.sidebar_agents,
+                        |s, on| s.sidebar_agents = on,
+                    ))
+                    .row(switch_row(
+                        "sidebar-hosts",
+                        "Show SSH hosts",
+                        Some("Saved hosts and the hosts from ~/.ssh/config."),
+                        s.sidebar_hosts,
+                        |s, on| s.sidebar_hosts = on,
+                    ))
+                    .footnote("Click the icon before a tab's name to give it another icon and colour."),
+            )
             .child(
                 Section::new("Font")
                     .row(

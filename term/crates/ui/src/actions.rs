@@ -67,6 +67,13 @@ macro_rules! shortcut_actions {
             root$(.on_action(cx.listener(|view: &mut TermView, _: &$action, window: &mut Window, cx| {
                 view.shortcut_action($shortcut, window, cx);
             })))*
+            // The menu bar's Edit › Copy / Paste.
+            .on_action(cx.listener(|view: &mut TermView, _: &ferrum_ui::menus::EditCopy, window: &mut Window, cx| {
+                view.shortcut_action(Shortcut::Copy, window, cx);
+            }))
+            .on_action(cx.listener(|view: &mut TermView, _: &ferrum_ui::menus::EditPaste, window: &mut Window, cx| {
+                view.shortcut_action(Shortcut::Paste, window, cx);
+            }))
         }
     };
 }

@@ -1301,6 +1301,25 @@ impl Render for TextInput {
             .on_action(cx.listener(Self::paste))
             .on_action(cx.listener(Self::cut))
             .on_action(cx.listener(Self::copy))
+            // The Edit menu's actions (menus::Edit*) do the same here.
+            .on_action(cx.listener(|this, _: &crate::menus::EditCopy, window, cx| {
+                this.copy(&Copy, window, cx)
+            }))
+            .on_action(
+                cx.listener(|this, _: &crate::menus::EditCut, window, cx| {
+                    this.cut(&Cut, window, cx)
+                }),
+            )
+            .on_action(
+                cx.listener(|this, _: &crate::menus::EditPaste, window, cx| {
+                    this.paste(&Paste, window, cx)
+                }),
+            )
+            .on_action(
+                cx.listener(|this, _: &crate::menus::EditSelectAll, window, cx| {
+                    this.select_all(&SelectAll, window, cx)
+                }),
+            )
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
             .on_mouse_up_out(MouseButton::Left, cx.listener(Self::on_mouse_up))

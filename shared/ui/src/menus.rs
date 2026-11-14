@@ -7,7 +7,7 @@ use gpui::{App, KeyBinding, Menu, MenuItem, OsAction};
 
 use crate::app_info::{AppInfo, app_info};
 use crate::settings::{OpenSettings, ShowOnboarding};
-use crate::{Quit, ToggleProjectSwitcher, text_input};
+use crate::{Quit, ToggleProjectSwitcher};
 
 gpui::actions!(
     ferrum,
@@ -40,6 +40,14 @@ gpui::actions!(
         OpenReleaseNotes,
         /// Report a problem by email.
         ReportIssue,
+        /// Edit › Cut in whatever has focus (text fields, terminals, …).
+        EditCut,
+        /// Edit › Copy in whatever has focus.
+        EditCopy,
+        /// Edit › Paste in whatever has focus.
+        EditPaste,
+        /// Edit › Select All in whatever has focus.
+        EditSelectAll,
     ]
 );
 
@@ -87,10 +95,10 @@ pub fn file_menu() -> Menu {
 /// to the system for native text).
 pub fn edit_menu() -> Menu {
     Menu::new("Edit").items([
-        MenuItem::os_action("Cut", text_input::Cut, OsAction::Cut),
-        MenuItem::os_action("Copy", text_input::Copy, OsAction::Copy),
-        MenuItem::os_action("Paste", text_input::Paste, OsAction::Paste),
-        MenuItem::os_action("Select All", text_input::SelectAll, OsAction::SelectAll),
+        MenuItem::os_action("Cut", EditCut, OsAction::Cut),
+        MenuItem::os_action("Copy", EditCopy, OsAction::Copy),
+        MenuItem::os_action("Paste", EditPaste, OsAction::Paste),
+        MenuItem::os_action("Select All", EditSelectAll, OsAction::SelectAll),
     ])
 }
 
@@ -163,6 +171,12 @@ pub(crate) fn register(cx: &mut App) {
         KeyBinding::new("cmd-m", Minimize, None),
         KeyBinding::new("ctrl-cmd-f", ToggleFullScreen, None),
         KeyBinding::new("shift-cmd-w", CloseWindow, None),
+        // Fallbacks so the Edit menu shows its shortcuts; text fields and
+        // terminals bind these keys in their own contexts first.
+        KeyBinding::new("cmd-x", EditCut, None),
+        KeyBinding::new("cmd-c", EditCopy, None),
+        KeyBinding::new("cmd-v", EditPaste, None),
+        KeyBinding::new("cmd-a", EditSelectAll, None),
     ]);
     cx.on_action(|_: &About, cx| crate::settings::open_settings(Some("about"), cx));
     cx.on_action(|_: &CheckForUpdates, _| open_launcher());
@@ -201,7 +215,43 @@ fn step_text(cx: &mut App, delta: i32) {
 
 #[cfg(test)]
 mod tests {
-    use super::help_url;
+    use super::*;
+
+    /// macOS greys out (and never runs) a menu item whose action nothing
+    /// handles; every shared item must have a handler.
+    #[gpui::test]
+    fn every_menu_action_is_enabled_and_handled(cx: &mut gpui::TestAppContext) {
+        cx.update(|cx| {
+            crate::init_for_tests(cx);
+            crate::appearance::init_at(None, cx);
+            register(cx);
+            cx.on_action(|_: &OpenSettings, cx| crate::settings::open_settings(None, cx));
+            let actions: Vec<Box<dyn gpui::Action>> = vec![
+                Box::new(About),
+                Box::new(CheckForUpdates),
+                Box::new(HideApp),
+                Box::new(HideOthers),
+                Box::new(ShowAll),
+                Box::new(Minimize),
+                Box::new(Zoom),
+                Box::new(ToggleFullScreen),
+                Box::new(CloseWindow),
+                Box::new(LargerText),
+                Box::new(SmallerText),
+                Box::new(OpenHelp),
+                Box::new(OpenReleaseNotes),
+                Box::new(ReportIssue),
+                Box::new(OpenSettings),
+            ];
+            for action in &actions {
+                assert!(cx.is_action_available(action.as_ref()), "{}", action.name());
+            }
+            assert!(cx.windows().is_empty());
+            cx.dispatch_action(&About);
+        });
+        cx.run_until_parked();
+        cx.update(|cx| assert_eq!(cx.windows().len(), 1, "About opens Settings"));
+    }
 
     #[test]
     fn help_pages_match_the_website() {

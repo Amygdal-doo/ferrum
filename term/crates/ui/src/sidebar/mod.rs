@@ -32,16 +32,32 @@ impl TermView {
             .min_h_0()
             .overflow_y_scroll()
             .pb_2();
+        let settings = crate::settings::get();
+        let tabs_here = settings.tab_position == crate::settings::TabPosition::Sidebar;
         if model.sessions.is_empty() {
             terminals = terminals.child(placeholder("No terminals yet. Start one with +", cx));
         }
-        for section in &model.sessions {
-            terminals = terminals.child(heading(section.title.clone(), cx).mt_1());
-            for row in &section.rows {
-                terminals = terminals.child(self.render_row(format!("row-{}", row.block), row, cx));
+        if tabs_here {
+            // Tabs mode: every session's tabs, with their chip and a close button.
+            for session in &self.app.sessions {
+                terminals = terminals.child(heading(session.name.clone(), cx).mt_1());
+                for window in &session.windows {
+                    terminals = terminals.child(self.render_tab_row(session, window, cx));
+                }
+            }
+        } else {
+            for section in &model.sessions {
+                terminals = terminals.child(heading(section.title.clone(), cx).mt_1());
+                for row in &section.rows {
+                    terminals =
+                        terminals.child(self.render_row(format!("row-{}", row.block), row, cx));
+                }
             }
         }
-        terminals = terminals.child(self.render_hosts(cx));
+        if settings.sidebar_hosts {
+            terminals = terminals.child(self.render_hosts(cx));
+        }
+        let show_agents = settings.sidebar_agents;
 
         // Bottom: the agents, in their own scrolling section.
         let mut agents = v_flex()
@@ -91,34 +107,97 @@ impl TermView {
                 )
             })
             .child(terminals)
-            .child(ferrum_ui::gap_splitter(
-                AGENTS_SPLITTER,
-                gpui::Axis::Vertical,
-                cx,
-            ))
+            .when(show_agents, |sidebar| {
+                sidebar.child(ferrum_ui::gap_splitter(
+                    AGENTS_SPLITTER,
+                    gpui::Axis::Vertical,
+                    cx,
+                ))
+            })
+            .when(show_agents, |sidebar| {
+                sidebar.child(
+                    v_flex()
+                        .flex_none()
+                        .h(gpui::relative(fraction))
+                        .min_h(px(80.))
+                        .border_t_1()
+                        .border_color(colors.border_variant)
+                        .child(
+                            ferrum_ui::pane_header(cx)
+                                .pl_3()
+                                .pr_1()
+                                .child(heading("Agents", cx).px_0())
+                                .when(model.attention > 0, |header| {
+                                    header.child(badge(
+                                        model.attention.to_string(),
+                                        cx.theme().status().warning,
+                                        cx,
+                                    ))
+                                })
+                                .child(div().flex_1())
+                                .child(self.new_menu("new-agent-menu", cx)),
+                        )
+                        .child(agents),
+                )
+            })
+    }
+
+    /// A tab in the sidebar (tabs mode): chip, name, close.
+    fn render_tab_row(
+        &self,
+        session: &ferrumterm_protocol::SessionInfo,
+        window: &ferrumterm_protocol::WindowInfo,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
+        let active = Some(session.id) == self.app.session().map(|s| s.id)
+            && window.id == session.active_window;
+        let (session_id, block) = (session.id, window.focused);
+        let target = window.id.to_string();
+        h_flex()
+            .id(SharedString::from(format!("tab-row-{}", window.id)))
+            .group("tab-row")
+            .mx_1()
+            .px_1()
+            .py(px(2.))
+            .gap_1()
+            .rounded_md()
+            .cursor_pointer()
+            .hover(|style| style.bg(colors.ghost_element_hover))
+            .when(active, |r| r.bg(colors.element_selected))
+            .on_click(cx.listener(move |view, _, window, cx| {
+                window.focus(&view.focus_handle, cx);
+                view.app.focus_block(session_id, block);
+                view.close_overlay_sidebar();
+                view.after_change(cx);
+            }))
+            .child(self.tab_chip(window.id.to_string(), cx))
             .child(
-                v_flex()
-                    .flex_none()
-                    .h(gpui::relative(fraction))
-                    .min_h(px(80.))
-                    .border_t_1()
-                    .border_color(colors.border_variant)
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .truncate()
+                    .when(!active, |d| d.text_color(colors.text_muted))
+                    .child(crate::view::tab_label(window, 40)),
+            )
+            .child(
+                div()
+                    .invisible()
+                    .group_hover("tab-row", |s| s.visible())
                     .child(
-                        ferrum_ui::pane_header(cx)
-                            .pl_3()
-                            .pr_1()
-                            .child(heading("Agents", cx).px_0())
-                            .when(model.attention > 0, |header| {
-                                header.child(badge(
-                                    model.attention.to_string(),
-                                    cx.theme().status().warning,
-                                    cx,
-                                ))
-                            })
-                            .child(div().flex_1())
-                            .child(self.new_menu("new-agent-menu", cx)),
-                    )
-                    .child(agents),
+                        IconButton::new(
+                            SharedString::from(format!("close-tab-{}", window.id)),
+                            IconName::Close,
+                        )
+                        .icon_size(IconSize::Small)
+                        .tooltip(Tooltip::text("Close tab"))
+                        .on_click(cx.listener(move |view, _, _, cx| {
+                            view.app.send(ferrumterm_protocol::Request::Close {
+                                target: target.clone(),
+                            });
+                            view.after_change(cx);
+                        })),
+                    ),
             )
     }
 

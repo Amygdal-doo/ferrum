@@ -77,21 +77,31 @@ impl TermView {
                 )
                 .mr(px(6.)),
             );
-            for window in &session.windows {
+            let in_sidebar = !compact
+                && crate::settings::get().tab_position == crate::settings::TabPosition::Sidebar;
+            for window in session.windows.iter().filter(|_| !in_sidebar) {
                 let active = window.id == session.active_window;
-                tabs.push(self.tab(
-                    ElementId::Name(format!("window-{}", window.id).into()),
-                    tab_label(window, label_len),
-                    active,
-                    if active {
-                        colors.text
-                    } else {
-                        colors.text_muted
-                    },
-                    min_width,
-                    TabKind::Window(window.id.to_string()),
-                    cx,
-                ));
+                let chip = self.tab_chip(window.id.to_string(), cx);
+                tabs.push(
+                    h_flex()
+                        .h_full()
+                        .gap(px(1.))
+                        .child(chip)
+                        .child(self.tab(
+                            ElementId::Name(format!("window-{}", window.id).into()),
+                            tab_label(window, label_len),
+                            active,
+                            if active {
+                                colors.text
+                            } else {
+                                colors.text_muted
+                            },
+                            min_width,
+                            TabKind::Window(window.id.to_string()),
+                            cx,
+                        ))
+                        .id(ElementId::Name(format!("tab-group-{}", window.id).into())),
+                );
             }
             tabs.push(self.tab(
                 "new-window",
@@ -225,6 +235,82 @@ impl TermView {
                         ),
                     ),
             )
+    }
+
+    /// The button before a tab's name: its icon in its colour; click it to
+    /// pick another (the tab itself keeps the normal background).
+    pub(crate) fn tab_chip(&self, window_id: String, cx: &mut Context<Self>) -> impl IntoElement {
+        use crate::tab_style::{COLORS, ICONS};
+        use ferrum_ui::components::{
+            ButtonCommon, Color, ContextMenu, IconButton, IconPosition, IconSize, PopoverMenu,
+            Tooltip,
+        };
+        let style = self
+            .app
+            .ui
+            .tab_styles
+            .get(&window_id)
+            .cloned()
+            .unwrap_or_default();
+        let weak = cx.weak_entity();
+        let id = window_id;
+        PopoverMenu::new(SharedString::from(format!("chip-{id}")))
+            .trigger(
+                IconButton::new(
+                    SharedString::from(format!("chip-button-{id}")),
+                    style.icon_name(),
+                )
+                .icon_size(IconSize::Small)
+                .icon_color(Color::Custom(style.hsla()))
+                .tooltip(Tooltip::text("Tab icon and colour")),
+            )
+            .menu(move |window, cx| {
+                let weak = weak.clone();
+                let id = id.clone();
+                let current = style.clone();
+                Some(ContextMenu::build(window, cx, move |mut menu, _, _| {
+                    let set = |icon: Option<&'static str>, color: Option<&'static str>| {
+                        let weak = weak.clone();
+                        let id = id.clone();
+                        move |_: &mut Window, cx: &mut gpui::App| {
+                            let _ = weak.update(cx, |view, cx| {
+                                let style = view.app.ui.tab_styles.entry(id.clone()).or_default();
+                                if let Some(icon) = icon {
+                                    style.icon = icon.to_owned();
+                                }
+                                if let Some(color) = color {
+                                    style.color = color.to_owned();
+                                }
+                                view.app.ui.save_recent_agents();
+                                cx.notify();
+                            });
+                        }
+                    };
+                    menu = menu.header("Icon");
+                    for (key, label, icon) in ICONS {
+                        menu = menu.icon_entry(label, icon, set(Some(key), None));
+                    }
+                    menu = menu.header("Colour");
+                    for (key, label, _) in COLORS {
+                        menu = menu.toggleable_entry(
+                            label,
+                            current.color == key,
+                            IconPosition::Start,
+                            None,
+                            set(None, Some(key)),
+                        );
+                    }
+                    let weak = weak.clone();
+                    let id = id.clone();
+                    menu.separator().entry("Reset", None, move |_, cx| {
+                        let _ = weak.update(cx, |view, cx| {
+                            view.app.ui.tab_styles.remove(&id);
+                            view.app.ui.save_recent_agents();
+                            cx.notify();
+                        });
+                    })
+                }))
+            })
     }
 
     /// The sidebar drawn over the terminal (compact mode).

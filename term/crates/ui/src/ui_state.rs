@@ -19,6 +19,8 @@ pub struct UiState {
     pub agents_fraction: f32,
     /// Saved "New tab" configurations: (name, command line; empty = shell).
     pub tab_configs: Vec<(String, String)>,
+    /// Icon and colour chosen for a tab, by window id (`w3`).
+    pub tab_styles: std::collections::BTreeMap<String, crate::tab_style::TabStyle>,
 }
 
 /// Default and limits of [`UiState::agents_fraction`].
@@ -39,6 +41,7 @@ impl Default for UiState {
             recent_agents: Vec::new(),
             agents_fraction: AGENTS_FRACTION,
             tab_configs: Vec::new(),
+            tab_styles: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -68,9 +71,13 @@ impl UiState {
     /// state (an embedded view shares the file with the desktop window).
     pub fn save_recent_agents(&self) {
         let mut saved = Self::load();
-        if saved.recent_agents != self.recent_agents || saved.tab_configs != self.tab_configs {
+        if saved.recent_agents != self.recent_agents
+            || saved.tab_configs != self.tab_configs
+            || saved.tab_styles != self.tab_styles
+        {
             saved.recent_agents.clone_from(&self.recent_agents);
             saved.tab_configs.clone_from(&self.tab_configs);
+            saved.tab_styles.clone_from(&self.tab_styles);
             saved.save();
         }
     }
@@ -96,6 +103,15 @@ impl UiState {
                 "agents_fraction" => {
                     if let Ok(f) = value.parse::<f32>() {
                         s.agents_fraction = clamp_agents_fraction(f);
+                    }
+                }
+                "tab_style" => {
+                    let mut parts = value.split('\t');
+                    if let (Some(id), Some(style)) = (
+                        parts.next(),
+                        crate::tab_style::TabStyle::parse(parts.next(), parts.next()),
+                    ) {
+                        s.tab_styles.insert(id.to_owned(), style);
                     }
                 }
                 "tab" => {
@@ -125,6 +141,12 @@ impl UiState {
         out.push_str(&format!("agents_fraction={:.3}\n", self.agents_fraction));
         for (name, command) in &self.tab_configs {
             out.push_str(&format!("tab={name}\t{command}\n"));
+        }
+        for (id, style) in &self.tab_styles {
+            out.push_str(&format!(
+                "tab_style={id}\t{}\t{}\n",
+                style.icon, style.color
+            ));
         }
         out
     }
@@ -158,7 +180,15 @@ mod tests {
             recent_agents: Vec::new(),
             agents_fraction: 0.4,
             tab_configs: Vec::new(),
+            tab_styles: std::collections::BTreeMap::new(),
         };
+        s.tab_styles.insert(
+            "w3".into(),
+            crate::tab_style::TabStyle {
+                icon: "server".into(),
+                color: "green".into(),
+            },
+        );
         s.save_tab_config("dev server", "npm run dev");
         s.remember_agent("aider --model sonnet");
         s.remember_agent("gemini");

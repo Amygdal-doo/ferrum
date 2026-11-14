@@ -39,6 +39,7 @@ pub mod settings;
 mod settings_pages;
 mod sidebar;
 mod ssh;
+mod tab_style;
 mod ui_state;
 mod view;
 mod worktree;

@@ -22,7 +22,7 @@ use ferrumterm_protocol::{BlockId, Event};
 use futures::StreamExt as _;
 use std::time::{Duration, Instant};
 
-pub(crate) use render::TabKind;
+pub(crate) use render::{TabKind, tab_label};
 
 pub(crate) const PADDING: f32 = 6.0;
 pub(crate) const MESSAGE_TTL: Duration = Duration::from_secs(6);
