@@ -23,6 +23,7 @@
 //! server inside the host process instead (sessions then end with the host).
 
 mod actions;
+mod alerts;
 mod app;
 mod app_info;
 #[cfg(test)]
@@ -30,6 +31,7 @@ mod app_tests;
 mod connection;
 mod dialogs;
 mod events;
+mod folders;
 mod git_pane;
 mod input;
 mod options;
@@ -37,6 +39,8 @@ mod paint;
 mod project;
 mod selection;
 pub mod settings;
+mod settings_keyboard;
+mod settings_machines;
 mod settings_pages;
 mod sidebar;
 mod ssh;
@@ -57,7 +61,9 @@ pub use connection::Backend;
 pub use events::{CommandId, TermViewEvent};
 pub use ferrumterm_protocol::{BlockId, ProgramState, ProgramStatus};
 pub use options::TermViewOptions;
-pub use settings_pages::{RemoteHostsPage, TerminalPage};
+pub use settings_keyboard::KeyboardPage;
+pub use settings_machines::MachinesPage;
+pub use settings_pages::TerminalPage;
 pub use view::TermView;
 
 use ferrum_ui::gpui::{App, Global};

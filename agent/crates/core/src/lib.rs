@@ -15,6 +15,8 @@
 //!   model.
 //! - [`thread`], [`store`]: the thread model and its JSON persistence;
 //!   [`session`] ties it all together for a UI.
+//! - [`status`]: each thread's Needs you / Done / Working / Idle state, a
+//!   pure state machine a UI feeds with session events.
 //!
 //! Async code runs on tokio ([`runtime::handle`]); a UI receives
 //! [`session::SessionEvent`]s on a `futures` channel any executor can poll.
@@ -37,6 +39,7 @@ pub mod secrets;
 pub mod session;
 pub mod settings;
 pub mod snapshot;
+pub mod status;
 pub mod store;
 pub mod thread;
 pub mod tools;

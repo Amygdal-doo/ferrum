@@ -1,8 +1,43 @@
 //! Running without a Dock icon. Ferrum Launcher records the choice per app
 //! in `~/.ferrum/preferences.json` (`hide_from_dock`: binary names); every
 //! app reads it when it starts.
+//!
+//! macOS shows the menu bar only for apps with a Dock icon (activation
+//! policy `Regular`); an `Accessory` app keeps the previous app's menu bar
+//! even while its own window is key. So a hidden app carries its menus in a
+//! menu bar extra instead (see `status_item`), unless it has one of its own
+//! (Ferrum Launcher).
 
 use std::path::PathBuf;
+use std::sync::Mutex;
+
+#[cfg(target_os = "macos")]
+mod status_item;
+
+/// The app name for the menu bar extra; `None` while the app opts out.
+static STATUS_ITEM_NAME: Mutex<Option<String>> = Mutex::new(None);
+
+/// Gives the app a menu bar extra with its menus while it runs without a
+/// Dock icon. `ferrum_ui::run` turns it on unless the app has its own.
+pub(crate) fn use_status_item(app_name: Option<&str>) {
+    *STATUS_ITEM_NAME.lock().unwrap_or_else(|e| e.into_inner()) = app_name.map(str::to_owned);
+}
+
+/// The titles of the menu bar extra's submenus, from the main menu's: the
+/// app menu (first, possibly untitled) is named after the app.
+pub fn status_menu_titles(app_name: &str, main_menu_titles: &[String]) -> Vec<String> {
+    main_menu_titles
+        .iter()
+        .enumerate()
+        .map(|(i, title)| {
+            if i == 0 && title.trim().is_empty() {
+                app_name.to_owned()
+            } else {
+                title.clone()
+            }
+        })
+        .collect()
+}
 
 fn preferences_file() -> Option<PathBuf> {
     crate::prefs::path("preferences.json")
@@ -67,6 +102,8 @@ pub fn set_hidden(binary: &str, hidden: bool) {
 }
 
 /// Shows or hides the Dock icon (and the app in ⌘-Tab) while running.
+/// Without it, the app's menus move to a menu bar extra (see the module
+/// docs); with it, they are back in the menu bar.
 #[cfg(target_os = "macos")]
 pub fn set_dock_icon_visible(visible: bool) {
     use objc2_app_kit::{NSApplication, NSApplicationActivationPolicy};
@@ -74,20 +111,59 @@ pub fn set_dock_icon_visible(visible: bool) {
     let Some(mtm) = objc2::MainThreadMarker::new() else {
         return;
     };
-    let policy = if visible {
-        NSApplicationActivationPolicy::Regular
+    let app = NSApplication::sharedApplication(mtm);
+    if visible {
+        app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
+        status_item::hide();
+        // A newly `Regular` app gets the menu bar only once activated.
+        #[allow(deprecated)]
+        app.activateIgnoringOtherApps(true);
     } else {
-        NSApplicationActivationPolicy::Accessory
-    };
-    NSApplication::sharedApplication(mtm).setActivationPolicy(policy);
+        app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+        let name = STATUS_ITEM_NAME
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
+        if let Some(name) = name {
+            status_item::show(&name, mtm);
+        }
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
 pub fn set_dock_icon_visible(_visible: bool) {}
 
+/// Call after replacing the menu bar (`cx.set_menus`) at runtime, so the
+/// menu bar extra of an app hidden from the Dock shows the new menus.
+pub fn refresh_status_item() {
+    #[cfg(target_os = "macos")]
+    if let Some(mtm) = objc2::MainThreadMarker::new() {
+        status_item::refresh(mtm);
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::listed;
+    use super::{listed, status_menu_titles};
+
+    #[test]
+    fn the_app_menu_is_named_after_the_app() {
+        let titles = |t: &[&str]| t.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(
+            status_menu_titles("FerrumGIT", &titles(&["", "File", "Edit"])),
+            titles(&["FerrumGIT", "File", "Edit"])
+        );
+        assert_eq!(
+            status_menu_titles("FerrumGIT", &titles(&["FerrumGIT", "Window"])),
+            titles(&["FerrumGIT", "Window"])
+        );
+        // A later untitled menu keeps its (empty) title.
+        assert_eq!(
+            status_menu_titles("X", &titles(&["X", ""])),
+            titles(&["X", ""])
+        );
+        assert!(status_menu_titles("X", &[]).is_empty());
+    }
 
     #[test]
     fn reads_the_launchers_list() {

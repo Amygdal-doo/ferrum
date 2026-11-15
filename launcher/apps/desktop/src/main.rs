@@ -90,6 +90,8 @@ fn main() {
         .size(1040., 680.)
         .min_size(760., 480.)
         .unified_titlebar()
+        // Without a Dock icon it lives in its own menu bar extra.
+        .without_status_item()
         .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         let launcher =

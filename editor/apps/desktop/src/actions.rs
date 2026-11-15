@@ -148,6 +148,8 @@ pub fn set_menus(cx: &mut App) {
             item("Import VS Code Theme…", "theme:import-vscode-theme"),
             item("Open Themes Folder", "theme:open-themes-folder"),
             MenuItem::separator(),
+            ferrum_ui::menus::services_menu(),
+            MenuItem::separator(),
             MenuItem::action("Hide Ferrum Editor", ferrum_ui::menus::HideApp),
             MenuItem::action("Hide Others", ferrum_ui::menus::HideOthers),
             MenuItem::action("Show All", ferrum_ui::menus::ShowAll),
@@ -260,4 +262,5 @@ pub fn set_menus(cx: &mut App) {
         ferrum_ui::menus::window_menu(),
         ferrum_ui::menus::help_menu(&ferrum_ui::app_info(cx)),
     ]);
+    ferrum_ui::dock::refresh_status_item();
 }

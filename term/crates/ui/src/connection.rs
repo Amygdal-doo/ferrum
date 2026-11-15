@@ -50,9 +50,9 @@ pub(crate) type Connected = (Client, mpsc::UnboundedReceiver<Event>, Backend);
 
 /// Connects to the shared server (starting it when `attach`), else — or,
 /// with `fallback`, when that fails — to the private one.
-pub(crate) async fn connect(attach: bool, fallback: bool) -> Result<Connected, String> {
+pub(crate) async fn connect(attach: bool, fallback: bool, name: &str) -> Result<Connected, String> {
     if attach {
-        match connect_or_start(&paths::socket(), "ferrumterm").await {
+        match connect_or_start(&paths::socket(), name).await {
             Ok((client, events)) => return Ok((client, events, Backend::Server)),
             Err(error @ ferrumterm_client::ClientError::Incompatible(..)) if !fallback => {
                 return Err(format!("{INCOMPATIBLE}{error}"));
@@ -132,7 +132,7 @@ mod tests {
     fn the_private_server_accepts_clients() {
         let rt = runtime();
         let result = rt.block_on(async {
-            let (client, _events, backend) = connect(false, true).await?;
+            let (client, _events, backend) = connect(false, true, "test").await?;
             client.info().await.map_err(|e| e.to_string())?;
             Ok::<_, String>(backend)
         });

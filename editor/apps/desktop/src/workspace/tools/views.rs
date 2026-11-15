@@ -45,12 +45,21 @@ impl Workspace {
         true
     }
 
-    /// The chat on the current project (a new one when the project changed).
+    /// The chat on the current project. The previous project's chat is
+    /// kept (its turns keep running, hidden) and comes back with it.
     fn ensure_chat(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(root) = self.root.clone() else {
             return;
         };
         if self.tools.chat.is_some() && self.tools.chat_root.as_ref() == Some(&root) {
+            return;
+        }
+        if let (Some(chat), Some(old)) = (self.tools.chat.take(), self.tools.chat_root.take()) {
+            self.tools.other_chats.insert(old, chat);
+        }
+        if let Some(chat) = self.tools.other_chats.remove(&root) {
+            self.tools.chat = Some(chat);
+            self.tools.chat_root = Some(root);
             return;
         }
         let config = self.tools.chat_config.as_ref().map(|make| make(&root));
@@ -63,6 +72,23 @@ impl Workspace {
         self.tools.subscriptions.push(sub);
         self.tools.chat = Some(chat);
         self.tools.chat_root = Some(root);
+    }
+
+    /// Tells each chat whether it is on screen: the current project's while
+    /// the Agent pane is open. A hidden chat keeps running; its finished
+    /// turns count as unseen ("Done") and notify.
+    pub(in crate::workspace) fn sync_chat_visibility(&mut self, cx: &mut Context<Self>) {
+        let shown = self.tools.layout.is_open(ToolKind::Agent);
+        if let Some(chat) = self.tools.chat.clone()
+            && chat.read(cx).is_visible() != shown
+        {
+            chat.update(cx, |chat, cx| chat.set_visible(shown, cx));
+        }
+        for chat in self.tools.other_chats.values() {
+            if chat.read(cx).is_visible() {
+                chat.update(cx, |chat, cx| chat.set_visible(false, cx));
+            }
+        }
     }
 
     pub(in crate::workspace) fn ensure_term(

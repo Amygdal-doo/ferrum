@@ -6,6 +6,7 @@
 
 mod block;
 mod conn;
+mod detect;
 mod forward;
 mod listen;
 mod ops;
@@ -24,7 +25,7 @@ use state::State;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::{Notify, broadcast, mpsc};
 
@@ -58,6 +59,11 @@ pub struct Server {
     pub(crate) token: String,
     pub(crate) started_ms: u64,
     pub(crate) clients: AtomicUsize,
+    /// Connected FerrumTerm windows ([`ferrumterm_protocol::WINDOW_CLIENT`]):
+    /// while there is one, it posts agent notifications instead of the server.
+    pub(crate) windows: AtomicUsize,
+    /// Set when shutting down (stops the detection thread).
+    pub(crate) stopping: AtomicBool,
     pub(crate) exits: Mutex<VecDeque<(BlockId, i32)>>,
     pub(crate) internal: mpsc::UnboundedSender<Internal>,
     pub(crate) awake: Mutex<system::Awake>,
@@ -118,7 +124,7 @@ impl Server {
                     StatusUpdate::Set(s) => Some(s),
                     StatusUpdate::Clear => None,
                 };
-                self.set_status(id, status);
+                self.set_status(id, status, StatusSource::Program);
             }
             Internal::Title(block) => {
                 tracing::trace!(%block, "title changed");
@@ -133,15 +139,30 @@ impl Server {
         &self,
         id: BlockId,
         status: Option<ferrumterm_protocol::ProgramStatus>,
+        source: StatusSource,
     ) {
         let (block, label) = {
             let state = lock(&self.state);
             let Some(b) = state.blocks.get(&id).cloned() else {
                 return;
             };
-            let label = lock(&b.label).clone().unwrap_or_else(|| b.title());
+            let label = lock(&b.label)
+                .clone()
+                .or_else(|| lock(&b.agent).clone())
+                .unwrap_or_else(|| b.title());
             (b, label)
         };
+        {
+            let mut d = lock(&block.detect);
+            match source {
+                StatusSource::Program => {
+                    d.explicit = true;
+                    d.detected = false;
+                }
+                StatusSource::Detected if d.explicit => return,
+                StatusSource::Detected => d.detected = status.is_some(),
+            }
+        }
         let status = status.map(|mut s| {
             s.updated_ms = now_ms();
             s
@@ -149,6 +170,7 @@ impl Server {
         let previous = std::mem::replace(&mut *lock(&block.status), status.clone());
         if let Some(s) = &status
             && self.config.notify
+            && self.windows.load(Ordering::Relaxed) == 0
             && matches!(
                 s.state,
                 ProgramState::Done | ProgramState::Blocked | ProgramState::Error
@@ -159,6 +181,97 @@ impl Server {
         }
         self.emit(Event::Status { block: id, status });
         self.update_awake();
+    }
+
+    /// One round of agent status detection (see `detect`) over every block.
+    pub(crate) fn detect_tick(&self) {
+        let blocks: Vec<Arc<block::Block>> = lock(&self.state).blocks.values().cloned().collect();
+        let mut changed = false;
+        for b in blocks {
+            if lock(&b.exited).is_some() {
+                continue;
+            }
+            changed |= Self::update_agent(&b);
+            self.detect_block(&b);
+        }
+        if changed {
+            self.emit(Event::Changed);
+        }
+    }
+
+    /// Looks up the foreground program when it changed; true when the
+    /// block's agent changed.
+    fn update_agent(b: &block::Block) -> bool {
+        let fg = b.foreground();
+        {
+            let mut d = lock(&b.detect);
+            if d.foreground == fg {
+                return false;
+            }
+            d.foreground = fg;
+            d.explicit = false;
+            d.busy_at = None;
+        }
+        let agent = fg
+            .and_then(detect::process_command)
+            .and_then(|line| ferrumterm_protocol::agents::agent_from_command_line(&line))
+            .or_else(|| {
+                // `ps` failed: the program the block started, while it runs.
+                fg.filter(|pid| b.pid.is_some_and(|own| own as i32 == *pid))
+                    .and_then(|_| ferrumterm_protocol::agents::agent_of_command(&b.command))
+            })
+            .map(str::to_owned);
+        let mut current = lock(&b.agent);
+        if *current == agent {
+            return false;
+        }
+        *current = agent;
+        true
+    }
+
+    fn detect_block(&self, b: &block::Block) {
+        let detected = lock(&b.detect).detected;
+        if lock(&b.agent).is_none() {
+            // The agent left the foreground: drop what detection said.
+            if detected {
+                self.set_status(b.id, None, StatusSource::Detected);
+            }
+            return;
+        }
+        if lock(&b.detect).explicit {
+            return;
+        }
+        let (screen, title) = {
+            let term = lock(&b.term);
+            (term.capture(false), term.title().to_owned())
+        };
+        let quiet_ms = lock(&b.last_output).map(|at| at.elapsed().as_millis() as u64);
+        let signal = detect::observe(&detect::Observation {
+            screen: &screen,
+            title: &title,
+            quiet_ms,
+        });
+        let since_busy = {
+            let mut d = lock(&b.detect);
+            if signal == detect::Signal::Busy {
+                d.busy_at = Some(std::time::Instant::now());
+            }
+            d.busy_at.map(|at| at.elapsed().as_millis() as u64)
+        };
+        let current = lock(&b.status).clone();
+        let previous = current.as_ref().filter(|_| detected).map(|s| s.state);
+        let next = detect::step(previous, &signal, since_busy);
+        let mut status = ferrumterm_protocol::ProgramStatus::new(next);
+        if let detect::Signal::Question { line, kind } = signal {
+            status.kind = Some(kind.to_owned());
+            status.message = Some(line);
+        }
+        let same = current
+            .as_ref()
+            .is_some_and(|c| detected && c.state == status.state && c.message == status.message);
+        if !same {
+            self.set_status(b.id, Some(status), StatusSource::Detected);
+        }
     }
 
     fn block_exited(&self, id: BlockId, code: i32) {
@@ -191,6 +304,15 @@ impl Server {
         self.emit(Event::Exited { block: id, code });
         self.update_awake();
     }
+}
+
+/// Who set a block's status.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum StatusSource {
+    /// The program itself (OSC 7501, `fterm status`, hooks): always wins.
+    Program,
+    /// Guessed by `detect`.
+    Detected,
 }
 
 /// Runs the server until `Shutdown` or a termination signal.
@@ -226,6 +348,8 @@ pub async fn run_until(
         token,
         started_ms: now_ms(),
         clients: AtomicUsize::new(0),
+        windows: AtomicUsize::new(0),
+        stopping: AtomicBool::new(false),
         exits: Mutex::new(VecDeque::new()),
         internal,
         awake: Mutex::new(awake),
@@ -245,10 +369,26 @@ pub async fn run_until(
         }
     });
 
+    // Agent status detection keeps running with no client connected.
+    let weak = Arc::downgrade(&server);
+    std::thread::Builder::new()
+        .name("fterm-detect".into())
+        .spawn(move || {
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                let Some(server) = weak.upgrade() else { break };
+                if server.stopping.load(Ordering::Relaxed) {
+                    break;
+                }
+                server.detect_tick();
+            }
+        })?;
+
     tokio::select! {
         () = server.shutdown.notified() => {}
         () = stop => {}
     }
+    server.stopping.store(true, Ordering::Relaxed);
     tracing::info!("shutting down");
     server.emit(Event::Bye);
     for b in lock(&server.state).blocks.values() {

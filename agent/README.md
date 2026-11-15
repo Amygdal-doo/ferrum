@@ -26,9 +26,19 @@ cx.subscribe(&chat, |_, event, cx| match event {
     ChatEvent::OpenFile { path, line } => {}       // absolute path, 1-based line
     ChatEvent::RunInTerminal { cmd, cwd } => {}    // the "Run in terminal" button
     ChatEvent::ChangesUpdated { files } => {}      // pending review count
+    ChatEvent::ThreadsChanged => {}                // saved thread list changed
+    ChatEvent::Git(request) => {}                  // footer git actions
+    ChatEvent::StatusChanged => {}                 // a thread's status changed
 }).detach();
 // Host context: chat.update(cx, |c, cx| c.add_mention(Mention::Selection { .. }, cx));
+// Hidden (pane closed, other project or page): it keeps running.
+chat.update(cx, |c, cx| c.set_visible(false, cx));
 ```
+
+A host that wants the chat's notifications to be switchable adds
+`ferrumagent_ui::NEEDS_YOU` and `ferrumagent_ui::DONE` to its `AppInfo`
+with `.event(...)`. Both Ferrum Editor and FerrumVibe do. Without them the
+chat stays quiet; `ChatOptions::notifier` replaces the delivery entirely.
 
 `ChatOptions::config` takes a full `SessionConfig`, for example a custom
 `CommandRunner` that runs `run_command` in the host's terminal, or a mock
@@ -157,6 +167,90 @@ first message), messages, tool calls with their output, cumulative token
 usage, context size, mode, agent, plan and ACP session id. The UI lists,
 opens, deletes and creates threads.
 
+**Parallel threads.** Switching to another thread, or starting a new one,
+while the shown thread's turn is running no longer cancels that turn. The
+running thread moves to the background as a sibling `ChatSession`
+(`ChatSession::sibling`). A sibling shares the project's change set (one
+review list and one checkpoint history), the permission policy, the
+settings and the MCP tools. It has its own turn, queue, permission prompts
+and ACP agent process. Switching back shows it again, with its open
+prompts (`ChatSession::open_permissions`). Once its turn ends and nothing
+is queued, the background session is dropped: the thread is saved by then.
+There is no worktree isolation, so two threads editing the same file can
+conflict. The review's hash checks refuse stale accepts and rejects.
+
+**Thread status** (`status.rs`, a pure and unit-tested state machine). Every
+thread is in one of four states:
+- **Needs you**: a permission prompt is open, or Plan mode wrote a plan
+  that waits for Build.
+- **Done**: a turn finished while the user was not looking at the thread.
+  A failed turn is Done with an `error` flag (drawn red), not a state of its
+  own, so it lands in the same "come and look" section.
+- **Working**: a turn is running.
+- **Idle**: everything else.
+
+The transitions:
+
+| Input | Result |
+|---|---|
+| Turn starts | Working |
+| Permission asked | Needs you |
+| Last open prompt answered | Working |
+| Turn ends, thread viewed | Idle |
+| Turn ends, thread not viewed | Done (or Needs you when a plan was written) |
+| Turn ends with another message queued | stays Working |
+| User cancels | Idle, no notification |
+| User views the thread | Done → Idle, plan Needs you → Idle; open prompts stay Needs you |
+
+"Viewed" means it is the shown thread, the host has the chat visible
+(`ChatView::set_visible`) and its window is active. Statuses live in memory
+for the run (`ChatView::statuses`), so after a restart every thread starts
+Idle.
+
+**Thread list.** The list (⌘⌥J) groups threads into sections in the order
+Needs you, Done, Working, Idle. Each section has a header with a count. A
+row shows:
+- the agent's logo (the `>_` tile when it has none)
+- the title
+- a muted line with the status summary, or the project and agent
+- the time since its last change (`<1m`, `12m`, `3h`, `1d`)
+- a status mark: ⚠ for Needs you, a blue dot for Done (red when it
+  failed), a spinner for Working and a hollow circle for Idle
+
+The header's thread button carries a dot when another thread needs you
+(amber) or finished unseen (blue). FerrumVibe draws its own sidebar: it adds
+Needs you, Done and Working sections across all open projects above "Recent
+conversations", using the exported `status_indicator` and `thread_logo`.
+
+**Notifications.** There is one notification per transition, delivered
+through `ferrum_ui::notify`, so Settings › Notifications can switch its
+channels (toast, system, sound, Dock badge):
+- `agent-needs-you`: "<thread> needs you", with the prompt's summary
+  ("Allow Edit a.txt?") or "Plan ready to build".
+- `agent-done`: "<thread> finished" (or "failed"), with the first line of
+  the last answer or the error.
+
+Nothing notifies while the user is viewing the thread, because the prompt
+or the result is already on screen. Clicking the toast
+(`notify_with_action`) shows that thread and emits `ChatEvent::Reveal`. On
+`Reveal`, Ferrum Editor opens the Agent pane and FerrumVibe opens that
+project's thread. Clicking a system notification only brings the app
+forward.
+
+**Background behaviour.**
+- Hiding the chat does not stop it. That covers closing the Agent pane in
+  the editor, showing another FerrumVibe page or project, and switching
+  threads.
+- The `ChatSession` owns its turn on the core tokio runtime, and the view
+  only listens. Turns that end while the chat is hidden become Done and
+  notify.
+- The editor keeps one chat per project for the window's life, as
+  FerrumVibe already did. Changing folders no longer drops the previous
+  project's chat mid-turn.
+- When a view is really gone (its window closed), its running turns go on
+  to the end and are saved. Any permission prompt they raise is denied,
+  because nobody is left to answer it, rather than waiting forever.
+
 **UI** (`ChatView`).
 - **Header**: thread list toggle, title, changed-file count, new thread and
   settings.
@@ -189,7 +283,9 @@ opens, deletes and creates threads.
 | Rules | Every format, globs, nested `AGENTS.md` |
 | MCP | In-test stdio server (this test binary re-run as a server), streamable-HTTP server with SSE and session id, MCP tool through a session |
 | ACP | Scripted fake agent process covering permission, fs read and write, terminal, plan, usage, Ask mode refusing writes |
-| UI | Headless `ChatView` at 360px in both themes: Enter sends, permission on the card, change review, accept all, @-picker with Tab, modes, thread list, settings |
+| Thread status | Every transition of the state machine, alerts once per transition, grouping order, `<1m`/`12m`/`3h`/`1d` |
+| Siblings | Two threads running at once sharing the change set; open prompts re-read; a turn whose view is gone is denied, not stuck |
+| UI | Headless `ChatView` at 360px in both themes: Enter sends, permission on the card, change review, accept all, @-picker with Tab, modes, thread list, settings; a thread parked in the background with Needs you / Done notifications and the grouped list |
 
 ## Not built yet
 
@@ -221,5 +317,6 @@ opens, deletes and creates threads.
   - No text selection in messages; code blocks have a copy button.
   - No image paste.
   - No inline editor diffs; review happens in the panel.
-- **Parallel threads**: one running turn per `ChatSession`, and no worktree
-  isolation.
+- **Parallel threads**: one running turn per `ChatSession`. Parallel
+  threads are sibling sessions with no worktree isolation. Thread statuses
+  are not persisted across restarts.

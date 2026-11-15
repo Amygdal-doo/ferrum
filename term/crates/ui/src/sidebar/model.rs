@@ -1,9 +1,10 @@
 //! What the sidebar lists, built from the server's session tree: an "Agents"
 //! section (blocks running Claude Code, Codex & co., or reporting a program
-//! status) and one section per session with its tabs and their split panes.
-//! Pure data so it can be tested without a window.
+//! status) grouped by status — Needs you, Done, Working, Idle — and one
+//! section per session with its tabs and their split panes. Pure data so it
+//! can be tested without a window.
 
-use super::agents::{is_agent, program_name};
+use super::agents::{agent_name, is_agent, program_name};
 use ferrumterm_protocol::{
     BlockId, BlockInfo, ProgramState, ProgramStatus, SessionId, SessionInfo, WindowInfo,
 };
@@ -25,6 +26,37 @@ pub struct Row {
     pub attention: bool,
     /// The coding agent it runs, if it has a logo.
     pub logo: Option<ferrum_ui::AgentLogo>,
+    /// Where it sits in the Agents section.
+    pub group: AgentGroup,
+    /// Agents: the project directory or the agent's own title, short.
+    pub subtitle: String,
+    /// Unix millis of the last status change.
+    pub changed_ms: Option<u64>,
+}
+
+/// The Agents section's groups, in display order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AgentGroup {
+    /// Asking a question or waiting for permission.
+    NeedsYou,
+    /// Finished (or failed) a turn you have not looked at yet.
+    Done,
+    Working,
+    Idle,
+}
+
+impl AgentGroup {
+    pub const ALL: [Self; 4] = [Self::NeedsYou, Self::Done, Self::Working, Self::Idle];
+
+    #[must_use]
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::NeedsYou => "Needs you",
+            Self::Done => "Done",
+            Self::Working => "Working",
+            Self::Idle => "Idle",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -37,6 +69,8 @@ pub struct Section {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Model {
     pub agents: Vec<Row>,
+    /// `agents` by group (non-empty groups only), most recent change first.
+    pub groups: Vec<(AgentGroup, Vec<Row>)>,
     pub sessions: Vec<Section>,
     /// Agents that are blocked, or finished / failed since you last looked.
     pub attention: usize,
@@ -65,6 +99,25 @@ impl Seen {
                 .flat_map(|w| &w.blocks)
                 .any(|b| b.id == *id)
         });
+    }
+
+    /// Whether the block's current status was on screen.
+    #[must_use]
+    pub fn has_seen(&self, b: &BlockInfo) -> bool {
+        b.status
+            .as_ref()
+            .is_some_and(|s| self.0.get(&b.id) == Some(&s.updated_ms))
+    }
+
+    /// The Agents group of `b`: done / error become idle once seen.
+    #[must_use]
+    pub fn group(&self, b: &BlockInfo) -> AgentGroup {
+        match b.status.as_ref().map(|s| s.state) {
+            Some(ProgramState::Blocked) => AgentGroup::NeedsYou,
+            Some(ProgramState::Done | ProgramState::Error) if !self.has_seen(b) => AgentGroup::Done,
+            Some(ProgramState::Working) => AgentGroup::Working,
+            _ => AgentGroup::Idle,
+        }
     }
 
     /// Blocked always needs you; done / error only until you have seen them.
@@ -106,13 +159,17 @@ impl Model {
                         nested: i > 0,
                         active: shown && w.focused == b.id,
                         attention: seen.needs_attention(b),
-                        logo: super::agents::program_name(&b.command)
+                        logo: agent_name(b)
+                            .or_else(|| program_name(&b.command))
                             .and_then(ferrum_ui::AgentLogo::for_program),
+                        group: seen.group(b),
+                        subtitle: subtitle(b),
+                        changed_ms: b.status.as_ref().map(|s| s.updated_ms).filter(|ms| *ms > 0),
                     };
                     if is_agent(b) {
                         model.attention += usize::from(row.attention);
                         let mut agent = row.clone();
-                        agent.title = block_title(b);
+                        agent.title = agent_title(w, b);
                         agent.nested = false;
                         agent.detail = format!("{} · {}", s.name, row.detail);
                         model.agents.push(agent);
@@ -124,7 +181,51 @@ impl Model {
             }
             model.sessions.push(section);
         }
+        for group in AgentGroup::ALL {
+            let mut rows: Vec<Row> = model
+                .agents
+                .iter()
+                .filter(|r| r.group == group)
+                .cloned()
+                .collect();
+            rows.sort_by_key(|r| std::cmp::Reverse(r.changed_ms.unwrap_or(0)));
+            if !rows.is_empty() {
+                model.groups.push((group, rows));
+            }
+        }
         model
+    }
+}
+
+/// An agent's second line: its own title (minus a leading spinner or
+/// status glyph) when it is not just the row's title, else its directory.
+fn subtitle(b: &BlockInfo) -> String {
+    let title = clean_title(&b.title);
+    let row_title = block_title(b);
+    if !title.is_empty() && title != row_title && clean_title(&row_title) != title {
+        return title.to_owned();
+    }
+    b.cwd.as_deref().map(tilde).unwrap_or_default()
+}
+
+/// `✳ Fix the tests` → `Fix the tests`.
+fn clean_title(title: &str) -> &str {
+    let t = title.trim();
+    match t.split_once(' ') {
+        Some((first, rest)) if !first.chars().any(char::is_alphanumeric) => rest.trim(),
+        _ => t,
+    }
+}
+
+/// `<1m`, `12m`, `3h`, `1d`: time from `then_ms` to `now_ms`.
+#[must_use]
+pub fn relative_time(now_ms: u64, then_ms: u64) -> String {
+    let minutes = now_ms.saturating_sub(then_ms) / 60_000;
+    match minutes {
+        0 => "<1m".into(),
+        m if m < 60 => format!("{m}m"),
+        m if m < 60 * 24 => format!("{}h", m / 60),
+        m => format!("{}d", m / (60 * 24)),
     }
 }
 
@@ -135,6 +236,20 @@ fn window_title(w: &WindowInfo, b: &BlockInfo) -> String {
     } else {
         w.name.clone()
     }
+}
+
+/// An agent's name in the Agents section and its notifications: its label
+/// (`-l`), else its tab's name, else the agent (`claude`), else
+/// [`block_title`].
+#[must_use]
+pub fn agent_title(w: &WindowInfo, b: &BlockInfo) -> String {
+    if let Some(l) = b.label.as_ref().filter(|l| !l.is_empty()) {
+        return l.clone();
+    }
+    if !w.name.is_empty() && !w.name.chars().all(|c| c.is_ascii_digit()) && w.blocks.len() == 1 {
+        return w.name.clone();
+    }
+    agent_name(b).map_or_else(|| block_title(b), str::to_owned)
 }
 
 /// Label (`-l`), else the terminal title, else the program name.
@@ -200,6 +315,7 @@ mod tests {
                 ..ProgramStatus::new(s)
             }),
             exited: None,
+            agent: None,
         }
     }
 
@@ -268,6 +384,63 @@ mod tests {
 
         seen.retain(&[]);
         assert!(seen.0.is_empty());
+    }
+
+    #[test]
+    fn agents_are_grouped_by_status_in_order() {
+        let mut idle = block(5, &["/bin/zsh"], None, None);
+        idle.agent = Some("claude".into());
+        let mut sessions = vec![session(vec![
+            block(1, &["codex"], None, Some(ProgramState::Working)),
+            block(2, &["claude"], None, Some(ProgramState::Done)),
+            block(3, &["gemini"], None, Some(ProgramState::Blocked)),
+            block(4, &["npm", "run", "dev"], None, None),
+            idle,
+        ])];
+        // A newer change sorts first inside its group.
+        if let Some(s) = sessions[0].windows[0].blocks[0].status.as_mut() {
+            s.updated_ms = 9;
+        }
+        sessions[0].windows[0]
+            .blocks
+            .push(block(6, &["aider"], None, Some(ProgramState::Working)));
+        let mut seen = Seen::default();
+        let m = Model::build(&sessions, None, &seen);
+        let order: Vec<(AgentGroup, Vec<BlockId>)> = m
+            .groups
+            .iter()
+            .map(|(g, rows)| (*g, rows.iter().map(|r| r.block).collect()))
+            .collect();
+        assert_eq!(
+            order,
+            vec![
+                (AgentGroup::NeedsYou, vec![BlockId(3)]),
+                (AgentGroup::Done, vec![BlockId(2)]),
+                (AgentGroup::Working, vec![BlockId(1), BlockId(6)]),
+                (AgentGroup::Idle, vec![BlockId(5)]),
+            ]
+        );
+        assert_eq!(m.groups[3].1[0].logo, Some(ferrum_ui::AgentLogo::Claude));
+        // Looking at the finished agent makes it idle.
+        seen.look_at(&sessions[0].windows[1]);
+        let m = Model::build(&sessions, None, &seen);
+        assert!(!m.groups.iter().any(|(g, _)| *g == AgentGroup::Done));
+        assert_eq!(m.groups.last().map(|(_, r)| r.len()), Some(2));
+    }
+
+    #[test]
+    fn subtitles_and_relative_times() {
+        let mut b = block(1, &["claude"], Some("claude"), None);
+        assert_eq!(subtitle(&b), "/work/app");
+        b.title = "✳ Fix the flaky test".into();
+        assert_eq!(subtitle(&b), "Fix the flaky test");
+        b.title = "claude".into();
+        assert_eq!(subtitle(&b), "/work/app");
+        assert_eq!(relative_time(100_000, 90_000), "<1m");
+        assert_eq!(relative_time(13 * 60_000, 0), "13m");
+        assert_eq!(relative_time(3 * 3_600_000 + 5, 0), "3h");
+        assert_eq!(relative_time(26 * 3_600_000, 0), "1d");
+        assert_eq!(relative_time(0, 5_000), "<1m", "clock skew");
     }
 
     #[test]

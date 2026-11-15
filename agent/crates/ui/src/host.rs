@@ -7,6 +7,7 @@ use ferrumagent_core::modes::Mode;
 use ferrumagent_core::session::McpServerStatus;
 use gpui::{AppContext as _, ClipboardItem, Context, Window};
 
+use crate::live::Target;
 use crate::view::{ChatView, HeaderSlot};
 
 /// The project's branch, pushed by the host with
@@ -124,23 +125,12 @@ impl ChatView {
             self.pending = Some(request);
             return;
         };
-        match request {
-            HostRequest::Open(id) => {
-                if self.thread.id != id
-                    && let Err(e) = session.open_thread(&id)
-                {
-                    self.show_notice(Notice::error(e), cx);
-                }
-            }
-            HostRequest::Start(mode, prompt) => {
-                session.new_thread_in(mode);
-                self.thread.mode = mode;
-                // Sent once the view has re-read the new thread, so the
-                // message's events are not applied on top of a copy that
-                // already has them.
-                self.send_after_switch = prompt.filter(|p| !p.trim().is_empty());
-            }
-        }
+        drop(session);
+        let target = match request {
+            HostRequest::Open(id) => Target::Open(id),
+            HostRequest::Start(mode, prompt) => Target::New(mode, prompt),
+        };
+        self.switch_to(target, cx);
         cx.notify();
     }
 
@@ -181,12 +171,8 @@ impl ChatView {
     }
 
     pub(crate) fn delete_current_thread(&mut self, cx: &mut Context<Self>) {
-        if let Some(session) = self.session.clone()
-            && let Err(e) = session.delete_thread(&self.thread.id)
-        {
-            self.show_notice(Notice::error(e), cx);
-        }
-        cx.notify();
+        let id = self.thread.id.clone();
+        self.delete_thread(&id, cx);
     }
 
     pub(crate) fn copy_markdown(&mut self, cx: &mut Context<Self>) {

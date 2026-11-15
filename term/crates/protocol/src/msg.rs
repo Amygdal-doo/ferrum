@@ -268,6 +268,10 @@ pub struct BlockInfo {
     pub status: Option<ProgramStatus>,
     /// Exit code once the process has exited (block kept open).
     pub exited: Option<i32>,
+    /// Coding agent in the foreground (`claude`, `codex`…), as the server
+    /// sees it: the started program or the terminal's foreground process.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

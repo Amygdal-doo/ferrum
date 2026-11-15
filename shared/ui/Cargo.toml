@@ -24,10 +24,11 @@ gpui = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# Dock icon visibility (NSApplication activation policy), safe bindings.
+# Dock icon visibility (NSApplication activation policy) and the menu bar
+# extra of an app hidden from the Dock, safe bindings.
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSDockTile", "NSResponder", "NSRunningApplication"] }
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSBundle", "NSError"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSApplication", "NSButton", "NSControl", "NSDockTile", "NSImage", "NSMenu", "NSMenuItem", "NSResponder", "NSRunningApplication", "NSStatusBar", "NSStatusBarButton", "NSStatusItem", "NSView"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSBundle", "NSError", "NSGeometry", "NSArray", "NSObject"] }
 # Asking for notification permission and posting as the app itself (so it is
 # listed in System Settings › Notifications).
 objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "block2", "bitflags", "UNUserNotificationCenter", "UNNotificationContent", "UNNotificationRequest", "UNNotificationTrigger"] }

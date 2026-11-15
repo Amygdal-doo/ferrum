@@ -21,7 +21,8 @@ use std::time::{Duration, Instant};
 
 /// Messages from the tokio side to the GPUI view.
 pub enum UiEvent {
-    Connected(Client, Backend),
+    /// Connected; the server's start time (`ServerInfo::started_ms`) when known.
+    Connected(Client, Backend, Option<u64>),
     /// A `run_command` tab was created.
     CommandStarted(CommandId, BlockId),
     Server(Event),
@@ -32,6 +33,8 @@ pub enum UiEvent {
     Incompatible(String),
     Clipboard(String),
     Forwards(Vec<ferrumterm_protocol::ForwardInfo>),
+    /// A terminal created by "New terminal in this folder": (its id, folder).
+    IntoFolder(String, u64),
     Ports(crate::ssh::PortsResult),
     Killed(crate::ssh::KillOutcome),
 }
@@ -78,9 +81,17 @@ pub struct App {
     pub message: Option<(String, Instant)>,
     /// Agent statuses already shown on screen (for the sidebar's badge).
     pub seen: Seen,
+    /// The window showing this view is the active one (as of the last render).
+    pub window_active: bool,
+    /// Which agent transitions already notified (see `alerts`).
+    pub alerts: crate::alerts::Alerts,
+    /// This view posts agent notifications (the FerrumTerm window).
+    pub notifies: bool,
     pub ui: UiState,
     /// SSH hosts and port forwards (sidebar).
     pub ssh: crate::ssh::SshState,
+    /// Sidebar folders grouping terminals.
+    pub folders: crate::folders::Folders,
     creating: bool,
     want_newest: bool,
 }
@@ -88,6 +99,16 @@ pub struct App {
 pub const DEFAULT_FONT_PT: f32 = 14.0;
 pub const COMPACT_FONT_PT: f32 = 12.0;
 const EARLY_EXITS: usize = 64;
+
+/// `~/src` → `$HOME/src`.
+fn expand_tilde(path: &str) -> String {
+    match (path.strip_prefix('~'), std::env::var("HOME")) {
+        (Some(rest), Ok(home)) if rest.is_empty() || rest.starts_with('/') => {
+            format!("{home}{rest}")
+        }
+        _ => path.to_owned(),
+    }
+}
 
 pub(crate) fn spawn_env() -> Spawn {
     let env = ["PATH", "LANG", "SSH_AUTH_SOCK"]
@@ -136,8 +157,17 @@ impl App {
             panes: Vec::new(),
             message: None,
             seen: Seen::default(),
+            window_active: true,
+            alerts: crate::alerts::Alerts::default(),
+            notifies: options.standalone,
             ui,
             ssh: crate::ssh::SshState::default(),
+            // Only the FerrumTerm window keeps folders (one file per machine).
+            folders: if options.standalone {
+                crate::folders::Folders::load()
+            } else {
+                crate::folders::Folders::default()
+            },
             creating: false,
             want_newest: false,
         };
@@ -150,12 +180,19 @@ impl App {
     pub fn connect(&self, delay: Duration) {
         let proxy = self.proxy.clone();
         let (attach, fallback) = (self.attach, self.fallback);
+        // The FerrumTerm window tells the server it delivers notifications.
+        let name = if self.notifies {
+            ferrumterm_protocol::WINDOW_CLIENT
+        } else {
+            "ferrumterm"
+        };
         self.rt.spawn(async move {
             tokio::time::sleep(delay).await;
-            match connection::connect(attach, fallback).await {
+            match connection::connect(attach, fallback, name).await {
                 Ok((client, mut events, backend)) => {
                     let _ = client.request(Request::Watch).await;
-                    let _ = proxy.unbounded_send(UiEvent::Connected(client, backend));
+                    let started = client.info().await.ok().map(|i| i.started_ms);
+                    let _ = proxy.unbounded_send(UiEvent::Connected(client, backend, started));
                     while let Some(e) = events.recv().await {
                         if proxy.unbounded_send(UiEvent::Server(e)).is_err() {
                             return;
@@ -251,6 +288,11 @@ impl App {
             .iter()
             .flat_map(|s| &s.windows)
             .any(|w| w.blocks.iter().any(|b| b.id == block))
+    }
+
+    /// Sidebar folders are offered (the FerrumTerm window).
+    pub fn folders_enabled(&self) -> bool {
+        self.persist_layout
     }
 
     /// The host asked for the shared server (so a private one is a fallback).
@@ -367,7 +409,30 @@ impl App {
             self.creating = false;
         }
         self.seen.retain(&self.sessions);
-        if let Some(w) = self.window().cloned() {
+        let alive: HashSet<BlockId> = self
+            .sessions
+            .iter()
+            .flat_map(|s| &s.windows)
+            .flat_map(|w| &w.blocks)
+            .map(|b| b.id)
+            .collect();
+        self.alerts.retain(|b| alive.contains(&b));
+        let ids: HashSet<String> = self
+            .sessions
+            .iter()
+            .flat_map(|s| {
+                std::iter::once(s.id.to_string()).chain(s.windows.iter().map(|w| w.id.to_string()))
+            })
+            .collect();
+        if self.persist_layout
+            && !self.sessions.is_empty()
+            && self.folders.prune(|i| ids.contains(i))
+        {
+            self.folders.save();
+        }
+        if self.window_active
+            && let Some(w) = self.window().cloned()
+        {
             self.seen.look_at(&w);
         }
         self.run_deferred();
@@ -645,6 +710,53 @@ impl App {
             .and_then(|w| w.blocks.iter().find(|b| b.id == w.focused))
             .and_then(|b| b.cwd.clone())
             .or_else(|| self.default_cwd.as_ref().map(|d| d.display().to_string()))
+    }
+
+    /// "New terminal in this folder": a tab (a session when tabs run across
+    /// the top) in the folder's directory, else the current one, put into
+    /// the folder once the server created it.
+    pub fn new_terminal_in_folder(&mut self, folder: u64) {
+        let Some(f) = self.folders.get(folder) else {
+            return;
+        };
+        let cwd = f
+            .path
+            .as_deref()
+            .map(expand_tilde)
+            .or_else(|| self.current_cwd());
+        let spawn = Spawn {
+            cwd,
+            ..self.spawn_here()
+        };
+        let sessions = crate::settings::get().tab_position == crate::settings::TabPosition::Top;
+        let request = if sessions {
+            Request::NewSession { name: None, spawn }
+        } else {
+            Request::NewWindow {
+                session: self.session().map(|s| s.id.to_string()),
+                name: None,
+                spawn,
+            }
+        };
+        let Some(c) = self.client.clone() else { return };
+        let proxy = self.proxy.clone();
+        self.rt.spawn(async move {
+            let event = match c.request(request).await {
+                Ok(Response::Created {
+                    session, window, ..
+                }) => UiEvent::IntoFolder(
+                    if sessions {
+                        session.to_string()
+                    } else {
+                        window.to_string()
+                    },
+                    folder,
+                ),
+                Ok(_) => return,
+                Err(e) => UiEvent::Message(e.to_string()),
+            };
+            let _ = proxy.unbounded_send(event);
+        });
     }
 
     /// A new tab with a shell (⌘T).

@@ -20,7 +20,7 @@ const DESCRIPTION: &str = "Download Ferrum Launcher for macOS or Linux and insta
 /// Per-OS launcher installers: (system, file, how to install, published yet).
 /// The launcher installs the other apps; their own DMGs and .debs are in the
 /// releases for installing by hand.
-const INSTALLERS: [(&str, &str, &str, bool); 4] = [
+const INSTALLERS: [(&str, &str, &str, bool); 3] = [
     (
         "macOS (Apple Silicon)",
         "FerrumLauncher-<version>-aarch64.dmg",
@@ -32,12 +32,6 @@ const INSTALLERS: [(&str, &str, &str, bool); 4] = [
         "FerrumLauncher-<version>-x86_64.dmg",
         "open it and drag Ferrum Launcher onto Applications.",
         true,
-    ),
-    (
-        "Windows",
-        "FerrumLauncher-<version>-x86_64-setup.exe",
-        "coming soon.",
-        false,
     ),
     (
         "Linux",
@@ -183,7 +177,6 @@ pub fn render(site_url: &str) -> Markup {
                 })
                 .actions(html! {
                     (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
-                    (button::disabled("Windows", "Coming soon"))
                     (button::link("Linux (.deb)", site::RELEASES_URL, Variant::Secondary))
                 })
                 .render())
@@ -241,7 +234,6 @@ pub fn render(site_url: &str) -> Markup {
                             }
                         }
                     }
-                    p class="muted" { "FerrumTerm isn't available on Windows yet." }
                     div class="download-actions" {
                         (button::link("All releases on GitHub", site::RELEASES_URL, Variant::Secondary))
                         (button::link("Read the changelog", "/changelog", Variant::Secondary))
@@ -268,11 +260,7 @@ mod tests {
         assert!(html.contains("Apple Silicon"));
         assert!(html.contains(site::RELEASES_URL));
         assert!(html.contains("Amygdal-doo/ferrum-releases"));
-        assert_eq!(
-            html.matches(r#"class="btn__note">Coming soon"#).count(),
-            1,
-            "Windows"
-        );
+        assert!(!html.contains("Coming soon"), "no Windows placeholder");
         for gone in [
             "private",
             "gh auth login",
@@ -301,7 +289,7 @@ mod tests {
         assert!(html.contains("FerrumLauncher-&lt;version&gt;-aarch64.dmg"));
         assert!(html.contains("FerrumLauncher-&lt;version&gt;-x86_64.dmg"));
         assert!(html.contains("_amd64.deb"));
-        for os in ["macOS (Apple Silicon)", "macOS (Intel)", "Windows", "Linux"] {
+        for os in ["macOS (Apple Silicon)", "macOS (Intel)", "Linux"] {
             assert!(html.contains(&format!(r#"<dt>{os}</dt>"#)), "{os}");
         }
     }

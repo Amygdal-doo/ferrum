@@ -81,7 +81,7 @@ const PAGE: ProductPage = ProductPage {
     ],
     specs: &[
         ("Get it", "Free DMG for Apple Silicon Macs (see Download)"),
-        ("Installers", "macOS today; Windows and Linux coming soon"),
+        ("Installers", "macOS DMG and Linux .deb"),
         (
             "Releases",
             "Tagged <app>-v<semver> in Amygdal-doo/ferrum-releases",

@@ -101,21 +101,42 @@ fn shortcut(key: &str, shift: bool) -> Option<Shortcut> {
     })
 }
 
-/// Option is treated as Meta (Alt), as most terminal users expect. Returns
-/// `None` for keystrokes that should be left to text input (or to app-level
-/// bindings such as Cmd+Q).
-pub fn translate(keystroke: &Keystroke) -> Option<Action> {
+/// Which Option keys are held now: (left, right). `(false, false)` when
+/// the system does not say.
+#[cfg(target_os = "macos")]
+fn option_sides() -> (bool, bool) {
+    // NX_DEVICELALTKEYMASK / NX_DEVICERALTKEYMASK.
+    let flags = objc2_app_kit::NSEvent::modifierFlags_class().0;
+    (flags & 0x20 != 0, flags & 0x40 != 0)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn option_sides() -> (bool, bool) {
+    (false, false)
+}
+
+/// Whether Option acts as Alt for the keystroke being handled, per
+/// Settings › Keyboard › Option key and the keyboard layout `layout_id`.
+pub fn option_is_alt(layout_id: &str) -> bool {
+    let (left, right) = option_sides();
+    crate::settings::get().option_key().is_alt(
+        crate::settings::is_us_layout(layout_id),
+        left,
+        right,
+    )
+}
+
+/// `option_alt`: Option sends Alt (Meta) rather than typing characters (see
+/// [`option_is_alt`]). Returns `None` for keystrokes that should be left to
+/// text input (or to app-level bindings such as Cmd+Q).
+pub fn translate(keystroke: &Keystroke, option_alt: bool) -> Option<Action> {
     let modifiers = &keystroke.modifiers;
     let key = keystroke.key.to_lowercase();
     if modifiers.platform {
         return shortcut(&key, modifiers.shift).map(Action::Shortcut);
     }
     // Option types special characters (é, ∑, …) unless it is used as Meta.
-    if modifiers.alt
-        && !modifiers.control
-        && key.chars().count() == 1
-        && !crate::settings::get().option_as_meta
-    {
+    if modifiers.alt && !modifiers.control && key.chars().count() == 1 && !option_alt {
         return None;
     }
     let mut prefix = String::new();
@@ -149,7 +170,7 @@ mod tests {
     use super::*;
 
     fn key(source: &str) -> Option<Action> {
-        translate(&Keystroke::parse(source).expect("valid keystroke"))
+        translate(&Keystroke::parse(source).expect("valid keystroke"), true)
     }
 
     #[test]
@@ -177,6 +198,14 @@ mod tests {
         assert_eq!(
             key("ctrl-alt-x"),
             Some(Action::Send(Input::Key("C-M-x".into())))
+        );
+        // Option typing characters leaves them to text input.
+        let alt_e = Keystroke::parse("alt-e").expect("valid keystroke");
+        assert_eq!(translate(&alt_e, false), None);
+        let alt_left = Keystroke::parse("alt-left").expect("valid keystroke");
+        assert_eq!(
+            translate(&alt_left, false),
+            Some(Action::Send(Input::Key("M-Left".into())))
         );
     }
 

@@ -5,14 +5,17 @@
 //!
 //! ```ignore
 //! ferrum_ui::notify::notify("done", "Tests finished", "cargo test exited 0", cx);
+//! // Clicking the toast runs the action (e.g. shows what it is about):
+//! ferrum_ui::notify::notify_with_action("done", "claude finished", "", |window, cx| { … }, cx);
 //! ```
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use gpui::{App, Global, SharedString};
+use gpui::{App, Global, SharedString, Window};
 use serde::{Deserialize, Serialize};
 
 use crate::app_info::app_info;
@@ -61,20 +64,29 @@ impl Channels {
     }
 }
 
-/// Corner (or edge centre) of the window where toasts appear.
+/// Corner of the window where toasts appear (the edge centres are still
+/// read from older settings files).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ToastPosition {
     TopLeft,
     TopCenter,
-    #[default]
     TopRight,
     BottomLeft,
     BottomCenter,
+    #[default]
     BottomRight,
 }
 
 impl ToastPosition {
+    /// What Settings › Notifications offers, as a 2×2 grid.
+    pub const CORNERS: [Self; 4] = [
+        Self::TopLeft,
+        Self::TopRight,
+        Self::BottomLeft,
+        Self::BottomRight,
+    ];
+
     pub const ALL: [Self; 6] = [
         Self::TopLeft,
         Self::TopCenter,
@@ -177,6 +189,19 @@ pub fn update(cx: &mut App, f: impl FnOnce(&mut NotificationPrefs)) {
     cx.refresh_windows();
 }
 
+/// What clicking a toast does (it is dismissed afterwards).
+#[derive(Clone)]
+pub struct ToastAction(pub Rc<ToastHandler>);
+
+/// The callback behind a [`ToastAction`].
+pub type ToastHandler = dyn Fn(&mut Window, &mut App);
+
+impl std::fmt::Debug for ToastAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ToastAction")
+    }
+}
+
 /// A toast currently on screen.
 #[derive(Debug, Clone)]
 pub struct Toast {
@@ -185,6 +210,7 @@ pub struct Toast {
     pub body: SharedString,
     pub event: &'static str,
     pub shown: Instant,
+    pub action: Option<ToastAction>,
 }
 
 const TOAST_LIFETIME: Duration = Duration::from_secs(6);
@@ -206,7 +232,20 @@ pub fn notify(
     body: impl Into<SharedString>,
     cx: &mut App,
 ) {
-    deliver(event, title.into(), body.into(), true, cx);
+    deliver(event, title.into(), body.into(), true, None, cx);
+}
+
+/// Like [`notify`]; clicking the toast runs `action` (FerrumTerm: show the
+/// terminal the notification is about).
+pub fn notify_with_action(
+    event: &'static str,
+    title: impl Into<SharedString>,
+    body: impl Into<SharedString>,
+    action: impl Fn(&mut Window, &mut App) + 'static,
+    cx: &mut App,
+) {
+    let action = ToastAction(Rc::new(action));
+    deliver(event, title.into(), body.into(), true, Some(action), cx);
 }
 
 /// Like [`notify`] without the system notification, for events another
@@ -217,7 +256,7 @@ pub fn notify_in_app(
     body: impl Into<SharedString>,
     cx: &mut App,
 ) {
-    deliver(event, title.into(), body.into(), false, cx);
+    deliver(event, title.into(), body.into(), false, None, cx);
 }
 
 fn deliver(
@@ -225,6 +264,7 @@ fn deliver(
     title: SharedString,
     body: SharedString,
     system: bool,
+    action: Option<ToastAction>,
     cx: &mut App,
 ) {
     let info = app_info(cx);
@@ -239,7 +279,7 @@ fn deliver(
         system_notification(info.name, &title, &body);
     }
     if channels.sound {
-        play_sound(prefs.volume);
+        play_event_sound(event, prefs.volume);
     }
     let toasts = cx.default_global::<Toasts>();
     if channels.badge {
@@ -255,6 +295,7 @@ fn deliver(
             body,
             event,
             shown: Instant::now(),
+            action,
         });
         toasts.items.retain(|t| t.shown.elapsed() < TOAST_LIFETIME);
         cx.spawn(async move |cx| {
@@ -299,15 +340,43 @@ pub fn system_notification(app: &str, title: &str, body: &str) {
     }
 }
 
+/// Runs a toast's action, then dismisses it.
+pub fn activate(id: u64, window: &mut Window, cx: &mut App) {
+    let action = cx
+        .try_global::<Toasts>()
+        .and_then(|t| t.items.iter().find(|t| t.id == id))
+        .and_then(|t| t.action.clone());
+    if let Some(action) = action {
+        (action.0)(window, cx);
+    }
+    dismiss(id, cx);
+}
+
+/// The macOS system sound (in `/System/Library/Sounds`) for an event, so
+/// "needs you" and "finished" sound different.
+pub fn sound_for(event: &str) -> &'static str {
+    match event {
+        "blocked" => "Ping",
+        "error" => "Basso",
+        _ => "Glass",
+    }
+}
+
 /// The system alert sound at `volume` (0–1).
 pub fn play_sound(volume: f32) {
+    play_named_sound("Glass", volume);
+}
+
+/// The sound of `event` (see [`sound_for`]) at `volume` (0–1).
+pub fn play_event_sound(event: &str, volume: f32) {
+    play_named_sound(sound_for(event), volume);
+}
+
+fn play_named_sound(name: &str, volume: f32) {
     if cfg!(target_os = "macos") {
         let volume = format!("{:.2}", volume.clamp(0., 1.));
-        spawn_quiet(Command::new("/usr/bin/afplay").args([
-            "-v",
-            &volume,
-            "/System/Library/Sounds/Glass.aiff",
-        ]));
+        let file = format!("/System/Library/Sounds/{name}.aiff");
+        spawn_quiet(Command::new("/usr/bin/afplay").args(["-v", &volume, &file]));
     }
 }
 
@@ -352,6 +421,26 @@ mod tests {
         assert!(!prefs.channels("done", Channels::ALL).sound);
         prefs.events.insert("done".into(), Channels::IN_APP);
         assert_eq!(prefs.channels("done", Channels::ALL), Channels::IN_APP);
+    }
+
+    #[test]
+    fn toasts_default_to_the_bottom_right_corner() {
+        assert_eq!(
+            NotificationPrefs::default().position,
+            ToastPosition::BottomRight
+        );
+        assert_eq!(ToastPosition::CORNERS.len(), 4);
+        assert!(!ToastPosition::CORNERS.contains(&ToastPosition::TopCenter));
+        // Older files keep their choice.
+        let old: NotificationPrefs =
+            serde_json::from_str(r#"{"position":"top_center"}"#).expect("parse");
+        assert_eq!(old.position, ToastPosition::TopCenter);
+    }
+
+    #[test]
+    fn events_have_their_own_sounds() {
+        assert_ne!(sound_for("blocked"), sound_for("done"));
+        assert_eq!(sound_for("anything"), "Glass");
     }
 
     #[test]

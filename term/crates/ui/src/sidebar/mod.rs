@@ -3,7 +3,9 @@
 //! a "New agent" menu (Claude Code, Codex, recent or custom commands), and
 //! SSH hosts with their port forwards (see `hosts`).
 
+mod agent_list;
 pub mod agents;
+mod folder_list;
 mod hosts;
 pub mod model;
 
@@ -12,13 +14,11 @@ use ferrum_ui::components::{
     ButtonCommon, Clickable, ContextMenu, IconButton, IconName, IconSize, PopoverMenu,
     StyledTypography, Tooltip, h_flex, v_flex,
 };
-use ferrum_ui::gpui::{
-    self, Context, DragMoveEvent, Hsla, SharedString, Window, div, prelude::*, px,
-};
+use ferrum_ui::gpui::{self, Context, DragMoveEvent, SharedString, Window, div, prelude::*, px};
 use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{DraggedSplitter, TextInput, TextInputEvent, badge};
-use ferrumterm_protocol::{ProgramState, ProgramStatus};
-use model::{Model, Row};
+use ferrumterm_protocol::SessionId;
+use model::Model;
 
 impl TermView {
     pub(crate) fn render_sidebar(&self, width: f32, cx: &mut Context<Self>) -> impl IntoElement {
@@ -41,26 +41,65 @@ impl TermView {
         if model.sessions.is_empty() {
             terminals = terminals.child(placeholder("No terminals yet. Start one with +", cx));
         }
-        if tabs_here {
-            for session in &self.app.sessions {
-                if named {
-                    terminals =
-                        terminals.child(ferrum_ui::sidebar_label(session_name(&session.name), cx));
-                }
+        // Every listed terminal (a tab, or a session in tabs-on-top mode) by
+        // id, rendered, so folders can take theirs first.
+        let mut rows: Vec<(String, SessionId, ferrum_ui::gpui::AnyElement)> = Vec::new();
+        for session in &self.app.sessions {
+            if tabs_here {
                 for window in &session.windows {
-                    terminals = terminals.child(self.render_tab_row(session, window, cx));
+                    let id = window.id.to_string();
+                    let row = self.render_tab_row(session, window, cx).into_any_element();
+                    let title = crate::view::tab_label(window, 40);
+                    rows.push((id.clone(), session.id, self.folder_item(id, title, row, cx)));
                 }
-            }
-        } else {
-            // Tabs mode: the tabs run across the top, so the sidebar lists
-            // the sessions (like Rex's sidebar).
-            if named {
-                terminals = terminals.child(ferrum_ui::sidebar_label("Sessions", cx));
-            }
-            for session in &self.app.sessions {
-                terminals = terminals.child(self.render_session_row(session, cx));
+            } else {
+                let id = session.id.to_string();
+                let row = self.render_session_row(session, cx).into_any_element();
+                let title = session_name(&session.name);
+                rows.push((id.clone(), session.id, self.folder_item(id, title, row, cx)));
             }
         }
+        let ids: Vec<String> = rows.iter().map(|(id, ..)| id.clone()).collect();
+        let layout = self.app.folders.layout(&ids);
+        let mut by_id: std::collections::HashMap<String, (SessionId, ferrum_ui::gpui::AnyElement)> =
+            rows.into_iter()
+                .map(|(id, s, row)| (id, (s, row)))
+                .collect();
+        for (folder, inside) in &layout.folders {
+            let inside = inside
+                .iter()
+                .filter_map(|id| by_id.remove(id).map(|(_, row)| row))
+                .collect();
+            terminals = terminals.child(self.render_folder(folder, inside, cx));
+        }
+        if !tabs_here && named {
+            // Tabs mode: the tabs run across the top, so the sidebar lists
+            // the sessions (like Rex's sidebar).
+            terminals = terminals.child(ferrum_ui::sidebar_label("Sessions", cx));
+        }
+        let mut last_session = None;
+        for id in &layout.loose {
+            let Some((session, row)) = by_id.remove(id) else {
+                continue;
+            };
+            if tabs_here && named && last_session != Some(session) {
+                last_session = Some(session);
+                if let Some(s) = self.app.sessions.iter().find(|s| s.id == session) {
+                    terminals =
+                        terminals.child(ferrum_ui::sidebar_label(session_name(&s.name), cx));
+                }
+            }
+            terminals = terminals.child(row);
+        }
+        // Dropping a terminal on the list's free space takes it out of its folder.
+        let terminals = terminals
+            .child(div().flex_1().min_h(px(24.)))
+            .on_drop(
+                cx.listener(|view, drag: &folder_list::DraggedTerminal, _, cx| {
+                    view.move_to_folder(&drag.id, None);
+                    view.after_change(cx);
+                }),
+            );
 
         // Bottom (a movable share, 30% at first): agents and SSH hosts.
         let (show_agents, show_hosts) = (settings.sidebar_agents, settings.sidebar_hosts);
@@ -71,24 +110,7 @@ impl TermView {
             .overflow_y_scroll()
             .pb_2();
         if show_agents {
-            bottom = bottom.child(
-                h_flex()
-                    .gap_1()
-                    .child(ferrum_ui::sidebar_label("Agents", cx))
-                    .when(model.attention > 0, |header| {
-                        header.child(badge(
-                            model.attention.to_string(),
-                            cx.theme().status().warning,
-                            cx,
-                        ))
-                    }),
-            );
-            if model.agents.is_empty() {
-                bottom = bottom.child(placeholder("No agents yet. Start one with +", cx));
-            }
-            for row in &model.agents {
-                bottom = bottom.child(self.render_row(format!("agent-{}", row.block), row, cx));
-            }
+            bottom = bottom.child(self.render_agents(&model, cx));
         }
         if show_hosts {
             bottom = bottom.child(self.render_hosts(cx));
@@ -263,69 +285,6 @@ impl TermView {
         cx.notify();
     }
 
-    fn render_row(&self, id: String, row: &Row, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = cx.theme().colors().clone();
-        let dot = row.status.as_ref().map(|s| state_color(s.state, cx));
-        let (session, block) = (row.session, row.block);
-        let second = row
-            .status
-            .as_ref()
-            .and_then(|s| s.message.clone())
-            .filter(|m| !m.is_empty())
-            .unwrap_or_else(|| row.detail.clone());
-        let (active_bg, hover_bg) = (ferrum_ui::active_fill(cx), ferrum_ui::hover_fill(cx));
-        v_flex()
-            .id(SharedString::from(id))
-            .mx_1p5()
-            .px_2()
-            .py(px(4.))
-            .rounded(px(8.))
-            .when(row.nested, |r| r.pl(px(22.)))
-            .cursor_pointer()
-            .when(!row.active, |r| r.text_color(colors.text_muted))
-            .hover(move |style| style.bg(hover_bg))
-            .when(row.active, |r| r.bg(active_bg))
-            .on_click(cx.listener(move |view, _, window, cx| {
-                window.focus(&view.focus_handle, cx);
-                view.app.focus_block(session, block);
-                view.close_overlay_sidebar();
-                view.after_change(cx);
-            }))
-            .child(
-                h_flex()
-                    .gap_1p5()
-                    .min_w_0()
-                    .map(|line| match row.logo {
-                        Some(logo) => line.child(ferrum_ui::agent_logo(logo, px(14.), cx)),
-                        None => line,
-                    })
-                    .when_some(dot, |line, color| {
-                        line.child(div().flex_none().size(px(7.)).rounded_full().bg(color))
-                    })
-                    .child(div().flex_1().min_w_0().truncate().child(row.title.clone()))
-                    .when_some(row.status.as_ref(), |line, status| {
-                        line.child(
-                            div()
-                                .flex_none()
-                                .text_size(px(11.))
-                                .text_color(state_color(status.state, cx))
-                                .when(row.attention, |d| d.font_weight(gpui::FontWeight::BOLD))
-                                .child(state_text(status)),
-                        )
-                    }),
-            )
-            .when(!second.is_empty(), |r| {
-                r.child(
-                    div()
-                        .min_w_0()
-                        .truncate()
-                        .text_size(px(11.))
-                        .text_color(colors.text_muted)
-                        .child(second),
-                )
-            })
-    }
-
     /// The "+" menu: a terminal, an agent here or on an SSH host, a git
     /// worktree, saved tab configurations, and a new session.
     pub(crate) fn new_menu(&self, id: &'static str, cx: &mut Context<Self>) -> impl IntoElement {
@@ -333,6 +292,7 @@ impl TermView {
         let recent = self.app.ui.recent_agents.clone();
         let tabs = self.app.ui.tab_configs.clone();
         let hosts: Vec<String> = self.app.ssh.hosts().into_iter().map(|h| h.name).collect();
+        let folders = self.app.folders_enabled();
         PopoverMenu::new(id)
             .anchor(gpui::Anchor::TopRight)
             .trigger(ferrum_ui::title_button(
@@ -407,6 +367,16 @@ impl TermView {
                         }
                     }
                     menu = menu.separator();
+                    if folders {
+                        menu = menu.icon_entry(
+                            "New folder…",
+                            IconName::Folder,
+                            on(Box::new(|view, window, cx| {
+                                view.pending_folder_item = None;
+                                view.begin_prompt(Prompt::NewFolder, window, cx)
+                            })),
+                        );
+                    }
                     for (name, command) in &tabs {
                         let (name, command) = (name.clone(), command.clone());
                         menu = menu.entry(
@@ -463,15 +433,27 @@ impl TermView {
 
     /// Opens the inline field for `prompt`: Enter runs it, Escape or
     /// clicking elsewhere cancels.
-    fn begin_prompt(&mut self, prompt: Prompt, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn begin_prompt(
+        &mut self,
+        prompt: Prompt,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.prompt = prompt;
         if !self.app.ui.sidebar_open {
             self.app.toggle_sidebar();
         }
+        // Renaming starts from the current name; a directory from the current one.
+        let text = match prompt {
+            Prompt::RenameFolder(id) => self.app.folders.get(id).map(|f| f.name.clone()),
+            Prompt::FolderPath(id) => self.app.folders.get(id).and_then(|f| f.path.clone()),
+            _ => None,
+        };
         let input = cx.new(|cx| {
             TextInput::new(window, cx)
                 .placeholder(prompt.placeholder())
                 .monospace()
+                .with_text(text.unwrap_or_default())
         });
         let subscription =
             cx.subscribe_in(
@@ -481,7 +463,8 @@ impl TermView {
                     TextInputEvent::Submit => {
                         let line = input.read(cx).text().trim().to_owned();
                         view.end_custom_agent(window, cx);
-                        if !line.is_empty() {
+                        // An empty directory clears a folder's.
+                        if !line.is_empty() || matches!(view.prompt, Prompt::FolderPath(_)) {
                             view.run_prompt(&line, cx);
                         }
                     }
@@ -505,6 +488,21 @@ impl TermView {
                 self.app.ui.save_tab_config(name, command);
                 self.app.ui.save_recent_agents();
                 self.app.start_tab_config(name.trim(), command);
+            }
+            Prompt::NewFolder => {
+                let id = self.app.folders.create(line);
+                if let Some(item) = self.pending_folder_item.take() {
+                    self.app.folders.move_item(&item, Some(id));
+                }
+                self.app.folders.save();
+            }
+            Prompt::RenameFolder(id) => {
+                self.app.folders.rename(id, line);
+                self.app.folders.save();
+            }
+            Prompt::FolderPath(id) => {
+                self.app.folders.set_path(id, line);
+                self.app.folders.save();
             }
         }
         self.after_change(cx);
@@ -582,6 +580,9 @@ pub enum Prompt {
     CustomAgent,
     Worktree,
     TabConfig,
+    NewFolder,
+    RenameFolder(u64),
+    FolderPath(u64),
 }
 
 impl Prompt {
@@ -590,6 +591,8 @@ impl Prompt {
             Self::CustomAgent => "Command, e.g. aider --model sonnet",
             Self::Worktree => "Branch, e.g. feature/login",
             Self::TabConfig => "name = command, e.g. dev = npm run dev",
+            Self::NewFolder | Self::RenameFolder(_) => "Folder name, e.g. ferrum",
+            Self::FolderPath(_) => "Directory, e.g. ~/src/ferrum (empty: none)",
         }
     }
 
@@ -598,6 +601,9 @@ impl Prompt {
             Self::CustomAgent => "New agent: the command to run",
             Self::Worktree => "New worktree next to this repository",
             Self::TabConfig => "Save a tab config (it appears in the + menu)",
+            Self::NewFolder => "New folder in the sidebar",
+            Self::RenameFolder(_) => "Rename the folder",
+            Self::FolderPath(_) => "Where new terminals in this folder start",
         }
     }
 }
@@ -611,34 +617,11 @@ fn session_name(name: &str) -> String {
     }
 }
 
-fn placeholder(text: &'static str, cx: &gpui::App) -> gpui::Div {
+pub(super) fn placeholder(text: &'static str, cx: &gpui::App) -> gpui::Div {
     div()
         .px_3()
         .py_1()
         .text_size(px(12.))
         .text_color(cx.theme().colors().text_placeholder)
         .child(text)
-}
-
-fn state_color(state: ProgramState, cx: &gpui::App) -> Hsla {
-    let status = cx.theme().status();
-    match state {
-        ProgramState::Working => status.info,
-        ProgramState::Blocked => status.warning,
-        ProgramState::Error => status.error,
-        ProgramState::Done => status.success,
-        ProgramState::Idle => cx.theme().colors().text_muted,
-    }
-}
-
-/// `working 40%`, `blocked · permission`, `done`…
-fn state_text(status: &ProgramStatus) -> String {
-    let mut text = status.state.as_str().to_owned();
-    if let Some(p) = status.progress {
-        text.push_str(&format!(" {p}%"));
-    }
-    if let Some(kind) = status.kind.as_ref().filter(|k| !k.is_empty()) {
-        text.push_str(&format!(" · {kind}"));
-    }
-    text
 }

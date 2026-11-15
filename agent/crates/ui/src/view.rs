@@ -12,9 +12,9 @@ use ferrumagent_core::review::FileChange;
 use ferrumagent_core::session::{
     AgentChoice, ChatSession, McpServerStatus, SessionConfig, SessionEvent,
 };
+use ferrumagent_core::status::StatusBoard;
 use ferrumagent_core::store::ThreadSummary;
 use ferrumagent_core::thread::Thread;
-use futures::StreamExt;
 use gpui::{
     Context, Entity, EventEmitter, FocusHandle, Focusable, ScrollHandle, Subscription, Task, Window,
 };
@@ -37,6 +37,12 @@ pub enum ChatEvent {
     ThreadsChanged,
     /// The footer's branch menu or Push button: the host runs it.
     Git(GitRequest),
+    /// A thread's status (Needs you / Done / Working / Idle) changed: see
+    /// [`ChatView::statuses`].
+    StatusChanged,
+    /// A notification of this chat was clicked: it now shows `thread_id`;
+    /// the host brings the chat on screen (opens its pane or page).
+    Reveal { thread_id: String },
 }
 
 /// How the view starts.
@@ -54,6 +60,9 @@ pub struct ChatOptions {
     pub path_env: Option<String>,
     /// Start in this mode.
     pub mode: Option<Mode>,
+    /// Delivers "needs you" / "finished" notifications; `None`:
+    /// [`crate::default_notifier`] (`ferrum_ui::notify`).
+    pub notifier: Option<crate::Notifier>,
 }
 
 pub(crate) struct Picker {
@@ -77,7 +86,18 @@ pub struct ChatView {
     pub(crate) header_start: Option<HeaderSlot>,
     pub(crate) header_end: Option<HeaderSlot>,
     pub(crate) focus: FocusHandle,
+    /// The shown session.
     pub(crate) session: Option<ChatSession>,
+    /// Which listener's events are the shown session's.
+    pub(crate) serial: u64,
+    pub(crate) next_serial: u64,
+    /// Sessions whose threads run while another is shown.
+    pub(crate) background: Vec<crate::live::Background>,
+    pub(crate) statuses: StatusBoard,
+    /// The host shows the chat ([`ChatView::set_visible`]).
+    pub(crate) visible: bool,
+    pub(crate) window_active: bool,
+    pub(crate) notifier: crate::Notifier,
     pub(crate) load_error: Option<String>,
     pub(crate) thread: Thread,
     pub(crate) busy: bool,
@@ -163,6 +183,7 @@ impl ChatView {
                 },
             );
         let shell = options.shell;
+        let options_notifier = options.notifier.unwrap_or_else(crate::default_notifier);
         let mut config = options
             .config
             .unwrap_or_else(|| SessionConfig::load(&project));
@@ -177,9 +198,10 @@ impl ChatView {
         let open = cx.background_spawn(async move { ChatSession::new(config) });
         let load = cx.spawn(async move |this, cx| {
             let result = open.await;
-            let rx = this
-                .update(cx, |this, cx| match result {
+            this.update(cx, |this, cx| {
+                match result {
                     Ok((session, rx)) => {
+                        this.serial = this.listen(rx, cx);
                         this.thread = session.thread();
                         this.threads = session.threads();
                         this.session = Some(session);
@@ -187,39 +209,15 @@ impl ChatView {
                             this.host_request(request, cx);
                         }
                         this.refresh_changes(cx);
-                        cx.notify();
-                        Some(rx)
                     }
-                    Err(error) => {
-                        this.load_error = Some(error);
-                        cx.notify();
-                        None
-                    }
-                })
-                .ok()
-                .flatten();
-            let Some(mut rx) = rx else { return };
-            while let Some(event) = rx.next().await {
-                let mut batch = vec![event];
-                // Coalesce bursts (streamed deltas) into one update.
-                while let Ok(more) = rx.try_recv() {
-                    batch.push(more);
-                    if batch.len() >= 256 {
-                        break;
-                    }
+                    Err(error) => this.load_error = Some(error),
                 }
-                if this
-                    .update(cx, |this, cx| {
-                        for event in batch {
-                            this.on_session_event(event, cx);
-                        }
-                        cx.notify();
-                    })
-                    .is_err()
-                {
-                    return;
-                }
-            }
+                cx.notify();
+            })
+            .ok();
+        });
+        let activation = cx.observe_window_activation(window, |this, window, cx| {
+            this.window_activated(window.is_window_active(), cx);
         });
         Self {
             project,
@@ -229,6 +227,13 @@ impl ChatView {
             header_end: None,
             focus: cx.focus_handle(),
             session: None,
+            serial: 0,
+            next_serial: 0,
+            background: Vec::new(),
+            statuses: StatusBoard::default(),
+            visible: true,
+            window_active: window.is_window_active(),
+            notifier: options_notifier,
             load_error: None,
             thread,
             busy: false,
@@ -261,7 +266,7 @@ impl ChatView {
             all_changed_files: false,
             placeholder_empty: Some(true),
             tasks: vec![load],
-            _subscriptions: vec![subscription],
+            _subscriptions: vec![subscription, activation],
         }
     }
 
@@ -303,7 +308,8 @@ impl ChatView {
             .update(cx, |input, cx| input.focus(window, cx));
     }
 
-    fn on_session_event(&mut self, event: SessionEvent, cx: &mut Context<Self>) {
+    /// An event of the shown session (see `live::route`).
+    pub(crate) fn on_session_event(&mut self, event: SessionEvent, cx: &mut Context<Self>) {
         match event {
             SessionEvent::Thread(event) => {
                 self.thread.apply(&event);
@@ -502,9 +508,8 @@ impl ChatView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(session) = &self.session {
-            session.new_thread();
-        }
+        let mode = self.thread.mode;
+        self.switch_to(crate::live::Target::New(mode, None), cx);
         self.show_threads = false;
         self.refocus(window, cx);
         cx.notify();

@@ -1,9 +1,9 @@
 //! The macOS menu bar every Ferrum app shares: the app menu (About, Check
-//! for Updates…, Settings…, Hide, Quit), File, Edit, View, Window and Help.
+//! for Updates…, Settings…, Services, Hide, Quit), File, Edit, View, Window and Help.
 //! `ferrum_ui::run` installs [`standard`]; apps with menus of their own
 //! (Ferrum Editor) splice in [`app_menu`], [`window_menu`] and [`help_menu`].
 
-use gpui::{App, KeyBinding, Menu, MenuItem, OsAction};
+use gpui::{App, KeyBinding, Menu, MenuItem, OsAction, SystemMenuType};
 
 use crate::app_info::{AppInfo, app_info};
 use crate::settings::{OpenSettings, ShowOnboarding};
@@ -67,7 +67,8 @@ pub fn help_url(binary: &str) -> String {
     format!("{WEBSITE}/{slug}")
 }
 
-/// The app menu: About, updates, Settings, onboarding, Hide, Quit.
+/// The app menu in the standard macOS order: About, updates, Settings,
+/// onboarding, Services, Hide / Hide Others / Show All, Quit.
 pub fn app_menu(info: &AppInfo) -> Menu {
     Menu::new(info.name).items([
         MenuItem::action(format!("About {}", info.name), About),
@@ -76,12 +77,20 @@ pub fn app_menu(info: &AppInfo) -> Menu {
         MenuItem::action("Settings…", OpenSettings),
         MenuItem::action("Show Onboarding…", ShowOnboarding),
         MenuItem::separator(),
+        services_menu(),
+        MenuItem::separator(),
         MenuItem::action(format!("Hide {}", info.name), HideApp),
         MenuItem::action("Hide Others", HideOthers),
         MenuItem::action("Show All", ShowAll),
         MenuItem::separator(),
         MenuItem::action(format!("Quit {}", info.name), Quit),
     ])
+}
+
+/// The system Services submenu (filled by macOS: services that act on the
+/// selection or the app, e.g. “New Terminal at Folder”).
+pub fn services_menu() -> MenuItem {
+    MenuItem::os_submenu("Services", SystemMenuType::Services)
 }
 
 pub fn file_menu() -> Menu {
@@ -142,8 +151,21 @@ pub fn standard(info: &AppInfo) -> Vec<Menu> {
     ]
 }
 
+/// Runs `f` on the active window or, when the app is not active (an app
+/// hidden from the Dock, used from its menu bar extra), on its frontmost
+/// window, bringing the app forward first.
 fn with_window(cx: &mut App, f: impl FnOnce(&mut gpui::Window)) {
-    if let Some(handle) = cx.active_window() {
+    let handle = cx.active_window().or_else(|| {
+        let front = cx
+            .window_stack()
+            .and_then(|stack| stack.into_iter().next())
+            .or_else(|| cx.windows().into_iter().next());
+        if front.is_some() {
+            cx.activate(true);
+        }
+        front
+    });
+    if let Some(handle) = handle {
         let _ = handle.update(cx, |_, window, _| f(window));
     }
 }
@@ -179,7 +201,12 @@ pub(crate) fn register(cx: &mut App) {
         KeyBinding::new("cmd-v", EditPaste, None),
         KeyBinding::new("cmd-a", EditSelectAll, None),
     ]);
-    cx.on_action(|_: &About, cx| crate::settings::open_settings(Some("about"), cx));
+    cx.on_action(|_: &About, cx| {
+        // From the menu bar extra of an app without a Dock icon the app is
+        // not active: bring it forward with the window.
+        cx.activate(true);
+        crate::settings::open_settings(Some("about"), cx);
+    });
     cx.on_action(|_: &CheckForUpdates, _| open_launcher());
     cx.on_action(|_: &HideApp, cx| cx.hide());
     cx.on_action(|_: &HideOthers, cx| cx.hide_other_apps());
@@ -252,6 +279,47 @@ mod tests {
         });
         cx.run_until_parked();
         cx.update(|cx| assert_eq!(cx.windows().len(), 1, "About opens Settings"));
+    }
+
+    fn labels(menu: &Menu) -> Vec<String> {
+        menu.items
+            .iter()
+            .map(|item| match item {
+                MenuItem::Separator => "-".to_string(),
+                MenuItem::Submenu(menu) => format!("{} ›", menu.name),
+                MenuItem::SystemMenu(menu) => format!("{} ›", menu.name),
+                MenuItem::Action { name, .. } => name.to_string(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn app_menu_has_the_standard_macos_structure() {
+        let info = AppInfo::new("FerrumGIT", "ferrumgit");
+        let menu = app_menu(&info);
+        assert_eq!(menu.name.as_ref(), "FerrumGIT");
+        assert_eq!(
+            labels(&menu),
+            [
+                "About FerrumGIT",
+                "Check for Updates…",
+                "-",
+                "Settings…",
+                "Show Onboarding…",
+                "-",
+                "Services ›",
+                "-",
+                "Hide FerrumGIT",
+                "Hide Others",
+                "Show All",
+                "-",
+                "Quit FerrumGIT",
+            ]
+        );
+        assert!(matches!(
+            &menu.items[6],
+            MenuItem::SystemMenu(os) if os.menu_type == SystemMenuType::Services
+        ));
     }
 
     #[test]

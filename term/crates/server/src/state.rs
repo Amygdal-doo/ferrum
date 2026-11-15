@@ -234,6 +234,7 @@ impl State {
             rows: term.rows(),
             status: lock(&b.status).clone(),
             exited: *lock(&b.exited),
+            agent: lock(&b.agent).clone(),
         })
     }
 

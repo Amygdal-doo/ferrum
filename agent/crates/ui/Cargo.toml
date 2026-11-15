@@ -7,6 +7,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [dependencies]
+chrono.workspace = true
 ferrumagent-core.workspace = true
 ferrum-ui.workspace = true
 futures.workspace = true

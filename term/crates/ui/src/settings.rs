@@ -75,6 +75,77 @@ impl Blink {
     }
 }
 
+/// What the Option key does in a terminal (Settings › Keyboard).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OptionKey {
+    /// Alt on US / ABC keyboard layouts, characters on the others.
+    #[default]
+    Automatic,
+    /// Both Option keys send Alt (Esc-prefixed keys: M-f, M-b).
+    Alt,
+    /// Both Option keys type characters (é, ∑, @ on many layouts).
+    Characters,
+    LeftAlt,
+    RightAlt,
+}
+
+impl OptionKey {
+    pub const ALL: [Self; 5] = [
+        Self::Automatic,
+        Self::Alt,
+        Self::Characters,
+        Self::LeftAlt,
+        Self::RightAlt,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Automatic => "Automatic",
+            Self::Alt => "Alt",
+            Self::Characters => "Types characters",
+            Self::LeftAlt => "Left Option is Alt",
+            Self::RightAlt => "Right Option is Alt",
+        }
+    }
+
+    pub fn detail(self) -> &'static str {
+        match self {
+            Self::Automatic => "Alt on US keyboards; types characters on other layouts.",
+            Self::Alt => "Both Option keys send Alt (M-f, M-b…).",
+            Self::Characters => "Both Option keys type é, ∑, @… as macOS does.",
+            Self::LeftAlt => "Left Option sends Alt; right Option types characters.",
+            Self::RightAlt => "Right Option sends Alt; left Option types characters.",
+        }
+    }
+
+    /// Whether an Option keystroke is Alt (else it types a character).
+    /// `us_layout`: the keyboard layout is US / ABC; `left` / `right`:
+    /// which Option keys are down (both false when unknown).
+    #[must_use]
+    pub fn is_alt(self, us_layout: bool, left: bool, right: bool) -> bool {
+        match self {
+            Self::Automatic => us_layout,
+            Self::Alt => true,
+            Self::Characters => false,
+            // Unknown side: count it as the Alt side.
+            Self::LeftAlt => left || !right,
+            Self::RightAlt => right || !left,
+        }
+    }
+}
+
+/// Whether a keyboard layout id is US English (`com.apple.keylayout.US`,
+/// `…ABC`), where Option has no characters people type daily.
+#[must_use]
+pub fn is_us_layout(id: &str) -> bool {
+    let name = id.rsplit('.').next().unwrap_or(id);
+    matches!(
+        name,
+        "US" | "ABC" | "USInternational-PC" | "Colemak" | "Dvorak"
+    )
+}
+
 /// Where the tabs are listed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -104,8 +175,13 @@ pub struct TermSettings {
     pub font_family: Option<String>,
     /// Copy the selection to the clipboard when the drag ends.
     pub copy_on_select: bool,
-    /// Option sends Meta (Esc-prefixed keys) instead of typing special characters.
-    pub option_as_meta: bool,
+    /// Older switch, read from existing files: `true` = Alt, `false` =
+    /// types characters (see [`TermSettings::option_key`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub option_as_meta: Option<bool>,
+    /// What Option does; `None`: from `option_as_meta`, else automatic.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub option: Option<OptionKey>,
     /// Program for new terminals; empty: the login shell. Quotes group arguments.
     pub startup_command: String,
     /// Show agent status (working / blocked / done) on tabs.
@@ -124,7 +200,8 @@ impl Default for TermSettings {
             font_size: crate::app::DEFAULT_FONT_PT,
             font_family: None,
             copy_on_select: false,
-            option_as_meta: true,
+            option_as_meta: None,
+            option: None,
             startup_command: String::new(),
             activity_in_tabs: true,
         }
@@ -142,6 +219,15 @@ impl TermSettings {
         } else {
             requested
         }
+    }
+
+    /// The Option key setting, migrating the older on/off switch.
+    pub fn option_key(&self) -> OptionKey {
+        self.option.unwrap_or(match self.option_as_meta {
+            Some(true) => OptionKey::Alt,
+            Some(false) => OptionKey::Characters,
+            None => OptionKey::Automatic,
+        })
     }
 
     /// `startup_command` split into arguments (empty: login shell).
@@ -255,9 +341,32 @@ mod tests {
     }
 
     #[test]
+    fn option_key_migrates_and_decides() {
+        let old: TermSettings = serde_json::from_str(r#"{"option_as_meta":false}"#).expect("parse");
+        assert_eq!(old.option_key(), OptionKey::Characters);
+        let old: TermSettings = serde_json::from_str(r#"{"option_as_meta":true}"#).expect("parse");
+        assert_eq!(old.option_key(), OptionKey::Alt);
+        let new: TermSettings =
+            serde_json::from_str(r#"{"option_as_meta":true,"option":"right_alt"}"#).expect("parse");
+        assert_eq!(new.option_key(), OptionKey::RightAlt);
+        assert!(OptionKey::Automatic.is_alt(true, false, false));
+        assert!(!OptionKey::Automatic.is_alt(false, true, false));
+        assert!(OptionKey::LeftAlt.is_alt(false, true, false));
+        assert!(!OptionKey::LeftAlt.is_alt(true, false, true));
+        assert!(OptionKey::RightAlt.is_alt(false, false, true));
+        assert!(!OptionKey::RightAlt.is_alt(false, true, false));
+        assert!(!OptionKey::Characters.is_alt(true, true, true));
+        assert!(is_us_layout("com.apple.keylayout.US"));
+        assert!(is_us_layout("com.apple.keylayout.ABC"));
+        assert!(!is_us_layout("com.apple.keylayout.German"));
+        assert!(!is_us_layout("com.apple.keylayout.USExtended"));
+    }
+
+    #[test]
     fn older_files_load_with_defaults() {
         let s: TermSettings = serde_json::from_str(r#"{"copy_on_select":true}"#).expect("parse");
-        assert!(s.copy_on_select && s.option_as_meta);
+        assert!(s.copy_on_select);
+        assert_eq!(s.option_key(), OptionKey::Automatic);
         assert_eq!(s.font_size, crate::app::DEFAULT_FONT_PT);
     }
 }

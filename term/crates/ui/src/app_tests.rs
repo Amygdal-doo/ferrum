@@ -21,6 +21,7 @@ fn block(id: u32) -> BlockInfo {
         rows: 24,
         status: None,
         exited: None,
+        agent: None,
     }
 }
 

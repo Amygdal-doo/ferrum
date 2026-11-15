@@ -25,7 +25,8 @@ pub use render::tool_icon;
 
 /// The tool panes' state: their layout and their views (created the first
 /// time each opens; closing a pane keeps its view, so a terminal keeps
-/// running and a chat keeps its thread).
+/// running and a chat keeps its thread — and its running turns, which end
+/// as "Done" and notify while the pane is closed).
 pub struct Tools {
     pub layout: ToolLayout,
     /// Layouts of the other projects (from the session, and this run).
@@ -34,6 +35,9 @@ pub struct Tools {
     pub chat: Option<Entity<ChatView>>,
     /// The project the chat was opened on.
     chat_root: Option<PathBuf>,
+    /// Chats of projects the window showed before: kept so their agents
+    /// keep working (and come back) when the folder changes.
+    other_chats: HashMap<PathBuf, Entity<ChatView>>,
     pub term: Option<Entity<TermView>>,
     /// Whether the Term pane creates a real terminal view (tests that
     /// don't need one skip its server threads).
@@ -63,6 +67,7 @@ impl Tools {
             git: None,
             chat: None,
             chat_root: None,
+            other_chats: HashMap::new(),
             term: None,
             real_term: !cfg!(test),
             tasks: HashMap::new(),

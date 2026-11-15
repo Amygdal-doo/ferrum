@@ -40,6 +40,7 @@ where
     });
     server.clients.fetch_add(1, Ordering::Relaxed);
     let mut authed = trusted;
+    let mut window = false;
     let mut subs: Vec<JoinHandle<()>> = Vec::new();
     let mut tasks: Vec<JoinHandle<()>> = Vec::new();
 
@@ -72,9 +73,15 @@ where
                     "protocol mismatch: server {PROTOCOL_VERSION}, client {protocol}; restart the server (`fterm server stop`)"
                 ),
             },
-            Request::Hello { .. } => Response::Welcome {
-                info: server.info(),
-            },
+            Request::Hello { client, .. } => {
+                if client == ferrumterm_protocol::WINDOW_CLIENT && !window {
+                    window = true;
+                    server.windows.fetch_add(1, Ordering::Relaxed);
+                }
+                Response::Welcome {
+                    info: server.info(),
+                }
+            }
             Request::ServerInfo => Response::Info {
                 info: server.info(),
             },
@@ -126,7 +133,7 @@ where
                 let block = lock(&server.state).resolve_block(target.as_deref());
                 match block {
                     Ok(b) => {
-                        server.set_status(b, status);
+                        server.set_status(b, status, crate::StatusSource::Program);
                         Response::Ok
                     }
                     Err(message) => Response::Error { message },
@@ -217,6 +224,9 @@ where
     drop(tx);
     let _ = writer.await;
     server.clients.fetch_sub(1, Ordering::Relaxed);
+    if window {
+        server.windows.fetch_sub(1, Ordering::Relaxed);
+    }
 }
 
 fn with_block(

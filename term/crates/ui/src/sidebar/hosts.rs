@@ -1,6 +1,8 @@
-//! Sidebar "SSH hosts" section: saved and `~/.ssh/config` hosts (click to
-//! open an ssh tab), their port forwards (click to start / stop; a dot shows
-//! running, failed or stopped), and the "What's using a port?" action.
+//! Sidebar "Machines" section: the machines you added (saved hosts and the
+//! `~/.ssh/config` hosts added with "+ Add machine"; click to open an ssh
+//! tab, pencil to edit), their port forwards (click to start / stop; a dot
+//! shows running, failed or stopped), "+ Add machine" and "What's using a
+//! port?".
 
 use crate::view::TermView;
 use ferrum_ui::components::{
@@ -14,18 +16,7 @@ impl TermView {
     pub(crate) fn render_hosts(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let hosts = self.app.ssh.hosts();
-        let mut section = v_flex().child(
-            h_flex()
-                .pr_2()
-                .child(ferrum_ui::sidebar_label("SSH hosts", cx))
-                .child(div().flex_1())
-                .child(
-                    ferrum_ui::title_button("add-ssh-host", IconName::Plus, "Add SSH host")
-                        .on_click(cx.listener(|view, _, window, cx| {
-                            view.open_host_form(None, window, cx);
-                        })),
-                ),
-        );
+        let mut section = v_flex().child(ferrum_ui::sidebar_label("Machines", cx));
         if hosts.is_empty() {
             section = section.child(
                 div()
@@ -33,7 +24,7 @@ impl TermView {
                     .py_1()
                     .text_size(px(12.))
                     .text_color(colors.text_placeholder)
-                    .child("No hosts. Add one with +, or in ~/.ssh/config"),
+                    .child("No machines yet"),
             );
         }
         for (i, host) in hosts.iter().enumerate() {
@@ -114,6 +105,24 @@ impl TermView {
                 ));
             }
         }
+        let action = |id: &'static str, icon: IconName, text: &'static str| {
+            h_flex()
+                .id(id)
+                .mx_1p5()
+                .px_2()
+                .py(px(3.))
+                .gap_1p5()
+                .rounded(px(8.))
+                .cursor_pointer()
+                .text_color(colors.text_muted)
+                .hover(|style| style.bg(ferrum_ui::hover_fill(cx)).text_color(colors.text))
+                .child(ferrum_ui::components::Icon::new(icon).size(IconSize::XSmall))
+                .child(text)
+        };
+        section = section.child(
+            action("add-machine", IconName::Plus, "Add machine")
+                .on_click(cx.listener(|view, _, window, cx| view.open_add_machine(window, cx))),
+        );
         section.child(
             h_flex()
                 .id("whats-on-port")

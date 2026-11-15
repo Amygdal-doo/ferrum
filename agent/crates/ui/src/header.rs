@@ -10,6 +10,25 @@ use crate::actions::*;
 use crate::view::ChatView;
 
 impl ChatView {
+    /// The thread toggle's dot: amber when another thread needs you, blue
+    /// when one finished unseen.
+    fn attention(&self, cx: &App) -> Option<gpui::Hsla> {
+        use ferrumagent_core::status::ThreadStatus;
+        let others: Vec<ThreadStatus> = self
+            .statuses
+            .active()
+            .filter(|(id, _)| *id != self.thread.id)
+            .map(|(_, e)| e.status)
+            .collect();
+        if others.contains(&ThreadStatus::NeedsYou) {
+            Some(Color::Warning.color(cx))
+        } else if others.contains(&ThreadStatus::Done) {
+            Some(Color::Accent.color(cx))
+        } else {
+            None
+        }
+    }
+
     /// The ⋯ menu, built when it opens.
     fn thread_menu(
         &self,
@@ -55,6 +74,7 @@ impl ChatView {
         let colors = cx.theme().colors().clone();
         let changes = self.changes.len();
         let shell = self.shell;
+        let attention = self.attention(cx);
         let title = match &self.renaming {
             Some((input, _)) => div()
                 .flex_1()
@@ -109,13 +129,29 @@ impl ChatView {
                     .border_color(colors.border)
                     .bg(colors.toolbar_background)
                     .child(
-                        IconButton::new("chat-threads", IconName::ThreadsSidebarLeftOpen)
-                            .icon_size(IconSize::Small)
-                            .toggle_state(self.show_threads)
-                            .tooltip(Tooltip::text("Threads (⌘⌥J)"))
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.toggle_threads(&ToggleThreads, window, cx)
-                            })),
+                        div()
+                            .relative()
+                            .child(
+                                IconButton::new("chat-threads", IconName::ThreadsSidebarLeftOpen)
+                                    .icon_size(IconSize::Small)
+                                    .toggle_state(self.show_threads)
+                                    .tooltip(Tooltip::text("Threads (⌘⌥J)"))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.toggle_threads(&ToggleThreads, window, cx)
+                                    })),
+                            )
+                            // Another thread needs you or finished unseen.
+                            .when_some(attention, |this, color| {
+                                this.child(
+                                    div()
+                                        .absolute()
+                                        .top(px(2.))
+                                        .right(px(2.))
+                                        .size(px(6.))
+                                        .rounded_full()
+                                        .bg(color),
+                                )
+                            }),
                     )
             })
             // `title_row` already leaves room for the traffic lights.

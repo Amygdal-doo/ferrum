@@ -7,33 +7,9 @@
 //! Editor and FerrumVibe embed as a pane.
 
 use ferrum_ui::AppConfig;
-use ferrum_ui::notify;
-use ferrumterm_ui::{ProgramState, TermView, TermViewEvent, TermViewOptions};
-
-/// In-app toast, badge and sound for an agent's status; the FerrumTerm
-/// server posts the system notification itself.
-fn on_view_event(event: &TermViewEvent, cx: &mut ferrum_ui::gpui::App) {
-    let TermViewEvent::AgentStatus {
-        title,
-        status: Some(status),
-        ..
-    } = event
-    else {
-        return;
-    };
-    let (id, headline) = match status.state {
-        ProgramState::Working => ("working", "is working"),
-        ProgramState::Blocked => ("blocked", "is waiting for you"),
-        ProgramState::Error => ("error", "failed"),
-        ProgramState::Done => ("done", "finished"),
-        ProgramState::Idle => return,
-    };
-    let body = status
-        .message
-        .clone()
-        .unwrap_or_else(|| format!("{title} {headline}"));
-    notify::notify_in_app(id, format!("{title} {headline}"), body, cx);
-}
+// The view posts agent notifications itself (toast, system, sound;
+// clicking the toast shows the terminal), see `TermViewOptions::standalone`.
+use ferrumterm_ui::{TermView, TermViewOptions};
 
 fn main() {
     // Git asks for credentials by running this executable as its askpass
@@ -56,10 +32,7 @@ fn main() {
         |window, cx| {
             ferrumterm_ui::init(cx);
             ferrumgit_ui::init(cx);
-            let view = TermView::new(TermViewOptions::standalone(), window, cx);
-            cx.subscribe(&view, |_, event, cx| on_view_event(event, cx))
-                .detach();
-            view
+            TermView::new(TermViewOptions::standalone(), window, cx)
         },
     );
 }

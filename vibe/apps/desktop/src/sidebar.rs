@@ -1,6 +1,7 @@
 //! The foldable sidebar on the window backdrop: title row (traffic lights,
 //! ◧, back / forward), New Task · Projects · Discussion · Search, the
-//! project folders with their threads, recent conversations, then
+//! project folders with their threads, the threads that need you, finished
+//! unseen or are working (across projects), recent conversations, then
 //! Knowledge Center · Sites · Automations · Extensions and the footer
 //! (usage, settings).
 
@@ -15,7 +16,8 @@ use ferrumagent_ui::core::Mode;
 
 use crate::app::{FerrumVibe, SIDEBAR_FOLDERS};
 use crate::nav::Page;
-use crate::threads;
+use crate::threads::{self, Entry};
+use ferrumagent_ui::core::status::{StatusEntry, ThreadStatus, short_ago};
 
 /// Threads shown under an expanded folder.
 const FOLDER_THREADS: usize = 8;
@@ -121,6 +123,81 @@ impl FerrumVibe {
             }))
     }
 
+    /// Threads of every open project's chat that are not Idle, in the
+    /// sections Needs you, Done, Working, newest change first.
+    fn active_threads(&self, cx: &App) -> Vec<(ThreadStatus, Vec<(Entry, StatusEntry)>)> {
+        let mut rows: Vec<(Entry, StatusEntry)> = Vec::new();
+        for (project, slot) in &self.chats {
+            let chat = slot.view.read(cx);
+            for (id, status) in chat.statuses().active() {
+                if let Some(thread) = self.index.of(project).iter().find(|t| t.id == id) {
+                    let entry = Entry {
+                        project: project.clone(),
+                        thread: thread.clone(),
+                    };
+                    rows.push((entry, status.clone()));
+                }
+            }
+        }
+        rows.sort_by_key(|(_, s)| std::cmp::Reverse(s.changed));
+        ThreadStatus::ORDER
+            .into_iter()
+            .filter_map(|status| {
+                let section: Vec<_> = rows
+                    .iter()
+                    .filter(|(_, s)| s.status == status)
+                    .cloned()
+                    .collect();
+                (!section.is_empty()).then_some((status, section))
+            })
+            .collect()
+    }
+
+    /// A row of the status sections: logo, title, project, time since the
+    /// change and the status mark.
+    fn status_row(
+        &self,
+        entry: &Entry,
+        status: &StatusEntry,
+        active: bool,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let thread = &entry.thread;
+        let title = if thread.title.trim().is_empty() {
+            "New thread".to_string()
+        } else {
+            thread.title.clone()
+        };
+        let (project, id) = (entry.project.clone(), thread.id.clone());
+        ferrum_ui::sidebar_item(name("status-thread", &thread.id), active, cx)
+            .child(ferrumagent_ui::thread_logo(&thread.agent, px(14.), cx))
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .py_0p5()
+                    .child(div().truncate().child(title))
+                    .child(
+                        Label::new(project::project_name(&entry.project))
+                            .size(LabelSize::XSmall)
+                            .color(Color::Placeholder)
+                            .truncate(),
+                    ),
+            )
+            .child(
+                Label::new(short_ago(status.changed, Utc::now()))
+                    .size(LabelSize::XSmall)
+                    .color(Color::Placeholder),
+            )
+            .child(ferrumagent_ui::status_indicator(Some(status), cx))
+            .when(!status.summary.is_empty(), |row| {
+                row.tooltip(Tooltip::text(status.summary.clone()))
+            })
+            .on_click(cx.listener(move |this, _, window, cx| {
+                this.open_thread(&project, &id, window, cx);
+            }))
+    }
+
     fn folder(&self, path: &PathBuf, current_thread: Option<&str>, cx: &mut Context<Self>) -> Div {
         let current = self.project.as_ref() == Some(path);
         let expanded = self.ui.is_expanded(path, current);
@@ -220,7 +297,26 @@ impl FerrumVibe {
         for path in self.recent.iter().take(SIDEBAR_FOLDERS + 1) {
             scroll = scroll.child(self.folder(path, current_thread.as_deref(), cx));
         }
-        let recent = self.index.recent(RECENT_THREADS);
+        let active = self.active_threads(cx);
+        for (status, rows) in &active {
+            scroll = scroll.child(ferrum_ui::sidebar_label(
+                format!("{} · {}", status.label(), rows.len()),
+                cx,
+            ));
+            for (entry, entry_status) in rows {
+                let shown = self.project.as_ref() == Some(&entry.project)
+                    && self.page() == Page::Chat
+                    && current_thread.as_deref() == Some(entry.thread.id.as_str());
+                scroll = scroll.child(self.status_row(entry, entry_status, shown, cx));
+            }
+        }
+        let mut recent = self.index.recent(RECENT_THREADS + active.len());
+        recent.retain(|e| {
+            !active
+                .iter()
+                .any(|(_, rows)| rows.iter().any(|(a, _)| a.thread.id == e.thread.id))
+        });
+        recent.truncate(RECENT_THREADS);
         if !recent.is_empty() {
             scroll = scroll.child(ferrum_ui::sidebar_label("Recent conversations", cx));
             let now = Utc::now();

@@ -66,6 +66,24 @@ impl FerrumVibe {
         chat
     }
 
+    /// Tells each project's chat whether it is on screen (the current
+    /// project's, on the chat page). Hidden chats keep running; their
+    /// finished turns count as unseen ("Done") and notify.
+    pub(crate) fn sync_chat_visibility(&mut self, cx: &mut Context<Self>) {
+        let chat_page = self.page() == crate::nav::Page::Chat;
+        let slots: Vec<(PathBuf, Entity<ChatView>)> = self
+            .chats
+            .iter()
+            .map(|(root, slot)| (root.clone(), slot.view.clone()))
+            .collect();
+        for (root, chat) in slots {
+            let shown = chat_page && self.is_current(&root);
+            if chat.read(cx).is_visible() != shown {
+                chat.update(cx, |chat, cx| chat.set_visible(shown, cx));
+            }
+        }
+    }
+
     fn is_current(&self, root: &Path) -> bool {
         self.project.as_deref() == Some(root)
     }
@@ -107,6 +125,12 @@ impl FerrumVibe {
             }
             ChatEvent::ChangesUpdated { .. } => {}
             ChatEvent::ThreadsChanged => self.refresh_index(cx),
+            // The sidebar's Needs you / Done / Working sections.
+            ChatEvent::StatusChanged => cx.notify(),
+            // A chat notification was clicked: show that project's thread.
+            ChatEvent::Reveal { thread_id } => {
+                self.open_thread(project, thread_id, window, cx);
+            }
             ChatEvent::Git(request) if current => self.git_request(*request, window, cx),
             ChatEvent::Git(_) => {}
         }

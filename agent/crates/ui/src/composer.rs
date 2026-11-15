@@ -151,12 +151,7 @@ impl ChatView {
 
     /// The logo of the chosen model's maker or ACP agent, if it has one.
     fn agent_logo(&self) -> Option<ferrum_ui::AgentLogo> {
-        match AgentChoice::parse(&self.thread.agent)? {
-            AgentChoice::Native { model, .. } => ferrum_ui::AgentLogo::for_model(&model),
-            AgentChoice::Acp { agent } => {
-                ferrum_ui::AgentLogo::for_program(agent.split(['-', ' ']).next().unwrap_or(&agent))
-            }
-        }
+        crate::threads::agent_logo(&self.thread.agent)
     }
 
     fn agent_label(&self) -> String {

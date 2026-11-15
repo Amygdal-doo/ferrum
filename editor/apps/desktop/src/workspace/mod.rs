@@ -354,6 +354,7 @@ impl Focusable for Workspace {
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.update_window_title(window, cx);
+        self.sync_chat_visibility(cx);
         let colors = cx.theme().colors().clone();
         if !cx.has_active_drag() {
             self.tools.dragging = false;

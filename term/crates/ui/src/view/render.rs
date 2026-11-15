@@ -500,6 +500,15 @@ impl Render for TermView {
         if self.options.standalone {
             window.set_window_title(&self.title());
         }
+        // What is on screen in the active window counts as seen (a finished
+        // agent there turns idle); machines added in Settings show up.
+        self.app.window_active = window.is_window_active();
+        if self.app.window_active
+            && let Some(w) = self.app.window().cloned()
+        {
+            self.app.seen.look_at(&w);
+        }
+        self.app.ssh.reload_if_changed();
 
         let colors = cx.theme().colors().clone();
         let status = cx.theme().status().clone();

@@ -338,3 +338,179 @@ fn shell_host_drives_threads_tasks_and_footer(cx: &mut TestAppContext) {
     assert!(read(&view, cx, |v| v.settings.is_some()));
     assert_eq!(mock.remaining(), 0);
 }
+
+#[gpui::test]
+fn threads_keep_running_in_the_background_with_status_and_alerts(cx: &mut TestAppContext) {
+    use ferrumagent_core::status::ThreadStatus;
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        bind_text_input_keys(cx);
+        ferrum_ui::init_for_tests(cx);
+        crate::init(cx);
+    });
+    let project = tempfile::tempdir().expect("tempdir");
+    let home = tempfile::tempdir().expect("tempdir");
+    let root = project.path().canonicalize().expect("canonical");
+    std::fs::write(root.join("a.txt"), "one\n").expect("write");
+    let mock = MockProvider::new();
+    mock.push_tool(
+        "t1",
+        "edit_file",
+        json!({"path": "a.txt", "old_string": "one", "new_string": "ONE"}),
+    );
+    mock.push_text("B answer");
+    mock.push_text("A done, all green.");
+    let mut config = SessionConfig::isolated(&root, home.path());
+    config.provider_override = Some(Arc::new(mock.clone()));
+    let delivered: Rc<RefCell<Vec<(String, String, String)>>> = Rc::default();
+    let clicks: Rc<RefCell<Vec<crate::ToastClick>>> = Rc::default();
+    let notifier: crate::Notifier = {
+        let (delivered, clicks) = (delivered.clone(), clicks.clone());
+        Rc::new(move |event, title, body, click, _| {
+            delivered
+                .borrow_mut()
+                .push((event.to_string(), title, body));
+            clicks.borrow_mut().push(click);
+        })
+    };
+    let options = ChatOptions {
+        config: Some(config),
+        notifier: Some(notifier),
+        ..Default::default()
+    };
+    let (view, cx) =
+        cx.add_window_view(|window, cx| ChatView::build(root.clone(), options, window, cx));
+    cx.simulate_resize(size(px(360.), px(640.)));
+    wait_until(cx, "the session", |cx| {
+        read(&view, cx, |v| v.session().is_some())
+    });
+    view.update(cx, |v, cx| {
+        v.window_active = true;
+        v.set_visible(false, cx);
+    });
+    let status = |view: &Entity<ChatView>, cx: &mut VisualTestContext, id: &str| {
+        read(view, cx, |v| v.statuses().status(id))
+    };
+
+    // Thread A asks for permission while the chat is hidden: Needs you,
+    // notified once.
+    let a = read(&view, cx, |v| v.thread().id.clone());
+    view.update(cx, |v, _| {
+        v.session().expect("session").send("Edit a", vec![])
+    });
+    wait_until(cx, "A's prompt", |cx| {
+        read(&view, cx, |v| !v.open_permission_requests().is_empty())
+    });
+    assert_eq!(status(&view, cx, &a), ThreadStatus::NeedsYou);
+    assert_eq!(
+        delivered.borrow().clone(),
+        [(
+            crate::NEEDS_YOU_EVENT.to_string(),
+            "Edit a needs you".to_string(),
+            "Allow Edit a.txt?".to_string()
+        )]
+    );
+    // Shown again: still waiting on the prompt.
+    view.update(cx, |v, cx| v.set_visible(true, cx));
+    assert_eq!(status(&view, cx, &a), ThreadStatus::NeedsYou);
+
+    // A new thread: A keeps running in the background, not cancelled.
+    view.update_in(cx, |v, window, cx| v.new_thread(&NewThread, window, cx));
+    cx.run_until_parked();
+    let b = read(&view, cx, |v| v.thread().id.clone());
+    assert_ne!(a, b);
+    assert_eq!(read(&view, cx, |v| v.background_threads()), vec![a.clone()]);
+    assert!(read(&view, cx, |v| v.open_permission_requests().is_empty()));
+    view.update(cx, |v, _| {
+        v.session().expect("session").send("Hello B", vec![])
+    });
+    wait_until(cx, "B's answer", |cx| {
+        read(&view, cx, |v| {
+            !v.is_busy() && v.thread().messages.len() == 2
+        })
+    });
+    assert_eq!(
+        status(&view, cx, &b),
+        ThreadStatus::Idle,
+        "watched: no Done"
+    );
+    assert_eq!(delivered.borrow().len(), 1);
+
+    // The grouped list renders: A under Needs you, B idle.
+    view.update_in(cx, |v, window, cx| {
+        v.toggle_threads(&ToggleThreads, window, cx)
+    });
+    cx.run_until_parked();
+    let sections = read(&view, cx, |v| {
+        v.statuses()
+            .group(&v.threads, |t| t.id.as_str(), |t| t.updated)
+            .into_iter()
+            .map(|(s, rows)| (s, rows.len()))
+            .collect::<Vec<_>>()
+    });
+    assert_eq!(
+        sections,
+        [(ThreadStatus::NeedsYou, 1), (ThreadStatus::Idle, 1)]
+    );
+    view.update_in(cx, |v, window, cx| {
+        v.toggle_threads(&ToggleThreads, window, cx)
+    });
+
+    // Back to A: its prompt is shown again; idle B is let go.
+    view.update(cx, |v, cx| {
+        v.switch_to(crate::live::Target::Open(a.clone()), cx)
+    });
+    cx.run_until_parked();
+    assert_eq!(read(&view, cx, |v| v.thread().id.clone()), a);
+    assert!(read(&view, cx, |v| v.background_threads().is_empty()));
+    let request = read(&view, cx, |v| v.open_permission_requests().to_vec());
+    assert_eq!(request.len(), 1);
+
+    // Answered, then hidden: the turn ends unseen, Done and notified.
+    view.update(cx, |v, cx| {
+        v.respond(request[0].id, Decision::AllowOnce, cx)
+    });
+    view.update(cx, |v, cx| v.set_visible(false, cx));
+    wait_until(cx, "A to finish", |cx| {
+        read(&view, cx, |v| {
+            !v.is_busy() && v.statuses().status(&a) == ThreadStatus::Done
+        })
+    });
+    assert_eq!(
+        delivered.borrow().last().cloned(),
+        Some((
+            crate::DONE_EVENT.to_string(),
+            "Edit a finished".to_string(),
+            "A done, all green.".to_string()
+        ))
+    );
+    assert_eq!(delivered.borrow().len(), 2);
+    assert_eq!(read(&view, cx, |v| v.pending_changes().len()), 1);
+    // Looking at it clears Done.
+    view.update(cx, |v, cx| v.set_visible(true, cx));
+    assert_eq!(status(&view, cx, &a), ThreadStatus::Idle);
+    assert_eq!(mock.remaining(), 0);
+
+    // Clicking the notification shows its thread and asks the host to
+    // reveal the chat.
+    let revealed: Rc<RefCell<Vec<String>>> = Rc::default();
+    cx.update({
+        let (revealed, view) = (revealed.clone(), view.clone());
+        move |_, cx| {
+            cx.subscribe(&view, move |_, event: &ChatEvent, _| {
+                if let ChatEvent::Reveal { thread_id } = event {
+                    revealed.borrow_mut().push(thread_id.clone());
+                }
+            })
+            .detach();
+        }
+    });
+    view.update_in(cx, |v, window, cx| v.new_thread(&NewThread, window, cx));
+    cx.run_until_parked();
+    assert_ne!(read(&view, cx, |v| v.thread().id.clone()), a);
+    let click = clicks.borrow().last().cloned().expect("a click action");
+    cx.update(|window, cx| click(window, cx));
+    cx.run_until_parked();
+    assert_eq!(read(&view, cx, |v| v.thread().id.clone()), a);
+    assert_eq!(*revealed.borrow(), vec![a.clone()]);
+}

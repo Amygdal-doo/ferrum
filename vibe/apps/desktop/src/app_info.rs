@@ -25,5 +25,7 @@ pub fn app_info() -> AppInfo {
             PermissionKind::Notifications,
             "Tells you when an agent finishes or needs you.",
         )
+        .event(ferrumagent_ui::NEEDS_YOU)
+        .event(ferrumagent_ui::DONE)
         .page(ferrumterm_ui::TerminalPage::default())
 }

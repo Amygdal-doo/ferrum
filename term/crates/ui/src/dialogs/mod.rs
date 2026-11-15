@@ -1,6 +1,8 @@
 //! Modal dialogs over the terminal (`ferrum-ui` `Modal` + `TextInput`): the
-//! SSH host form (with its port forwards) and "What's using a port?".
+//! SSH host form (with its port forwards), "Add a machine" and "What's
+//! using a port?".
 
+pub mod add_machine;
 pub mod host_form;
 pub mod ports;
 
@@ -11,6 +13,7 @@ use ferrum_ui::{Modal, TextInput, TextInputEvent};
 
 pub enum Dialog {
     Host(host_form::HostForm),
+    AddMachine(Entity<add_machine::AddMachine>),
     Ports(ports::PortsDialog),
 }
 
@@ -93,7 +96,7 @@ impl TermView {
         match &self.dialog {
             Some(Dialog::Host(_)) => self.save_host_form(window, cx),
             Some(Dialog::Ports(_)) => self.run_port_query(cx),
-            None => {}
+            Some(Dialog::AddMachine(_)) | None => {}
         }
     }
 
@@ -101,7 +104,24 @@ impl TermView {
         Some(match self.dialog.as_ref()? {
             Dialog::Host(form) => self.render_host_form(form, cx),
             Dialog::Ports(dialog) => self.render_ports(dialog, cx),
+            Dialog::AddMachine(dialog) => dialog.clone().into_any_element(),
         })
+    }
+
+    /// Opens "Add a machine"; added machines show in the sidebar at once.
+    pub(crate) fn open_add_machine(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self._dialog_events.clear();
+        let dialog = cx.new(|cx| add_machine::AddMachine::new(window, cx));
+        let events = cx.subscribe_in(&dialog, window, |view, _, event, window, cx| match event {
+            add_machine::AddMachineEvent::Added(name) => {
+                view.app.reload_ssh();
+                view.app.notify(format!("Added {name}"));
+                view.after_change(cx);
+            }
+            add_machine::AddMachineEvent::Dismissed => view.close_dialog(window, cx),
+        });
+        self._dialog_events.push(events);
+        self.open_dialog(Dialog::AddMachine(dialog), None, window, cx);
     }
 }
 

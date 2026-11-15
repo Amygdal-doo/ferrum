@@ -1,13 +1,13 @@
-//! FerrumTerm's own pages in the shared Settings window: Terminal (font,
-//! cursor, keyboard, selection, shell, tabs) and Remote Hosts (saved SSH
-//! hosts, `~/.ssh/config` hosts and the SSH agent).
+//! FerrumTerm's Terminal page in the shared Settings window (font, cursor,
+//! Option key, selection, shell, tabs), also shown by Ferrum Editor and
+//! FerrumVibe. Keyboard and Machines are in `settings_keyboard` and
+//! `settings_machines`.
 
 use std::cell::RefCell;
-use std::time::{Duration, Instant};
 
 use ferrum_ui::components::{
-    Button, ButtonCommon, ButtonStyle, Clickable, Color, IconButton, IconName, Label, LabelCommon,
-    LabelSize, StyledTypography, h_flex, v_flex,
+    Button, ButtonCommon, ButtonStyle, Clickable, IconButton, IconName, StyledTypography, h_flex,
+    v_flex,
 };
 use ferrum_ui::gpui::{
     self, AnyElement, App, AppContext as _, Context, Entity, Hsla, IntoElement, ParentElement,
@@ -17,7 +17,6 @@ use ferrum_ui::settings::SettingsPage;
 use ferrum_ui::settings::widgets::{Row, Section, Segmented, Switch, select};
 use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{TextInput, TextInputEvent};
-use ferrumterm_net::hosts::{HostFormFields, HostStore, SavedHost};
 
 use crate::settings::{self, Blink, CursorStyle};
 
@@ -260,8 +259,8 @@ impl Render for TerminalSettingsView {
                     ))
                     .row(switch_row(
                         "sidebar-hosts",
-                        "Show SSH hosts",
-                        Some("Saved hosts and the hosts from ~/.ssh/config."),
+                        "Show machines",
+                        Some("The machines you added (Settings › Machines), and their port forwards."),
                         s.sidebar_hosts,
                         |s, on| s.sidebar_hosts = on,
                     ))
@@ -317,17 +316,7 @@ impl Render for TerminalSettingsView {
                         |s, on| s.force_cursor_style = on,
                     )),
             )
-            .child(
-                Section::new("Keyboard")
-                    .row(switch_row(
-                        "option-meta",
-                        "Use Option as Meta",
-                        Some("Option+key sends Esc-prefixed keys (M-f, M-b) instead of typing é, ∑, …"),
-                        s.option_as_meta,
-                        |s, on| s.option_as_meta = on,
-                    ))
-                    .footnote("Applies to every terminal on this Mac, including the panes in Ferrum Editor and FerrumVibe."),
-            )
+            .child(crate::settings_keyboard::option_key_section(cx))
             .child(
                 Section::new("Selection").row(switch_row(
                     "copy-on-select",
@@ -378,276 +367,5 @@ impl Render for TerminalSettingsView {
                          terminals, tabs and splits. SSH hosts use their own shell.",
                     ),
             )
-    }
-}
-
-/// Settings › Remote Hosts.
-#[derive(Default)]
-pub struct RemoteHostsPage {
-    view: RefCell<Option<Entity<RemoteHostsView>>>,
-}
-
-impl SettingsPage for RemoteHostsPage {
-    fn id(&self) -> &'static str {
-        "remote-hosts"
-    }
-    fn title(&self) -> &'static str {
-        "Remote Hosts"
-    }
-    fn icon(&self) -> IconName {
-        IconName::Public
-    }
-    fn tint(&self) -> Hsla {
-        tint(0xa970ff)
-    }
-    fn keywords(&self) -> &'static [&'static str] {
-        &["ssh", "servers", "agent", "keys", "remote"]
-    }
-    fn render(&self, window: &mut Window, cx: &mut App) -> AnyElement {
-        self.view
-            .borrow_mut()
-            .get_or_insert_with(|| cx.new(|cx| RemoteHostsView::new(window, cx)))
-            .clone()
-            .into_any_element()
-    }
-}
-
-struct HostForm {
-    name: Entity<TextInput>,
-    user: Entity<TextInput>,
-    host: Entity<TextInput>,
-    port: Entity<TextInput>,
-}
-
-pub struct RemoteHostsView {
-    form: Option<HostForm>,
-    error: Option<String>,
-    agent_keys: Option<(Instant, Result<usize, String>)>,
-}
-
-fn store_file() -> std::path::PathBuf {
-    ferrumterm_net::hosts::store_path(&ferrumterm_client::paths::state_dir())
-}
-
-/// Keys the SSH agent holds (`ssh-add -l`).
-fn agent_key_count() -> Result<usize, String> {
-    if std::env::var_os("SSH_AUTH_SOCK").is_none() {
-        return Err("No SSH agent is running for this app (SSH_AUTH_SOCK is not set).".into());
-    }
-    let output = std::process::Command::new("ssh-add")
-        .arg("-l")
-        .output()
-        .map_err(|e| format!("Could not run ssh-add: {e}"))?;
-    let text = String::from_utf8_lossy(&output.stdout);
-    // Exit 1 with "The agent has no identities." means zero keys.
-    Ok(text.lines().filter(|l| l.contains(' ')).count())
-}
-
-impl RemoteHostsView {
-    fn new(_: &mut Window, _: &mut Context<Self>) -> Self {
-        Self {
-            form: None,
-            error: None,
-            agent_keys: None,
-        }
-    }
-
-    fn open_form(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let input = |placeholder: &'static str, window: &mut Window, cx: &mut Context<Self>| {
-            cx.new(|cx| TextInput::new(window, cx).placeholder(placeholder))
-        };
-        let form = HostForm {
-            name: input("Name, e.g. staging", window, cx),
-            user: input("User (optional)", window, cx),
-            host: input("Host or IP", window, cx),
-            port: input("22", window, cx),
-        };
-        form.name.update(cx, |i, cx| i.focus(window, cx));
-        self.form = Some(form);
-        self.error = None;
-        cx.notify();
-    }
-
-    fn save_form(&mut self, cx: &mut Context<Self>) {
-        let Some(form) = &self.form else { return };
-        let read = |e: &Entity<TextInput>| e.read(cx).text().trim().to_owned();
-        let (name, user, host, port) = (
-            read(&form.name),
-            read(&form.user),
-            read(&form.host),
-            read(&form.port),
-        );
-        let fields = HostFormFields {
-            name: &name,
-            user: &user,
-            host: &host,
-            port: &port,
-            identity_file: "",
-            jump_host: "",
-            startup_command: "",
-        };
-        let result = SavedHost::from_form(&fields).and_then(|saved| {
-            let path = store_file();
-            let mut store = HostStore::load(&path)?;
-            store.hosts.retain(|h| h.name != saved.name);
-            store.hosts.push(saved);
-            store.save(&path)
-        });
-        match result {
-            Ok(()) => {
-                self.form = None;
-                self.error = None;
-            }
-            Err(error) => self.error = Some(error),
-        }
-        cx.notify();
-    }
-
-    fn remove(&mut self, name: &str, cx: &mut Context<Self>) {
-        let path = store_file();
-        let result = HostStore::load(&path).and_then(|mut store| {
-            store.hosts.retain(|h| h.name != name);
-            store.save(&path)
-        });
-        self.error = result.err();
-        cx.notify();
-    }
-}
-
-impl Render for RemoteHostsView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let error_color = cx.theme().status().error;
-        let saved = HostStore::load(&store_file());
-        let config = ferrumterm_net::ssh_config::load_user();
-        if self
-            .agent_keys
-            .as_ref()
-            .is_none_or(|(at, _)| at.elapsed() > Duration::from_secs(10))
-        {
-            self.agent_keys = Some((Instant::now(), agent_key_count()));
-        }
-
-        let mut hosts = Section::new("Saved Hosts").accessory(
-            Button::new("add-host", "Add Remote Host…")
-                .style(ButtonStyle::Subtle)
-                .on_click(cx.listener(|this, _, window, cx| this.open_form(window, cx))),
-        );
-        match &saved {
-            Ok(store) if store.hosts.is_empty() => {
-                hosts = hosts.row(
-                    v_flex()
-                        .w_full()
-                        .py_6()
-                        .items_center()
-                        .gap_2()
-                        .child(
-                            ferrum_ui::components::Icon::new(IconName::Public).color(Color::Muted),
-                        )
-                        .child(Label::new("No Remote Hosts").weight(gpui::FontWeight::SEMIBOLD))
-                        .child(
-                            Label::new("Add an SSH host to open terminals on it from the sidebar.")
-                                .size(LabelSize::Small)
-                                .color(Color::Muted),
-                        ),
-                );
-            }
-            Ok(store) => {
-                for (i, host) in store.hosts.iter().enumerate() {
-                    let name = host.name.clone();
-                    hosts = hosts.row(
-                        Row::new(("saved-host", i), host.name.clone())
-                            .detail(host.address())
-                            .control(
-                                IconButton::new(("remove-host", i), IconName::Trash).on_click(
-                                    cx.listener(move |this, _, _, cx| this.remove(&name, cx)),
-                                ),
-                            ),
-                    );
-                }
-            }
-            Err(error) => {
-                hosts = hosts.row(
-                    Row::new("hosts-error", "Could not read saved hosts").detail(error.clone()),
-                );
-            }
-        }
-
-        let form = self.form.as_ref().map(|form| {
-            Section::new("New Host").row(
-                v_flex()
-                    .py_3()
-                    .gap_2()
-                    .child(form.name.clone())
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .child(div().w(px(160.)).child(form.user.clone()))
-                            .child(div().flex_1().child(form.host.clone()))
-                            .child(div().w(px(72.)).child(form.port.clone())),
-                    )
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .justify_end()
-                            .child(
-                                Button::new("cancel-host", "Cancel")
-                                    .style(ButtonStyle::Subtle)
-                                    .on_click(cx.listener(|this, _, _, cx| {
-                                        this.form = None;
-                                        cx.notify();
-                                    })),
-                            )
-                            .child(
-                                Button::new("save-host", "Save Host")
-                                    .style(ButtonStyle::Filled)
-                                    .on_click(cx.listener(|this, _, _, cx| this.save_form(cx))),
-                            ),
-                    ),
-            )
-        });
-
-        let mut from_config = Section::new("From ~/.ssh/config")
-            .detail("Shown in the sidebar automatically; edit the file to change them.");
-        if config.is_empty() {
-            from_config = from_config.row(Row::new("no-config", "No hosts in ~/.ssh/config"));
-        }
-        for (i, host) in config.iter().enumerate().take(50) {
-            let address = format!(
-                "{}{}{}",
-                host.user
-                    .as_ref()
-                    .map(|u| format!("{u}@"))
-                    .unwrap_or_default(),
-                host.hostname.as_deref().unwrap_or(&host.alias),
-                host.port.map(|p| format!(":{p}")).unwrap_or_default()
-            );
-            from_config =
-                from_config.row(Row::new(("config-host", i), host.alias.clone()).detail(address));
-        }
-
-        let agent_text = match self.agent_keys.as_ref().map(|(_, r)| r) {
-            Some(Ok(1)) => "The SSH agent holds 1 key.".to_owned(),
-            Some(Ok(n)) => format!("The SSH agent holds {n} keys."),
-            Some(Err(e)) => e.clone(),
-            None => String::new(),
-        };
-        let agent = Section::new("SSH").row(
-            Row::new("ssh-agent", "SSH agent")
-                .detail("Where ssh finds keys for remote hosts: the agent in SSH_AUTH_SOCK, then ~/.ssh.")
-                .control(Label::new(agent_text).size(LabelSize::Small).color(Color::Muted)),
-        );
-
-        v_flex()
-            .w_full()
-            .gap_6()
-            .child(hosts)
-            .children(form)
-            .children(
-                self.error
-                    .clone()
-                    .map(|e| div().text_ui_sm(cx).text_color(error_color).child(e)),
-            )
-            .child(from_config)
-            .child(agent)
     }
 }

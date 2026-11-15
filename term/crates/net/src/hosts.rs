@@ -172,12 +172,16 @@ impl Host {
 }
 
 /// `ssh-hosts.json`: saved hosts and forward definitions (by host name,
-/// for saved and ssh-config hosts alike).
+/// for saved and ssh-config hosts alike), and which `~/.ssh/config` hosts
+/// the user added to FerrumTerm's machines.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct HostStore {
     pub hosts: Vec<SavedHost>,
     pub forwards: BTreeMap<String, Vec<ForwardSpec>>,
+    /// `~/.ssh/config` aliases added as machines (saved hosts always are).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub added: Vec<String>,
 }
 
 /// Default location: `<state dir>/ssh-hosts.json`.
@@ -285,6 +289,109 @@ impl HostStore {
             self.forwards.remove(host);
         }
         removed
+    }
+
+    /// The machines the user added, as the sidebar lists them: saved hosts,
+    /// then the ssh-config hosts added with "Add machine" (or given port
+    /// forwards before machines existed). Other ssh-config hosts are only
+    /// offered in the "Add a machine" dialog.
+    #[must_use]
+    pub fn machines(&self, config: &[ConfigHost]) -> Vec<Host> {
+        self.all_hosts(config)
+            .into_iter()
+            .filter(|h| h.is_saved() || self.is_added(&h.name))
+            .collect()
+    }
+
+    /// Whether `name` is one of the machines (saved, or an added config host).
+    #[must_use]
+    pub fn is_added(&self, name: &str) -> bool {
+        self.get(name).is_some()
+            || self.added.iter().any(|a| a == name)
+            || self.forwards.contains_key(name)
+    }
+
+    /// Adds the `~/.ssh/config` host `alias` to the machines.
+    pub fn add_config_host(&mut self, alias: &str) {
+        if !self.is_added(alias) {
+            self.added.push(alias.to_owned());
+            self.added.sort();
+        }
+    }
+
+    /// Adds a machine typed as `user@host`, `host` or `user@host:port`,
+    /// named after the host (`host-2`… when taken). Returns its name.
+    pub fn add_typed(&mut self, text: &str) -> Result<String, String> {
+        let text = text.trim();
+        let (rest, port) = match text.rsplit_once(':') {
+            Some((rest, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => {
+                (rest, port)
+            }
+            _ => (text, ""),
+        };
+        let host = rest.rsplit_once('@').map_or(rest, |(_, h)| h);
+        let base = if host.parse::<std::net::IpAddr>().is_ok() {
+            host
+        } else {
+            host.split('.').next().unwrap_or(host)
+        };
+        let base = if base.is_empty() { "machine" } else { base };
+        let name = std::iter::once(base.to_owned())
+            .chain((2..).map(|n| format!("{base}-{n}")))
+            .find(|n| !self.is_added(n))
+            .unwrap_or_else(|| base.to_owned());
+        let saved = SavedHost::from_form(&HostFormFields {
+            name: &name,
+            host: rest,
+            port,
+            ..HostFormFields::default()
+        })?;
+        self.upsert(saved, None)?;
+        Ok(name)
+    }
+
+    /// Removes a machine: a saved host, or an added config host (the
+    /// config file is never touched). Its forwards go too.
+    pub fn remove_machine(&mut self, name: &str) -> bool {
+        let before = self.added.len();
+        self.added.retain(|a| a != name);
+        let forwards = self.forwards.remove(name).is_some();
+        self.remove(name) || before != self.added.len() || forwards
+    }
+
+    /// Renames a machine. A config host becomes a saved host named `to`
+    /// that reaches the alias (`ssh <alias>` still applies its settings).
+    pub fn rename_machine(&mut self, from: &str, to: &str) -> Result<(), String> {
+        let to = to.trim();
+        if to == from {
+            return Ok(());
+        }
+        if self.is_added(to) {
+            return Err(format!("a machine named “{to}” already exists"));
+        }
+        let host = match self.get(from) {
+            Some(saved) => SavedHost {
+                name: to.to_owned(),
+                ..saved.clone()
+            },
+            None => SavedHost {
+                name: to.to_owned(),
+                host: from.to_owned(),
+                ..SavedHost::default()
+            },
+        };
+        let saved = self.get(from).is_some();
+        if saved {
+            return self.upsert(host, Some(from));
+        }
+        host.validate()?;
+        let forwards = self.forwards.remove(from);
+        self.added.retain(|a| a != from);
+        self.upsert(host, None)?;
+        if let Some(f) = forwards {
+            self.forwards.insert(to.to_owned(), f);
+        }
+        Ok(())
     }
 
     /// Saved hosts first (sorted), then ssh-config aliases not shadowed by a saved name.
@@ -442,6 +549,64 @@ mod tests {
         assert_eq!(mode & 0o777, 0o600);
         std::fs::write(&path, "{not json").expect("write");
         assert!(HostStore::load(&path).is_err());
+    }
+
+    #[test]
+    fn only_added_machines_are_listed() {
+        let config = vec![
+            ConfigHost {
+                alias: "pi".into(),
+                ..ConfigHost::default()
+            },
+            ConfigHost {
+                alias: "mini".into(),
+                ..ConfigHost::default()
+            },
+            ConfigHost {
+                alias: "legacy".into(),
+                ..ConfigHost::default()
+            },
+        ];
+        let mut s = HostStore::default();
+        assert!(s.machines(&config).is_empty(), "config hosts start hidden");
+        // Hosts given forwards before machines existed stay listed.
+        s.add_forward("legacy", ForwardSpec::parse("D 1080").expect("spec"));
+        s.add_config_host("mini");
+        s.add_config_host("mini");
+        assert_eq!(s.added, ["mini"]);
+        let names: Vec<String> = s.machines(&config).into_iter().map(|h| h.name).collect();
+        assert_eq!(names, ["mini", "legacy"]);
+        assert!(s.remove_machine("mini"));
+        assert!(!s.is_added("mini"));
+        assert!(s.remove_machine("legacy"));
+        assert!(s.machines(&config).is_empty());
+        assert!(!s.remove_machine("pi"));
+        // Old files without `added` still load.
+        let old: HostStore = serde_json::from_str(r#"{"hosts":[],"forwards":{}}"#).expect("json");
+        assert!(old.added.is_empty());
+    }
+
+    #[test]
+    fn typed_machines_and_renames() {
+        let mut s = HostStore::default();
+        assert_eq!(s.add_typed("me@box.example.com").expect("add"), "box");
+        assert_eq!(s.add_typed("root@box.lan:2222").expect("add"), "box-2");
+        let h = s.get("box-2").expect("saved");
+        assert_eq!((h.user.as_deref(), h.port), (Some("root"), Some(2222)));
+        assert_eq!(h.host, "box.lan");
+        assert_eq!(s.add_typed("10.0.0.5").expect("add"), "10.0.0.5");
+        assert!(s.add_typed("me@-oProxyCommand=x").is_err());
+        assert!(s.add_typed("  ").is_err());
+        s.rename_machine("box", "vps").expect("rename");
+        assert!(s.get("vps").is_some() && s.get("box").is_none());
+        assert!(s.rename_machine("vps", "box-2").is_err());
+        // A config host becomes a saved host reaching its alias.
+        s.add_config_host("mini");
+        s.add_forward("mini", ForwardSpec::parse("D 1080").expect("spec"));
+        s.rename_machine("mini", "studio").expect("rename");
+        assert_eq!(s.get("studio").map(|h| h.host.as_str()), Some("mini"));
+        assert!(!s.added.contains(&"mini".to_owned()));
+        assert_eq!(s.forwards_of("studio").len(), 1);
     }
 
     #[test]

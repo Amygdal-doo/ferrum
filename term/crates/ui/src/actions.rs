@@ -141,7 +141,7 @@ mod tests {
         for (keys, shortcut) in BINDINGS {
             let keystroke = Keystroke::parse(keys).expect("valid keystroke");
             assert_eq!(
-                crate::input::translate(&keystroke),
+                crate::input::translate(&keystroke, true),
                 Some(Action::Shortcut(*shortcut)),
                 "{keys}"
             );

@@ -228,6 +228,7 @@ mod tests {
             rows: 24,
             status: None,
             exited: None,
+            agent: None,
         }
     }
 

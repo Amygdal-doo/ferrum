@@ -60,6 +60,8 @@ pub struct TermView {
     pub(crate) incompatible: Option<String>,
     /// What the sidebar's inline field does on Enter.
     pub(crate) prompt: crate::sidebar::Prompt,
+    /// Terminal to put into the folder the "New folder…" prompt creates.
+    pub(crate) pending_folder_item: Option<String>,
     /// Font the cell metrics were measured with.
     pub(crate) font_key: Option<(f32, gpui::SharedString)>,
     /// FerrumGIT beside the terminal (desktop window only).
@@ -134,6 +136,7 @@ impl TermView {
             cursor_on: true,
             incompatible: None,
             prompt: crate::sidebar::Prompt::default(),
+            pending_folder_item: None,
             font_key: None,
             git: None,
             _blink: blink,
@@ -144,7 +147,13 @@ impl TermView {
 
     pub(crate) fn handle_event(&mut self, event: UiEvent, cx: &mut Context<Self>) {
         match event {
-            UiEvent::Connected(client, backend) => {
+            UiEvent::Connected(client, backend, started) => {
+                if let Some(started) = started
+                    && self.app.folders_enabled()
+                    && self.app.folders.use_server(started)
+                {
+                    self.app.folders.save();
+                }
                 self.app.client = Some(client);
                 self.app.backend = Some(backend);
                 self.app.subscribed.clear();
@@ -200,6 +209,7 @@ impl TermView {
                 self.app.notify("Copied screen to clipboard");
             }
             UiEvent::Forwards(forwards) => self.app.ssh.forwards = forwards,
+            UiEvent::IntoFolder(item, folder) => self.move_to_folder(&item, Some(folder)),
             UiEvent::Ports(result) => self.on_ports_result(result),
             UiEvent::Killed(outcome) => self.on_killed(outcome, cx),
         }
@@ -209,6 +219,11 @@ impl TermView {
     /// Tells the host about statuses, exits and bells in this view's panes
     /// (before `on_event`, while the block is still in the session list).
     fn report(&mut self, event: &Event, cx: &mut Context<Self>) {
+        if self.app.notifies
+            && let Event::Status { block, status } = event
+        {
+            self.alert(*block, status.as_ref(), cx);
+        }
         match event {
             Event::Status { block, status } if self.app.shows_block(*block) => {
                 cx.emit(TermViewEvent::AgentStatus {
@@ -239,6 +254,70 @@ impl TermView {
             }
             _ => {}
         }
+    }
+
+    /// Notifies about an agent that needs you or finished out of sight;
+    /// clicking the toast shows its terminal.
+    fn alert(
+        &mut self,
+        block: BlockId,
+        status: Option<&ferrumterm_protocol::ProgramStatus>,
+        cx: &mut Context<Self>,
+    ) {
+        let visible = self.app.window_active
+            && self
+                .app
+                .window()
+                .is_some_and(|w| w.blocks.iter().any(|b| b.id == block));
+        let Some(alert) = self
+            .app
+            .alerts
+            .on_status(block, status, visible, Instant::now())
+        else {
+            return;
+        };
+        let session = self
+            .app
+            .sessions
+            .iter()
+            .find(|s| {
+                s.windows
+                    .iter()
+                    .any(|w| w.blocks.iter().any(|b| b.id == block))
+            })
+            .map(|s| s.id);
+        let name = self
+            .app
+            .sessions
+            .iter()
+            .flat_map(|s| &s.windows)
+            .find_map(|w| {
+                w.blocks
+                    .iter()
+                    .find(|b| b.id == block)
+                    .map(|b| crate::sidebar::model::agent_title(w, b))
+            })
+            .unwrap_or_else(|| block.to_string());
+        let (title, body) = alert.text(&name);
+        let view = cx.weak_entity();
+        ferrum_ui::notify::notify_with_action(
+            alert.event(),
+            title,
+            body,
+            move |window, cx| {
+                window.activate_window();
+                if let Err(error) = view.update(cx, |view, cx| {
+                    if let Some(session) = session {
+                        view.app.focus_block(session, block);
+                    }
+                    window.focus(&view.focus_handle, cx);
+                    view.after_change(cx);
+                }) {
+                    tracing::debug!(%error, "terminal view closed before its toast was clicked");
+                }
+            },
+            cx,
+        );
     }
 
     fn block_title(&self, block: BlockId) -> String {
@@ -313,7 +392,9 @@ impl TermView {
         // ⌘ shortcuts normally arrive as actions (see `actions`); this also
         // covers hosts that did not call `ferrumterm_ui::init`.
         self.cursor_on = true;
-        if let Some(action) = input::translate(&event.keystroke) {
+        let option_alt =
+            event.keystroke.modifiers.alt && input::option_is_alt(cx.keyboard_layout().id());
+        if let Some(action) = input::translate(&event.keystroke, option_alt) {
             cx.stop_propagation();
             self.ime_marked = None;
             self.act(action, cx);

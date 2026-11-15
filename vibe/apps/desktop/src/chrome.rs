@@ -184,6 +184,7 @@ impl FerrumVibe {
 impl Render for FerrumVibe {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.follow_focus(window, cx);
+        self.sync_chat_visibility(cx);
         let text = cx.theme().colors().text;
         let notice = self.notice.as_ref().map(|notice| {
             render_notice(

@@ -299,3 +299,87 @@ fn approval_levels_rename_and_thread_list_events() {
         matches!(e, SessionEvent::ThreadsChanged).then_some(())
     });
 }
+
+#[test]
+fn sibling_threads_run_alongside_and_share_the_change_set() {
+    let project = tempfile::tempdir().expect("tempdir");
+    let home = tempfile::tempdir().expect("tempdir");
+    let root = project.path();
+    std::fs::write(root.join("a.txt"), "one\n").expect("write");
+    let mock = MockProvider::new();
+    mock.push_tool(
+        "t1",
+        "edit_file",
+        json!({"path": "a.txt", "old_string": "one", "new_string": "ONE"}),
+    );
+    mock.push_text("B answer");
+    mock.push_text("A done");
+    let (a, mut a_events) = session(root, home.path(), &mock);
+
+    // A waits on a prompt; the prompt can be re-read by a UI that starts
+    // showing A later.
+    a.send("Edit a", vec![]);
+    let request = a_events.wait("A's prompt", |e| match e {
+        SessionEvent::Permission(r) => Some(r.clone()),
+        _ => None,
+    });
+    assert_eq!(a.open_permissions(), std::slice::from_ref(&request));
+
+    // B, a new thread beside it, runs a whole turn meanwhile.
+    let (b, b_events) = a.sibling(None, Mode::Ask).expect("sibling");
+    let mut b_events = Events::new(b_events);
+    assert!(!b.same(&a) && a.same(&a.clone()));
+    assert_ne!(b.thread().id, a.thread().id);
+    assert_eq!(b.mode(), Mode::Ask);
+    b.send("Hello B", vec![]);
+    b_events.idle();
+    assert_eq!(b.thread().messages[1].text(), "B answer");
+    assert!(a.is_busy(), "A is still waiting on its prompt");
+
+    // A goes on; its edit is in the change set B sees too.
+    a.respond_permission(request.id, Decision::AllowOnce);
+    a_events.idle();
+    assert!(a.open_permissions().is_empty());
+    assert_eq!(
+        a.thread().messages.last().map(|m| m.text()),
+        Some("A done".into())
+    );
+    assert_eq!(b.changes().expect("changes").len(), 1);
+
+    // Both are saved; a sibling can open a saved thread.
+    assert_eq!(a.threads().len(), 2);
+    let (reopened, _rx) = a.sibling(Some(&b.thread().id), Mode::Agent).expect("open");
+    assert_eq!(reopened.thread().messages.len(), 2);
+    assert_eq!(reopened.mode(), Mode::Ask, "the thread's own mode");
+    assert!(a.sibling(Some("missing"), Mode::Agent).is_err());
+}
+
+#[test]
+fn a_turn_whose_view_is_gone_is_denied_rather_than_left_waiting() {
+    let project = tempfile::tempdir().expect("tempdir");
+    let home = tempfile::tempdir().expect("tempdir");
+    let root = project.path();
+    std::fs::write(root.join("a.txt"), "one\n").expect("write");
+    let mock = MockProvider::new();
+    mock.push_tool(
+        "t1",
+        "edit_file",
+        json!({"path": "a.txt", "old_string": "one", "new_string": "ONE"}),
+    );
+    mock.push_text("never");
+    let (session, events) = session(root, home.path(), &mock);
+    drop(events);
+    session.send("Edit a", vec![]);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    while session.is_busy() || session.thread().messages.len() < 2 {
+        assert!(std::time::Instant::now() < deadline, "the turn never ended");
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert_eq!(tool_status(&session, "t1"), Some(ToolStatus::Denied));
+    assert_eq!(
+        std::fs::read_to_string(root.join("a.txt")).expect("read"),
+        "one\n"
+    );
+    // The thread was saved even though nobody watched it.
+    assert_eq!(session.threads().len(), 1);
+}

@@ -1,5 +1,6 @@
-//! Settings › Notifications: where toasts appear, which channels are on,
-//! sound volume and per-event channels (see [`crate::notify`]).
+//! Settings › Notifications: which corner toasts appear in, which channels
+//! are on, sound volume and per-event channels with a sound preview (see
+//! [`crate::notify`]).
 
 use gpui::{
     AnyElement, App, Hsla, IntoElement, ParentElement, Styled, Window, div, prelude::*, px,
@@ -9,14 +10,16 @@ use super::widgets::{Row, Section, Segmented, Switch, icon_tile};
 use super::{SettingsPage, tint};
 use crate::app_info::app_info;
 use crate::components::{
-    Button, ButtonCommon, ButtonStyle, Clickable, IconName, TintColor, h_flex, v_flex,
+    Button, ButtonCommon, ButtonStyle, Clickable, Disableable, Icon, IconName, IconSize, TintColor,
+    h_flex, v_flex,
 };
 use crate::notify::{self, Channels, ToastPosition};
 use crate::theme::ActiveTheme;
 
 pub(super) struct NotificationsPage;
 
-/// The 3×2 grid of toast positions.
+/// A miniature window with one pill per corner: top left, top right,
+/// bottom left, bottom right.
 fn position_picker(current: ToastPosition, cx: &App) -> impl IntoElement {
     let colors = cx.theme().colors();
     let cell = move |position: ToastPosition| {
@@ -34,6 +37,7 @@ fn position_picker(current: ToastPosition, cx: &App) -> impl IntoElement {
             })
             .on_click(move |_, _, cx| notify::update(cx, |p| p.position = position))
     };
+    let [top_left, top_right, bottom_left, bottom_right] = ToastPosition::CORNERS;
     v_flex()
         .p_2()
         .gap_6()
@@ -43,14 +47,26 @@ fn position_picker(current: ToastPosition, cx: &App) -> impl IntoElement {
         .bg(colors.background)
         .child(
             h_flex()
-                .gap_2()
-                .children(ToastPosition::ALL[..3].iter().map(|p| cell(*p))),
+                .gap_12()
+                .child(cell(top_left))
+                .child(cell(top_right)),
         )
         .child(
             h_flex()
-                .gap_2()
-                .children(ToastPosition::ALL[3..].iter().map(|p| cell(*p))),
+                .gap_12()
+                .child(cell(bottom_left))
+                .child(cell(bottom_right)),
         )
+}
+
+/// "Bottom right" for the row's detail.
+fn position_text(position: ToastPosition) -> String {
+    let label = position.label();
+    let mut chars = label.chars();
+    chars
+        .next()
+        .map(|c| c.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
 }
 
 fn master(
@@ -90,8 +106,8 @@ impl SettingsPage for NotificationsPage {
             .unwrap_or(2);
 
         let in_app = Section::new("In-App Notifications").row(
-            Row::new("toast-position", "Notification position")
-                .detail(format!("Displayed {}", prefs.position.label()))
+            Row::new("toast-position", "Notification corner")
+                .detail(position_text(prefs.position))
                 .control(position_picker(prefs.position, cx)),
         );
 
@@ -151,6 +167,12 @@ impl SettingsPage for NotificationsPage {
                     .copied()
                     .unwrap_or(event.defaults);
                 let id = event.id;
+                let volume = prefs.volume;
+                let play = Button::new(channel_id(id, "play"), "Play")
+                    .style(ButtonStyle::Subtle)
+                    .start_icon(Icon::new(IconName::PlayFilled).size(IconSize::XSmall))
+                    .disabled(!prefs.sound || !current.sound)
+                    .on_click(move |_, _, _| notify::play_event_sound(id, volume));
                 let toggle = |name: &'static str, on: bool, set: fn(&mut Channels, bool)| {
                     Button::new(channel_id(id, name), name)
                         .style(if on {
@@ -176,7 +198,8 @@ impl SettingsPage for NotificationsPage {
                                 .child(toggle("In app", current.in_app, |c, on| c.in_app = on))
                                 .child(toggle("System", current.system, |c, on| c.system = on))
                                 .child(toggle("Badge", current.badge, |c, on| c.badge = on))
-                                .child(toggle("Sound", current.sound, |c, on| c.sound = on)),
+                                .child(toggle("Sound", current.sound, |c, on| c.sound = on))
+                                .child(play),
                         ),
                 );
             }

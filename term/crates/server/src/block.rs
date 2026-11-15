@@ -8,7 +8,7 @@ use ferrumterm_protocol::{BlockId, Input, ProgramStatus, Spawn};
 use portable_pty::{ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use std::io::{Read, Write};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, watch};
 
 /// Messages from block threads to the server loop.
@@ -39,6 +39,27 @@ pub struct Block {
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
     /// Bumped whenever the screen may have changed.
     pub generation: watch::Sender<u64>,
+    /// Coding agent in the foreground (see `detect`).
+    pub agent: Mutex<Option<String>>,
+    /// Last keystroke or resize: output right after it is an echo.
+    poked: Mutex<Instant>,
+    /// Last output that was not an echo.
+    pub last_output: Mutex<Option<Instant>>,
+    /// Status detection bookkeeping (see `Server::detect_tick`).
+    pub detect: Mutex<Detection>,
+}
+
+/// Per-block state of agent status detection.
+#[derive(Debug, Default)]
+pub struct Detection {
+    /// The program reported its own status: detection stays out of it
+    /// until another program takes the foreground.
+    pub explicit: bool,
+    /// The current status was set by detection (so it may clear it).
+    pub detected: bool,
+    /// Foreground process group last looked up, and when it last looked busy.
+    pub foreground: Option<i32>,
+    pub busy_at: Option<Instant>,
 }
 
 /// Where FerrumTerm-specific environment comes from.
@@ -124,6 +145,12 @@ impl Block {
             master: Mutex::new(pair.master),
             killer: Mutex::new(killer),
             generation,
+            agent: Mutex::new(
+                ferrumterm_protocol::agents::agent_of_command(&spec.command).map(str::to_owned),
+            ),
+            poked: Mutex::new(Instant::now()),
+            last_output: Mutex::new(None),
+            detect: Mutex::new(Detection::default()),
         });
 
         let b = block.clone();
@@ -156,6 +183,9 @@ impl Block {
                 let _ = lock(&self.writer).write_all(&feed.reply);
             }
             self.generation.send_modify(|g| *g = g.wrapping_add(1));
+            if lock(&self.poked).elapsed() > Duration::from_millis(crate::detect::ECHO_MS) {
+                *lock(&self.last_output) = Some(Instant::now());
+            }
             for s in feed.status {
                 let _ = tx.send(Internal::Status(self.id, s));
             }
@@ -184,6 +214,7 @@ impl Block {
                 self.generation.send_modify(|g| *g = g.wrapping_add(1));
             }
         }
+        *lock(&self.poked) = Instant::now();
         lock(&self.writer)
             .write_all(&bytes)
             .map_err(|e| format!("write failed: {e}"))
@@ -198,6 +229,7 @@ impl Block {
             }
             term.resize(cols, rows);
         }
+        *lock(&self.poked) = Instant::now();
         let _ = lock(&self.master).resize(PtySize {
             rows,
             cols,
@@ -214,6 +246,11 @@ impl Block {
 
     pub fn kill(&self) {
         let _ = lock(&self.killer).kill();
+    }
+
+    /// Process group in the terminal's foreground (the shell, or the program it runs).
+    pub fn foreground(&self) -> Option<i32> {
+        lock(&self.master).process_group_leader()
     }
 
     #[must_use]

@@ -214,6 +214,9 @@ impl FerrumLauncher {
         ferrum_ui::title_row("title-row", true, window)
             .gap_1()
             .child(div().flex_none().w(px(8.)))
+            // First after the traffic lights, as in every Ferrum app; the
+            // same as ⌘,.
+            .child(ferrum_ui::settings_button("settings"))
             // A bundled launcher swaps itself for the new version and
             // restarts; otherwise (cargo run, Windows, Linux) the release
             // page has the installer.
@@ -278,10 +281,6 @@ impl FerrumLauncher {
                 ferrum_ui::title_button("check-updates", IconName::RotateCw, "Check for updates")
                     .disabled(self.checking)
                     .on_click(cx.listener(|this, _, _, cx| this.check_for_updates(true, cx))),
-            )
-            .child(
-                ferrum_ui::title_button("settings", IconName::Settings, "Settings (⌘,)")
-                    .on_click(|_, _, cx| ferrum_ui::open_settings(Some("interface"), cx)),
             )
     }
 }

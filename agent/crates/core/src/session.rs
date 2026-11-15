@@ -166,6 +166,24 @@ impl SessionConfig {
     }
 }
 
+/// What sibling sessions of one project share.
+struct Shared {
+    sandbox: Sandbox,
+    project: PathBuf,
+    home: PathBuf,
+    settings: AgentSettings,
+    secrets: Arc<dyn SecretStore>,
+    runner: Arc<dyn CommandRunner>,
+    provider_override: Option<Arc<dyn Provider>>,
+    acp_agents: Vec<AcpAgentConfig>,
+    mcp: McpConfig,
+    path_env: Option<String>,
+    changes: Arc<Mutex<ChangeSet>>,
+    permissions: Arc<Mutex<Permissions>>,
+    tools: Arc<tokio::sync::Mutex<Option<Arc<ToolRegistry>>>>,
+    mcp_clients: Arc<Mutex<Vec<Arc<McpClient>>>>,
+}
+
 struct Queued {
     text: String,
     mentions: Vec<Mention>,
@@ -187,7 +205,8 @@ struct Inner {
     saved_as: Mutex<(String, String)>,
     changes: Arc<Mutex<ChangeSet>>,
     permissions: Arc<Mutex<Permissions>>,
-    pending: Mutex<HashMap<u64, oneshot::Sender<Decision>>>,
+    /// Open permission prompts and where their answers go.
+    pending: Mutex<HashMap<u64, (PermissionRequest, oneshot::Sender<Decision>)>>,
     next_request: AtomicU64,
     events: UnboundedSender<SessionEvent>,
     turn: Mutex<Option<CancellationToken>>,
@@ -198,8 +217,9 @@ struct Inner {
     acp_agents: Vec<AcpAgentConfig>,
     mcp: McpConfig,
     path_env: Option<String>,
-    tools: tokio::sync::Mutex<Option<Arc<ToolRegistry>>>,
-    mcp_clients: Mutex<Vec<Arc<McpClient>>>,
+    /// Shared with sibling sessions: MCP servers connect once.
+    tools: Arc<tokio::sync::Mutex<Option<Arc<ToolRegistry>>>>,
+    mcp_clients: Arc<Mutex<Vec<Arc<McpClient>>>>,
     acp: tokio::sync::Mutex<Option<Arc<AcpClient>>>,
 }
 
@@ -240,40 +260,110 @@ impl ChatSession {
         };
         let agent = AgentChoice::parse(&thread.agent).unwrap_or(agent);
         thread.agent = agent.key();
-        let (tx, rx) = unbounded();
         let mut permissions = Permissions::load(&crate::paths::permissions_file(&config.home));
         permissions.set_approval(config.settings.approval);
-        let saved_as = (thread.id.clone(), thread.title.clone());
-        let inner = Arc::new_cyclic(|me| Inner {
-            me: me.clone(),
+        let shared = Shared {
             sandbox,
+            project,
             home: config.home,
-            runtime: crate::runtime::handle(),
-            agent: Mutex::new(agent),
-            settings: Mutex::new(config.settings),
-            mode: Arc::new(Mutex::new(thread.mode)),
-            thread: Mutex::new(thread),
-            store,
-            saved_as: Mutex::new(saved_as),
-            changes: Arc::new(Mutex::new(changes)),
-            permissions: Arc::new(Mutex::new(permissions)),
-            pending: Mutex::new(HashMap::new()),
-            next_request: AtomicU64::new(1),
-            events: tx,
-            turn: Mutex::new(None),
-            queue: Mutex::new(VecDeque::new()),
+            settings: config.settings,
             secrets: config.secrets,
             runner: config.runner,
             provider_override: config.provider_override,
             acp_agents: config.acp_agents,
             mcp: config.mcp,
             path_env: config.path_env,
-            tools: tokio::sync::Mutex::new(None),
-            mcp_clients: Mutex::new(Vec::new()),
+            changes: Arc::new(Mutex::new(changes)),
+            permissions: Arc::new(Mutex::new(permissions)),
+            tools: Arc::new(tokio::sync::Mutex::new(None)),
+            mcp_clients: Arc::new(Mutex::new(Vec::new())),
+        };
+        Ok(Self::assemble(shared, store, agent, thread))
+    }
+
+    /// Another thread of the same project that runs alongside this one:
+    /// the saved thread `thread_id`, or a new thread in `mode`. It shares
+    /// this session's change set (one review list and one checkpoint
+    /// history for the project, no isolation between threads), its
+    /// permission policy, settings and MCP tools, and has its own turn,
+    /// queue, permission prompts and ACP agent process. It takes no
+    /// snapshot, so it opens at once.
+    pub fn sibling(
+        &self,
+        thread_id: Option<&str>,
+        mode: Mode,
+    ) -> Result<(Self, UnboundedReceiver<SessionEvent>), String> {
+        let inner = &self.inner;
+        let store = ThreadStore::new(&inner.home, &inner.project);
+        let agent = self.agent();
+        let mut thread = match thread_id {
+            Some(id) => store.load(id).map_err(|e| e.to_string())?,
+            None => Thread::new(inner.project.clone(), agent.key(), mode),
+        };
+        let agent = AgentChoice::parse(&thread.agent).unwrap_or(agent);
+        thread.agent = agent.key();
+        let shared = Shared {
+            sandbox: inner.sandbox.clone(),
+            project: inner.project.clone(),
+            home: inner.home.clone(),
+            settings: self.settings(),
+            secrets: inner.secrets.clone(),
+            runner: inner.runner.clone(),
+            provider_override: inner.provider_override.clone(),
+            acp_agents: inner.acp_agents.clone(),
+            mcp: inner.mcp.clone(),
+            path_env: inner.path_env.clone(),
+            changes: inner.changes.clone(),
+            permissions: inner.permissions.clone(),
+            tools: inner.tools.clone(),
+            mcp_clients: inner.mcp_clients.clone(),
+        };
+        Ok(Self::assemble(shared, store, agent, thread))
+    }
+
+    fn assemble(
+        shared: Shared,
+        store: ThreadStore,
+        agent: AgentChoice,
+        thread: Thread,
+    ) -> (Self, UnboundedReceiver<SessionEvent>) {
+        let (tx, rx) = unbounded();
+        let saved_as = (thread.id.clone(), thread.title.clone());
+        let inner = Arc::new_cyclic(|me| Inner {
+            me: me.clone(),
+            sandbox: shared.sandbox,
+            home: shared.home,
+            runtime: crate::runtime::handle(),
+            agent: Mutex::new(agent),
+            settings: Mutex::new(shared.settings),
+            mode: Arc::new(Mutex::new(thread.mode)),
+            thread: Mutex::new(thread),
+            store,
+            saved_as: Mutex::new(saved_as),
+            changes: shared.changes,
+            permissions: shared.permissions,
+            pending: Mutex::new(HashMap::new()),
+            next_request: AtomicU64::new(1),
+            events: tx,
+            turn: Mutex::new(None),
+            queue: Mutex::new(VecDeque::new()),
+            secrets: shared.secrets,
+            runner: shared.runner,
+            provider_override: shared.provider_override,
+            acp_agents: shared.acp_agents,
+            mcp: shared.mcp,
+            path_env: shared.path_env,
+            tools: shared.tools,
+            mcp_clients: shared.mcp_clients,
             acp: tokio::sync::Mutex::new(None),
-            project,
+            project: shared.project,
         });
-        Ok((Self { inner }, rx))
+        (Self { inner }, rx)
+    }
+
+    /// Whether `other` is this same session.
+    pub fn same(&self, other: &ChatSession) -> bool {
+        Arc::ptr_eq(&self.inner, &other.inner)
     }
 
     pub fn project(&self) -> &Path {
@@ -332,7 +422,7 @@ impl ChatSession {
         if let Some(token) = lock(&self.inner.turn).as_ref() {
             token.cancel();
         }
-        for (_, tx) in lock(&self.inner.pending).drain() {
+        for (_, (_, tx)) in lock(&self.inner.pending).drain() {
             let _ = tx.send(Decision::Deny);
         }
         lock(&self.inner.queue).clear();
@@ -340,9 +430,20 @@ impl ChatSession {
     }
 
     pub fn respond_permission(&self, id: u64, decision: Decision) {
-        if let Some(tx) = lock(&self.inner.pending).remove(&id) {
+        if let Some((_, tx)) = lock(&self.inner.pending).remove(&id) {
             let _ = tx.send(decision);
         }
+    }
+
+    /// The permission prompts still waiting for an answer, oldest first
+    /// (a UI that starts showing this session re-reads them).
+    pub fn open_permissions(&self) -> Vec<PermissionRequest> {
+        let mut open: Vec<PermissionRequest> = lock(&self.inner.pending)
+            .values()
+            .map(|(request, _)| request.clone())
+            .collect();
+        open.sort_by_key(|r| r.id);
+        open
     }
 
     pub fn set_mode(&self, mode: Mode) {
@@ -1015,10 +1116,17 @@ impl PermissionBroker for SessionBroker {
         request.id = inner.next_request.fetch_add(1, Ordering::SeqCst);
         let id = request.id;
         let (tx, rx) = oneshot::channel();
-        lock(&inner.pending).insert(id, tx);
-        let _ = inner
+        lock(&inner.pending).insert(id, (request.clone(), tx));
+        if inner
             .events
-            .unbounded_send(SessionEvent::Permission(request));
+            .unbounded_send(SessionEvent::Permission(request))
+            .is_err()
+        {
+            // No UI is listening any more (its view was dropped): nobody
+            // can answer, so the turn is denied instead of waiting forever.
+            lock(&inner.pending).remove(&id);
+            return Decision::Deny;
+        }
         drop(inner);
         let decision = rx.await.unwrap_or(Decision::Deny);
         if let Some(inner) = self.0.upgrade() {

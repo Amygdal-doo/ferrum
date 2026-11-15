@@ -27,6 +27,9 @@ pub struct AppConfig {
     /// Hide the native title bar: the traffic lights float over the app,
     /// which draws its own title row (see [`crate::window_chrome`]).
     pub unified_titlebar: bool,
+    /// Without a Dock icon, carry the app's menus in a menu bar extra (see
+    /// [`crate::dock`]). Off for apps with a menu bar extra of their own.
+    pub status_item: bool,
 }
 
 impl AppConfig {
@@ -37,6 +40,7 @@ impl AppConfig {
             min_size: size(px(900.), px(560.)),
             app: None,
             unified_titlebar: false,
+            status_item: true,
         }
     }
 
@@ -49,6 +53,13 @@ impl AppConfig {
     /// The app draws its own title row (see [`crate::window_chrome`]).
     pub fn unified_titlebar(mut self) -> Self {
         self.unified_titlebar = true;
+        self
+    }
+
+    /// The app has its own menu bar extra: none for its menus when it runs
+    /// without a Dock icon.
+    pub fn without_status_item(mut self) -> Self {
+        self.status_item = false;
         self
     }
 
@@ -69,58 +80,68 @@ pub fn run<V: Render + 'static>(
     config: AppConfig,
     build: impl FnOnce(&mut Window, &mut App) -> Entity<V> + 'static,
 ) {
-    gpui_platform::application()
-        .with_assets(Assets)
-        .run(move |cx: &mut App| {
-            let info = config.app.unwrap_or_else(|| {
-                let binary =
-                    crate::prefs::current_binary().unwrap_or_else(|| config.title.to_lowercase());
-                AppInfo::new(config.title, Box::leak(binary.into_boxed_str()))
-            });
-            cx.set_global(AppInfoGlobal(Rc::new(info)));
-            if config.unified_titlebar {
-                cx.set_global(crate::root::UnifiedTitlebar);
-            }
-            init(config.title, cx);
-
-            let bounds = Bounds::centered(None, config.size, cx);
-            let options = WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                window_min_size: Some(config.min_size),
-                titlebar: Some(TitlebarOptions {
-                    title: Some(config.title.into()),
-                    appears_transparent: config.unified_titlebar,
-                    traffic_light_position: config
-                        .unified_titlebar
-                        .then(crate::window_chrome::traffic_light_position),
-                }),
-                app_id: Some(config.title.to_lowercase()),
-                ..Default::default()
-            };
-            let opened = cx.open_window(options, |window, cx| {
-                let app = build(window, cx);
-                cx.new(|cx| Root::new(app.into(), window, cx))
-            });
-            // After `build`, so recorded shortcuts win over the app's own.
-            crate::keymap::apply_saved(cx);
-            crate::appearance::watch(cx);
-            // Development aid: open Settings at start (`FERRUM_OPEN_SETTINGS=terminal`).
-            if let Ok(page) = std::env::var("FERRUM_OPEN_SETTINGS") {
-                crate::settings::open_settings(
-                    Some(&page).filter(|p| !p.is_empty()).map(|p| p.as_str()),
-                    cx,
-                );
-            }
-            if let Err(error) = opened {
-                eprintln!("{}: failed to open window: {error:#}", config.title);
-                cx.quit();
-                return;
-            }
-            if crate::dock::hidden_by_preference() {
-                crate::dock::set_dock_icon_visible(false);
-            }
-            cx.activate(true);
+    let hidden_from_dock = crate::dock::hidden_by_preference();
+    let mut application = gpui_platform::application().with_assets(Assets);
+    if cfg!(target_os = "macos") && hidden_from_dock {
+        // `Accessory` from launch, so no Dock icon shows up even briefly.
+        // (Elsewhere `Headless` would mean no display at all.)
+        application = application.with_windowing(gpui::WindowingRequest::Headless);
+    }
+    application.run(move |cx: &mut App| {
+        let info = config.app.unwrap_or_else(|| {
+            let binary =
+                crate::prefs::current_binary().unwrap_or_else(|| config.title.to_lowercase());
+            AppInfo::new(config.title, Box::leak(binary.into_boxed_str()))
         });
+        cx.set_global(AppInfoGlobal(Rc::new(info)));
+        if config.unified_titlebar {
+            cx.set_global(crate::root::UnifiedTitlebar);
+        }
+        init(config.title, cx);
+        crate::dock::use_status_item(config.status_item.then(|| info_name(cx)).as_deref());
+
+        let bounds = Bounds::centered(None, config.size, cx);
+        let options = WindowOptions {
+            window_bounds: Some(WindowBounds::Windowed(bounds)),
+            window_min_size: Some(config.min_size),
+            titlebar: Some(TitlebarOptions {
+                title: Some(config.title.into()),
+                appears_transparent: config.unified_titlebar,
+                traffic_light_position: config
+                    .unified_titlebar
+                    .then(crate::window_chrome::traffic_light_position),
+            }),
+            app_id: Some(config.title.to_lowercase()),
+            ..Default::default()
+        };
+        let opened = cx.open_window(options, |window, cx| {
+            let app = build(window, cx);
+            cx.new(|cx| Root::new(app.into(), window, cx))
+        });
+        // After `build`, so recorded shortcuts win over the app's own.
+        crate::keymap::apply_saved(cx);
+        crate::appearance::watch(cx);
+        // Development aid: open Settings at start (`FERRUM_OPEN_SETTINGS=terminal`).
+        if let Ok(page) = std::env::var("FERRUM_OPEN_SETTINGS") {
+            crate::settings::open_settings(
+                Some(&page).filter(|p| !p.is_empty()).map(|p| p.as_str()),
+                cx,
+            );
+        }
+        if let Err(error) = opened {
+            eprintln!("{}: failed to open window: {error:#}", config.title);
+            cx.quit();
+            return;
+        }
+        if hidden_from_dock {
+            crate::dock::set_dock_icon_visible(false);
+        }
+        cx.activate(true);
+    });
+}
+
+fn info_name(cx: &App) -> String {
+    crate::app_info::app_info(cx).name.to_string()
 }
 
 fn init(title: &'static str, cx: &mut App) {
@@ -142,7 +163,11 @@ fn init(title: &'static str, cx: &mut App) {
         KeyBinding::new("down", menu::SelectNext, Some("menu")),
     ]);
     cx.on_action(|_: &Quit, cx| cx.quit());
-    cx.on_action(|_: &OpenSettings, cx| crate::settings::open_settings(None, cx));
+    cx.on_action(|_: &OpenSettings, cx| {
+        // Also chosen from the menu bar extra while the app is inactive.
+        cx.activate(true);
+        crate::settings::open_settings(None, cx);
+    });
     crate::menus::register(cx);
     let info = crate::app_info::app_info(cx);
     cx.set_menus(crate::menus::standard(&info));

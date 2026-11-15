@@ -5,6 +5,7 @@
 //! TCP on a tailnet — with length-prefixed JSON messages: `u32` big-endian
 //! length, then a [`ClientMsg`] or [`ServerMsg`].
 
+pub mod agents;
 pub mod forward;
 mod frame;
 mod ids;
@@ -21,5 +22,9 @@ pub use wire::{MAX_FRAME, WireError, read_msg, write_msg};
 
 /// Protocol version; bumped on incompatible changes.
 pub const PROTOCOL_VERSION: u32 = 2;
+/// `Hello { client }` of the FerrumTerm window. While one is connected it
+/// delivers agent notifications itself (knowing which pane is on screen), so
+/// the server only posts them when no window is open.
+pub const WINDOW_CLIENT: &str = "ferrumterm-window";
 /// Default TCP port for remote (tailnet) listeners.
 pub const DEFAULT_PORT: u16 = 7397;

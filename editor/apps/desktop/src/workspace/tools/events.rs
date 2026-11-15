@@ -43,7 +43,7 @@ impl Workspace {
 
     pub(super) fn on_chat_event(
         &mut self,
-        _: &Entity<ChatView>,
+        chat: &Entity<ChatView>,
         event: &ChatEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -57,7 +57,14 @@ impl Workspace {
             ChatEvent::ChangesUpdated { .. } => self.check_disk_changes(window, cx),
             // The editor shows no thread list and never sets a git status, so
             // the chat's footer offers no git actions here.
-            ChatEvent::ThreadsChanged | ChatEvent::Git(_) => {}
+            // Thread status lives in the chat's own thread list.
+            ChatEvent::ThreadsChanged | ChatEvent::Git(_) | ChatEvent::StatusChanged => {}
+            // A chat notification was clicked: show the Agent pane (another
+            // project's chat has switched thread; it shows with its folder).
+            ChatEvent::Reveal { .. } if self.tools.chat.as_ref() == Some(chat) => {
+                self.open_tool(ToolKind::Agent, window, cx);
+            }
+            ChatEvent::Reveal { .. } => {}
         }
     }
 

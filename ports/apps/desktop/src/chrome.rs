@@ -50,8 +50,8 @@ fn field(cx: &App) -> Div {
 }
 
 /// The table card's header row (no sidebar, so it starts after the traffic
-/// lights and drags the window): project, search, view toggles, then the
-/// port check, pause and refresh.
+/// lights and drags the window): Settings, project, search, view toggles,
+/// then the port check, pause and refresh.
 pub fn table_header(
     app: &FerrumPorts,
     window: &Window,
@@ -67,6 +67,9 @@ pub fn table_header(
         .gap_1()
         .border_b_1()
         .border_color(cx.theme().colors().border_variant)
+        // First after the traffic lights, where the other apps put it
+        // (after their sidebar toggle; FerrumPorts has no sidebar).
+        .child(ferrum_ui::settings_button("open-settings"))
         .child(div().flex_none().w(px(260.)).child(app.project_bar.clone()))
         .child(
             field(cx)

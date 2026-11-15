@@ -10,7 +10,11 @@
 //!     ChatEvent::ChangesUpdated { files } => { /* refresh views */ }
 //!     ChatEvent::ThreadsChanged => { /* reload a thread sidebar */ }
 //!     ChatEvent::Git(request) => { /* push, pull, commit… */ }
+//!     ChatEvent::StatusChanged => { /* redraw thread status dots */ }
 //! });
+//! // Hidden chats keep running; tell the chat so finished turns count as
+//! // unseen (Done) and notify:
+//! chat.update(cx, |chat, cx| chat.set_visible(false, cx));
 //! ```
 //!
 //! A host that draws its own thread list and window chrome sets
@@ -27,6 +31,7 @@ mod composer;
 mod footer;
 mod header;
 mod host;
+mod live;
 mod markdown;
 mod menus;
 mod messages;
@@ -43,6 +48,10 @@ pub use ferrumagent_core as core;
 pub use ferrumagent_core::permissions::Approval;
 pub use ferrumagent_core::session::McpServerStatus;
 pub use host::{GitRequest, GitStatus};
+pub use live::{
+    DONE, DONE_EVENT, NEEDS_YOU, NEEDS_YOU_EVENT, Notifier, ToastClick, default_notifier,
+};
+pub use threads::{status_indicator, thread_logo};
 pub use view::{ChatEvent, ChatOptions, ChatView, HeaderSlot};
 
 use gpui::{App, KeyBinding};

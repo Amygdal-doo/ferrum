@@ -1,6 +1,7 @@
-//! SSH hosts, port forwards and "what's using port N?" — the app side.
-//! Hosts and forward definitions live in `ssh-hosts.json` (plus read-only
-//! `~/.ssh/config`); running forwards belong to the server.
+//! Machines (SSH hosts), port forwards and "what's using port N?" — the
+//! app side. Machines and forward definitions live in `ssh-hosts.json`;
+//! `~/.ssh/config` hosts are listed only once added as machines. Running
+//! forwards belong to the server.
 
 use crate::app::{App, UiEvent, spawn_env};
 use ferrumterm_client::paths;
@@ -19,12 +20,37 @@ pub struct SshState {
     pub config: Vec<ConfigHost>,
     /// What the server runs (or failed to run).
     pub forwards: Vec<ForwardInfo>,
+    /// Modification time of `ssh-hosts.json` when last read, and when it
+    /// was last checked (Settings › Machines writes it from another window).
+    loaded: Option<std::time::SystemTime>,
+    checked: Option<Instant>,
 }
 
 impl SshState {
+    /// The machines the user added (saved hosts and added config hosts).
     #[must_use]
     pub fn hosts(&self) -> Vec<Host> {
-        self.store.all_hosts(&self.config)
+        self.store.machines(&self.config)
+    }
+
+    /// Re-reads the store when the file changed (checked at most once a second).
+    pub fn reload_if_changed(&mut self) {
+        if self
+            .checked
+            .is_some_and(|at| at.elapsed() < Duration::from_secs(1))
+        {
+            return;
+        }
+        self.checked = Some(Instant::now());
+        let modified = std::fs::metadata(paths::ssh_hosts_file())
+            .and_then(|m| m.modified())
+            .ok();
+        if modified != self.loaded {
+            self.loaded = modified;
+            if let Ok(store) = HostStore::load(&paths::ssh_hosts_file()) {
+                self.store = store;
+            }
+        }
     }
 
     #[must_use]
@@ -60,6 +86,9 @@ impl App {
             Ok(store) => self.ssh.store = store,
             Err(e) => self.notify(e),
         }
+        self.ssh.loaded = std::fs::metadata(paths::ssh_hosts_file())
+            .and_then(|m| m.modified())
+            .ok();
         self.ssh.config = ssh_config::load_user();
     }
 

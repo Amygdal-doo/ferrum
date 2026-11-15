@@ -112,10 +112,17 @@ impl Root {
             .children(toasts.items.iter().map(|toast| {
                 let id = toast.id;
                 let event = info.events.iter().find(|e| e.id == toast.event);
+                let clickable = toast.action.is_some();
                 h_flex()
+                    .id(("toast", id as usize))
                     .items_start()
                     .gap_2()
                     .p_3()
+                    .when(clickable, |toast| {
+                        toast
+                            .cursor_pointer()
+                            .on_click(move |_, window, cx| notify::activate(id, window, cx))
+                    })
                     .rounded_lg()
                     .border_1()
                     .border_color(colors.border_variant)
@@ -142,8 +149,12 @@ impl Root {
                             ),
                     )
                     .child(
-                        IconButton::new(("dismiss-toast", id as usize), IconName::Close)
-                            .on_click(move |_, _, cx| notify::dismiss(id, cx)),
+                        IconButton::new(("dismiss-toast", id as usize), IconName::Close).on_click(
+                            move |_, _, cx| {
+                                cx.stop_propagation();
+                                notify::dismiss(id, cx);
+                            },
+                        ),
                     )
             }));
         let layer = div().absolute().inset_0().p_4().flex().flex_col();
