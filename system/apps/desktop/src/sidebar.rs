@@ -1,5 +1,7 @@
 //! The sidebar: window controls, the project, its architecture (or the
-//! button that creates one), the demo systems and the layers.
+//! button that creates one) and the layers of the project's diagram. The
+//! demos are not listed here: File › Open Demo and Help › Open Demo show
+//! them.
 
 use ferrum_ui::prelude::*;
 
@@ -12,12 +14,13 @@ impl FerrumSystem {
             .flex_none()
             .gap_0p5()
             .child(
-                ferrum_ui::sidebar_toggle("toggle-sidebar", self.sidebar_open).on_click(
-                    cx.listener(|this, _, _, cx| {
-                        this.sidebar_open = !this.sidebar_open;
-                        cx.notify();
-                    }),
-                ),
+                ferrum_ui::sidebar_toggle("toggle-sidebar", self.sidebar_open())
+                    .tooltip(Tooltip::text(if self.sidebar_open() {
+                        "Hide sidebar (⌘B)"
+                    } else {
+                        "Show sidebar (⌘B)"
+                    }))
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_sidebar(cx))),
             )
             .child(ferrum_ui::settings_button("open-settings"))
             .child(
@@ -57,7 +60,7 @@ impl FerrumSystem {
                 let active = matches!(self.source, Source::Project(_));
                 let name = match &self.source {
                     Source::Project(_) => self.system.name.clone(),
-                    Source::Demo(_) => "Architecture".into(),
+                    Source::Demo(_) | Source::Empty => "Architecture".into(),
                 };
                 col.child(
                     ferrum_ui::sidebar_item("project-system", active, cx)
@@ -95,38 +98,10 @@ impl FerrumSystem {
             ),
         };
 
-        col = col.child(div().h_2()).child(section_toggle(
-            "demos-toggle",
-            "Demos",
-            self.demos_open,
-            cx,
-            cx.listener(|this, _, _, cx| {
-                this.demos_open = !this.demos_open;
-                cx.notify();
-            }),
-        ));
-        for (i, demo) in self.demos.iter().enumerate().filter(|_| self.demos_open) {
-            let active = self.source == Source::Demo(i);
-            col = col.child(
-                ferrum_ui::sidebar_item(("demo", i), active, cx)
-                    .py_1()
-                    .items_start()
-                    .child(
-                        v_flex()
-                            .min_w_0()
-                            .child(div().truncate().child(demo.name.clone()))
-                            .child(
-                                div()
-                                    .text_size(px(11.))
-                                    .text_color(colors.text_muted)
-                                    .line_clamp(2)
-                                    .child(demo.tagline.clone()),
-                            ),
-                    )
-                    .on_click(cx.listener(move |this, _, _, cx| this.show_demo(i, cx))),
-            );
+        // The layers of the user's own diagram only (not a demo's).
+        if !matches!(self.source, Source::Project(_)) {
+            return col;
         }
-
         col = col.child(div().h_2()).child(
             h_flex()
                 .pr_2()
@@ -188,28 +163,4 @@ fn hint(text: &'static str, cx: &App) -> impl IntoElement {
         .text_size(px(12.))
         .text_color(cx.theme().colors().text_muted)
         .child(text)
-}
-
-/// A sidebar group label that folds its group.
-fn section_toggle(
-    id: &'static str,
-    label: &'static str,
-    open: bool,
-    cx: &App,
-    on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static,
-) -> impl IntoElement {
-    h_flex()
-        .id(id)
-        .cursor_pointer()
-        .child(ferrum_ui::sidebar_label(label, cx))
-        .child(
-            Icon::new(if open {
-                IconName::ChevronDown
-            } else {
-                IconName::ChevronRight
-            })
-            .size(IconSize::XSmall)
-            .color(Color::Muted),
-        )
-        .on_click(on_click)
 }

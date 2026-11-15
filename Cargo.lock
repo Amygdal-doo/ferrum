@@ -3223,6 +3223,7 @@ dependencies = [
  "ferrum-ui",
  "ferrumsystem-core",
  "gpui",
+ "serde",
  "tempfile",
 ]
 

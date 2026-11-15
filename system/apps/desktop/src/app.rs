@@ -1,6 +1,8 @@
 //! The window's state: which system is shown (the project's
-//! `.architecture/` or a demo), the selection, the open tab and dialog,
-//! zoom and pan, the flow being walked through, and live pod status.
+//! `.architecture/`, a demo or nothing), the selection, the open tab and
+//! dialog, zoom and pan, the flow being walked through, and live pod
+//! status. The demo opens by itself only at the first start (see
+//! [`crate::prefs`]); after that it is in File › Open Demo and Help.
 
 use std::path::{Path, PathBuf};
 
@@ -9,10 +11,33 @@ use ferrum_ui::prelude::*;
 use ferrumsystem_core::runtime::{Container, Pod};
 use ferrumsystem_core::{EdgeStyle, Provider, Side, System, demos, store};
 
+use crate::prefs::{self, FirstView, UiPrefs};
+
 actions!(
     ferrum_system,
-    [ZoomIn, ZoomOut, ZoomFit, Escape, DeleteSelected]
+    [
+        ZoomIn,
+        ZoomOut,
+        ZoomFit,
+        Escape,
+        DeleteSelected,
+        /// Show or hide the left sidebar.
+        ToggleSidebar,
+        /// Show or hide the right panel (overview, APIs, data, …).
+        TogglePanel,
+        /// Choose a folder (or use the open project) and start its diagram.
+        NewDiagram,
+        /// Open a project folder.
+        OpenProject
+    ]
 );
+
+/// Show demo `index` (of [`demos::all`]).
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = ferrum_system, no_json)]
+pub struct OpenDemo {
+    pub index: usize,
+}
 
 pub const KEY_CONTEXT: &str = "FerrumSystem";
 
@@ -24,6 +49,10 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-0", ZoomFit, context),
         KeyBinding::new("escape", Escape, context),
         KeyBinding::new("backspace", DeleteSelected, context),
+        KeyBinding::new("cmd-b", ToggleSidebar, context),
+        KeyBinding::new("alt-cmd-b", TogglePanel, context),
+        KeyBinding::new("cmd-n", NewDiagram, context),
+        KeyBinding::new("cmd-o", OpenProject, context),
     ]);
 }
 
@@ -33,6 +62,27 @@ pub enum Source {
     /// The project's `.architecture/system.json`.
     Project(PathBuf),
     Demo(usize),
+    /// Nothing: no project diagram and the demo already seen.
+    Empty,
+}
+
+pub struct Options {
+    /// The project asked for (`ferrumsystem <folder>`); else the last one.
+    pub project: Option<PathBuf>,
+    /// `~/.ferrum/ferrumsystem/ui.json` (`None`: nothing saved).
+    pub prefs_file: Option<PathBuf>,
+    /// `~/.ferrum/projects.json` (`None`: not recorded).
+    pub projects_file: Option<PathBuf>,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            project: None,
+            prefs_file: prefs::default_file(),
+            projects_file: ferrum_ui::project::projects_file(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -104,7 +154,8 @@ pub struct FerrumSystem {
     pub(crate) source: Source,
     pub(crate) system: System,
     pub(crate) demos: Vec<System>,
-    pub(crate) sidebar_open: bool,
+    pub(crate) prefs: UiPrefs,
+    prefs_file: Option<PathBuf>,
     pub(crate) selected: Option<String>,
     pub(crate) tab: Tab,
     pub(crate) dialog: Option<Dialog>,
@@ -126,9 +177,7 @@ pub struct FerrumSystem {
     pub(crate) connect_side: Option<Side>,
     /// Right-click menu of connection `.0`, at `.1` (canvas coordinates).
     pub(crate) edge_menu: Option<(usize, Point<f32>)>,
-    pub(crate) show_panel: bool,
     pub(crate) show_toolbar: bool,
-    pub(crate) demos_open: bool,
     /// The Add tab's category and target layer.
     pub(crate) palette: (ferrumsystem_core::Category, String),
     /// Flow walkthrough: (flow, step).
@@ -144,8 +193,15 @@ pub struct FerrumSystem {
 }
 
 impl FerrumSystem {
-    pub fn new(project: Option<PathBuf>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let project_bar = cx.new(|cx| ProjectBar::new("ferrumsystem", window, cx).inline(true));
+    pub fn new(options: Options, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let projects_file = options.projects_file;
+        let project_bar = cx.new(|cx| {
+            ProjectBar::new("ferrumsystem", window, cx)
+                .inline(true)
+                .projects_file(projects_file)
+        });
+        let prefs = prefs::load(options.prefs_file.as_deref());
+        let project = prefs::start_project(options.project, &prefs);
         let subscriptions = vec![
             cx.subscribe(&project_bar, |this: &mut Self, bar, event, cx| {
                 let ProjectBarEvent::Open(path) = event;
@@ -158,10 +214,11 @@ impl FerrumSystem {
             project_bar,
             project: None,
             project_has_system: false,
-            source: Source::Demo(0),
-            system: demos::banking(),
+            source: Source::Empty,
+            system: System::default(),
             demos: demos::all(),
-            sidebar_open: true,
+            prefs,
+            prefs_file: options.prefs_file,
             selected: None,
             tab: Tab::Overview,
             dialog: None,
@@ -176,9 +233,7 @@ impl FerrumSystem {
             drawing: None,
             connect_side: None,
             edge_menu: None,
-            show_panel: true,
             show_toolbar: true,
-            demos_open: true,
             palette: (ferrumsystem_core::Category::Backend, "services".into()),
             walk: None,
             fit_pending: true,
@@ -193,14 +248,58 @@ impl FerrumSystem {
                 .update(cx, |bar, cx| bar.set_project(Some(path), cx));
         }
         this.open_project(project, cx);
+        match prefs::first_view(&this.prefs, this.project_has_system) {
+            FirstView::Demo => this.show_demo(0, cx),
+            FirstView::Project | FirstView::Empty => {}
+        }
         window.focus(&this.focus_handle, cx);
         this
     }
 
-    /// Switches to `project` (its system if it has one, else the first demo).
+    pub fn sidebar_open(&self) -> bool {
+        self.prefs.sidebar_open
+    }
+
+    pub fn panel_open(&self) -> bool {
+        self.prefs.panel_open
+    }
+
+    pub(crate) fn save_prefs(&mut self, cx: &mut Context<Self>) {
+        if let Err(e) = prefs::save(self.prefs_file.as_deref(), &self.prefs) {
+            self.say(Notice::error(format!("Could not save settings: {e}")), cx);
+        }
+    }
+
+    pub fn toggle_sidebar(&mut self, cx: &mut Context<Self>) {
+        self.prefs.sidebar_open = !self.prefs.sidebar_open;
+        self.save_prefs(cx);
+        cx.notify();
+    }
+
+    pub fn set_panel_open(&mut self, open: bool, cx: &mut Context<Self>) {
+        if self.prefs.panel_open != open {
+            self.prefs.panel_open = open;
+            self.save_prefs(cx);
+        }
+        cx.notify();
+    }
+
+    pub fn toggle_panel(&mut self, cx: &mut Context<Self>) {
+        let open = !self.prefs.panel_open;
+        self.set_panel_open(open, cx);
+    }
+
+    /// Switches to `project`: its system if it has one, else nothing (the
+    /// empty view offers to create one).
     pub fn open_project(&mut self, project: Option<PathBuf>, cx: &mut Context<Self>) {
         self.project = project.clone();
         self.project_has_system = false;
+        if let Some(path) = &project
+            && self.prefs.last_project.as_ref() != Some(path)
+        {
+            self.prefs.last_project = Some(path.clone());
+            self.save_prefs(cx);
+        }
         if let Some(path) = project {
             match store::load(&path) {
                 Ok(Some(system)) => {
@@ -212,16 +311,68 @@ impl FerrumSystem {
                 Err(e) => self.notice = Some(Notice::error(e.to_string())),
             }
         }
-        if !matches!(self.source, Source::Demo(_)) {
-            self.show_demo(0, cx);
+        if !self.is_demo() {
+            self.show(Source::Empty, System::default(), cx);
         }
         cx.notify();
     }
 
+    /// Shows demo `index` and remembers that the demo has been seen.
     pub fn show_demo(&mut self, index: usize, cx: &mut Context<Self>) {
         if let Some(system) = self.demos.get(index).cloned() {
             self.show(Source::Demo(index), system, cx);
+            if !self.prefs.demo_seen {
+                self.prefs.demo_seen = true;
+                self.save_prefs(cx);
+            }
         }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.source == Source::Empty
+    }
+
+    /// The open project's diagram (created if it has none), or a folder to
+    /// start one in.
+    pub fn new_diagram(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.project.is_some() {
+            if self.project_has_system {
+                self.show_project_system(cx);
+            } else {
+                self.create_architecture(None, cx);
+            }
+            return;
+        }
+        let receiver = cx.prompt_for_paths(ferrum_ui::gpui::PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: Some("Start diagram here".into()),
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let Ok(Ok(Some(paths))) = receiver.await else {
+                return;
+            };
+            let Some(path) = paths.into_iter().next() else {
+                return;
+            };
+            this.update(cx, |this, cx| {
+                this.project_bar
+                    .update(cx, |bar, cx| bar.set_project(Some(path.clone()), cx));
+                this.open_project(Some(path), cx);
+                if !this.project_has_system {
+                    this.create_architecture(None, cx);
+                }
+            })
+            .ok();
+        })
+        .detach();
+    }
+
+    /// Asks for a project folder (the switcher's "Open folder…").
+    pub fn open_folder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.project_bar
+            .update(cx, |bar, cx| bar.open_folder_dialog(window, cx));
     }
 
     pub fn show_project_system(&mut self, cx: &mut Context<Self>) {
@@ -277,8 +428,12 @@ impl FerrumSystem {
         }
     }
 
-    /// Applies an edit and saves it (demos change only in memory).
+    /// Applies an edit and saves it (demos change only in memory; with
+    /// nothing shown there is nothing to edit).
     pub fn edit(&mut self, cx: &mut Context<Self>, f: impl FnOnce(&mut System)) {
+        if self.is_empty() {
+            return;
+        }
         f(&mut self.system);
         match &self.source {
             Source::Project(path) => {
@@ -291,6 +446,7 @@ impl FerrumSystem {
                     *demo = self.system.clone();
                 }
             }
+            Source::Empty => {}
         }
         cx.notify();
     }
@@ -303,7 +459,7 @@ impl FerrumSystem {
     pub fn icon_root(&self) -> Option<&Path> {
         match &self.source {
             Source::Project(path) => Some(path),
-            Source::Demo(_) => None,
+            Source::Demo(_) | Source::Empty => None,
         }
     }
 

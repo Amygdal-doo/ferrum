@@ -120,6 +120,8 @@ icon_names! {
     Terminal => "terminal",
     ThreadsSidebarLeftClosed => "panel-left-dashed",
     ThreadsSidebarLeftOpen => "panel-left",
+    ThreadsSidebarRightClosed => "panel-right-dashed",
+    ThreadsSidebarRightOpen => "panel-right",
     ToolHammer => "hammer",
     Trash => "trash-2",
     Undo => "undo-2",

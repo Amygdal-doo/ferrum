@@ -1,5 +1,6 @@
 //! Ferrum System (FeS) desktop entry point. `ferrumsystem [folder]` opens
-//! that project (its `.architecture/` folder when it has one).
+//! that project (its `.architecture/` folder when it has one); without one
+//! the project open last, the demo at the very first start, else nothing.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
@@ -10,7 +11,9 @@ mod dialogs;
 mod icons;
 mod layout;
 mod live;
+mod menus;
 mod panel;
+mod prefs;
 mod sidebar;
 #[cfg(test)]
 mod tests;
@@ -34,6 +37,11 @@ fn main() {
         .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         app::bind_keys(cx);
-        cx.new(|cx| app::FerrumSystem::new(project, window, cx))
+        cx.set_menus(menus::menus(&app_info::app_info()));
+        let options = app::Options {
+            project,
+            ..app::Options::default()
+        };
+        cx.new(|cx| app::FerrumSystem::new(options, window, cx))
     });
 }

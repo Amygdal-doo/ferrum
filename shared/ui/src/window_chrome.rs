@@ -119,6 +119,20 @@ pub fn sidebar_toggle(id: impl Into<ElementId>, open: bool) -> IconButton {
     )
 }
 
+/// The ◨ button that shows or hides a right-hand panel (inspector,
+/// properties): [`sidebar_toggle`]'s mirror for the trailing edge.
+pub fn panel_toggle(id: impl Into<ElementId>, open: bool) -> IconButton {
+    title_button(
+        id,
+        if open {
+            IconName::ThreadsSidebarRightOpen
+        } else {
+            IconName::ThreadsSidebarRightClosed
+        },
+        if open { "Hide panel" } else { "Show panel" },
+    )
+}
+
 /// The gear next to ◧: opens the app's Settings window (⌘,).
 pub fn settings_button(id: impl Into<ElementId>) -> IconButton {
     title_button(id, IconName::Settings, "Settings (⌘,)")

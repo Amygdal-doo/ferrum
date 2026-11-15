@@ -14,6 +14,7 @@ path = "src/main.rs"
 ferrumsystem-core.workspace = true
 ferrum-ui.workspace = true
 gpui.workspace = true
+serde.workspace = true
 
 [dev-dependencies]
 # Headless GPUI test harness (TestAppContext); no window is shown.

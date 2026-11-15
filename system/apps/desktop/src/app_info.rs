@@ -10,5 +10,7 @@ pub fn app_info() -> AppInfo {
         .key("Zoom in / out", "cmd-= / cmd--")
         .key("Fit diagram", "cmd-0")
         .key("Delete component", "backspace")
+        .key("New diagram / Open project", "cmd-n / cmd-o")
+        .key("Toggle sidebar / panel", "cmd-b / alt-cmd-b")
         .key("Settings", "cmd-,")
 }

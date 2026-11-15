@@ -39,7 +39,7 @@ impl FerrumSystem {
             })
             .unwrap_or_default();
         self.palette.1 = layer;
-        self.show_panel = true;
+        self.set_panel_open(true, cx);
         self.tab = crate::app::Tab::Add;
         cx.notify();
     }

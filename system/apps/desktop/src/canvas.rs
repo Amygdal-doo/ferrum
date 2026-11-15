@@ -603,7 +603,7 @@ impl FerrumSystem {
                     .icon_size(IconSize::Small)
                     .tooltip(Tooltip::text("Settings: style, text, items, deployment"))
                     .on_click(cx.listener(|this, _, _, cx| {
-                        this.show_panel = true;
+                        this.set_panel_open(true, cx);
                         this.tab = crate::app::Tab::Component;
                         cx.notify();
                     })),

@@ -1,11 +1,16 @@
 //! The window: sidebar, the diagram card (header, the toolbar with the
-//! cloud switch, then the canvas) and the panel card, over the backdrop.
+//! cloud switch, then the canvas — or, with nothing to show, the empty
+//! view) and the panel card, over the backdrop. The sidebar (⌘B) and the
+//! panel (⌥⌘B) each fold away; the canvas takes their room.
 
 use ferrum_ui::prelude::*;
 use ferrum_ui::settings::widgets::Segmented;
 use ferrumsystem_core::{EdgeStyle, Provider};
 
-use crate::app::{DeleteSelected, Escape, FerrumSystem, KEY_CONTEXT, ZoomFit, ZoomIn, ZoomOut};
+use crate::app::{
+    DeleteSelected, Escape, FerrumSystem, KEY_CONTEXT, NewDiagram, OpenDemo, OpenProject,
+    TogglePanel, ToggleSidebar, ZoomFit, ZoomIn, ZoomOut,
+};
 
 const PANEL_W: f32 = 430.;
 const HEADER_H: f32 = 52.;
@@ -14,12 +19,23 @@ const TOOLBAR_H: f32 = 44.;
 impl FerrumSystem {
     fn render_header(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
-        ferrum_ui::title_row("diagram-header", !self.sidebar_open, window)
+        let empty = self.is_empty();
+        let (title, tagline): (SharedString, SharedString) = if empty {
+            ("Ferrum System".into(), "No diagram open".into())
+        } else {
+            (
+                self.system.name.clone().into(),
+                self.system.tagline.clone().into(),
+            )
+        };
+        ferrum_ui::title_row("diagram-header", !self.sidebar_open(), window)
             .h(px(HEADER_H))
             .gap_2()
             .border_b_1()
             .border_color(colors.border_variant)
-            .when(!self.sidebar_open, |row| row.child(self.title_controls(cx)))
+            .when(!self.sidebar_open(), |row| {
+                row.child(self.title_controls(cx))
+            })
             .child(
                 v_flex()
                     .min_w_0()
@@ -32,7 +48,7 @@ impl FerrumSystem {
                                 div()
                                     .truncate()
                                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .child(self.system.name.clone()),
+                                    .child(title),
                             )
                             .when(self.is_demo(), |r| {
                                 r.child(
@@ -51,9 +67,18 @@ impl FerrumSystem {
                             .truncate()
                             .text_size(px(12.))
                             .text_color(colors.text_muted)
-                            .child(self.system.tagline.clone()),
+                            .child(tagline),
                     ),
             )
+            .when(!empty, |row| row.child(self.header_buttons(cx)))
+    }
+
+    /// The header's right end: the tools toggle and the ◨ panel toggle.
+    fn header_buttons(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let open = self.panel_open();
+        h_flex()
+            .flex_none()
+            .gap_0p5()
             .child(
                 ferrum_ui::title_button(
                     "toggle-toolbar",
@@ -71,20 +96,77 @@ impl FerrumSystem {
                 })),
             )
             .child(
-                ferrum_ui::title_button(
-                    "toggle-panel",
-                    IconName::Info,
-                    if self.show_panel {
-                        "Hide overview, APIs, data and the rest"
+                ferrum_ui::panel_toggle("toggle-panel", open)
+                    .tooltip(Tooltip::text(if open {
+                        "Hide panel: overview, APIs, data… (⌥⌘B)"
                     } else {
-                        "Show overview, APIs, data and the rest"
-                    },
-                )
-                .toggle_state(self.show_panel)
-                .on_click(cx.listener(|this, _, _, cx| {
-                    this.show_panel = !this.show_panel;
-                    cx.notify();
-                })),
+                        "Show panel: overview, APIs, data… (⌥⌘B)"
+                    }))
+                    .on_click(cx.listener(|this, _, _, cx| this.toggle_panel(cx))),
+            )
+    }
+
+    /// Instead of the canvas when nothing is shown: start a diagram, open a
+    /// project, or look at the demo.
+    fn render_empty(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors().clone();
+        let text = if self.project.is_some() {
+            "This project has no diagram yet. Start one: it is kept in .architecture/ inside the project."
+        } else {
+            "Open a project folder to see its diagram, or start a new one."
+        };
+        v_flex()
+            .id("empty-state")
+            .size_full()
+            .items_center()
+            .justify_center()
+            .gap_3()
+            .p_6()
+            .child(
+                Icon::new(IconName::Blocks)
+                    .size(IconSize::Medium)
+                    .color(Color::Muted),
+            )
+            .child(
+                div()
+                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                    .child("No diagram open"),
+            )
+            .child(
+                div()
+                    .max_w(px(360.))
+                    .text_center()
+                    .text_size(px(13.))
+                    .text_color(colors.text_muted)
+                    .child(text),
+            )
+            .child(
+                h_flex()
+                    .gap_2()
+                    .child(
+                        Button::new("empty-new-diagram", "New diagram")
+                            .style(ButtonStyle::Filled)
+                            .start_icon(Icon::new(IconName::Plus).size(IconSize::Small))
+                            .tooltip(Tooltip::text("New diagram (⌘N)"))
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.new_diagram(window, cx)),
+                            ),
+                    )
+                    .child(
+                        Button::new("empty-open", "Open…")
+                            .style(ButtonStyle::Outlined)
+                            .tooltip(Tooltip::text("Open a project folder (⌘O)"))
+                            .on_click(
+                                cx.listener(|this, _, window, cx| this.open_folder(window, cx)),
+                            ),
+                    ),
+            )
+            .child(
+                Button::new("empty-open-demo", "Open the demo")
+                    .style(ButtonStyle::Subtle)
+                    .size(ButtonSize::Compact)
+                    .label_size(LabelSize::Small)
+                    .on_click(cx.listener(|this, _, _, cx| this.show_demo(0, cx))),
             )
     }
 
@@ -187,8 +269,8 @@ impl Render for FerrumSystem {
             // sidebar, the panel, the header rows and the gaps.
             self.fit_pending = false;
             let view = window.viewport_size();
-            let side = if self.sidebar_open { 250. } else { 0. };
-            let panel = if self.show_panel { PANEL_W } else { 0. };
+            let side = if self.sidebar_open() { 250. } else { 0. };
+            let panel = if self.panel_open() { PANEL_W } else { 0. };
             let w = f32::from(view.width) - side - panel - 30.;
             let h = f32::from(view.height) - HEADER_H - TOOLBAR_H - 20.;
             self.fit_to(w, h);
@@ -200,10 +282,15 @@ impl Render for FerrumSystem {
             .flex()
             .flex_col()
             .overflow_hidden()
-            .child(self.render_header(window, cx))
-            .when(self.show_toolbar, |c| c.child(self.render_toolbar(cx)))
-            .child(div().flex_1().min_h_0().child(self.render_canvas(cx)));
-        let panel = self.show_panel.then(|| {
+            .child(self.render_header(window, cx));
+        let diagram = if self.is_empty() {
+            diagram.child(div().flex_1().min_h_0().child(self.render_empty(cx)))
+        } else {
+            diagram
+                .when(self.show_toolbar, |c| c.child(self.render_toolbar(cx)))
+                .child(div().flex_1().min_h_0().child(self.render_canvas(cx)))
+        };
+        let panel = (self.panel_open() && !self.is_empty()).then(|| {
             ferrum_ui::pane_card(false, cx)
                 .flex_none()
                 .w(px(PANEL_W))
@@ -231,6 +318,13 @@ impl Render for FerrumSystem {
             .on_action(cx.listener(|this, _: &ZoomIn, _, cx| this.zoom_by(1.2, cx)))
             .on_action(cx.listener(|this, _: &ZoomOut, _, cx| this.zoom_by(1. / 1.2, cx)))
             .on_action(cx.listener(|this, _: &ZoomFit, _, cx| this.fit(cx)))
+            .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| this.toggle_sidebar(cx)))
+            .on_action(cx.listener(|this, _: &TogglePanel, _, cx| this.toggle_panel(cx)))
+            .on_action(cx.listener(|this, _: &NewDiagram, window, cx| this.new_diagram(window, cx)))
+            .on_action(
+                cx.listener(|this, _: &OpenProject, window, cx| this.open_folder(window, cx)),
+            )
+            .on_action(cx.listener(|this, a: &OpenDemo, _, cx| this.show_demo(a.index, cx)))
             .on_action(cx.listener(|this, _: &DeleteSelected, _, cx| {
                 if this.dialog.is_none() && this.fields.is_none() {
                     this.delete_selected(cx)
@@ -246,7 +340,7 @@ impl Render for FerrumSystem {
             .child(
                 h_flex()
                     .size_full()
-                    .when(self.sidebar_open, |row| {
+                    .when(self.sidebar_open(), |row| {
                         row.child(self.render_sidebar(window, cx))
                     })
                     .child(
@@ -257,7 +351,7 @@ impl Render for FerrumSystem {
                             .gap(ferrum_ui::PANE_GAP)
                             .py(ferrum_ui::PANE_GAP)
                             .pr(ferrum_ui::PANE_GAP)
-                            .when(!self.sidebar_open, |r| r.pl(ferrum_ui::PANE_GAP))
+                            .when(!self.sidebar_open(), |r| r.pl(ferrum_ui::PANE_GAP))
                             .child(diagram)
                             .children(panel),
                     ),
