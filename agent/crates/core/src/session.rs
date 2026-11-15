@@ -10,7 +10,7 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 
 use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender, unbounded};
@@ -171,7 +171,7 @@ struct Shared {
     sandbox: Sandbox,
     project: PathBuf,
     home: PathBuf,
-    settings: AgentSettings,
+    settings: Arc<Mutex<AgentSettings>>,
     secrets: Arc<dyn SecretStore>,
     runner: Arc<dyn CommandRunner>,
     provider_override: Option<Arc<dyn Provider>>,
@@ -196,9 +196,12 @@ struct Inner {
     home: PathBuf,
     runtime: Handle,
     agent: Mutex<AgentChoice>,
-    settings: Mutex<AgentSettings>,
+    /// Shared with sibling sessions.
+    settings: Arc<Mutex<AgentSettings>>,
     mode: Arc<Mutex<Mode>>,
     thread: Mutex<Thread>,
+    /// Set once the session's thread was deleted: nothing is saved again.
+    discarded: AtomicBool,
     store: ThreadStore,
     /// Id and title of the thread as last saved (to tell the UI when the
     /// list changes).
@@ -266,7 +269,7 @@ impl ChatSession {
             sandbox,
             project,
             home: config.home,
-            settings: config.settings,
+            settings: Arc::new(Mutex::new(config.settings)),
             secrets: config.secrets,
             runner: config.runner,
             provider_override: config.provider_override,
@@ -306,7 +309,7 @@ impl ChatSession {
             sandbox: inner.sandbox.clone(),
             project: inner.project.clone(),
             home: inner.home.clone(),
-            settings: self.settings(),
+            settings: inner.settings.clone(),
             secrets: inner.secrets.clone(),
             runner: inner.runner.clone(),
             provider_override: inner.provider_override.clone(),
@@ -335,9 +338,10 @@ impl ChatSession {
             home: shared.home,
             runtime: crate::runtime::handle(),
             agent: Mutex::new(agent),
-            settings: Mutex::new(shared.settings),
+            settings: shared.settings,
             mode: Arc::new(Mutex::new(thread.mode)),
             thread: Mutex::new(thread),
+            discarded: AtomicBool::new(false),
             store,
             saved_as: Mutex::new(saved_as),
             changes: shared.changes,
@@ -427,6 +431,14 @@ impl ChatSession {
         }
         lock(&self.inner.queue).clear();
         self.inner.emit_queue();
+    }
+
+    /// Stops this session for good because its thread is being deleted:
+    /// like [`Self::cancel`], and the thread is never saved again (the
+    /// cancelled turn would otherwise write it back as it ends).
+    pub fn discard(&self) {
+        self.inner.discarded.store(true, Ordering::SeqCst);
+        self.cancel();
     }
 
     pub fn respond_permission(&self, id: u64, decision: Decision) {
@@ -788,6 +800,9 @@ impl Inner {
     }
 
     fn save(&self) {
+        if self.discarded.load(Ordering::SeqCst) {
+            return;
+        }
         let thread = lock(&self.thread).clone();
         if thread.messages.is_empty() {
             return;

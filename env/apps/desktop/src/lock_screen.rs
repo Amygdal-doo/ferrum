@@ -129,7 +129,7 @@ impl EnvApp {
                 h_flex()
                     .gap_2()
                     .child(Icon::new(IconName::Lock).color(Color::Accent))
-                    .child(Headline::new("FerrumEnv").size(HeadlineSize::Small)),
+                    .child(Headline::new("FerrumVariables").size(HeadlineSize::Small)),
             );
         if setup {
             card = card

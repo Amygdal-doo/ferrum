@@ -12,6 +12,7 @@ pub mod public_alpha;
 pub mod rex_layout_and_fec;
 pub mod system_and_vibe;
 pub mod term_menu_worktrees;
+pub mod three_new_names;
 
 use maud::{Markup, html};
 

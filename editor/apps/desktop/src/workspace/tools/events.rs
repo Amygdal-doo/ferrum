@@ -59,12 +59,22 @@ impl Workspace {
             // the chat's footer offers no git actions here.
             // Thread status lives in the chat's own thread list.
             ChatEvent::ThreadsChanged | ChatEvent::Git(_) | ChatEvent::StatusChanged => {}
-            // A chat notification was clicked: show the Agent pane (another
-            // project's chat has switched thread; it shows with its folder).
-            ChatEvent::Reveal { .. } if self.tools.chat.as_ref() == Some(chat) => {
+            // A chat notification was clicked: show the Agent pane. Another
+            // project's chat (it has switched to the thread) comes back
+            // with its folder, as if that project were picked.
+            ChatEvent::Reveal { .. } => {
+                if self.tools.chat.as_ref() != Some(chat) {
+                    let root = self
+                        .tools
+                        .other_chats
+                        .iter()
+                        .find(|(_, c)| *c == chat)
+                        .map(|(root, _)| root.clone());
+                    let Some(root) = root else { return };
+                    self.set_root(root, window, cx);
+                }
                 self.open_tool(ToolKind::Agent, window, cx);
             }
-            ChatEvent::Reveal { .. } => {}
         }
     }
 

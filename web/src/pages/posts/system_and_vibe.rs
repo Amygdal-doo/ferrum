@@ -7,8 +7,8 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::products::{
-    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUM_SYSTEM, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA,
-    FERRUMENV, FERRUMGIT, FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVIBE, Product,
+    FERRUM_LAUNCHER, FERRUM_SYSTEM, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENGINEER,
+    FERRUMGIT, FERRUMIDE, FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVARIABLES, Product,
 };
 use crate::updates::Post;
 
@@ -30,7 +30,7 @@ const RELEASES: [(Product, &str, &str); 12] = [
         "New: system architecture diagrams.",
     ),
     (
-        FERRUMVIBE,
+        FERRUMENGINEER,
         "0.5.0-alpha.1",
         "FerrumAgentic's new name, FeV, and fev.",
     ),
@@ -45,7 +45,7 @@ const RELEASES: [(Product, &str, &str); 12] = [
         "Ferrum System; moves FerrumAgentic to FerrumVibe.",
     ),
     (
-        FERRUM_EDITOR,
+        FERRUMIDE,
         "0.8.2-alpha.1",
         "Settings gear; new agent logos.",
     ),
@@ -56,7 +56,7 @@ const RELEASES: [(Product, &str, &str); 12] = [
     (FERRUMCONTAINERS, "0.4.2-alpha.1", "Settings gear."),
     (FERRUMPORTS, "0.3.2-alpha.1", "Settings gear."),
     (
-        FERRUMENV,
+        FERRUMVARIABLES,
         "0.2.3-alpha.1",
         "Settings gear; its command is now fen.",
     ),

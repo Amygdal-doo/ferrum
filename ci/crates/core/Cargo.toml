@@ -1,6 +1,6 @@
 [package]
 name = "ferrumci-core"
-description = "CI core behind Ferrum Editor's CI page: GitHub Actions runs, jobs, logs and workflow dispatch on top of FerrumGIT's forge client."
+description = "CI core behind FerrumIDE's CI page: GitHub Actions runs, jobs, logs and workflow dispatch on top of FerrumGIT's forge client."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

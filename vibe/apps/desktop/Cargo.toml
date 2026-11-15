@@ -1,6 +1,6 @@
 [package]
 name = "ferrumvibe-desktop"
-description = "FerrumVibe: an agent always live in your project, with its threads, FerrumGIT and FerrumTerm. GPUI desktop shell."
+description = "FerrumEngineer: an agent always live in your project, with its threads, FerrumGIT and FerrumTerm. GPUI desktop shell."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

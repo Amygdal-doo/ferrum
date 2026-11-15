@@ -7,7 +7,7 @@ on top and a table of listeners below it, with a detail pane for the selected ro
 Everything runs locally: FerrumPorts reads the system with `lsof`, `ps` and `ss` and writes
 nothing except the shared recent-projects list (`~/.ferrum/projects.json`, through the
 project strip). Part of the Ferrum monorepo, with the same theme and components as
-[FerrumContainers](../dock), [FerrumKit](../kit) and [Ferrum Editor](../editor).
+[FerrumContainers](../dock), [FerrumKit](../kit) and [FerrumIDE](../editor).
 
 > **Status: alpha, first vertical slice.** "Tested" means automated unit tests of
 > `ferrumports-core` plus headless GPUI tests of the root view (`TestAppContext`, no window).
@@ -23,7 +23,7 @@ project strip). Part of the Ferrum monorepo, with the same theme and components 
 | Well-known port hints (3000 web, 5173 Vite, 5432 Postgres, 6379 Redis, 9229 Node inspector, 27017 Mongo, …; about 45 ports) | ✅ tested |
 | Table: auto-refresh every 2 s (**Pause** / **Resume**, ⌘⇧P), **Refresh** (⌘R), search (⌘F) across port, pid, process, command, project, address, user and hint. Numbers match ports by prefix (`30` finds 3000) or an exact pid | ✅ filter unit-tested; UI headless-tested |
 | **Group by project** (`shop — 3000 web, 5432 postgres`, with "Other" last) and **This project** (only listeners of the project in the strip) | ✅ tested |
-| Row actions: open `http://localhost:<port>` (icon on each row), stop the process (icon). Detail pane: open in browser, copy URL / PID / command, reveal the working directory, open the project in Ferrum Editor / FerrumGIT / FerrumTerm, stop | ⚠️ wired, not hand-tested |
+| Row actions: open `http://localhost:<port>` (icon on each row), stop the process (icon). Detail pane: open in browser, copy URL / PID / command, reveal the working directory, open the project in FerrumIDE / FerrumGIT / FerrumTerm, stop | ⚠️ wired, not hand-tested |
 | Kill: a confirmation dialog shows the full command line and sends SIGTERM. If the process is still alive 2 s later, a second dialog offers SIGKILL. Permission errors name the owner and the `sudo kill` to run. Pids 0, 1 and FerrumPorts itself are refused. Uses the `kill` command (no unsafe code) | ✅ core tested (incl. killing a real child); dialog flow headless-tested |
 | "Is port N free?": type a port in the toolbar field and press Enter or **Check**. It binds `127.0.0.1`, `0.0.0.0` and `::` to test, and when the port is taken it names the process and suggests the nearest free port | ✅ tested |
 | Detail pane: full command, process and pid, addresses and exposure (local / interface / all interfaces), working directory, project, user, start time, and every port of the same pid (click one to select it) | ✅ headless-rendered |

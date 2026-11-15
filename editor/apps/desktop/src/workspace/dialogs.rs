@@ -231,7 +231,7 @@ impl Workspace {
                 )
             }
             Dialog::About => Some(
-                Modal::new("Ferrum Editor")
+                Modal::new("FerrumIDE")
                     .on_dismiss(dismiss)
                     .dismiss_on_backdrop(true)
                     .child(Label::new(format!("Version {}", crate::VERSION)))

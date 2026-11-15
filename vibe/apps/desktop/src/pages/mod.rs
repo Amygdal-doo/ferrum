@@ -20,7 +20,7 @@ use ferrumagent_ui::core::Mode;
 use ferrumagent_ui::core::rules::Rule;
 use ferrumagent_ui::core::session::McpServerStatus;
 
-use crate::app::FerrumVibe;
+use crate::app::FerrumEngineer;
 use crate::automations::Automation;
 use crate::extensions::Server;
 use crate::nav::Page;
@@ -54,7 +54,7 @@ pub struct PageState {
 fn input(
     placeholder: &'static str,
     window: &mut Window,
-    cx: &mut Context<FerrumVibe>,
+    cx: &mut Context<FerrumEngineer>,
 ) -> Entity<TextInput> {
     cx.new(|cx| {
         TextInput::new(window, cx)
@@ -64,7 +64,11 @@ fn input(
 }
 
 impl PageState {
-    pub fn new(data_dir: Option<&Path>, window: &mut Window, cx: &mut Context<FerrumVibe>) -> Self {
+    pub fn new(
+        data_dir: Option<&Path>,
+        window: &mut Window,
+        cx: &mut Context<FerrumEngineer>,
+    ) -> Self {
         let search = input("Search threads in every project", window, cx);
         let searching = cx.subscribe_in(&search, window, |this, _, event, _, cx| {
             if matches!(event, TextInputEvent::Changed | TextInputEvent::Submit) {
@@ -121,7 +125,7 @@ impl PageState {
         project: Option<&Path>,
         agent_home: &Path,
         mcp_status: Option<Vec<McpServerStatus>>,
-        cx: &mut Context<FerrumVibe>,
+        cx: &mut Context<FerrumEngineer>,
     ) {
         match page {
             Page::Knowledge => {
@@ -160,13 +164,13 @@ impl PageState {
     }
 
     /// The project changed: drop what belonged to the old one.
-    pub fn project_changed(&mut self, _project: &Path, cx: &mut Context<FerrumVibe>) {
+    pub fn project_changed(&mut self, _project: &Path, cx: &mut Context<FerrumEngineer>) {
         self.rules.clear();
         cx.notify();
     }
 }
 
-impl FerrumVibe {
+impl FerrumEngineer {
     pub(crate) fn render_page(
         &mut self,
         page: Page,

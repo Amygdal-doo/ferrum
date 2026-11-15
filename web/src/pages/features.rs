@@ -25,7 +25,7 @@ struct AppFeatures {
 
 const APPS: [AppFeatures; 11] = [
     AppFeatures {
-        product: products::FERRUM_EDITOR,
+        product: products::FERRUMIDE,
         version: "0.5.0-alpha.1",
         summary: "The suite's code editor: small, hackable and in the spirit of Atom, written \
                   from scratch in Rust. New: Git, Agent and Term open inside the window.",
@@ -79,11 +79,11 @@ const APPS: [AppFeatures; 11] = [
             ),
         ],
         demo: feature_demos::editor,
-        demo_label: "Ferrum Editor with a tree view and tabs: three cursors type at once, then \
+        demo_label: "FerrumIDE with a tree view and tabs: three cursors type at once, then \
                      the command palette filters commands on toggle",
     },
     AppFeatures {
-        product: products::FERRUMVIBE,
+        product: products::FERRUMENGINEER,
         version: "0.1.0-alpha.1",
         summary: "New: FerrumChat, FerrumGIT and FerrumTerm side by side on one project, in one \
                   window for working with coding agents.",
@@ -110,7 +110,7 @@ const APPS: [AppFeatures; 11] = [
             ),
         ],
         demo: tool_demos::vibe,
-        demo_label: "FerrumVibe with three columns: the chat edits a file, the git column \
+        demo_label: "FerrumEngineer with three columns: the chat edits a file, the git column \
                      shows the change, and the terminal column runs the tests",
     },
     AppFeatures {
@@ -341,7 +341,7 @@ const APPS: [AppFeatures; 11] = [
                      server after a confirmation",
     },
     AppFeatures {
-        product: products::FERRUMENV,
+        product: products::FERRUMVARIABLES,
         version: "0.1.0-alpha.1",
         summary: "New: your projects' environment variables in an encrypted vault, locked by a \
                   master password.",
@@ -368,7 +368,7 @@ const APPS: [AppFeatures; 11] = [
             ),
         ],
         demo: project_demos::env,
-        demo_label: "FerrumEnv showing a project's development variables with secrets masked, \
+        demo_label: "FerrumVariables showing a project's development variables with secrets masked, \
                      one value revealed and copied",
     },
 ];
@@ -376,9 +376,9 @@ const APPS: [AppFeatures; 11] = [
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Features of every Ferrum app"),
-        "What every Ferrum app can do in the current alpha: Ferrum Editor, FerrumVibe, \
+        "What every Ferrum app can do in the current alpha: FerrumIDE, FerrumEngineer, \
          FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts \
-         and FerrumEnv.",
+         and FerrumVariables.",
         PATH,
         "page-features",
     )
@@ -406,7 +406,7 @@ fn hero(trail: &[Crumb]) -> Markup {
             }
             p {
                 "Most of them share a project strip at the top: the project's name, path and \
-                 branch, and buttons to open it in Ferrum Editor, FerrumGIT or FerrumTerm. See "
+                 branch, and buttons to open it in FerrumIDE, FerrumGIT or FerrumTerm. See "
                 a href=(super::docs::project_bar::PATH) { "the project bar" } "."
             }
         })

@@ -54,12 +54,12 @@ impl Product {
     }
 }
 
-pub const FERRUMVIBE: Product = Product {
-    slug: "ferrumvibe",
-    name: "FerrumVibe",
+pub const FERRUMENGINEER: Product = Product {
+    slug: "ferrumengineer",
+    name: "FerrumEngineer",
     logo: "vibe",
     accent_var: "--app-vibe",
-    kind: "Vibe coding",
+    kind: "Agentic engineering",
     tagline: "FerrumChat, FerrumGIT and FerrumTerm side by side on one project, in one window.",
     status: Status::Alpha,
 };
@@ -147,9 +147,9 @@ pub const FERRUMPORTS: Product = Product {
     status: Status::Alpha,
 };
 
-pub const FERRUMENV: Product = Product {
-    slug: "ferrumenv",
-    name: "FerrumEnv",
+pub const FERRUMVARIABLES: Product = Product {
+    slug: "ferrumvariables",
+    name: "FerrumVariables",
     logo: "env",
     accent_var: "--app-env",
     kind: "Environment vault",
@@ -158,9 +158,9 @@ pub const FERRUMENV: Product = Product {
     status: Status::Alpha,
 };
 
-pub const FERRUM_EDITOR: Product = Product {
-    slug: "ferrum-editor",
-    name: "Ferrum Editor",
+pub const FERRUMIDE: Product = Product {
+    slug: "ferrumide",
+    name: "FerrumIDE",
     logo: "editor",
     accent_var: "--app-editor",
     kind: "Code editor",
@@ -179,10 +179,10 @@ pub const FERRUM_LAUNCHER: Product = Product {
     status: Status::Alpha,
 };
 
-/// Site order: Ferrum Editor, the suite's code editor, leads, as in catalog.json.
+/// Site order: FerrumIDE, the suite's code editor, leads, as in catalog.json.
 pub const ALL: [Product; 12] = [
-    FERRUM_EDITOR,
-    FERRUMVIBE,
+    FERRUMIDE,
+    FERRUMENGINEER,
     FERRUM_SYSTEM,
     FERRUMAPI,
     FERRUMGIT,
@@ -191,7 +191,7 @@ pub const ALL: [Product; 12] = [
     FERRUMKIT,
     FERRUMCONTAINERS,
     FERRUMPORTS,
-    FERRUMENV,
+    FERRUMVARIABLES,
     FERRUM_LAUNCHER,
 ];
 

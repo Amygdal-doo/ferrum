@@ -70,7 +70,7 @@ pub fn to_toml(theme: &Theme) -> String {
     to_toml_with_header(
         theme,
         &format!(
-            "# Ferrum Editor theme — a complete copy of the built-in `{}`.\n\
+            "# FerrumIDE theme — a complete copy of the built-in `{}`.\n\
              # Copy this file to a new name (e.g. my-theme.toml), change `name`, edit the\n\
              # colours, then pick it with \"Theme: Select\". Files ending in\n\
              # .example.toml are not loaded. Colours: #rgb, #rrggbb or #rrggbbaa.\n\

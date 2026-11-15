@@ -1,6 +1,6 @@
 //! FerrumTerm's Terminal page in the shared Settings window (font, cursor,
-//! Option key, selection, shell, tabs), also shown by Ferrum Editor and
-//! FerrumVibe. Keyboard and Machines are in `settings_keyboard` and
+//! Option key, selection, shell, tabs), also shown by FerrumIDE and
+//! FerrumEngineer. Keyboard and Machines are in `settings_keyboard` and
 //! `settings_machines`.
 
 use std::cell::RefCell;
@@ -231,8 +231,8 @@ impl Render for TerminalSettingsView {
                         Row::new("tab-position", "Show tabs")
                             .detail(
                                 "In the sidebar, under their session, or across the top of the \
-                                 terminal (the sidebar then lists sessions). Also in Ferrum \
-                                 Editor's and FerrumVibe's terminals.",
+                                 terminal (the sidebar then lists sessions). Also in \
+                                 FerrumIDE's and FerrumEngineer's terminals.",
                             )
                             .control(
                                 Segmented::new("tab-position-segments", tab_index)

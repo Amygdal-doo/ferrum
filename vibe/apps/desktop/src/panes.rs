@@ -1,7 +1,7 @@
 //! The embedded views and their wiring: a chat per project, the git view
 //! (kept while a project is open: it feeds the chat's branch line and runs
 //! its git requests), the terminal (created on first show); chat →
-//! terminal, chat → git, files → Ferrum Editor.
+//! terminal, chat → git, files → FerrumIDE.
 
 use std::path::{Path, PathBuf};
 
@@ -11,10 +11,10 @@ use ferrumagent_ui::{ChatEvent, ChatView, GitRequest, GitStatus};
 use ferrumgit_ui::{GitView, GitViewEvent, GitViewOptions, RemoteCommand, RepoSummary};
 use ferrumterm_ui::{TermView, TermViewOptions};
 
-use crate::app::{ChatAction, ChatSlot, FerrumVibe};
+use crate::app::{ChatAction, ChatSlot, FerrumEngineer};
 use crate::layout::Column;
 
-impl FerrumVibe {
+impl FerrumEngineer {
     /// Creates the views the project and the shown panes need.
     pub(crate) fn ensure_views(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.ensure_chat(window, cx);
@@ -140,8 +140,9 @@ impl FerrumVibe {
             ChatEvent::ChangesUpdated { files } if current => {
                 self.pending_changes = *files;
                 self.refresh_git(window, cx);
-                if let Some(tree) = &self.files {
-                    tree.update(cx, |tree, cx| tree.refresh(cx));
+                // A hidden Files pane catches up when it is shown again.
+                if let Some(tree) = self.files.as_ref().filter(|_| self.layout.files.visible) {
+                    tree.update(cx, |tree, cx| tree.refresh_in_background(cx));
                 }
                 cx.notify();
             }

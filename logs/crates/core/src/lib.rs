@@ -1,4 +1,4 @@
-//! Logs core (behind Ferrum Editor's Logs page): everything below the UI.
+//! Logs core (behind FerrumIDE's Logs page): everything below the UI.
 //!
 //! - [`source`] / [`store`]: a project's saved sources (files, commands,
 //!   Docker containers, compose services) in `~/.ferrum/logs/projects.json`;

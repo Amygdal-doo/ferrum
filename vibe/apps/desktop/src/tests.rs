@@ -15,7 +15,7 @@ use ferrumgit_ui::GitViewEvent;
 use gpui::{Entity, Modifiers, MouseButton, TestAppContext, VisualTestContext, point, px, size};
 use tempfile::TempDir;
 
-use crate::app::{FerrumVibe, Options};
+use crate::app::{FerrumEngineer, Options};
 use crate::automations::{Automation, Schedule};
 use crate::layout::{self, Column, Layout};
 use crate::nav::Page;
@@ -95,7 +95,7 @@ impl Fixture {
         &self,
         cx: &'a mut TestAppContext,
         project: Option<PathBuf>,
-    ) -> (Entity<FerrumVibe>, &'a mut VisualTestContext) {
+    ) -> (Entity<FerrumEngineer>, &'a mut VisualTestContext) {
         cx.executor().allow_parking();
         let git_data = self.path("git-data");
         cx.update(|cx| {
@@ -107,7 +107,7 @@ impl Fixture {
             crate::app::bind_keys(cx);
         });
         let options = self.options(project);
-        let (app, cx) = cx.add_window_view(|window, cx| FerrumVibe::new(options, window, cx));
+        let (app, cx) = cx.add_window_view(|window, cx| FerrumEngineer::new(options, window, cx));
         cx.simulate_resize(size(px(1500.), px(900.)));
         draw(cx);
         (app, cx)
@@ -120,17 +120,17 @@ fn draw(cx: &mut VisualTestContext) {
 }
 
 fn read<R>(
-    app: &Entity<FerrumVibe>,
+    app: &Entity<FerrumEngineer>,
     cx: &mut VisualTestContext,
-    f: impl FnOnce(&FerrumVibe) -> R,
+    f: impl FnOnce(&FerrumEngineer) -> R,
 ) -> R {
     app.read_with(cx, |app, _| f(app))
 }
 
 fn update(
-    app: &Entity<FerrumVibe>,
+    app: &Entity<FerrumEngineer>,
     cx: &mut VisualTestContext,
-    f: impl FnOnce(&mut FerrumVibe, &mut gpui::Window, &mut gpui::Context<FerrumVibe>),
+    f: impl FnOnce(&mut FerrumEngineer, &mut gpui::Window, &mut gpui::Context<FerrumEngineer>),
 ) {
     cx.update(|window, cx| app.update(cx, |app, cx| f(app, window, cx)));
     draw(cx);
@@ -158,7 +158,11 @@ fn width(cx: &mut VisualTestContext, key: &'static str) -> f32 {
 }
 
 /// Waits (on real threads and timers) until `done` holds.
-fn wait(app: &Entity<FerrumVibe>, cx: &mut VisualTestContext, done: impl Fn(&FerrumVibe) -> bool) {
+fn wait(
+    app: &Entity<FerrumEngineer>,
+    cx: &mut VisualTestContext,
+    done: impl Fn(&FerrumEngineer) -> bool,
+) {
     for _ in 0..400 {
         // Test timers only fire when the clock is moved.
         cx.executor()

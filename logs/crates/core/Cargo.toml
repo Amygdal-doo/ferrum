@@ -1,6 +1,6 @@
 [package]
 name = "ferrumlogs-core"
-description = "Logs core behind Ferrum Editor's Logs page: log sources (files, commands, Docker), parsing, buffering and filtering."
+description = "Logs core behind FerrumIDE's Logs page: log sources (files, commands, Docker), parsing, buffering and filtering."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

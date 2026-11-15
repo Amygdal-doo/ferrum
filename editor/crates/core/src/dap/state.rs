@@ -380,7 +380,7 @@ pub fn evaluate_result(body: &Value) -> (String, i64) {
 pub fn initialize_args(adapter_id: &str) -> Value {
     json!({
         "clientID": "ferrum-editor",
-        "clientName": "Ferrum Editor",
+        "clientName": "FerrumIDE",
         "adapterID": adapter_id,
         "locale": "en",
         "linesStartAt1": true,

@@ -7,12 +7,13 @@ DARK = "#16130f"
 APPS = {
     # name: (symbol letter after "Fe", accent, glyph). The core mark is plain "Fe";
     # every app is "Fe" + a capital in its accent: FeA, FeG, FeD, FeT, FeL,
-    # FeK (Kit), FeC (FerrumContainers), FeE (Editor), FeP (Ports) and
-    # FeE (Env: the vault; same letter as the Editor, told apart by the
-    # vermilion accent and the padlock badge), FeV (FerrumVibe, formerly FerrumAgentic: chat, git and
-    # terminal side by side; aurora accent, spark badge; the app is now
-    # FerrumVibe, so its capital is V), FeS (Ferrum System: architecture
-    # diagrams; aqua accent, stacked-layers badge).
+    # FeK (Kit), FeC (FerrumContainers), FeI (FerrumIDE, formerly Ferrum
+    # Editor), FeP (Ports), FeV (FerrumVariables, formerly FerrumEnv: the
+    # vault; vermilion accent, padlock badge), FeN (FerrumEngineer, formerly
+    # FerrumVibe and FerrumAgentic: chat, git and terminal side by side;
+    # aurora accent, spark badge), FeS (Ferrum System: architecture
+    # diagrams; aqua accent, stacked-layers badge). The files keep the app
+    # ids (editor, env, vibe).
     "ferrum":  ("e", "#E8743B", None),
     "api":     ("A", "#3FB8A0", "arrows"),
     "git":     ("G", "#F0B43C", "branch"),
@@ -21,10 +22,10 @@ APPS = {
     "launcher": ("L", "#E85A7E", "grid"),
     "kit":     ("K", "#D46BE0", "sliders"),
     "dock":    ("C", "#38BDF8", "containers"),
-    "editor":  ("E", "#C5DC3A", "caret"),
+    "editor":  ("I", "#C5DC3A", "caret"),
     "ports":   ("P", "#5B8DEF", "plug"),
-    "env":     ("E", "#F2665A", "lock"),
-    "vibe":    ("V", "#4CD97B", "spark"),
+    "env":     ("V", "#F2665A", "lock"),
+    "vibe":    ("N", "#4CD97B", "spark"),
     "system":  ("S", "#2DD4BF", "layers"),
 }
 SW = 62  # letter stroke width
@@ -71,6 +72,7 @@ CAPITALS = {
     "E": (["M190 390 H0 V730 H190", "M0 560 H160"], 0, 190),
     "P": (["M0 730 V390 H95 A95 85 0 0 1 95 560 H0"], 0, 190),
     "V": (["M0 390 L100 730 L200 390"], 0, 200),
+    "N": (["M0 730 V390 L200 730 V390"], 0, 200),
     "O": (["M100 390 A100 170 0 0 1 100 730 A100 170 0 0 1 100 390"], 0, 200),
     "I": (["M100 390 V730", "M30 390 H170", "M30 730 H170"], 30, 170),
     "S": (["M188 440 Q165 390 100 390 Q12 390 12 472 Q12 545 100 560 Q190 575 190 648 Q190 730 100 730 Q28 730 6 680"], 6, 190),

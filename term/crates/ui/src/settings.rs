@@ -1,7 +1,7 @@
 //! FerrumTerm's terminal settings (Settings › Terminal), kept in
 //! `~/.ferrum/ferrumterm/settings.json` and shared by every place a
 //! terminal is shown: the FerrumTerm window and the panes embedded in
-//! Ferrum Editor and FerrumVibe.
+//! FerrumIDE and FerrumEngineer.
 //!
 //! Held in a process-wide cell so non-UI code (key translation, spawning)
 //! reads them without an `App`.

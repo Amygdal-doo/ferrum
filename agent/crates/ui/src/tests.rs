@@ -514,3 +514,30 @@ fn threads_keep_running_in_the_background_with_status_and_alerts(cx: &mut TestAp
     assert_eq!(read(&view, cx, |v| v.thread().id.clone()), a);
     assert_eq!(*revealed.borrow(), vec![a.clone()]);
 }
+
+#[test]
+fn failed_turns_notify_as_their_own_event() {
+    use ferrumagent_core::status::Alert;
+    let finished = |error| Alert::Finished {
+        summary: "s".into(),
+        error,
+    };
+    assert_eq!(
+        crate::live::notification("Fix", finished(true)),
+        (crate::FAILED_EVENT, "Fix failed".into(), "s".into())
+    );
+    assert_eq!(
+        crate::live::notification("Fix", finished(false)).0,
+        crate::DONE_EVENT
+    );
+    let needs = Alert::NeedsYou {
+        summary: "q".into(),
+    };
+    assert_eq!(
+        crate::live::notification("Fix", needs).0,
+        crate::NEEDS_YOU_EVENT
+    );
+    assert_eq!(ferrum_ui::notify::sound_for(crate::FAILED_EVENT), "Basso");
+    assert_eq!(ferrum_ui::notify::sound_for(crate::NEEDS_YOU_EVENT), "Ping");
+    assert_eq!(ferrum_ui::notify::sound_for(crate::DONE_EVENT), "Glass");
+}

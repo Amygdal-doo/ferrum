@@ -266,7 +266,7 @@ impl Workspace {
         }
     }
 
-    /// "file — folder — Ferrum Editor", with a dot when unsaved.
+    /// "file — folder — FerrumIDE", with a dot when unsaved.
     fn update_window_title(&mut self, window: &mut Window, cx: &App) {
         let mut parts: Vec<String> = Vec::new();
         if let Some(editor) = self.active_editor() {
@@ -277,7 +277,7 @@ impl Workspace {
         if let Some(name) = self.root.as_deref().and_then(|r| r.file_name()) {
             parts.push(name.to_string_lossy().to_string());
         }
-        parts.push("Ferrum Editor".into());
+        parts.push("FerrumIDE".into());
         let title = parts.join(" — ");
         if title != self.window_title {
             window.set_window_title(&title);

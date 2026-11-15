@@ -214,7 +214,7 @@ pub fn install_vscode(source: &Path, dir: &Path) -> Result<Vec<Installed>, Strin
     for ImportedTheme { theme, warnings } in themes {
         let path = dir.join(format!("{}.toml", slug(&theme.name)));
         let header = format!(
-            "# Imported from the VS Code theme `{origin}` by Ferrum Editor.\n\
+            "# Imported from the VS Code theme `{origin}` by FerrumIDE.\n\
              # Edit freely; importing it again replaces this file.\n"
         );
         std::fs::write(&path, file::to_toml_with_header(&theme, &header))

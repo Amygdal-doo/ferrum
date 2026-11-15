@@ -40,13 +40,13 @@ const FEATURES: &[(&str, &str)] = &[
 ];
 
 const MANAGES: &[&str] = &[
-    "Ferrum Editor, FerrumVibe, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, \
-     FerrumContainers, FerrumPorts and FerrumEnv",
+    "FerrumIDE, FerrumEngineer, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, \
+     FerrumContainers, FerrumPorts and FerrumVariables",
     "Itself: new launcher versions install in place and restart the app",
     "Keeps the last 3 versions of each app by default",
-    "Shell commands like `fee .` to open Ferrum Editor on the current folder, `feg .` for \
-     FerrumGIT or `fet` for FerrumTerm, `fev` for FerrumVibe, `fes` for Ferrum System, and `fep` and `fen` for \
-     FerrumPorts and FerrumEnv, each turned on per app",
+    "Shell commands like `fei .` to open FerrumIDE on the current folder, `feg .` for \
+     FerrumGIT or `fet` for FerrumTerm, `fen` for FerrumEngineer, `fes` for Ferrum System, and `fep` and `fev` for \
+     FerrumPorts and FerrumVariables, each turned on per app",
     "Global shortcuts, a menu bar icon and hiding any app from the Dock (macOS)",
 ];
 

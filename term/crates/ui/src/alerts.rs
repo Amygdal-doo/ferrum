@@ -1,6 +1,6 @@
 //! When an agent's status change deserves a notification: it starts
-//! needing you (a question or a permission prompt), or it finishes a turn
-//! while its terminal is not on screen. One notification per transition, and
+//! needing you (a question or a permission prompt), it fails, or it
+//! finishes a turn while its terminal is not on screen. One notification per transition, and
 //! never the same kind for the same terminal twice within [`DEBOUNCE`].
 //!
 //! The FerrumTerm window delivers them through `ferrum_ui::notify` (toast,
@@ -21,6 +21,10 @@ pub enum Alert {
         question: Option<String>,
     },
     Finished,
+    /// `message`: what went wrong, when known.
+    Failed {
+        message: Option<String>,
+    },
 }
 
 impl Alert {
@@ -30,6 +34,7 @@ impl Alert {
         match self {
             Self::NeedsYou { .. } => "blocked",
             Self::Finished => "done",
+            Self::Failed { .. } => "error",
         }
     }
 
@@ -44,6 +49,12 @@ impl Alert {
                     .unwrap_or_else(|| "Waiting for your answer".into()),
             ),
             Self::Finished => (format!("{name} finished"), "Ready for you".into()),
+            Self::Failed { message } => (
+                format!("{name} failed"),
+                message
+                    .clone()
+                    .unwrap_or_else(|| "The agent stopped with an error".into()),
+            ),
         }
     }
 }
@@ -53,7 +64,7 @@ pub struct Alerts {
     /// Last state seen per terminal.
     states: HashMap<BlockId, ProgramState>,
     /// Last notification per terminal and kind.
-    sent: HashMap<(BlockId, bool), Instant>,
+    sent: HashMap<(BlockId, &'static str), Instant>,
 }
 
 impl Alerts {
@@ -78,12 +89,15 @@ impl Alerts {
             ProgramState::Blocked => Alert::NeedsYou {
                 question: status.message.clone().filter(|m| !m.trim().is_empty()),
             },
+            ProgramState::Error => Alert::Failed {
+                message: status.message.clone().filter(|m| !m.trim().is_empty()),
+            },
             ProgramState::Done if previous == Some(ProgramState::Working) && !visible => {
                 Alert::Finished
             }
             _ => return None,
         };
-        let key = (block, matches!(alert, Alert::Finished));
+        let key = (block, alert.event());
         if self
             .sent
             .get(&key)
@@ -180,5 +194,32 @@ mod tests {
         assert!(!body.is_empty());
         assert_eq!(Alert::Finished.text("codex").0, "codex finished");
         assert_eq!(Alert::Finished.event(), "done");
+        let failed = Alert::Failed { message: None };
+        assert_eq!(failed.event(), "error");
+        assert_eq!(failed.text("codex").0, "codex failed");
+    }
+
+    #[test]
+    fn failed_agents_alert_even_on_screen() {
+        let mut a = Alerts::default();
+        let b = BlockId(5);
+        let t = Instant::now();
+        a.on_status(b, Some(&status(ProgramState::Working, None)), true, t);
+        assert_eq!(
+            a.on_status(
+                b,
+                Some(&status(ProgramState::Error, Some("rate limited"))),
+                true,
+                t
+            ),
+            Some(Alert::Failed {
+                message: Some("rate limited".into())
+            })
+        );
+        // Debounced per kind: a needs-you right after still comes through.
+        let blocked = status(ProgramState::Blocked, None);
+        assert!(a.on_status(b, Some(&blocked), true, t).is_some());
+        let error = status(ProgramState::Error, None);
+        assert_eq!(a.on_status(b, Some(&error), true, t), None);
     }
 }

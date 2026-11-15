@@ -21,6 +21,9 @@ pub(super) fn builtin_registry() -> CommandRegistry {
     r.register("application:open-folder", |w, window, cx| {
         w.open_folder_dialog(window, cx)
     });
+    r.register("application:open-settings", |_, _, cx| {
+        ferrum_ui::open_settings(None, cx)
+    });
     r.register("application:open-config", |w, window, cx| {
         w.open_settings_file(SettingsFile::Config, window, cx)
     });

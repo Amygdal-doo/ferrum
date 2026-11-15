@@ -272,7 +272,7 @@ impl Render for EnvApp {
         };
         v_flex()
             .id("ferrum-env")
-            .key_context("FerrumEnv")
+            .key_context("FerrumVariables")
             .relative()
             .size_full()
             .text_color(colors.text)

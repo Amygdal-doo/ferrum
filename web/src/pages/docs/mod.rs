@@ -31,7 +31,7 @@ pub const DOCS: [Doc; 4] = [
     Doc {
         path: shell_commands::PATH,
         title: shell_commands::TITLE,
-        summary: "fee, feg, fet and the rest: open any Ferrum app from a terminal.",
+        summary: "fei, feg, fet and the rest: open any Ferrum app from a terminal.",
     },
     Doc {
         path: project_bar::PATH,
@@ -86,7 +86,7 @@ pub fn article(site_url: &str, meta: &PageMeta, title: &str, lead: Markup, body:
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Documentation and guides"),
-        "Guides for Ferrum: install the launcher, open apps from the shell with fee and feg, \
+        "Guides for Ferrum: install the launcher, open apps from the shell with fei and feg, \
          switch projects with the project bar, and every keyboard shortcut.",
         PATH,
         "page-docs",

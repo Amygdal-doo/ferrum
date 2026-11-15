@@ -1,17 +1,17 @@
-//! FerrumVibe product page. Claims follow the FerrumVibe README ("What
+//! FerrumEngineer product page. Claims follow the FerrumEngineer README ("What
 //! works" / "Not built yet"), the FerrumChat README (`agent/README.md`) for
 //! the chat column, and the `vibe` entry in catalog.json.
 
 use maud::{Markup, html};
 
 use super::product_sections::{self as sections, BulletGroup, ProductPage};
-use crate::products::FERRUMVIBE;
+use crate::products::FERRUMENGINEER;
 
 const FEATURES: &[(&str, &str)] = &[
     (
         "Three columns, one project",
         "FerrumChat, FerrumGIT and FerrumTerm side by side on the same folder. Each column is \
-         the suite's own view, the same one Ferrum Editor shows in its panes.",
+         the suite's own view, the same one FerrumIDE shows in its panes.",
     ),
     (
         "Your layout",
@@ -31,7 +31,7 @@ const FEATURES: &[(&str, &str)] = &[
     (
         "Columns that talk to each other",
         "Run in terminal runs a command from the chat in the terminal column. Agent edits \
-         refresh the git column right away, and files open in Ferrum Editor at the line.",
+         refresh the git column right away, and files open in FerrumIDE at the line.",
     ),
     (
         "Tools and rules",
@@ -50,15 +50,15 @@ const WORKS_TODAY: &[&str] = &[
     "Close, reopen (⌥⌘1, ⌥⌘2, ⌥⌘3), resize and reorder columns",
     "Layout saved per project in ~/.ferrum/vibe/layouts.json",
     "Shared project bar with the ⌥⌘O switcher; switching moves all three columns",
-    "ferrumvibe <folder>, or fev from a shell once the launcher command is on",
+    "ferrumvibe <folder>, or fen from a shell once the launcher command is on",
     "Run in terminal from the chat; agent edits reload the git column",
-    "Open file from the chat or a diff opens it in Ferrum Editor",
+    "Open file from the chat or a diff opens it in FerrumIDE",
     "Terminals live in the fterm server, so they survive closing the window",
     "Your login shell's PATH, so npx, gemini and MCP servers are found from the Dock",
 ];
 
 const NOT_BUILT_YET: &[&str] = &[
-    "An editor column: files open in a separate Ferrum Editor window",
+    "An editor column: files open in a separate FerrumIDE window",
     "More than one chat per window",
     "A Windows build (FerrumTerm's server uses Unix sockets)",
     "Menu bar entries beyond Quit",
@@ -67,8 +67,8 @@ const NOT_BUILT_YET: &[&str] = &[
 ];
 
 const PAGE: ProductPage = ProductPage {
-    product: FERRUMVIBE,
-    meta_description: "FerrumVibe puts FerrumChat, FerrumGIT and FerrumTerm side by side on \
+    product: FERRUMENGINEER,
+    meta_description: "FerrumEngineer puts FerrumChat, FerrumGIT and FerrumTerm side by side on \
                        one project: an agent chat with change review, Git and a terminal in \
                        one native Rust window.",
     intro: "A window for working with coding agents. Talk to a model or an agent in one column, \
@@ -81,7 +81,7 @@ const PAGE: ProductPage = ProductPage {
         "the change in the git column",
         "the tests running in the terminal column",
     ],
-    status_summary: "FerrumVibe is new in this alpha. Its wiring is tested headlessly, and \
+    status_summary: "FerrumEngineer is new in this alpha. Its wiring is tested headlessly, and \
                      the chat's providers are tested against recorded streams: live calls to \
                      Anthropic, OpenAI, Ollama and real ACP agents weren't part of the tests.",
     status_groups: &[
@@ -96,7 +96,7 @@ const PAGE: ProductPage = ProductPage {
     ],
     specs: &[
         ("Install", "Ferrum Launcher (free, see Download)"),
-        ("Shell command", "fev (turn it on in the launcher)"),
+        ("Shell command", "fen (turn it on in the launcher)"),
         (
             "For the chat",
             "An Anthropic or OpenAI key, a local Ollama, or an ACP agent such as Claude Code, \
@@ -128,8 +128,8 @@ mod tests {
     fn renders_title_status_and_demo() {
         let html = render("https://example.test").into_string();
         assert_eq!(html.matches("<h1").count(), 1);
-        assert!(html.contains(">FerrumVibe</h1>"));
-        assert!(html.contains("Animated preview of FerrumVibe"));
+        assert!(html.contains(">FerrumEngineer</h1>"));
+        assert!(html.contains("Animated preview of FerrumEngineer"));
         assert!(html.contains("/assets/img/brand/vibe.svg"));
         assert!(html.contains("href=\"/download\""));
         assert!(html.contains("Not built yet"));

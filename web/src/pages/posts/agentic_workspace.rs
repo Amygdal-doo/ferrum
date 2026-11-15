@@ -5,8 +5,8 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::products::{
-    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENV, FERRUMGIT,
-    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVIBE, Product,
+    FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENGINEER, FERRUMGIT, FERRUMIDE,
+    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVARIABLES, Product,
 };
 use crate::updates::Post;
 
@@ -23,7 +23,7 @@ pub const POST: Post = Post {
 /// Today's releases: (product, version, one line).
 const RELEASES: [(Product, &str, &str); 11] = [
     (
-        FERRUMVIBE,
+        FERRUMENGINEER,
         "0.4.0-alpha.1",
         "Tasks, folders, knowledge, sites, automations and extensions.",
     ),
@@ -33,7 +33,7 @@ const RELEASES: [(Product, &str, &str); 11] = [
         "A panel under the menu bar icon; hide from the Dock.",
     ),
     (
-        FERRUM_EDITOR,
+        FERRUMIDE,
         "0.8.0-alpha.1",
         "The new chat composer; the bottom terminal fills its panel.",
     ),
@@ -59,7 +59,7 @@ const RELEASES: [(Product, &str, &str); 11] = [
     ),
     (FERRUMAPI, "0.5.1-alpha.1", "Title bar setting."),
     (FERRUMDATA, "0.5.1-alpha.1", "Title bar setting."),
-    (FERRUMENV, "0.2.1-alpha.1", "Title bar setting."),
+    (FERRUMVARIABLES, "0.2.1-alpha.1", "Title bar setting."),
     (FERRUMKIT, "0.2.1-alpha.1", "Title bar setting."),
 ];
 

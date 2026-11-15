@@ -1,5 +1,5 @@
-//! Animated mock windows for the per-project apps: FerrumPorts, FerrumEnv,
-//! and the Logs and CI pages of Ferrum Editor (shown on the editor's page at
+//! Animated mock windows for the per-project apps: FerrumPorts, FerrumVariables,
+//! and the Logs and CI pages of FerrumIDE (shown on the editor's page at
 //! `#logs` and `#ci`). Same rules as `feature_demos` (CSS-only, 9s
 //! loop, a still frame under reduced motion); each window opens with the
 //! shared Ferrum project strip. Styles: `assets/css/features.css`.
@@ -71,7 +71,7 @@ pub fn env() -> Markup {
         ("LOG_LEVEL", "debug", false),
     ];
     window(
-        "FerrumEnv",
+        "FerrumVariables",
         "env",
         html! {
             (project_strip("shop", "~/code/shop", "main"))
@@ -109,7 +109,7 @@ pub fn env() -> Markup {
     )
 }
 
-/// Ferrum Editor's Logs page: a project's sources merged into one live view.
+/// FerrumIDE's Logs page: a project's sources merged into one live view.
 pub fn logs() -> Markup {
     let lines = [
         ("web", "12:04:01", "INFO", "ready on http://localhost:3000"),
@@ -119,7 +119,7 @@ pub fn logs() -> Markup {
         ("app", "12:04:09", "WARN", "retrying payment webhook (2/3)"),
     ];
     window(
-        "Ferrum Editor · Logs",
+        "FerrumIDE · Logs",
         "logs",
         html! {
             (project_strip("shop", "~/code/shop", "main"))
@@ -152,7 +152,7 @@ pub fn logs() -> Markup {
     )
 }
 
-/// Ferrum Editor's CI page: GitHub Actions runs, a job's steps and its log.
+/// FerrumIDE's CI page: GitHub Actions runs, a job's steps and its log.
 pub fn ci() -> Markup {
     let runs = [
         ("is-run", "●", "Fix cart total rounding", "CI #212 · main"),
@@ -161,7 +161,7 @@ pub fn ci() -> Markup {
         ("is-ok", "✓", "Release 0.4.0", "Deploy #88 · main"),
     ];
     window(
-        "Ferrum Editor · CI",
+        "FerrumIDE · CI",
         "ci",
         html! {
             (project_strip("shop", "~/code/shop", "main"))

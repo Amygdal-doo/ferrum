@@ -1,4 +1,4 @@
-//! Sections of the Ferrum Editor page: the Git, Agent and Term panes (at
+//! Sections of the FerrumIDE page: the Git, Agent and Term panes (at
 //! `#tools`), and the built-in pages that used to be separate apps: Logs
 //! (formerly FerrumLogs, at `#logs`) and CI (formerly FerrumCI, at `#ci`).
 //! Each has an animated demo from `tool_demos` or `project_demos` and uses
@@ -10,12 +10,12 @@
 use maud::{Markup, html};
 
 use super::{project_demos, tool_demos};
-use crate::products::FERRUM_EDITOR;
+use crate::products::FERRUMIDE;
 
 /// One built-in page, shown as a section with copy on one side and its demo
 /// on the other.
 pub struct EditorPage {
-    /// Section id, e.g. `logs` for `/ferrum-editor#logs`.
+    /// Section id, e.g. `logs` for `/ferrumide#logs`.
     pub anchor: &'static str,
     pub title: &'static str,
     pub meta: &'static str,
@@ -33,7 +33,7 @@ pub const TOOLS: EditorPage = EditorPage {
     meta: "FerrumGIT, FerrumChat and FerrumTerm · tool panes",
     lead: "The Git, Agent and Term buttons at the top right open each tool inside the window \
            as a split pane. Each is the tool's own view, from the same library the FerrumGIT \
-           and FerrumTerm apps and FerrumVibe are built on.",
+           and FerrumTerm apps and FerrumEngineer are built on.",
     points: &[
         (
             "All of them at once",
@@ -58,7 +58,7 @@ pub const TOOLS: EditorPage = EditorPage {
         ),
     ],
     demo: tool_demos::editor_panes,
-    demo_label: "Ferrum Editor with the Git and Agent panes docked on the right, the Terminal \
+    demo_label: "FerrumIDE with the Git and Agent panes docked on the right, the Terminal \
                  pane at the bottom, and a pane menu offering Move to Left and Move to Bottom",
 };
 
@@ -94,7 +94,7 @@ pub const LOGS: EditorPage = EditorPage {
         ),
     ],
     demo: project_demos::logs,
-    demo_label: "Ferrum Editor's Logs page merging a dev server, a database container and a \
+    demo_label: "FerrumIDE's Logs page merging a dev server, a database container and a \
                  log file, with an error line highlighted",
 };
 
@@ -126,20 +126,20 @@ pub const CI: EditorPage = EditorPage {
         ),
     ],
     demo: project_demos::ci,
-    demo_label: "Ferrum Editor's CI page listing workflow runs, with a failed job's steps and \
+    demo_label: "FerrumIDE's CI page listing workflow runs, with a failed job's steps and \
                  its first error in the log",
 };
 
-/// `/ferrum-editor#<anchor>`.
+/// `/ferrumide#<anchor>`.
 pub fn path(page: &EditorPage) -> String {
-    format!("{}#{}", FERRUM_EDITOR.path(), page.anchor)
+    format!("{}#{}", FERRUMIDE.path(), page.anchor)
 }
 
 /// One built-in page as a section of the editor's page.
 pub fn section(page: &EditorPage) -> Markup {
     let heading = format!("{}-title", page.anchor);
     html! {
-        section class="feature-app" id=(page.anchor) style=(FERRUM_EDITOR.accent_style())
+        section class="feature-app" id=(page.anchor) style=(FERRUMIDE.accent_style())
             aria-labelledby=(heading) {
             div class="container feature-app__inner" {
                 div class="feature-app__copy" {
@@ -174,16 +174,16 @@ mod tests {
         let tools = section(&TOOLS).into_string();
         assert!(tools.contains(r#"id="tools""#));
         assert!(tools.contains("Move to Left"));
-        assert_eq!(path(&TOOLS), "/ferrum-editor#tools");
+        assert_eq!(path(&TOOLS), "/ferrumide#tools");
         let logs = section(&LOGS).into_string();
         assert!(logs.contains(r#"id="logs""#));
-        assert!(logs.contains("Ferrum Editor · Logs"));
+        assert!(logs.contains("FerrumIDE · Logs"));
         assert!(!logs.contains("FerrumLogs"));
         let ci = section(&CI).into_string();
         assert!(ci.contains(r#"id="ci""#));
-        assert!(ci.contains("Ferrum Editor · CI"));
+        assert!(ci.contains("FerrumIDE · CI"));
         assert!(!ci.contains("FerrumCI"));
-        assert_eq!(path(&LOGS), "/ferrum-editor#logs");
-        assert_eq!(path(&CI), "/ferrum-editor#ci");
+        assert_eq!(path(&LOGS), "/ferrumide#logs");
+        assert_eq!(path(&CI), "/ferrumide#ci");
     }
 }

@@ -1,6 +1,6 @@
 //! Settings › Keyboard (FerrumTerm): what the Option key does in a
-//! terminal. The same section is on the Terminal page that Ferrum Editor
-//! and FerrumVibe show.
+//! terminal. The same section is on the Terminal page that FerrumIDE
+//! and FerrumEngineer show.
 
 use ferrum_ui::components::IconName;
 use ferrum_ui::gpui::{self, AnyElement, App, Hsla, IntoElement, Window, div, prelude::*, px};
@@ -51,8 +51,8 @@ pub(crate) fn option_key_section(cx: &App) -> Section {
         );
     }
     section.footnote(
-        "Applies to every terminal on this Mac, including the panes in Ferrum Editor and \
-         FerrumVibe. ⌘ shortcuts are not affected.",
+        "Applies to every terminal on this Mac, including the panes in FerrumIDE and \
+         FerrumEngineer. ⌘ shortcuts are not affected.",
     )
 }
 

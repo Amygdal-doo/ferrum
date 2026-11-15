@@ -12,7 +12,7 @@ use ferrum_ui::project;
 use ferrumagent_ui::core::Mode;
 
 use super::{field, frame, placeholder, row, section, two_lines};
-use crate::app::{ChatAction, FerrumVibe};
+use crate::app::{ChatAction, FerrumEngineer};
 use crate::automations::{Automation, Schedule};
 use crate::nav::Page;
 use crate::threads;
@@ -21,7 +21,7 @@ use crate::threads;
 const TICK: Duration = Duration::from_secs(30);
 
 /// Checks the schedules every [`TICK`] while the window lives.
-pub fn start_timer(window: &mut Window, cx: &mut Context<FerrumVibe>) -> Task<()> {
+pub fn start_timer(window: &mut Window, cx: &mut Context<FerrumEngineer>) -> Task<()> {
     cx.spawn_in(window, async move |this, cx| {
         loop {
             cx.background_executor().timer(TICK).await;
@@ -35,7 +35,7 @@ pub fn start_timer(window: &mut Window, cx: &mut Context<FerrumVibe>) -> Task<()
     })
 }
 
-impl FerrumVibe {
+impl FerrumEngineer {
     fn save_automations(&mut self, cx: &mut Context<Self>) {
         if let Some(file) = self.pages.automations_file()
             && let Err(e) = crate::automations::save(&file, &self.pages.automations)
@@ -177,7 +177,7 @@ impl FerrumVibe {
     ) -> AnyElement {
         let mut page = frame(
             Page::Automations,
-            "Prompts that start a task in their project, by hand or on a schedule while FerrumVibe is open.",
+            "Prompts that start a task in their project, by hand or on a schedule while FerrumEngineer is open.",
             cx,
         );
         if self.project.is_some() {

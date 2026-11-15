@@ -280,3 +280,37 @@ fn tool_events_open_files_run_commands_and_reload_buffers(cx: &mut TestAppContex
         .expect("editor");
     assert_eq!(editor.read_with(cx, |e, _| e.state.text()), "ONE\n");
 }
+
+#[gpui::test]
+fn a_notification_from_another_projects_chat_switches_to_that_project(cx: &mut TestAppContext) {
+    let env = setup(cx);
+    let a = env.root();
+    let other = tempfile::tempdir().expect("b");
+    let b = other.path().canonicalize().expect("canonical");
+    let (workspace, cx) = open_workspace(&a, cx);
+    workspace.update_in(cx, |w, window, cx| w.open_tool(ToolKind::Agent, window, cx));
+    cx.run_until_parked();
+    let a_chat = workspace.read_with(cx, |w, _| w.tools().chat.clone().expect("chat"));
+    let to_b = b.clone();
+    workspace.update_in(cx, |w, window, cx| {
+        w.set_root(to_b, window, cx);
+        w.close_tool(ToolKind::Agent, window, cx);
+    });
+    cx.run_until_parked();
+    workspace.read_with(cx, |w, _| {
+        assert_ne!(w.tools().chat.as_ref(), Some(&a_chat), "B has its own chat");
+    });
+
+    // A's chat (hidden, kept) reports a clicked notification.
+    a_chat.update(cx, |_, cx| {
+        cx.emit(ChatEvent::Reveal {
+            thread_id: "t".into(),
+        })
+    });
+    cx.run_until_parked();
+    workspace.read_with(cx, |w, _| {
+        assert_eq!(w.root.as_deref(), Some(a.as_path()));
+        assert_eq!(w.tools().chat.as_ref(), Some(&a_chat));
+        assert!(w.tool_open(ToolKind::Agent));
+    });
+}

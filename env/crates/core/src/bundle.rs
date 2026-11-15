@@ -138,7 +138,7 @@ pub fn parse(text: &str) -> Result<SealedBundle> {
     }
     if envelope.version != VERSION {
         return Err(Error::BadBundle(format!(
-            "made by a different FerrumEnv version (bundle format {})",
+            "made by a different FerrumVariables version (bundle format {})",
             envelope.version
         )));
     }

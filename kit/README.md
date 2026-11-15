@@ -5,7 +5,7 @@ GPUI desktop app (the UI framework of Zed, from the `ide/` submodule) built on t
 `ferrum-ui` crate. One window: a searchable list of tools on the left, the selected tool on
 the right. Everything runs locally — FerrumKit makes no network requests and writes nothing
 to disk. Part of the Ferrum monorepo, sibling of [FerrumAPI](../api), [FerrumGIT](../git),
-[FerrumData](../data) and [Ferrum Editor](../editor), with the same theme and components.
+[FerrumData](../data) and [FerrumIDE](../editor), with the same theme and components.
 
 > **Status: alpha — first vertical slice.** See "What works" below; nothing beyond that list
 > should be assumed. "Tested" means automated unit tests of `ferrumkit-core`; the GPUI UI

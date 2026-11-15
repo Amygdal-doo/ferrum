@@ -1,4 +1,4 @@
-//! Ferrum Editor core: everything that does not need a window. The text
+//! FerrumIDE core: everything that does not need a window. The text
 //! buffer, multi-cursor editing, undo, motions, search, syntax highlighting,
 //! git line marks, the language server and debug adapter clients, AI agent
 //! snapshots and diff review, and the user's config / keymap / theme /

@@ -116,7 +116,6 @@ impl FerrumLauncher {
         // are announced; the catalog fetch announces later ones.
         this.announce_new_apps(cx);
         this.load_logos(cx);
-        this.refresh_shell_commands();
         this.detect_token(window, cx);
         this.start_integration(cx);
         this

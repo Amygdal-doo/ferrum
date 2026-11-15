@@ -1,6 +1,6 @@
 //! The Files pane: the project's tree on the far left. Folders expand on
 //! click (read when first opened, `.gitignore` respected), files open in
-//! Ferrum Editor on double-click or Enter, git status colours the names,
+//! FerrumIDE on double-click or Enter, git status colours the names,
 //! and rows drag onto the chat as context (⌘-click selects several).
 //! The header row is drawn by the window (`crate::columns`).
 
@@ -90,7 +90,7 @@ pub fn without_nested(paths: &[PathBuf]) -> Vec<PathBuf> {
 }
 
 pub enum FilesEvent {
-    /// Open this file (in Ferrum Editor).
+    /// Open this file (in FerrumIDE).
     Open(PathBuf),
 }
 
@@ -107,6 +107,7 @@ pub struct FilesView {
     scroll: UniformListScrollHandle,
     focus_handle: FocusHandle,
     marks_task: Option<Task<()>>,
+    refresh_task: Option<Task<()>>,
 }
 
 impl FilesView {
@@ -120,6 +121,7 @@ impl FilesView {
             scroll: UniformListScrollHandle::new(),
             focus_handle: cx.focus_handle(),
             marks_task: None,
+            refresh_task: None,
         };
         if let Some(root) = root {
             view.set_root(root, cx);
@@ -162,6 +164,33 @@ impl FilesView {
         self.selection.retain(|p| p.exists());
         self.rebuild(cx);
         self.reload_marks(cx);
+    }
+
+    /// [`Self::refresh`] with the folders read off the UI thread (for the
+    /// agent's frequent change reports).
+    pub fn refresh_in_background(&mut self, cx: &mut Context<Self>) {
+        let Some(tree) = &self.tree else {
+            return;
+        };
+        let root = tree.root().to_path_buf();
+        let dirs = tree.loaded_dirs();
+        let read = cx.background_spawn({
+            let root = root.clone();
+            async move { FileTree::read_again(&root, dirs) }
+        });
+        self.refresh_task = Some(cx.spawn(async move |this, cx| {
+            let reads = read.await;
+            this.update(cx, |this, cx| {
+                let Some(tree) = this.tree.as_mut().filter(|t| t.root() == root) else {
+                    return;
+                };
+                tree.apply_reads(reads);
+                this.selection.retain(|p| p.exists());
+                this.rebuild(cx);
+                this.reload_marks(cx);
+            })
+            .ok();
+        }));
     }
 
     fn reload_marks(&mut self, cx: &mut Context<Self>) {

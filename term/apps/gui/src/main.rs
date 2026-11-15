@@ -3,8 +3,8 @@
 //! window any time — agents keep running; reopen (or `fterm attach` from
 //! anywhere, even over SSH) to pick up where you left off.
 //!
-//! The window's content is `ferrumterm_ui::TermView`, the same view Ferrum
-//! Editor and FerrumVibe embed as a pane.
+//! The window's content is `ferrumterm_ui::TermView`, the same view
+//! FerrumIDE and FerrumEngineer embed as a pane.
 
 use ferrum_ui::AppConfig;
 // The view posts agent notifications itself (toast, system, sound;

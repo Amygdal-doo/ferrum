@@ -105,10 +105,51 @@ fn agent_key_count() -> Result<usize, String> {
         .arg("-l")
         .output()
         .map_err(|e| format!("Could not run ssh-add: {e}"))?;
-    let text = String::from_utf8_lossy(&output.stdout);
-    // Exit 1 with "The agent has no identities." means zero keys.
-    Ok(text.lines().filter(|l| l.contains(' ')).count())
+    parse_agent_keys(
+        output.status.code(),
+        &String::from_utf8_lossy(&output.stdout),
+    )
 }
+
+/// Reads `ssh-add -l`: exit 0 lists one key per line (`<bits> <fingerprint>
+/// <comment> (<type>)`), exit 1 means the agent has no identities, anything
+/// else means the agent could not be reached.
+pub fn parse_agent_keys(code: Option<i32>, stdout: &str) -> Result<usize, String> {
+    match code {
+        Some(0) => Ok(stdout
+            .lines()
+            .filter(|l| {
+                l.split_whitespace()
+                    .next()
+                    .is_some_and(|bits| bits.parse::<u32>().is_ok())
+            })
+            .count()),
+        Some(1) => Ok(0),
+        _ => Err("Could not reach the SSH agent.".into()),
+    }
+}
+
+/// What the page shows that takes I/O to find out (files, the server
+/// socket, `ssh-add`), read off the UI thread.
+struct Snapshot {
+    machines: Result<Vec<Host>, String>,
+    running: bool,
+    agent_keys: Result<usize, String>,
+}
+
+impl Snapshot {
+    fn read() -> Self {
+        let config = ferrumterm_net::ssh_config::load_user();
+        Self {
+            machines: HostStore::load(&store_file()).map(|s| s.machines(&config)),
+            running: server_running(),
+            agent_keys: agent_key_count(),
+        }
+    }
+}
+
+/// How old the snapshot may get before a render reads it again.
+const REFRESH_EVERY: Duration = Duration::from_secs(10);
 
 #[derive(Default)]
 pub struct MachinesView {
@@ -118,10 +159,36 @@ pub struct MachinesView {
     renaming: Option<(String, Entity<TextInput>, Subscription)>,
     adding: Option<(Entity<AddMachine>, Subscription)>,
     error: Option<String>,
-    agent_keys: Option<(Instant, Result<usize, String>)>,
+    snapshot: Option<Snapshot>,
+    /// When the snapshot was last asked for (`None`: read it again now).
+    refreshed: Option<Instant>,
 }
 
 impl MachinesView {
+    /// Reads the snapshot again in the background when it is stale.
+    fn refresh(&mut self, cx: &mut Context<Self>) {
+        if self
+            .refreshed
+            .is_some_and(|at| at.elapsed() < REFRESH_EVERY)
+        {
+            return;
+        }
+        self.refreshed = Some(Instant::now());
+        cx.spawn(async move |this, cx| {
+            let snapshot = cx
+                .background_executor()
+                .spawn(async { Snapshot::read() })
+                .await;
+            if let Err(error) = this.update(cx, |view, cx| {
+                view.snapshot = Some(snapshot);
+                cx.notify();
+            }) {
+                tracing::debug!(%error, "machines page closed before it was read");
+            }
+        })
+        .detach();
+    }
+
     fn probe(&mut self, machines: &[Host], cx: &mut Context<Self>) {
         if self.probed.is_some_and(|at| at.elapsed() < PROBE_EVERY) {
             return;
@@ -163,6 +230,7 @@ impl MachinesView {
         });
         self.error = result.err();
         self.probed = None;
+        self.refreshed = None;
         cx.refresh_windows();
     }
 
@@ -190,6 +258,7 @@ impl MachinesView {
         let events = cx.subscribe(&dialog, |view, _, event, cx| match event {
             AddMachineEvent::Added(_) => {
                 view.probed = None;
+                view.refreshed = None;
                 cx.refresh_windows();
             }
             AddMachineEvent::Dismissed => {
@@ -272,22 +341,17 @@ impl MachinesView {
 impl Render for MachinesView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let status = cx.theme().status().clone();
-        let config = ferrumterm_net::ssh_config::load_user();
-        let store = HostStore::load(&store_file());
-        let machines = store
-            .as_ref()
-            .map(|s| s.machines(&config))
-            .unwrap_or_default();
-        self.probe(&machines, cx);
-        if self
-            .agent_keys
-            .as_ref()
-            .is_none_or(|(at, _)| at.elapsed() > Duration::from_secs(10))
-        {
-            self.agent_keys = Some((Instant::now(), agent_key_count()));
+        self.refresh(cx);
+        let snapshot = self.snapshot.as_ref();
+        let loaded = snapshot.is_some();
+        let store: Result<Vec<Host>, String> =
+            snapshot.map_or_else(|| Ok(Vec::new()), |s| s.machines.clone());
+        let running = snapshot.is_some_and(|s| s.running);
+        let agent_keys = snapshot.map(|s| s.agent_keys.clone());
+        let machines = store.clone().unwrap_or_default();
+        if store.is_ok() {
+            self.probe(&machines, cx);
         }
-
-        let running = server_running();
         let this_computer = Section::new("This computer").row(
             Row::new(
                 "this-computer",
@@ -325,6 +389,7 @@ impl Render for MachinesView {
                     .on_click(cx.listener(|view, _, window, cx| view.open_add(window, cx))),
             );
         match &store {
+            Ok(_) if !loaded => {}
             Ok(_) if machines.is_empty() => {
                 added = added.row(
                     v_flex()
@@ -354,10 +419,10 @@ impl Render for MachinesView {
             }
         }
 
-        let agent_text = match self.agent_keys.as_ref().map(|(_, r)| r) {
+        let agent_text = match agent_keys {
             Some(Ok(1)) => "The SSH agent holds 1 key.".to_owned(),
             Some(Ok(n)) => format!("The SSH agent holds {n} keys."),
-            Some(Err(e)) => e.clone(),
+            Some(Err(e)) => e,
             None => String::new(),
         };
         let ssh = Section::new("SSH").row(
@@ -421,5 +486,18 @@ mod tests {
             }),
         };
         assert_eq!(probe_target(&jumped), None);
+    }
+
+    #[test]
+    fn agent_keys_come_from_the_exit_status_and_key_lines() {
+        assert_eq!(
+            parse_agent_keys(Some(1), "The agent has no identities.\n"),
+            Ok(0)
+        );
+        let two = "256 SHA256:abc me@mac (ED25519)\n3072 SHA256:def work key (RSA)\n";
+        assert_eq!(parse_agent_keys(Some(0), two), Ok(2));
+        assert_eq!(parse_agent_keys(Some(0), ""), Ok(0));
+        assert!(parse_agent_keys(Some(2), "").is_err());
+        assert!(parse_agent_keys(None, "").is_err());
     }
 }

@@ -6,8 +6,8 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::products::{
-    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENV, FERRUMGIT,
-    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVIBE, Product,
+    FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENGINEER, FERRUMGIT, FERRUMIDE,
+    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVARIABLES, Product,
 };
 use crate::updates::Post;
 
@@ -28,15 +28,15 @@ const RELEASES: [(Product, &str, &str); 11] = [
         "0.12.2",
         "One Settings button; Show in menu bar under Interface › Window.",
     ),
-    (FERRUM_EDITOR, "0.8.1-alpha.1", "Its own theme."),
-    (FERRUMVIBE, "0.4.2-alpha.1", "Its own theme."),
+    (FERRUMIDE, "0.8.1-alpha.1", "Its own theme."),
+    (FERRUMENGINEER, "0.4.2-alpha.1", "Its own theme."),
     (FERRUMGIT, "0.6.1-alpha.1", "Its own theme."),
     (FERRUMTERM, "0.9.3-alpha.1", "Its own theme."),
     (FERRUMCONTAINERS, "0.4.1-alpha.1", "Its own theme."),
     (FERRUMPORTS, "0.3.1-alpha.1", "Its own theme."),
     (FERRUMAPI, "0.5.2-alpha.1", "Its own theme."),
     (FERRUMDATA, "0.5.2-alpha.1", "Its own theme."),
-    (FERRUMENV, "0.2.2-alpha.1", "Its own theme."),
+    (FERRUMVARIABLES, "0.2.2-alpha.1", "Its own theme."),
     (FERRUMKIT, "0.2.2-alpha.1", "Its own theme."),
 ];
 

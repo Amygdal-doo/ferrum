@@ -6,8 +6,8 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::products::{
-    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENV, FERRUMGIT,
-    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVIBE, Product,
+    FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENGINEER, FERRUMGIT, FERRUMIDE,
+    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVARIABLES, Product,
 };
 use crate::updates::Post;
 
@@ -39,12 +39,12 @@ const RELEASES: [(Product, &str, &str); 11] = [
         "One row of actions over list and detail cards.",
     ),
     (
-        FERRUM_EDITOR,
+        FERRUMIDE,
         "0.7.0-alpha.1",
         "File tree on the backdrop, tabs in the editor card.",
     ),
     (
-        FERRUMVIBE,
+        FERRUMENGINEER,
         "0.3.0-alpha.1",
         "One title row; the model's logo in the chat.",
     ),
@@ -64,7 +64,7 @@ const RELEASES: [(Product, &str, &str); 11] = [
         "Search and filters in the title row.",
     ),
     (
-        FERRUMENV,
+        FERRUMVARIABLES,
         "0.2.0-alpha.1",
         "Environment tabs and actions in one header.",
     ),

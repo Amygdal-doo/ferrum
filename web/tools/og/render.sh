@@ -33,8 +33,8 @@ PY
     --screenshot="$ROOT/$OUT/$slug.png" "file://$html" >/dev/null 2>&1
   echo "$OUT/$slug.png"
 done <<'ROWS'
-ferrum-editor|Ferrum Editor|Code editor|editor|#c5dc3a|A small, hackable code editor written from scratch in Rust.
-ferrumvibe|FerrumVibe|Vibe coding|vibe|#4CD97B|FerrumChat, FerrumGIT and FerrumTerm side by side on one project.
+ferrumide|FerrumIDE|Code editor|editor|#c5dc3a|A small, hackable code editor written from scratch in Rust.
+ferrumengineer|FerrumEngineer|Agentic engineering|vibe|#4CD97B|FerrumChat, FerrumGIT and FerrumTerm side by side on one project.
 ferrum-system|Ferrum System|Architecture diagrams|system|#2DD4BF|Layers, services on any cloud, data, flows and live pods.
 ferrumapi|FerrumAPI|API client|api|#3fb8a0|A native, local-first API client. No account, no webview.
 ferrumgit|FerrumGIT|Git client|git|#f0b43c|Commit graph, line staging and per-project SSH profiles.
@@ -43,6 +43,6 @@ ferrumterm|FerrumTerm|Terminal|term|#7cc85a|A GPU terminal whose sessions live i
 ferrumkit|FerrumKit|Developer utilities|kit|#d46be0|JSON, JWT, Base64, regex, hashes and timestamps.
 ferrumcontainers|FerrumContainers|Container manager|dock|#38bdf8|A native window on Docker Desktop, OrbStack, Colima and Podman.
 ferrumports|FerrumPorts|Port inspector|ports|#5b8def|Every listening port with its process and project.
-ferrumenv|FerrumEnv|Environment vault|env|#f2665a|A password-locked vault for your environment variables.
+ferrumvariables|FerrumVariables|Environment vault|env|#f2665a|A password-locked vault for your environment variables.
 ferrum-launcher|Ferrum Launcher|App manager|launcher|#e85a7e|Installs, updates and rolls back every Ferrum app.
 ROWS

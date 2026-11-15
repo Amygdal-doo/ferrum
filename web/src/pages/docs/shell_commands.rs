@@ -1,4 +1,4 @@
-//! `/docs/shell-commands`: `fee .` and friends. The defaults and behaviour
+//! `/docs/shell-commands`: `fei .` and friends. The defaults and behaviour
 //! come from `launcher/crates/core/src/shell.rs` and launcher/README.md.
 
 use maud::{Markup, html};
@@ -17,14 +17,14 @@ pub const TITLE: &str = "Shell commands";
 /// Suggested command per app (`shell::default_command`), with what it does.
 pub const COMMANDS: [(&str, Product, &str); 12] = [
     (
-        "fee",
-        products::FERRUM_EDITOR,
-        "Opens Ferrum Editor; `fee .` opens the current folder",
+        "fei",
+        products::FERRUMIDE,
+        "Opens FerrumIDE; `fei .` opens the current folder",
     ),
     (
-        "fev",
-        products::FERRUMVIBE,
-        "Opens FerrumVibe; `fev .` opens it on the current folder",
+        "fen",
+        products::FERRUMENGINEER,
+        "Opens FerrumEngineer; `fen .` opens it on the current folder",
     ),
     (
         "fes",
@@ -50,7 +50,7 @@ pub const COMMANDS: [(&str, Product, &str); 12] = [
         "Opens FerrumContainers; fec start, stop, up, down and any docker command",
     ),
     ("fep", products::FERRUMPORTS, "Opens FerrumPorts"),
-    ("fen", products::FERRUMENV, "Opens FerrumEnv"),
+    ("fev", products::FERRUMVARIABLES, "Opens FerrumVariables"),
     ("fel", products::FERRUM_LAUNCHER, "Opens Ferrum Launcher"),
 ];
 
@@ -65,10 +65,10 @@ fn with_code(text: &str) -> Markup {
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
-        Some("Shell commands: fee, feg, fet and more"),
-        "Open Ferrum apps from a terminal: fee for Ferrum Editor, feg for FerrumGIT, fet for \
-         FerrumTerm, fev for FerrumVibe, fes for Ferrum System, and fea, fed, fek, fec, fep, fen and fel for the \
-         rest.",
+        Some("Shell commands: fei, feg, fet and more"),
+        "Open Ferrum apps from a terminal: fei for FerrumIDE, feg for FerrumGIT, fet for \
+         FerrumTerm, fen for FerrumEngineer, fes for Ferrum System, and fea, fed, fek, fec, fep, \
+         fev and fel for the rest.",
         PATH,
         "page-docs",
     )
@@ -92,7 +92,7 @@ pub fn render(site_url: &str) -> Markup {
                     "Turn on " strong { "Shell command" } ". The name field suggests the default \
                      below; type another name and press Return to rename it."
                 }
-                li { "Open a new terminal window and run it, for example " code { "fee ." } "." }
+                li { "Open a new terminal window and run it, for example " code { "fei ." } "." }
             }
 
             h2 id="defaults" { "The default names" }
@@ -112,6 +112,16 @@ pub fn render(site_url: &str) -> Markup {
                     }
                 }
             }
+            (callout::render(Kind::Note, Some("Renamed apps, new commands"), html! {
+                p {
+                    "Ferrum Editor is now FerrumIDE, FerrumVibe FerrumEngineer and FerrumEnv \
+                     FerrumVariables, and their commands follow the new letters: "
+                    code { "fee" } " became " code { "fei" } ", " code { "fen" } " (which opened \
+                     FerrumEnv) now opens FerrumEngineer, and " code { "fev" } " (which opened \
+                     FerrumVibe) now opens FerrumVariables. Ferrum Launcher moves commands you \
+                     already turned on by itself; names you chose yourself are left alone."
+                }
+            }))
             p {
                 "Arguments are passed through to the app. If the app isn't installed, the \
                  command says so and points you to the launcher."
@@ -134,7 +144,7 @@ pub fn render(site_url: &str) -> Markup {
             }
             p {
                 "So the commands work in Terminal, in editor and IDE terminals, in tmux, and in \
-                 FerrumTerm and Ferrum Editor's Term pane."
+                 FerrumTerm and FerrumIDE's Term pane."
             }
             (callout::render(Kind::Note, Some("Your own files are safe"), html! {
                 p {
@@ -168,7 +178,8 @@ mod tests {
             assert!(html.contains(&format!("<code>{cmd}</code>")), "{cmd}");
             assert!(html.contains(&format!(r#"href="{}""#, p.path())));
         }
-        assert!(html.contains("<code>fee .</code>"));
+        assert!(html.contains("<code>fei .</code>"));
+        assert!(html.contains("<code>fen</code>"));
         assert!(html.contains("<code>fev</code>"));
         assert_eq!(COMMANDS.len(), products::ALL.len());
     }

@@ -51,17 +51,26 @@ fn main() {
             tracing::warn!(error = %e, "could not save the migrated state");
         }
     }
-    // FerrumAgentic became FerrumVibe (new id, binary and bundle): its old
-    // install is removed and FerrumVibe offered instead.
+    // FerrumAgentic became FerrumVibe, now FerrumEngineer (new id, binary
+    // and bundle): its old install is removed and FerrumEngineer offered.
     if state.retire_agentic(&paths)
         && let Err(e) = state.save(&paths)
     {
         tracing::warn!(error = %e, "could not save after retiring FerrumAgentic");
     }
-    // A renamed app (FerrumDock → FerrumContainers) gets its copy in
-    // ~/Applications/Ferrum (or Start Menu shortcut) under the new name.
+    // A renamed app (FerrumDock → FerrumContainers, Ferrum Editor →
+    // FerrumIDE, …) gets its copy in ~/Applications/Ferrum (or Start Menu
+    // shortcut) under the new name.
     for (app, e) in state.retire_former_names(&paths) {
         tracing::warn!(%app, error = %e, "could not replace the copy under the app's former name");
+    }
+    // Shell commands: current scripts for the enabled ones, none left under
+    // a name that moved to another app (`fee` → `fei`; `fen` and `fev`
+    // swapped between FerrumEngineer and FerrumVariables).
+    if state.sync_shell_commands(&paths)
+        && let Err(e) = state.save(&paths)
+    {
+        tracing::warn!(error = %e, "could not save after syncing the shell commands");
     }
     // Dev builds run outside a bundle and have no release version; they show
     // the launcher as not installed, which is what the store records anyway.

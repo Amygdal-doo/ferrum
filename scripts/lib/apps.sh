@@ -29,11 +29,11 @@ ferrum_app() {
       APP_NAME="FerrumContainers"; APP_BINARIES="ferrumdock ferrumdock-cli"; DEB_PACKAGE="ferrumdock"
       APP_SUMMARY="Native container manager for Docker-compatible engines" ;;
     editor)
-      APP_NAME="Ferrum Editor"; APP_BINARIES="ferrumeditor"; DEB_PACKAGE="ferrum-editor"
+      APP_NAME="FerrumIDE"; APP_BINARIES="ferrumeditor"; DEB_PACKAGE="ferrum-editor"
       APP_SUMMARY="Lightweight, hackable text editor: tree view, tabs, command palette" ;;
     vibe)
-      APP_NAME="FerrumVibe"; APP_BINARIES="ferrumvibe"; DEB_PACKAGE="ferrumvibe"
-      APP_SUMMARY="FerrumChat, FerrumGIT and FerrumTerm side by side for vibe coding"
+      APP_NAME="FerrumEngineer"; APP_BINARIES="ferrumvibe"; DEB_PACKAGE="ferrumvibe"
+      APP_SUMMARY="FerrumChat, FerrumGIT and FerrumTerm side by side for agentic engineering"
       # Embeds FerrumTerm, whose server uses Unix sockets; no Windows build yet.
       APP_WINDOWS=no ;;
     system)
@@ -43,7 +43,7 @@ ferrum_app() {
       APP_NAME="FerrumPorts"; APP_BINARIES="ferrumports"; DEB_PACKAGE="ferrumports"
       APP_SUMMARY="Listening ports and the processes behind them" ;;
     env)
-      APP_NAME="FerrumEnv"; APP_BINARIES="ferrumenv"; DEB_PACKAGE="ferrumenv"
+      APP_NAME="FerrumVariables"; APP_BINARIES="ferrumenv"; DEB_PACKAGE="ferrumenv"
       APP_SUMMARY="Password-locked vault for project environment variables" ;;
     launcher)
       APP_NAME="Ferrum Launcher"; APP_BINARIES="ferrum-launcher"; DEB_PACKAGE="ferrum-launcher"

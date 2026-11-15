@@ -1,7 +1,7 @@
-# ci — the library behind Ferrum Editor's CI page
+# ci — the library behind FerrumIDE's CI page
 
 `crates/core` (`ferrumci-core`) is a UI-free Rust library for GitHub Actions
-and pull-request checks. **Ferrum Editor** uses it for its CI page (⇧⌘I, or
+and pull-request checks. **FerrumIDE** uses it for its CI page (⇧⌘I, or
 the CI button of the Editor | Git | CI | Logs switch); see the *CI* section of
 [`editor/README.md`](../editor/README.md) for what the page does and how to
 use it. There is no separate CI app any more: the former FerrumCI desktop app

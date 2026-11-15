@@ -16,13 +16,13 @@ pub const TITLE: &str = "The project bar";
 
 /// Apps whose project bar switches projects with ⌥⌘O.
 const SWITCHING: [Product; 7] = [
-    products::FERRUM_EDITOR,
-    products::FERRUMVIBE,
+    products::FERRUMIDE,
+    products::FERRUMENGINEER,
     products::FERRUMGIT,
     products::FERRUMTERM,
     products::FERRUMCONTAINERS,
     products::FERRUMPORTS,
-    products::FERRUMENV,
+    products::FERRUMVARIABLES,
 ];
 
 /// Apps that show the bar without the switcher.
@@ -44,7 +44,7 @@ pub fn render(site_url: &str) -> Markup {
         html! {
             p {
                 "The strip along the top of most Ferrum windows shows the project you're working \
-                 on, and moves it between apps. A folder you open in Ferrum Editor shows up in \
+                 on, and moves it between apps. A folder you open in FerrumIDE shows up in \
                  FerrumGIT's and FerrumTerm's switchers too."
             }
         },
@@ -78,7 +78,7 @@ pub fn render(site_url: &str) -> Markup {
                 }
                 div class="spec-sheet__row" {
                     dt { "Editor, Git, Term" }
-                    dd { "Open the same folder in Ferrum Editor, FerrumGIT or FerrumTerm." }
+                    dd { "Open the same folder in FerrumIDE, FerrumGIT or FerrumTerm." }
                 }
             }
 

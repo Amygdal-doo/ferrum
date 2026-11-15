@@ -1,11 +1,11 @@
-//! What FerrumVibe tells `ferrum-ui` for onboarding and Settings: the keys
+//! What FerrumEngineer tells `ferrum-ui` for onboarding and Settings: the keys
 //! worth knowing, the permissions it needs.
 
 use ferrum_ui::components::IconName;
 use ferrum_ui::{AppInfo, PermissionKind};
 
 pub fn app_info() -> AppInfo {
-    AppInfo::new("FerrumVibe", "ferrumvibe")
+    AppInfo::new("FerrumEngineer", "ferrumvibe")
         .tagline("An agent always live in your project, with Git and a terminal beside it.")
         .icon(IconName::Sparkle, 0xa970ff)
         .key("New task", "cmd-n")
@@ -29,5 +29,6 @@ pub fn app_info() -> AppInfo {
         )
         .event(ferrumagent_ui::NEEDS_YOU)
         .event(ferrumagent_ui::DONE)
+        .event(ferrumagent_ui::FAILED)
         .page(ferrumterm_ui::TerminalPage::default())
 }

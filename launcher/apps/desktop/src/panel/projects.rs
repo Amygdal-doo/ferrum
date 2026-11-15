@@ -51,8 +51,7 @@ impl LauncherPanel {
             .collect();
         if projects.is_empty() {
             let text = if self.projects.is_empty() {
-                "Folders you open in Ferrum Editor, FerrumGIT or FerrumTerm show up here."
-                    .to_string()
+                "Folders you open in FerrumIDE, FerrumGIT or FerrumTerm show up here.".to_string()
             } else {
                 format!("No project matches “{query}”")
             };

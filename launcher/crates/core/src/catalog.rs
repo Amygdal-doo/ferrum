@@ -32,7 +32,7 @@ impl AppId {
     pub const ENV: AppId = AppId("env");
     pub const VIBE: AppId = AppId("vibe");
     pub const SYSTEM: AppId = AppId("system");
-    /// FerrumVibe's id while it was FerrumAgentic (see `State::retire_agentic`).
+    /// FerrumEngineer's id while it was FerrumAgentic (see `State::retire_agentic`).
     pub const LEGACY_VIBE: AppId = AppId("agentic");
     pub const LAUNCHER: AppId = AppId("launcher");
 
@@ -267,7 +267,7 @@ impl Builtin {
 static RETIRED: [Builtin; 1] = [Builtin {
     id: AppId("ide"),
     name: "Ferrum IDE",
-    description: "No longer offered: Ferrum Editor is the suite's code editor.",
+    description: "No longer offered: FerrumIDE is the suite's code editor.",
     binary: "zed",
     extra_binaries: &[],
     bundle_name: "Ferrum IDE",
@@ -279,23 +279,27 @@ static RETIRED: [Builtin; 1] = [Builtin {
 static BUILTIN: [Builtin; 12] = [
     Builtin {
         id: AppId::EDITOR,
-        name: "Ferrum Editor",
-        description: "Lightweight, hackable text editor: tree view, tabs, fuzzy finder and command palette.",
+        name: "FerrumIDE",
+        description: "Lightweight, hackable code editor: tree view, tabs, fuzzy finder and command palette.",
+        // The id, binary and data stay `editor`/`ferrumeditor`, so Ferrum
+        // Editor installs update in place.
         binary: "ferrumeditor",
         extra_binaries: &[],
-        bundle_name: "Ferrum Editor",
-        former_names: &[],
+        bundle_name: "FerrumIDE",
+        former_names: &["Ferrum Editor"],
         icon: "CursorIBeam",
         order: 10,
     },
     Builtin {
         id: AppId::VIBE,
-        name: "FerrumVibe",
-        description: "Vibe coding window: FerrumChat, FerrumGIT and FerrumTerm side by side.",
+        name: "FerrumEngineer",
+        description: "Agentic engineering window: FerrumChat, FerrumGIT and FerrumTerm side by side.",
+        // The id, binary and data stay `vibe`/`ferrumvibe`, so FerrumVibe
+        // installs update in place.
         binary: "ferrumvibe",
         extra_binaries: &[],
-        bundle_name: "FerrumVibe",
-        former_names: &["FerrumAgentic"],
+        bundle_name: "FerrumEngineer",
+        former_names: &["FerrumVibe", "FerrumAgentic"],
         icon: "Sparkle",
         order: 15,
     },
@@ -391,12 +395,14 @@ static BUILTIN: [Builtin; 12] = [
     },
     Builtin {
         id: AppId::ENV,
-        name: "FerrumEnv",
+        name: "FerrumVariables",
         description: "Password-locked vault for project environment variables, shared encrypted between developers.",
+        // The id, binary and data stay `env`/`ferrumenv`, so FerrumEnv
+        // installs update in place.
         binary: "ferrumenv",
         extra_binaries: &[],
-        bundle_name: "FerrumEnv",
-        former_names: &[],
+        bundle_name: "FerrumVariables",
+        former_names: &["FerrumEnv"],
         icon: "Lock",
         order: 90,
     },

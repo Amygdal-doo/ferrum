@@ -82,7 +82,7 @@ pub(crate) fn read_section(
 }
 
 /// Default `theme.toml` written on first launch.
-pub const DEFAULT_THEME_TOML: &str = r##"# Ferrum Editor theme overrides. Pick the theme in config.toml (theme = "…")
+pub const DEFAULT_THEME_TOML: &str = r##"# FerrumIDE theme overrides. Pick the theme in config.toml (theme = "…")
 # or with "Theme: Select"; override any token of it here. Whole themes live
 # in the themes/ folder next to this file (see ferrum-dark.example.toml).
 # Changes apply as soon as you save. Colours: #rgb, #rrggbb or #rrggbbaa.

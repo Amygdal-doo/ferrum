@@ -1,6 +1,6 @@
 //! Logos of the coding agents and model makers (Claude, Codex, Gemini,
 //! OpenCode, Muse, DeepSeek, Kimi), shown where one runs (FerrumTerm tabs,
-//! FerrumVibe), and the plain `>_` tile shown for everything else. The
+//! FerrumEngineer), and the plain `>_` tile shown for everything else. The
 //! 128-pixel PNGs live in `assets/logos/` (see the README there).
 
 use std::sync::{Arc, OnceLock};

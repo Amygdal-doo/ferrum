@@ -1,5 +1,5 @@
 //! The built-in `ferrum` icon set: small 16×16 line drawings made for
-//! Ferrum Editor (no third-party icon pack). GPUI paints SVGs as a mask,
+//! FerrumIDE (no third-party icon pack). GPUI paints SVGs as a mask,
 //! so each icon is one shape tinted with the colour listed here.
 
 /// Wraps path data in a 16×16 stroked SVG.

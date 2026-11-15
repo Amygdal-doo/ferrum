@@ -25,7 +25,7 @@ done
 case "$app" in
   editor|vibe|system|api|git|data|term|kit|dock|ports|env|launcher) ;;
   ide)
-    echo "error: Ferrum IDE is no longer released; Ferrum Editor ('editor') is the suite's code editor" >&2
+    echo "error: the Zed-based Ferrum IDE ('ide') is no longer released; FerrumIDE ('editor') is the suite's code editor" >&2
     exit 2 ;;
   toolbox)
     echo "error: toolbox-v* tags are only the bridge for Ferrum Toolbox 0.5.0; release 'launcher' and see launcher/README.md" >&2

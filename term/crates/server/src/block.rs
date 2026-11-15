@@ -102,7 +102,7 @@ impl Block {
         for (k, v) in &spec.env {
             cmd.env(k, v);
         }
-        // Shell commands from Ferrum Launcher (`fee`, `feg`, …) work in
+        // Shell commands from Ferrum Launcher (`fei`, `feg`, …) work in
         // every FerrumTerm block, even before the shell profile adds them.
         if let Some(path) = with_ferrum_bin(
             spec.env

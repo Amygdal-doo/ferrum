@@ -1,4 +1,4 @@
-//! Ferrum Editor product page. Claims follow the Ferrum Editor README
+//! FerrumIDE product page. Claims follow the FerrumIDE README
 //! ("What works today" / "Not built yet") and nothing beyond it.
 //!
 //! The tool panes (Git, Agent and Term, `editor_pages::TOOLS`) and the Logs
@@ -10,12 +10,12 @@ use maud::{Markup, html};
 
 use super::editor_pages;
 use super::product_sections::{self as sections, BulletGroup, ProductPage};
-use crate::products::FERRUM_EDITOR;
+use crate::products::FERRUMIDE;
 
 /// Where `/ferrumlogs` points: this page's Logs section.
-pub const LOGS_PATH: &str = "/ferrum-editor#logs";
+pub const LOGS_PATH: &str = "/ferrumide#logs";
 /// Where `/ferrumci` points: this page's CI section.
-pub const CI_PATH: &str = "/ferrum-editor#ci";
+pub const CI_PATH: &str = "/ferrumide#ci";
 
 const FEATURES: &[(&str, &str)] = &[
     (
@@ -91,8 +91,8 @@ const NOT_BUILT_YET: &[&str] = &[
 ];
 
 const PAGE: ProductPage = ProductPage {
-    product: FERRUM_EDITOR,
-    meta_description: "Ferrum Editor is a small, hackable code editor written in Rust and \
+    product: FERRUMIDE,
+    meta_description: "FerrumIDE is a small, hackable code editor written in Rust and \
                        configured in plain TOML, with Git, an agent chat and a terminal as \
                        panes, plus LSP and a debugger.",
     intro: "Tree view, tabs, fuzzy finder and command palette, with config, keymap, theme and \
@@ -105,7 +105,7 @@ const PAGE: ProductPage = ProductPage {
         "three cursors typing at once",
         "the command palette filtering on toggle",
     ],
-    status_summary: "Ferrum Editor is in alpha, a first vertical slice. It is tested \
+    status_summary: "FerrumIDE is in alpha, a first vertical slice. It is tested \
                      automatically, but the window is new and its visual polish is unverified.",
     status_groups: &[
         BulletGroup {
@@ -154,8 +154,8 @@ mod tests {
     fn renders_title_status_and_demo() {
         let html = render("https://example.test").into_string();
         assert_eq!(html.matches("<h1").count(), 1);
-        assert!(html.contains(">Ferrum Editor</h1>"));
-        assert!(html.contains("Animated preview of Ferrum Editor"));
+        assert!(html.contains(">FerrumIDE</h1>"));
+        assert!(html.contains("Animated preview of FerrumIDE"));
         assert!(html.contains("/assets/img/brand/editor.svg"));
         assert!(html.contains("href=\"/download\""));
     }
@@ -166,8 +166,8 @@ mod tests {
         assert!(html.contains(r#"id="tools""#));
         assert!(html.contains(r#"id="logs""#));
         assert!(html.contains(r#"id="ci""#));
-        assert!(html.contains("Ferrum Editor · Logs"));
-        assert!(html.contains("Ferrum Editor · CI"));
+        assert!(html.contains("FerrumIDE · Logs"));
+        assert!(html.contains("FerrumIDE · CI"));
         assert!(html.contains("workflow_dispatch"));
         assert!(!html.contains("FerrumCI"));
         assert!(!html.contains("FerrumLogs"));

@@ -294,7 +294,7 @@ impl Config {
 }
 
 /// Default `config.toml` written on first launch.
-pub const DEFAULT_CONFIG_TOML: &str = r#"# Ferrum Editor settings. Changes apply as soon as you save this file.
+pub const DEFAULT_CONFIG_TOML: &str = r#"# FerrumIDE settings. Changes apply as soon as you save this file.
 # Run "Application: Open Keymap" / "Open Snippets" / "Open Theme" from the
 # command palette (Cmd+Shift+P) to customise the rest.
 

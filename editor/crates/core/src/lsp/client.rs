@@ -441,7 +441,7 @@ fn initialize_params(root: &Path, initialization_options: Option<Value>) -> Valu
         .map_or_else(|| "root".to_string(), |n| n.to_string_lossy().to_string());
     let mut params = json!({
         "processId": std::process::id(),
-        "clientInfo": { "name": "Ferrum Editor" },
+        "clientInfo": { "name": "FerrumIDE" },
         "rootUri": root_uri,
         "rootPath": root.to_string_lossy(),
         "workspaceFolders": [{ "uri": root_uri, "name": name }],

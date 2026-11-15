@@ -248,7 +248,7 @@ impl AppThemes {
     }
 }
 
-/// A host that renders its own themes (Ferrum Editor) installs this to be
+/// A host that renders its own themes (FerrumIDE) installs this to be
 /// told the suite's choice instead of having `ferrum-ui` install a preset.
 /// Return `true` when the host applied a theme itself.
 pub type ThemeHook = Rc<dyn Fn(&AppearancePrefs, Appearance, &mut App) -> bool>;
@@ -451,7 +451,7 @@ pub fn backdrop(cx: &App) -> Backdrop {
 /// window background turns transparent (the window root paints the
 /// [`Backdrop`]), bars float on it and panes become translucent. Menus and
 /// dialogs (elevated surfaces) stay opaque. Hosts that install their own
-/// themes (Ferrum Editor) call this before `GlobalTheme::update_theme`.
+/// themes (FerrumIDE) call this before `GlobalTheme::update_theme`.
 pub fn stylize(theme: &mut crate::theme::Theme, cx: &mut App) {
     let style = cx
         .try_global::<AppearanceState>()

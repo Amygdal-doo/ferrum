@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 
 pub const HELP: &str = "\
-Ferrum Editor — a small, hackable text editor.
+FerrumIDE — a small, hackable text editor.
 
 Usage:
   ferrumeditor [options] [path[:line[:column]]...]

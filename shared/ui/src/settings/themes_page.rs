@@ -82,7 +82,7 @@ impl SettingsPage for ThemesPage {
             .child(heading("Dark Mode", Appearance::Dark).footnote(format!(
                 "Themes chosen here apply to {name} only; other Ferrum apps keep their own. \
                      With the Auto colour scheme the system decides which of the two is used. \
-                     Ferrum Editor also lists its own and imported themes under Theme: Select."
+                     FerrumIDE also lists its own and imported themes under Theme: Select."
             )))
             .into_any_element()
     }

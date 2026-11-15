@@ -3,7 +3,7 @@
 //! [`TermView`] is the whole FerrumTerm window content — tab bar, split
 //! panes painted from server frames, the Agents / sessions / SSH-hosts
 //! sidebar, and the host-form and ports dialogs. The FerrumTerm desktop app
-//! is a thin binary around it; Ferrum Editor and FerrumVibe embed it as a
+//! is a thin binary around it; FerrumIDE and FerrumEngineer embed it as a
 //! split pane:
 //!
 //! ```ignore

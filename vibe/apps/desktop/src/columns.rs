@@ -7,7 +7,7 @@ use ferrum_ui::components::Clickable;
 use ferrum_ui::gpui::{Axis, ElementId, ExternalPaths, MouseButton, relative};
 use ferrum_ui::prelude::*;
 
-use crate::app::FerrumVibe;
+use crate::app::FerrumEngineer;
 use crate::files::DraggedPaths;
 use crate::layout::Column;
 use crate::nav::Page;
@@ -21,7 +21,7 @@ pub(crate) fn id(prefix: &str, column: Column) -> ElementId {
     ElementId::Name(format!("{prefix}-{}", column.key()).into())
 }
 
-impl FerrumVibe {
+impl FerrumEngineer {
     fn body(&mut self, column: Column, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         if column == Column::Chat && self.page() != Page::Chat {
             return v_flex()

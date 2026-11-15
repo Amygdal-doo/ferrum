@@ -83,7 +83,10 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("application:new-file", W, &["cmd-n"]),
     ("application:open-file", W, &["cmd-o"]),
     ("application:open-folder", W, &["cmd-shift-o"]),
-    ("application:open-config", W, &["cmd-,"]),
+    // ⌘, opens the Settings window, as in every Ferrum app; the config
+    // file is ⌥⌘,.
+    ("application:open-settings", W, &["cmd-,"]),
+    ("application:open-config", W, &["cmd-alt-,"]),
     ("application:open-keymap", W, &[]),
     ("application:open-snippets", W, &[]),
     ("application:open-theme", W, &[]),

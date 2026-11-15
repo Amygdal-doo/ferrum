@@ -184,6 +184,11 @@ pub struct Settings {
     /// files, which therefore read as 0 rather than the current revision.
     #[serde(default)]
     pub channels_revision: u32,
+    /// Bumped by one-time moves of the suggested shell commands (see
+    /// [`crate::shell::rename_defaults`]). Missing in older state files,
+    /// which read as 0 and get every move.
+    #[serde(default)]
+    pub commands_revision: u32,
     /// Apps the user has been told about. `None` until the first start,
     /// which records every app known then without announcing any.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -231,6 +236,10 @@ const LEGACY_REPO: (&str, &str) = ("Amygdal-doo", "ferrum");
 /// 1: every app moved to the Alpha channel, where all Ferrum releases are.
 const CHANNELS_REVISION: u32 = 1;
 
+/// 1: FerrumIDE `fee` → `fei`, FerrumEngineer `fev` → `fen`, FerrumVariables
+/// `fen` → `fev` (after FerrumAgentic's `fex` → `fev`, FerrumEnv's `fev` → `fen`).
+const COMMANDS_REVISION: u32 = 1;
+
 impl Settings {
     /// Whether the configured repo is [`PUBLIC_REPO`], which needs no token.
     #[must_use]
@@ -248,6 +257,7 @@ impl Default for Settings {
             keep_versions: 3,
             legacy_include_prereleases: false,
             channels_revision: CHANNELS_REVISION,
+            commands_revision: COMMANDS_REVISION,
             seen_apps: None,
             new_apps: BTreeSet::new(),
             legacy_keychain_checked: false,
@@ -357,8 +367,8 @@ impl State {
                 self.apps.entry(app).or_default().channel = UpdateChannel::Beta;
             }
         }
-        // FerrumAgentic became FerrumVibe (FeV), whose command is `fev`, so
-        // FerrumEnv's `fev` becomes `fen`. The old install itself is
+        // FerrumAgentic became FerrumVibe (FeV), whose command was `fev`, so
+        // FerrumEnv's `fev` became `fen`. The old install itself is
         // removed by `retire_agentic`.
         if let Some(old) = self.settings.app_prefs.remove(&AppId::LEGACY_VIBE) {
             let vibe = self.settings.app_prefs.entry(AppId::VIBE).or_default();
@@ -368,10 +378,19 @@ impl State {
                 vibe.command = Some("fev".into());
             }
         }
-        if let Some(env) = self.settings.app_prefs.get_mut(&AppId::ENV)
-            && env.command.as_deref() == Some("fev")
-        {
-            env.command = Some("fen".into());
+        if self.settings.commands_revision < COMMANDS_REVISION {
+            if let Some(env) = self.settings.app_prefs.get_mut(&AppId::ENV)
+                && env.command.as_deref() == Some("fev")
+            {
+                env.command = Some("fen".into());
+            }
+            // Then FerrumIDE (FeI), FerrumEngineer (FeN) and FerrumVariables
+            // (FeV): `fee` → `fei`, and `fen` / `fev` swap. The scripts
+            // follow in `sync_shell_commands`.
+            for (app, old, new) in crate::shell::rename_defaults(&mut self.settings.app_prefs) {
+                tracing::info!(%app, old, new, "moving a shell command to its new name");
+            }
+            self.settings.commands_revision = COMMANDS_REVISION;
         }
         if let Some(seen) = &mut self.settings.seen_apps
             && seen.remove(&AppId::LEGACY_VIBE)
@@ -702,11 +721,11 @@ impl State {
             .collect()
     }
 
-    /// FerrumAgentic was renamed FerrumVibe with a new id, binary and bundle,
-    /// so its install can't be updated in place: this removes it (versions,
-    /// `FerrumAgentic.app`, the `ferrumagentic` link and the old `fex` / `fev`
-    /// command scripts that pointed at it or at FerrumEnv) and leaves
-    /// FerrumVibe to be installed. Returns whether anything changed.
+    /// FerrumAgentic was renamed FerrumVibe (now FerrumEngineer) with a new
+    /// id, binary and bundle, so its install can't be updated in place: this
+    /// removes it (versions, `FerrumAgentic.app`, the `ferrumagentic` link
+    /// and the old `fex` / `fev` command scripts that opened it) and leaves
+    /// FerrumEngineer to be installed. Returns whether anything changed.
     pub fn retire_agentic(&mut self, paths: &Paths) -> bool {
         let had_install = self.apps.remove(&AppId::LEGACY_VIBE).is_some();
         let mut changed = had_install;
@@ -727,19 +746,28 @@ impl State {
             changed |= remove(dir.join("FerrumAgentic.app"));
         }
         changed |= remove(paths.bin_dir.join("ferrumagentic"));
-        // Command scripts: `fex` opened FerrumAgentic; a `fev` that opens
-        // FerrumEnv is rewritten as `fen` (and `fev` for FerrumVibe) by the
-        // shell-command refresh at start.
+        // Command scripts that opened FerrumAgentic. The others are brought
+        // in line with the settings by `sync_shell_commands`.
         for name in ["fex", "fev"] {
             let script = paths.bin_dir.join(name);
-            let stale = std::fs::read_to_string(&script).is_ok_and(|s| {
-                s.contains("ferrumagentic") || (name == "fev" && s.contains("ferrumenv"))
-            });
+            let stale = std::fs::read_to_string(&script).is_ok_and(|s| s.contains("ferrumagentic"));
             if stale {
                 changed |= remove(script);
             }
         }
         changed
+    }
+
+    /// Writes the enabled shell commands' scripts and removes the launcher's
+    /// scripts no app uses any more (see [`crate::shell::sync`]), e.g. after
+    /// the renames moved `fee`, `fen` and `fev`. Returns whether anything
+    /// changed, so the state (with any command moved by [`State::load`], or
+    /// turned off because its name is someone else's file) is saved.
+    pub fn sync_shell_commands(&mut self, paths: &Paths) -> bool {
+        let mut prefs = std::mem::take(&mut self.settings.app_prefs);
+        let synced = crate::shell::sync(paths, &mut prefs, |app| self.info(app));
+        self.settings.app_prefs = prefs;
+        synced.files_changed || !synced.turned_off.is_empty()
     }
 
     /// Removes an installed version. The active one can only be removed when
@@ -1432,14 +1460,16 @@ mod tests {
         )
         .expect("state");
         state.migrate();
+        // fex → fev (FerrumVibe) → fen (FerrumEngineer); FerrumEnv's fev →
+        // fen → fev (FerrumVariables).
         assert_eq!(
             state.settings.app_prefs[&AppId::VIBE].command.as_deref(),
-            Some("fev")
+            Some("fen")
         );
         assert!(state.settings.app_prefs[&AppId::VIBE].hide_from_dock);
         assert_eq!(
             state.settings.app_prefs[&AppId::ENV].command.as_deref(),
-            Some("fen")
+            Some("fev")
         );
         assert!(
             state
@@ -1455,15 +1485,93 @@ mod tests {
         std::fs::create_dir_all(&old).expect("old install");
         std::fs::create_dir_all(&paths.bin_dir).expect("bin");
         std::fs::write(paths.bin_dir.join("fev"), "exec ferrumenv").expect("fev");
+        std::fs::write(paths.bin_dir.join("fex"), "exec ferrumagentic").expect("fex");
         std::fs::write(paths.bin_dir.join("fea"), "exec ferrumapi").expect("fea");
         assert!(state.retire_agentic(&paths));
         assert!(!state.apps.contains_key(&AppId::LEGACY_VIBE));
+        assert!(!paths.bin_dir.join("fex").exists());
         assert!(
-            !paths.bin_dir.join("fev").exists(),
-            "rewritten as fen at start"
+            paths.bin_dir.join("fev").exists(),
+            "FerrumVariables' command now"
         );
         assert!(paths.bin_dir.join("fea").exists());
         assert!(!state.retire_agentic(&paths), "nothing left to do");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn renamed_apps_shell_commands_move_once() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let paths = paths(dir.path());
+        std::fs::create_dir_all(&paths.bin_dir).expect("bin");
+        // A state file from before FerrumIDE, FerrumEngineer and
+        // FerrumVariables, with its scripts.
+        std::fs::create_dir_all(&paths.data_dir).expect("data");
+        std::fs::write(
+            paths.state_file(),
+            r#"{"format":1,"settings":{"channels_revision":1,"app_prefs":{
+                "editor":{"command":"fee"},"vibe":{"command":"fev","hide_from_dock":true},
+                "env":{"command":"fen"},"git":{"command":"feg"}}}}"#,
+        )
+        .expect("state");
+        let old = |app: AppId, command: &str| {
+            let info = Catalog::embedded().info(app).expect("app");
+            let entry = paths.bin_dir.join(&info.binary);
+            std::fs::write(
+                paths.bin_dir.join(command),
+                crate::shell::script(&info, command, &entry),
+            )
+            .expect("script");
+        };
+        old(AppId::EDITOR, "fee");
+        old(AppId::VIBE, "fev");
+        old(AppId::ENV, "fen");
+        old(AppId::GIT, "feg");
+        let mut state = State::load(&paths).expect("load");
+        let command = |state: &State, app: AppId| {
+            state.settings.app_prefs[&app]
+                .command
+                .clone()
+                .unwrap_or_default()
+        };
+        assert_eq!(command(&state, AppId::EDITOR), "fei");
+        assert_eq!(command(&state, AppId::VIBE), "fen");
+        assert_eq!(command(&state, AppId::ENV), "fev");
+        assert_eq!(command(&state, AppId::GIT), "feg");
+        assert!(state.settings.app_prefs[&AppId::VIBE].hide_from_dock);
+        assert!(state.sync_shell_commands(&paths), "scripts moved");
+        let script = |name: &str| std::fs::read_to_string(paths.bin_dir.join(name)).ok();
+        assert!(script("fee").is_none());
+        assert!(script("fei").expect("fei").contains("/ferrumeditor'"));
+        assert!(script("fen").expect("fen").contains("/ferrumvibe'"));
+        assert!(script("fev").expect("fev").contains("/ferrumenv'"));
+        state.save(&paths).expect("save");
+        // Later the user gives FerrumVariables `fen` back (Engineer's is off):
+        // the move isn't made again.
+        state
+            .settings
+            .app_prefs
+            .get_mut(&AppId::VIBE)
+            .expect("vibe")
+            .command = None;
+        state
+            .settings
+            .app_prefs
+            .get_mut(&AppId::ENV)
+            .expect("env")
+            .command = Some("fen".into());
+        state.save(&paths).expect("save");
+        let mut state = State::load(&paths).expect("load");
+        assert_eq!(command(&state, AppId::ENV), "fen");
+        assert!(state.sync_shell_commands(&paths));
+        assert!(script("fen").expect("fen").contains("/ferrumenv'"));
+        assert!(script("fev").is_none(), "no app has fev now");
+        assert!(!state.sync_shell_commands(&paths), "nothing left to do");
+        // A new install starts at the current revision.
+        assert_eq!(
+            State::default().settings.commands_revision,
+            COMMANDS_REVISION
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 [package]
 name = "ferrumeditor-desktop"
-description = "Ferrum Editor — a small, hackable text editor. GPUI desktop shell."
+description = "FerrumIDE — a small, hackable text editor. GPUI desktop shell."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

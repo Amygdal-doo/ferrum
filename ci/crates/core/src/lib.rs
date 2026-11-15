@@ -1,4 +1,4 @@
-//! CI core behind Ferrum Editor's CI page: GitHub Actions for a
+//! CI core behind FerrumIDE's CI page: GitHub Actions for a
 //! repository, built on FerrumGIT's forge layer (`ferrumgit-forge`) so auth
 //! headers, rate limits, error messages and the testable [`Transport`] are
 //! shared.

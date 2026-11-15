@@ -25,16 +25,16 @@ $apps = @{
     data    = @{ Name = "FerrumData";     Binaries = @("ferrumdata") }
     kit     = @{ Name = "FerrumKit";      Binaries = @("ferrumkit") }
     dock    = @{ Name = "FerrumContainers"; Binaries = @("ferrumdock") }
-    editor  = @{ Name = "Ferrum Editor";  Binaries = @("ferrumeditor") }
+    editor  = @{ Name = "FerrumIDE";      Binaries = @("ferrumeditor") }
     ports   = @{ Name = "FerrumPorts";    Binaries = @("ferrumports") }
-    env     = @{ Name = "FerrumEnv";      Binaries = @("ferrumenv") }
+    env     = @{ Name = "FerrumVariables"; Binaries = @("ferrumenv") }
     launcher = @{ Name = "Ferrum Launcher"; Binaries = @("ferrum-launcher") }
 }
 if ($App -eq "term") {
     throw "FerrumTerm has no Windows build yet (its server uses Unix sockets)."
 }
 if ($App -eq "vibe") {
-    throw "FerrumVibe has no Windows build yet (it embeds FerrumTerm, whose server uses Unix sockets)."
+    throw "FerrumEngineer has no Windows build yet (it embeds FerrumTerm, whose server uses Unix sockets)."
 }
 if (-not $apps.ContainsKey($App)) {
     throw "unknown app id '$App'"

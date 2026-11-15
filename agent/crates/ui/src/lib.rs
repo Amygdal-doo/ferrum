@@ -1,5 +1,5 @@
 //! FerrumChat's GPUI view: a Cursor-like agentic coding chat that a host
-//! embeds as a pane (Ferrum Editor's split, a FerrumVibe column).
+//! embeds as a pane (FerrumIDE's split, a FerrumEngineer column).
 //!
 //! ```ignore
 //! ferrumagent_ui::init(cx); // once, after ferrum_ui's theme
@@ -49,7 +49,8 @@ pub use ferrumagent_core::permissions::Approval;
 pub use ferrumagent_core::session::McpServerStatus;
 pub use host::{GitRequest, GitStatus};
 pub use live::{
-    DONE, DONE_EVENT, NEEDS_YOU, NEEDS_YOU_EVENT, Notifier, ToastClick, default_notifier,
+    DONE, DONE_EVENT, FAILED, FAILED_EVENT, NEEDS_YOU, NEEDS_YOU_EVENT, Notifier, ToastClick,
+    default_notifier,
 };
 pub use threads::{status_indicator, thread_logo};
 pub use view::{ChatEvent, ChatOptions, ChatView, HeaderSlot};

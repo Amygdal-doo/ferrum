@@ -187,7 +187,7 @@ impl Installer<'_> {
     /// [`with_managed`]'s path (or the rustup proxy works).
     pub fn install(&mut self, def: &ServerDef) -> Result<(), String> {
         let method = pick(def, &self.path_env)
-            .ok_or_else(|| format!("Ferrum Editor can't install the {} server", def.id))?;
+            .ok_or_else(|| format!("FerrumIDE can't install the {} server", def.id))?;
         std::fs::create_dir_all(&self.servers).map_err(|e| e.to_string())?;
         self.say(&format!("Installing {}", describe(def, &self.path_env)));
         match method {

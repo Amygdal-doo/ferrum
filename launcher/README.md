@@ -1,8 +1,8 @@
 # Ferrum Launcher
 
-Installs, updates, switches between and launches the Ferrum apps (Ferrum
-Editor, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers,
-any app added to the catalog later, and itself), in the style of JetBrains
+Installs, updates, switches between and launches the Ferrum apps
+(FerrumIDE, FerrumEngineer, Ferrum System, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm,
+FerrumKit, FerrumContainers, FerrumPorts, FerrumVariables, any app added to the catalog later, and itself), in the style of JetBrains
 Toolbox.
 GPUI desktop app built on `ferrum-ui`. Up to 0.5.0 it was called **Ferrum
 Toolbox**; see [Migration from Ferrum Toolbox](#migration-from-ferrum-toolbox).
@@ -19,7 +19,7 @@ Each app's page has three choices, all off by default:
 
 | Choice | What it does |
 | --- | --- |
-| **Shell command** | Writes a small script in `~/.ferrum/bin` named as typed (suggested: `fee` Ferrum Editor, `fea` FerrumAPI, `feg` FerrumGIT, `fed` FerrumData, `fet` FerrumTerm, `fek` FerrumKit, `fec` FerrumContainers, `fep` FerrumPorts, `fev` FerrumEnv, `fex` FerrumVibe, `fel` the launcher). `fee .` opens Ferrum Editor on the current folder (like `zed .`), `feg .` FerrumGIT on that repository, `fet` FerrumTerm in a session in the current folder. The first command turned on also adds `~/.ferrum/bin` to PATH in `~/.zprofile` (`~/.bash_profile` for bash, `conf.d/ferrum.fish` for fish) with one marked line; FerrumTerm and Ferrum Editor's terminal have it on PATH anyway. Scripts not written by the launcher are never replaced or removed. Enter in the name field renames an enabled command. |
+| **Shell command** | Writes a small script in `~/.ferrum/bin` named as typed (suggested: "Fe" plus the logo's capital — `fei` FerrumIDE, `fen` FerrumEngineer, `fes` Ferrum System, `fea` FerrumAPI, `feg` FerrumGIT, `fed` FerrumData, `fet` FerrumTerm, `fek` FerrumKit, `fec` FerrumContainers, `fep` FerrumPorts, `fev` FerrumVariables, `fel` the launcher). `fei .` opens FerrumIDE on the current folder (like `zed .`), `feg .` FerrumGIT on that repository, `fet` FerrumTerm in a session in the current folder. The first command turned on also adds `~/.ferrum/bin` to PATH in `~/.zprofile` (`~/.bash_profile` for bash, `conf.d/ferrum.fish` for fish) with one marked line; FerrumTerm and FerrumIDE's terminal have it on PATH anyway. Scripts not written by the launcher are never replaced or removed. Enter in the name field renames an enabled command. At every start the launcher rewrites the enabled commands' scripts and removes its own scripts no app uses any more (`shell::sync`). The 2026-11 renames moved the suggested names once (`State::migrate`, `shell::rename_defaults`): Ferrum Editor's `fee` became FerrumIDE's `fei`, and FerrumVibe's `fev` and FerrumEnv's `fen` swapped (FerrumEngineer `fen`, FerrumVariables `fev`); names the user chose, and moves onto a name another app already has, are left alone. |
 | **Hide from Dock** (macOS) | Listed in `~/.ferrum/preferences.json`, which every Ferrum app reads when it starts (`ferrum_ui::dock`); the app then runs as an accessory app (no Dock icon, not in ⌘-Tab). The launcher switches at once and moves to the menu bar. |
 | **Shortcut** (macOS) | A global shortcut (⌘, ⌃ or ⌥ plus a letter, digit, F-key or space) that opens or brings forward the app from anywhere, while the launcher runs. |
 
@@ -146,7 +146,7 @@ and a **New** badge on its overview row until it is opened or installed.
 
 **Discontinued apps:** an installed app that is no longer offered (it left
 the catalog, or the launcher retired it: Ferrum IDE, id `ide`, dropped in
-favour of Ferrum Editor) is not removed or hidden. It stays on the overview
+favour of FerrumIDE) is not removed or hidden. It stays on the overview
 below the offered apps with a **No longer offered** badge: Launch and
 Uninstall keep working, but it gets no updates or new installs and never
 counts as a new app. Retired ids are ignored in any catalog, including copies
@@ -251,7 +251,7 @@ On every start (each step is a no-op once done):
 - **State:** `toolbox` keys, releases and catalog entries read as `launcher`;
   settings, installed and active versions, channels and `channels_revision`
   are kept. A state file without the launcher's `format` marker came from the
-  toolbox: FerrumKit, FerrumContainers and Ferrum Editor, added after 0.5.0, are
+  toolbox: FerrumKit, FerrumContainers and FerrumIDE, added after 0.5.0, are
   announced as new.
 - **Token:** once, the GitHub token under keychain service `FerrumToolbox` is
   copied to `FerrumLauncher` unless that already has one; the old entry is

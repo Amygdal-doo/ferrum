@@ -1,4 +1,4 @@
-//! FerrumVibe's menu bar: the shared one with File › Open Folder… (⌘O),
+//! FerrumEngineer's menu bar: the shared one with File › Open Folder… (⌘O),
 //! New Task and New Discussion, and View toggles for the sidebar and the
 //! Files, Git and Term panes.
 

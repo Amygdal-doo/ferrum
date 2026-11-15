@@ -1,7 +1,7 @@
 //! The project an app is working on, shared by every Ferrum app.
 //!
 //! Recently opened projects live in `~/.ferrum/projects.json`, so a folder
-//! opened in Ferrum Editor shows up in FerrumGIT's and FerrumTerm's
+//! opened in FerrumIDE shows up in FerrumGIT's and FerrumTerm's
 //! switchers too. This module is the data side (no UI): the list, the git
 //! branch, `~`-shortened paths and opening a folder in another Ferrum app.
 //! [`crate::ProjectBar`] draws it.
@@ -197,7 +197,7 @@ impl FerrumApp {
     #[must_use]
     pub fn name(self) -> &'static str {
         match self {
-            FerrumApp::Editor => "Ferrum Editor",
+            FerrumApp::Editor => "FerrumIDE",
             FerrumApp::Git => "FerrumGIT",
             FerrumApp::Term => "FerrumTerm",
         }
@@ -207,7 +207,7 @@ impl FerrumApp {
     #[must_use]
     pub fn label(self) -> &'static str {
         match self {
-            FerrumApp::Editor => "Editor",
+            FerrumApp::Editor => "IDE",
             FerrumApp::Git => "Git",
             FerrumApp::Term => "Term",
         }
@@ -220,6 +220,18 @@ impl FerrumApp {
             FerrumApp::Editor => "ferrumeditor",
             FerrumApp::Git => "ferrumgit",
             FerrumApp::Term => "ferrumterm",
+        }
+    }
+
+    /// Its `.app` bundle names, the current one first. The launcher renames
+    /// its copy when an app is renamed; one installed by hand may keep the
+    /// old name (FerrumIDE was Ferrum Editor).
+    #[must_use]
+    pub fn bundle_names(self) -> &'static [&'static str] {
+        match self {
+            FerrumApp::Editor => &["FerrumIDE", "Ferrum Editor"],
+            FerrumApp::Git => &["FerrumGIT"],
+            FerrumApp::Term => &["FerrumTerm"],
         }
     }
 
@@ -244,11 +256,37 @@ pub fn find_binary(binary: &str, home: Option<&Path>) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
+/// Where `app`'s executable is: [`find_binary`], else inside its `.app`
+/// under any of its [bundle names](FerrumApp::bundle_names) in
+/// `~/Applications/Ferrum`, `~/Applications`, `/Applications/Ferrum` or
+/// `/Applications`.
+#[must_use]
+pub fn find_app(app: FerrumApp, home: Option<&Path>) -> Option<PathBuf> {
+    find_binary(app.binary(), home).or_else(|| {
+        let mut dirs: Vec<PathBuf> = Vec::new();
+        if let Some(home) = home {
+            dirs.push(home.join("Applications/Ferrum"));
+            dirs.push(home.join("Applications"));
+        }
+        dirs.push(PathBuf::from("/Applications/Ferrum"));
+        dirs.push(PathBuf::from("/Applications"));
+        dirs.iter()
+            .flat_map(|dir| {
+                app.bundle_names().iter().map(move |name| {
+                    dir.join(format!("{name}.app"))
+                        .join("Contents/MacOS")
+                        .join(app.binary())
+                })
+            })
+            .find(|candidate| candidate.is_file())
+    })
+}
+
 /// Opens `folder` in `app`, in the background, like the launcher's shell
-/// commands (`fee .`, `feg .`, `fet`).
+/// commands (`fei .`, `feg .`, `fet`).
 pub fn open_in(app: FerrumApp, folder: &Path) -> Result<(), String> {
     let home = home_dir();
-    let Some(exe) = find_binary(app.binary(), home.as_deref()) else {
+    let Some(exe) = find_app(app, home.as_deref()) else {
         return Err(format!(
             "{} is not installed. Install it in Ferrum Launcher.",
             app.name()
@@ -295,7 +333,7 @@ pub fn editor_target(file: &Path, line: Option<u32>) -> std::ffi::OsString {
     target
 }
 
-/// Opens `file` in Ferrum Editor (at a 1-based `line`), with `project` as
+/// Opens `file` in FerrumIDE (at a 1-based `line`), with `project` as
 /// its folder: `ferrumeditor <project> <file>:<line>`.
 pub fn open_file_in_editor(
     project: Option<&Path>,
@@ -303,7 +341,7 @@ pub fn open_file_in_editor(
     line: Option<u32>,
 ) -> Result<(), String> {
     let app = FerrumApp::Editor;
-    let Some(exe) = find_binary(app.binary(), home_dir().as_deref()) else {
+    let Some(exe) = find_app(app, home_dir().as_deref()) else {
         return Err(format!(
             "{} is not installed. Install it in Ferrum Launcher.",
             app.name()
@@ -406,6 +444,37 @@ mod tests {
     fn apps_by_binary() {
         assert_eq!(FerrumApp::from_binary("ferrumgit"), Some(FerrumApp::Git));
         assert_eq!(FerrumApp::from_binary("ferrumapi"), None);
+    }
+
+    #[test]
+    fn the_ide_is_found_under_its_new_or_old_bundle_name() {
+        let home = tempfile::tempdir().expect("home");
+        let binary = |bundle: &str| {
+            home.path()
+                .join("Applications/Ferrum")
+                .join(format!("{bundle}.app"))
+                .join("Contents/MacOS/ferrumeditor")
+        };
+        let old = binary("Ferrum Editor");
+        std::fs::create_dir_all(old.parent().expect("dir")).expect("mkdir");
+        std::fs::write(&old, "").expect("old");
+        assert_eq!(find_app(FerrumApp::Editor, Some(home.path())), Some(old));
+        let new = binary("FerrumIDE");
+        std::fs::create_dir_all(new.parent().expect("dir")).expect("mkdir");
+        std::fs::write(&new, "").expect("new");
+        assert_eq!(
+            find_app(FerrumApp::Editor, Some(home.path())),
+            Some(new),
+            "the current name first"
+        );
+        let link = home.path().join(".ferrum/bin/ferrumeditor");
+        std::fs::create_dir_all(link.parent().expect("dir")).expect("mkdir");
+        std::fs::write(&link, "").expect("link");
+        assert_eq!(
+            find_app(FerrumApp::Editor, Some(home.path())),
+            Some(link),
+            "the launcher's link wins"
+        );
     }
 
     #[test]

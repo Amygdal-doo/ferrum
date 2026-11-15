@@ -15,9 +15,9 @@ iron. The tile has these parts:
 - **Symbol:** monoline, geometric letters. The core mark is `Fe` (iron) with
   a light "ingot" `F` (`#f1e9df`) and an accent `e`. Each app is `Fe` in ingot
   ink plus a capital in its accent colour: `FeA`, `FeG`, `FeD`, `FeT`,
-  `FeL`, `FeK`, `FeC`, `FeE`, `FeP`, `FeE`, `FeX`. Letters may repeat: Ferrum Editor and
-  FerrumEnv are both `FeE`, told apart by the accent (citron / vermilion) and the badge
-  (caret / padlock).
+  `FeL`, `FeK`, `FeC`, `FeI`, `FeP`, `FeV`, `FeN`, `FeS`: the capital is the app
+  name's (FerrumIDE, FerrumVariables, FerrumEngineer), so no two apps share a letter.
+  Renamed apps keep their accent, badge and file name (the app id).
 - **Job badge** (app variants only): a circle in the accent colour that
   overlaps the top-right of the ring and shows the app's job in dark ink. The
   core mark has no badge.
@@ -41,10 +41,10 @@ own dark ground.
 | Launcher: ember rose | `#E85A7E` |
 | Kit: orchid | `#D46BE0` |
 | Containers: glacier | `#38BDF8` |
-| Editor: citron | `#C5DC3A` |
+| IDE: citron | `#C5DC3A` |
 | Ports: cobalt | `#5B8DEF` |
-| Env: vermilion | `#F2665A` |
-| Vibe: aurora | `#4CD97B` |
+| Variables: vermilion | `#F2665A` |
+| Engineer: aurora | `#4CD97B` |
 
 The rust and patina colours match the website tokens (`web/assets/css/tokens.css`).
 
@@ -60,10 +60,10 @@ The rust and patina colours match the website tokens (`web/assets/css/tokens.css
 | `launcher.svg` | FeL | 2×2 app grid |
 | `kit.svg` | FeK | two sliders |
 | `dock.svg` | FeC (FerrumContainers; the file keeps the app id `dock`) | stacked containers |
-| `editor.svg` | FeE | lines of text and an I-beam cursor |
+| `editor.svg` | FeI (FerrumIDE, formerly Ferrum Editor; the file keeps the app id `editor`) | lines of text and an I-beam cursor |
 | `ports.svg` | FeP | plug |
-| `env.svg` | FeE | padlock |
-| `vibe.svg` | FeV | sparkle (a large and a small four-point star) |
+| `env.svg` | FeV (FerrumVariables, formerly FerrumEnv; file `env`) | padlock |
+| `vibe.svg` | FeN (FerrumEngineer, formerly FerrumVibe; file `vibe`) | sparkle (a large and a small four-point star) |
 | `ferrum-wordmark.svg` | Fe + "Ferrum" | light lettering, for dark backgrounds |
 | `ferrum-wordmark-light.svg` | Fe + "Ferrum" | dark lettering, for light backgrounds |
 

@@ -1,9 +1,9 @@
 # web-ferrum
 
 Server-rendered marketing site for the **Ferrum** family of Rust developer tools
-(Ferrum Editor, FerrumVibe, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers,
-FerrumPorts, FerrumEnv and Ferrum Launcher). Project logs and GitHub Actions live
-in Ferrum Editor's Logs and CI pages, presented as sections of `/ferrum-editor`.
+(FerrumIDE, FerrumEngineer, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers,
+FerrumPorts, FerrumVariables and Ferrum Launcher). Project logs and GitHub Actions live
+in FerrumIDE's Logs and CI pages, presented as sections of `/ferrumide`.
 It is a single Rust binary built with
 Axum 0.8, maud templates and tower-http. All CSS, JS and images are embedded in
 the binary with rust-embed, so there is nothing to upload besides the binary.
@@ -44,14 +44,15 @@ There is no mailing list: news goes on `/updates` and its Atom feed.
 
 | Path | Notes |
 |------|-------|
-| `/`, `/features`, `/ferrum-editor`, `/ferrumapi`, `/ferrumgit`, `/ferrumdata`, `/ferrumterm`, `/ferrumkit`, `/ferrumcontainers`, `/ferrumports`, `/ferrumenv`, `/ferrumvibe`, `/ferrum-launcher`, `/download`, `/about` | HTML pages, `Cache-Control: public, max-age=300` |
+| `/`, `/features`, `/ferrumide`, `/ferrumapi`, `/ferrumgit`, `/ferrumdata`, `/ferrumterm`, `/ferrumkit`, `/ferrumcontainers`, `/ferrumports`, `/ferrumvariables`, `/ferrumengineer`, `/ferrum-launcher`, `/download`, `/about` | HTML pages, `Cache-Control: public, max-age=300` |
 | `/docs`, `/docs/install`, `/docs/shell-commands`, `/docs/project-bar`, `/docs/shortcuts` | Guides (`src/pages/docs/`), with a shared index rail. Shortcuts and shell commands are taken from the apps' code (`shell.rs`, each app's key bindings) |
 | `/changelog` | Every release of every app, newest first, from the same cached GitHub releases list as `/download/macos`. If GitHub fails, the last good list is still served. If GitHub has never answered, the page says so and links the releases page |
-| `/faq`, `/security` | FAQ (with `FAQPage` JSON-LD) and the security model (signing, checksums, the FerrumEnv vault and its limits) |
+| `/faq`, `/security` | FAQ (with `FAQPage` JSON-LD) and the security model (signing, checksums, the FerrumVariables vault and its limits) |
 | `/compare`, `/compare/{slug}` | `ferrumcontainers-vs-docker-desktop`, `ferrumapi-vs-postman`. Ferrum's column comes from the READMEs. The other column uses general terms only, with a note that its details can change |
 | `/ferrumdock` | `308` to `/ferrumcontainers` (FerrumDock was renamed) |
+| `/ferrum-editor`, `/ferrumvibe`, `/ferrumagentic`, `/ferrumenv` | `308` to `/ferrumide`, `/ferrumengineer` (twice renamed: FerrumAgentic, FerrumVibe) and `/ferrumvariables` (Ferrum Editor, FerrumVibe and FerrumEnv were renamed on 2026-11-15) |
 | `/favicon.ico` | `308` to the 32px PNG favicon |
-| `/ferrum-toolbox`, `/ferrum-ide`, `/ferrumlogs`, `/ferrumci` | `308` to `/ferrum-launcher` (the launcher's former name), `/ferrum-editor` (Ferrum IDE was dropped; Ferrum Editor is the suite's code editor), `/ferrum-editor#logs` and `/ferrum-editor#ci` (FerrumLogs and FerrumCI became the editor's Logs and CI pages) |
+| `/ferrum-toolbox`, `/ferrum-ide`, `/ferrumlogs`, `/ferrumci` | `308` to `/ferrum-launcher` (the launcher's former name), `/ferrumide` (the old Ferrum IDE app was dropped; FerrumIDE, formerly Ferrum Editor, is the suite's code editor), `/ferrumide#logs` and `/ferrumide#ci` (FerrumLogs and FerrumCI became the editor's Logs and CI pages) |
 | `/download/macos` | `302` to the newest stable `launcher-v*` (or older `toolbox-v*`) `*-aarch64.dmg` in the public `Amygdal-doo/ferrum-releases` repo. The release list comes from the GitHub API (anonymous) and is cached in memory for 10 min (`releases::Releases`, shared with `/changelog`). After a failed fetch, GitHub is asked again after 1 min. Without a list, it links the releases page. `no-store`. Disallowed in robots.txt |
 | `/updates`, `/updates/{slug}`, `/privacy` | HTML pages. Posts are Rust data in `src/updates.rs` with bodies in `src/pages/posts/`. The updates pages end with a block at `#follow` that points to the Atom feed |
 | `/updates/feed.xml` | Atom feed of every post, full HTML content with absolute links. Linked from every page's `<head>` |

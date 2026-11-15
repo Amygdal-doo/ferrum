@@ -38,8 +38,8 @@ fn faqs() -> Vec<Faq> {
         Faq {
             q: "What is Ferrum?",
             a: "A family of native developer tools for macOS, written in Rust and drawn on the \
-                GPU with GPUI: Ferrum Editor, FerrumVibe, FerrumAPI, FerrumGIT, FerrumData, \
-                FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumEnv. Ferrum \
+                GPU with GPUI: FerrumIDE, FerrumEngineer, FerrumAPI, FerrumGIT, FerrumData, \
+                FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumVariables. Ferrum \
                 Launcher installs and updates them."
                 .to_owned(),
             more: Some(("See every app", super::apps::PATH)),
@@ -69,9 +69,9 @@ fn faqs() -> Vec<Faq> {
         Faq {
             q: "Do I need an account?",
             a: "No. Builds are public GitHub releases, and the launcher installs every app \
-                without signing in. Ferrum Editor's CI page asks for a GitHub token only when \
-                you open it, and can reuse the GitHub CLI's. The agent chat in Ferrum Editor and \
-                FerrumVibe uses your own API key, a local Ollama or an agent you already \
+                without signing in. FerrumIDE's CI page asks for a GitHub token only when \
+                you open it, and can reuse the GitHub CLI's. The agent chat in FerrumIDE and \
+                FerrumEngineer uses your own API key, a local Ollama or an agent you already \
                 have, such as Claude Code."
                 .to_owned(),
             more: None,
@@ -79,7 +79,7 @@ fn faqs() -> Vec<Faq> {
         Faq {
             q: "Where is my data stored?",
             a: "On your Mac. FerrumAPI keeps collections and history in a local SQLite file, \
-                FerrumEnv keeps an encrypted vault in ~/.ferrum/env, and the apps share recent \
+                FerrumVariables keeps an encrypted vault in ~/.ferrum/env, and the apps share recent \
                 projects in ~/.ferrum/projects.json. There is no Ferrum server that holds your \
                 work."
                 .to_owned(),
@@ -108,8 +108,8 @@ fn faqs() -> Vec<Faq> {
         },
         Faq {
             q: "Can I open the apps from a terminal?",
-            a: "Yes. Turn on a shell command for an app in the launcher, then run fee . to open \
-                the current folder in Ferrum Editor, feg . for FerrumGIT or fet for FerrumTerm."
+            a: "Yes. Turn on a shell command for an app in the launcher, then run fei . to open \
+                the current folder in FerrumIDE, feg . for FerrumGIT or fet for FerrumTerm."
                 .to_owned(),
             more: Some(("Shell commands", "/docs/shell-commands")),
         },

@@ -383,3 +383,48 @@ fn a_turn_whose_view_is_gone_is_denied_rather_than_left_waiting() {
     // The thread was saved even though nobody watched it.
     assert_eq!(session.threads().len(), 1);
 }
+
+#[test]
+fn deleting_a_running_sibling_thread_is_final() {
+    let project = tempfile::tempdir().expect("tempdir");
+    let home = tempfile::tempdir().expect("tempdir");
+    let mut mock = MockProvider::new();
+    mock.delay = Some(std::time::Duration::from_millis(200));
+    mock.push_text("slow answer");
+    let (a, _a_events) = session(project.path(), home.path(), &mock);
+    let (b, b_events) = a.sibling(None, Mode::Agent).expect("sibling");
+    let mut b_events = Events::new(b_events);
+    b.send("hello", vec![]);
+    b_events.wait("B's thread to be saved", |e| {
+        matches!(e, SessionEvent::ThreadsChanged).then_some(())
+    });
+    let id = b.thread().id;
+    assert!(a.threads().iter().any(|t| t.id == id));
+
+    // What the chat view does when a background thread is deleted.
+    b.discard();
+    a.delete_thread(&id).expect("delete");
+    b_events.idle();
+    assert!(
+        a.threads().iter().all(|t| t.id != id),
+        "the cancelled turn wrote the deleted thread back"
+    );
+}
+
+#[test]
+fn siblings_share_one_settings() {
+    let project = tempfile::tempdir().expect("tempdir");
+    let home = tempfile::tempdir().expect("tempdir");
+    let mock = MockProvider::new();
+    let (a, _a_events) = session(project.path(), home.path(), &mock);
+    let (b, _b_events) = a.sibling(None, Mode::Agent).expect("sibling");
+    let mut settings = a.settings();
+    settings.default_agent = Some("acp:shared-test".into());
+    a.update_settings(settings).expect("settings");
+    assert_eq!(
+        b.settings().default_agent.as_deref(),
+        Some("acp:shared-test")
+    );
+    b.set_approval(Approval::AutoEdits).expect("approval");
+    assert_eq!(a.settings().approval, Approval::AutoEdits);
+}

@@ -20,7 +20,7 @@ fn project(fx: &Fixture) -> PathBuf {
     root
 }
 
-fn files(app: &Entity<FerrumVibe>, cx: &mut VisualTestContext) -> Entity<FilesView> {
+fn files(app: &Entity<FerrumEngineer>, cx: &mut VisualTestContext) -> Entity<FilesView> {
     read(app, cx, |a| a.files.clone()).expect("files pane")
 }
 
@@ -28,7 +28,7 @@ fn row_names(files: &Entity<FilesView>, cx: &mut VisualTestContext) -> Vec<Strin
     files.read_with(cx, |f, _| f.rows().iter().map(|r| r.name.clone()).collect())
 }
 
-fn mentions(app: &Entity<FerrumVibe>, cx: &mut VisualTestContext) -> Vec<Mention> {
+fn mentions(app: &Entity<FerrumEngineer>, cx: &mut VisualTestContext) -> Vec<Mention> {
     let chat = read(app, cx, |a| a.chat()).expect("chat");
     chat.read_with(cx, |c, _| c.mentions().to_vec())
 }
@@ -36,7 +36,7 @@ fn mentions(app: &Entity<FerrumVibe>, cx: &mut VisualTestContext) -> Vec<Mention
 /// The chat's context chips once there are `n` (they are read off the UI
 /// thread).
 fn wait_for_mentions(
-    app: &Entity<FerrumVibe>,
+    app: &Entity<FerrumEngineer>,
     cx: &mut VisualTestContext,
     n: usize,
 ) -> Vec<Mention> {

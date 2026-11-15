@@ -6,7 +6,7 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::pages::tool_demos;
-use crate::products::{FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMGIT, FERRUMTERM, FERRUMVIBE};
+use crate::products::{FERRUM_LAUNCHER, FERRUMENGINEER, FERRUMGIT, FERRUMIDE, FERRUMTERM};
 use crate::updates::Post;
 
 pub const POST: Post = Post {
@@ -22,12 +22,12 @@ pub const POST: Post = Post {
 /// Today's releases: (product, version, one line).
 const RELEASES: [(crate::products::Product, &str, &str); 5] = [
     (
-        FERRUM_EDITOR,
+        FERRUMIDE,
         "0.5.0-alpha.1",
         "Git, Agent and Term open inside the editor as split panes.",
     ),
     (
-        FERRUMVIBE,
+        FERRUMENGINEER,
         "0.1.0-alpha.1",
         "New: FerrumChat, FerrumGIT and FerrumTerm in three columns on one project.",
     ),
@@ -82,10 +82,10 @@ fn body() -> Markup {
                  keeps its thread."
             }
         }
-        p { a href={ (FERRUM_EDITOR.path()) "#tools" } { "The tool panes on the Ferrum Editor page" } }
+        p { a href={ (FERRUMIDE.path()) "#tools" } { "The tool panes on the Ferrum Editor page" } }
 
         h2 id="ferrumvibe" { "FerrumVibe 0.1.0-alpha.1" }
-        figure class="post__figure" style=(FERRUMVIBE.accent_style()) {
+        figure class="post__figure" style=(FERRUMENGINEER.accent_style()) {
             div class="post__demo" role="img"
                 aria-label="FerrumVibe with three columns: the chat edits a file, the git column shows the change, and the terminal column runs the tests" {
                 (tool_demos::vibe())
@@ -115,7 +115,7 @@ fn body() -> Markup {
                  Ferrum Launcher. Builds are for macOS and Linux; there is no Windows build."
             }
         }
-        p { a href=(FERRUMVIBE.path()) { "More about FerrumVibe" } }
+        p { a href=(FERRUMENGINEER.path()) { "More about FerrumVibe" } }
 
         h2 id="git-and-term" { "FerrumGIT and FerrumTerm 0.4.0-alpha.1" }
         p {
@@ -162,6 +162,6 @@ mod tests {
         assert!(html.contains("⌥⌘1"));
         assert!(html.contains("<code>fex</code>"));
         assert!(html.contains(">Not built yet</h2>"));
-        assert!(html.contains(r#"href="/ferrum-editor#tools""#));
+        assert!(html.contains(r#"href="/ferrumide#tools""#));
     }
 }

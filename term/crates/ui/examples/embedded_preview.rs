@@ -1,4 +1,4 @@
-//! A terminal pane as Ferrum Editor embeds it (compact, private-server
+//! A terminal pane as FerrumIDE embeds it (compact, private-server
 //! fallback): `cargo run -p ferrumterm-ui --example embedded_preview`.
 
 use ferrum_ui::AppConfig;

@@ -65,18 +65,63 @@ fn bottom_lines(screen: &str) -> Vec<&str> {
     lines[start..].to_vec()
 }
 
-/// `❯ 1. Yes`, `› 1. Yes, proceed`, `● 1. Allow once`, `1) Approve`.
-fn is_first_choice(line: &str) -> bool {
+/// Option `n` of a choice list: the mark in front of it (`❯`, `›`, `●`,
+/// `○`, …; `None`: none) and its text lowercased. `❯ 1. Yes` →
+/// `(Some('❯'), "yes")`.
+fn option(line: &str, n: u8) -> Option<(Option<char>, String)> {
     let rest = line.trim_start_matches(|c: char| {
         c.is_whitespace() || matches!(c, '❯' | '›' | '>' | '●' | '○' | '▶' | '→' | '*' | '-')
     });
-    let Some(rest) = rest.strip_prefix("1.").or_else(|| rest.strip_prefix("1)")) else {
+    let mark = line
+        .trim_start()
+        .chars()
+        .next()
+        .filter(|c| !c.is_ascii_digit());
+    let rest = rest
+        .strip_prefix(&format!("{n}."))
+        .or_else(|| rest.strip_prefix(&format!("{n})")))?;
+    Some((mark, rest.trim_start().to_ascii_lowercase()))
+}
+
+fn starts_with_any(text: &str, words: &[&str]) -> bool {
+    words.iter().any(|w| text.starts_with(w))
+}
+
+/// The first choice of a permission dialog at `lines[i]`: `❯ 1. Yes`,
+/// `› 1. Yes, proceed`, `● 1. Allow once`, `1) Approve`, with a second
+/// choice right below it. A plain numbered list at the end of a reply
+/// (`1. Run the tests`) is not one: the choice needs a selection cursor in
+/// front, or a question above it and a Yes/No style second choice.
+fn is_first_choice(lines: &[&str], i: usize) -> bool {
+    let Some((mark, first)) = option(lines[i], 1) else {
         return false;
     };
-    let word = rest.trim_start().to_ascii_lowercase();
-    ["yes", "allow", "approve", "proceed", "accept", "run"]
-        .iter()
-        .any(|w| word.starts_with(w))
+    if !starts_with_any(
+        &first,
+        &["yes", "allow", "approve", "proceed", "accept", "run"],
+    ) {
+        return false;
+    }
+    let Some((second_mark, second)) = lines[i + 1..].iter().take(3).find_map(|l| option(l, 2))
+    else {
+        return false;
+    };
+    // `●` alone also starts Claude Code's replies; as a radio button the
+    // other choices carry `○`.
+    let cursor = match mark {
+        Some('❯' | '›' | '▶' | '→') => true,
+        Some('●') => second_mark == Some('○'),
+        _ => false,
+    };
+    if cursor {
+        return true;
+    }
+    let asked = lines[..i].iter().rev().take(6).any(|l| l.ends_with('?'));
+    asked
+        && starts_with_any(
+            &second,
+            &["yes", "no", "don't", "deny", "reject", "cancel", "always"],
+        )
 }
 
 /// `(y/n)`, `[Y/n]`, `(yes/no)`, aider's `(Y)es/(N)o`.
@@ -108,7 +153,7 @@ pub fn find_question(screen: &str) -> Option<(String, &'static str)> {
         return Some(((*last).to_owned(), "question"));
     }
     // TUI dialogs: a numbered choice list, its question above it.
-    if let Some(i) = lines.iter().position(|l| is_first_choice(l)) {
+    if let Some(i) = (0..lines.len()).find(|&i| is_first_choice(&lines, i)) {
         let question = lines[..i]
             .iter()
             .rev()
@@ -287,6 +332,27 @@ mod tests {
             None
         );
         assert_eq!(find_question(""), None);
+    }
+
+    #[test]
+    fn a_numbered_plan_ending_a_reply_is_not_a_dialog() {
+        let plan =
+            "● Here is the plan:\n\n1. Run the migration\n2. Accept the new schema\n3. Deploy\n";
+        assert_eq!(find_question(plan), None);
+        let asked = "Want me to go ahead?\n1. Run the migration\n2. Deploy it\n";
+        assert_eq!(find_question(asked), None);
+        let last = "Next steps:\n1. Accept the PR\n";
+        assert_eq!(find_question(last), None);
+        let claude_reply = "● 1. Run cargo fmt\n  2. Run the tests\n";
+        assert_eq!(find_question(claude_reply), None);
+        let quoted = "> 1. Run the tests\n> 2. Ship it\n";
+        assert_eq!(find_question(quoted), None);
+        // Without a cursor, a question and a Yes/No choice still make one.
+        let plain = "Do you want to run npm install?\n1. Yes\n2. No\n";
+        assert_eq!(
+            find_question(plain),
+            Some(("Do you want to run npm install?".to_owned(), "permission"))
+        );
     }
 
     #[test]

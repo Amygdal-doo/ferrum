@@ -32,6 +32,9 @@ pub const NEEDS_YOU_EVENT: &str = "agent-needs-you";
 /// Settings › Notifications event: a thread's turn finished while the user
 /// was not looking at it.
 pub const DONE_EVENT: &str = "agent-done";
+/// Settings › Notifications event: a thread's turn ended with an error
+/// while the user was not looking at it.
+pub const FAILED_EVENT: &str = "agent-failed";
 
 /// Add to the host's `AppInfo` so the user can pick their channels.
 pub const NEEDS_YOU: NotificationEvent = NotificationEvent {
@@ -51,8 +54,34 @@ pub const DONE: NotificationEvent = NotificationEvent {
     defaults: Channels::ALL,
 };
 
+/// See [`NEEDS_YOU`].
+pub const FAILED: NotificationEvent = NotificationEvent {
+    id: FAILED_EVENT,
+    title: "Agent failed",
+    icon: IconName::XCircle,
+    tint: 0xe5484d,
+    defaults: Channels::ALL,
+};
+
 /// What clicking a notification's toast does: shows its thread.
 pub type ToastClick = Rc<dyn Fn(&mut Window, &mut App)>;
+
+/// The Settings › Notifications event, title and body of `alert` for the
+/// thread titled `title`.
+pub(crate) fn notification(title: &str, alert: Alert) -> (&'static str, String, String) {
+    let title = status::one_line(title, 60);
+    match alert {
+        Alert::NeedsYou { summary } => (NEEDS_YOU_EVENT, format!("{title} needs you"), summary),
+        Alert::Finished {
+            summary,
+            error: false,
+        } => (DONE_EVENT, format!("{title} finished"), summary),
+        Alert::Finished {
+            summary,
+            error: true,
+        } => (FAILED_EVENT, format!("{title} failed"), summary),
+    }
+}
 
 /// Delivers a notification: `(event id, title, body, on click, cx)`.
 pub type Notifier = Rc<dyn Fn(&'static str, String, String, ToastClick, &mut App)>;
@@ -193,15 +222,7 @@ impl ChatView {
     }
 
     fn alert(&mut self, id: &str, title: &str, alert: Alert, cx: &mut Context<Self>) {
-        let title = status::one_line(title, 60);
-        let (event, title, body) = match alert {
-            Alert::NeedsYou { summary } => (NEEDS_YOU_EVENT, format!("{title} needs you"), summary),
-            Alert::Finished { summary, error } => (
-                DONE_EVENT,
-                format!("{title} {}", if error { "failed" } else { "finished" }),
-                summary,
-            ),
-        };
+        let (event, title, body) = notification(title, alert);
         let (view, id) = (cx.entity().downgrade(), id.to_string());
         let click: ToastClick = Rc::new(move |window, cx| {
             view.update(cx, |view, cx| view.reveal_thread(&id, window, cx))
@@ -361,10 +382,11 @@ impl ChatView {
         cx.notify();
     }
 
-    /// Deletes a saved thread; a background one is stopped first.
+    /// Deletes a saved thread; a background one is stopped first, for good
+    /// (its cancelled turn does not write the thread back).
     pub(crate) fn delete_thread(&mut self, id: &str, cx: &mut Context<Self>) {
         if let Some(index) = self.background.iter().position(|b| b.thread_id == id) {
-            self.background.remove(index).session.cancel();
+            self.background.remove(index).session.discard();
         }
         if let Some(session) = self.session.clone() {
             if let Err(e) = session.delete_thread(id) {

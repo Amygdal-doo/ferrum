@@ -67,33 +67,47 @@ pub fn router(state: AppState) -> Router {
             get(|| async { Redirect::permanent(&products::FERRUMCONTAINERS.path()) }),
         )
         .route("/ferrumports", get(ferrumports))
-        .route("/ferrumenv", get(ferrumenv))
-        .route("/ferrumvibe", get(ferrumvibe))
-        // FerrumAgentic was renamed FerrumVibe.
+        .route("/ferrumvariables", get(ferrumvariables))
+        // FerrumEnv was renamed FerrumVariables.
+        .route(
+            "/ferrumenv",
+            get(|| async { Redirect::permanent(&products::FERRUMVARIABLES.path()) }),
+        )
+        .route("/ferrumengineer", get(ferrumengineer))
+        // FerrumAgentic was renamed FerrumVibe, then FerrumEngineer.
+        .route(
+            "/ferrumvibe",
+            get(|| async { Redirect::permanent(&products::FERRUMENGINEER.path()) }),
+        )
         .route(
             "/ferrumagentic",
-            get(|| async { Redirect::permanent(&products::FERRUMVIBE.path()) }),
+            get(|| async { Redirect::permanent(&products::FERRUMENGINEER.path()) }),
         )
         .route("/ferrum-system", get(ferrum_system))
-        .route("/ferrum-editor", get(ferrum_editor))
+        .route("/ferrumide", get(ferrumide))
+        // Ferrum Editor was renamed FerrumIDE. (Ferrum IDE, an earlier app
+        // that was dropped, had /ferrum-ide.)
+        .route(
+            "/ferrum-editor",
+            get(|| async { Redirect::permanent(&products::FERRUMIDE.path()) }),
+        )
+        .route(
+            "/ferrum-ide",
+            get(|| async { Redirect::permanent(&products::FERRUMIDE.path()) }),
+        )
         .route("/ferrum-launcher", get(ferrum_launcher))
         .route(
             "/ferrum-toolbox",
             get(|| async { Redirect::permanent("/ferrum-launcher") }),
         )
-        // Ferrum IDE was dropped; Ferrum Editor is the suite's code editor.
-        .route(
-            "/ferrum-ide",
-            get(|| async { Redirect::permanent("/ferrum-editor") }),
-        )
-        // FerrumCI and FerrumLogs are now the CI and Logs pages inside Ferrum Editor.
+        // FerrumCI and FerrumLogs are now the CI and Logs pages inside FerrumIDE.
         .route(
             "/ferrumci",
-            get(|| async { Redirect::permanent(pages::ferrum_editor::CI_PATH) }),
+            get(|| async { Redirect::permanent(pages::ferrumide::CI_PATH) }),
         )
         .route(
             "/ferrumlogs",
-            get(|| async { Redirect::permanent(pages::ferrum_editor::LOGS_PATH) }),
+            get(|| async { Redirect::permanent(pages::ferrumide::LOGS_PATH) }),
         )
         .route(pages::features::PATH, get(features))
         .route("/download", get(download))
@@ -168,14 +182,14 @@ async fn ferrum_system(State(s): State<AppState>) -> Markup {
 async fn ferrumports(State(s): State<AppState>) -> Markup {
     pages::ferrumports::render(s.site_url())
 }
-async fn ferrumenv(State(s): State<AppState>) -> Markup {
-    pages::ferrumenv::render(s.site_url())
+async fn ferrumvariables(State(s): State<AppState>) -> Markup {
+    pages::ferrumvariables::render(s.site_url())
 }
-async fn ferrumvibe(State(s): State<AppState>) -> Markup {
-    pages::ferrumvibe::render(s.site_url())
+async fn ferrumengineer(State(s): State<AppState>) -> Markup {
+    pages::ferrumengineer::render(s.site_url())
 }
-async fn ferrum_editor(State(s): State<AppState>) -> Markup {
-    pages::ferrum_editor::render(s.site_url())
+async fn ferrumide(State(s): State<AppState>) -> Markup {
+    pages::ferrumide::render(s.site_url())
 }
 async fn ferrum_launcher(State(s): State<AppState>) -> Markup {
     pages::ferrum_launcher::render(s.site_url())

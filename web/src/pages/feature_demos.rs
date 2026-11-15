@@ -21,9 +21,9 @@ pub fn for_slug(slug: &str) -> Option<Markup> {
         s if s == products::FERRUMCONTAINERS.slug => dock,
         s if s == products::FERRUMPORTS.slug => project_demos::ports,
         s if s == products::FERRUM_SYSTEM.slug => project_demos::system,
-        s if s == products::FERRUMENV.slug => project_demos::env,
-        s if s == products::FERRUM_EDITOR.slug => editor,
-        s if s == products::FERRUMVIBE.slug => super::tool_demos::vibe,
+        s if s == products::FERRUMVARIABLES.slug => project_demos::env,
+        s if s == products::FERRUMIDE.slug => editor,
+        s if s == products::FERRUMENGINEER.slug => super::tool_demos::vibe,
         s if s == products::FERRUM_LAUNCHER.slug => launcher,
         _ => return None,
     };
@@ -214,7 +214,7 @@ pub fn term() -> Markup {
 
 pub fn launcher() -> Markup {
     let apps = [
-        ("Ferrum Editor", "--app-editor", "0.1.0-alpha.1"),
+        ("FerrumIDE", "--app-editor", "0.1.0-alpha.1"),
         ("FerrumAPI", "--app-api", "0.2.0-alpha.1"),
         ("FerrumGIT", "--app-git", "0.2.0-alpha.1"),
         ("FerrumData", "--app-data", "0.3.0-alpha.1"),

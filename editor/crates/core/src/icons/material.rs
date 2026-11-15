@@ -1,7 +1,7 @@
 //! The bundled `material` icon theme: solid 16×16 glyphs in the spirit of
 //! Material Design file icons (filled shapes with knocked-out details,
 //! coloured per file type, folders coloured by their role). Drawn for
-//! Ferrum Editor — no third-party icon files. GPUI paints an SVG as a
+//! FerrumIDE — no third-party icon files. GPUI paints an SVG as a
 //! mask, so each icon is one shape in one tint.
 
 /// A solid icon.

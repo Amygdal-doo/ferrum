@@ -4,7 +4,7 @@ A local-first, Postman-style API client written in Rust: a native GPUI desktop a
 framework of Zed, from the `ide/` submodule) built on the shared `ferrum-ui` crate,
 reqwest + rustls, SQLite. No backend server, no account, no Electron, no webview. Part of
 the Ferrum monorepo — sibling of [FerrumData](../data), [FerrumGIT](../git) and
-[Ferrum Editor](../editor), with the same theme and components.
+[FerrumIDE](../editor), with the same theme and components.
 
 > **Status: M0 — first vertical slice.** See "What works" below; nothing beyond that list
 > should be assumed. "Tested" means automated tests; the GPUI UI has only been smoke-launched

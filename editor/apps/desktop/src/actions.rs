@@ -132,13 +132,13 @@ fn item(title: &'static str, command: &'static str) -> MenuItem {
 
 pub fn set_menus(cx: &mut App) {
     cx.set_menus([
-        Menu::new("Ferrum Editor").items([
-            item("About Ferrum Editor", "application:about"),
+        Menu::new("FerrumIDE").items([
+            item("About FerrumIDE", "application:about"),
             MenuItem::action("Check for Updates…", ferrum_ui::menus::CheckForUpdates),
             MenuItem::separator(),
-            MenuItem::action("Appearance & Suite Settings…", ferrum_ui::OpenSettings),
+            item("Settings…", "application:open-settings"),
             MenuItem::action("Show Onboarding…", ferrum_ui::ShowOnboarding),
-            item("Settings…", "application:open-config"),
+            item("Config File…", "application:open-config"),
             item("Keymap…", "application:open-keymap"),
             item("Snippets…", "application:open-snippets"),
             item("Theme Overrides…", "application:open-theme"),
@@ -150,11 +150,11 @@ pub fn set_menus(cx: &mut App) {
             MenuItem::separator(),
             ferrum_ui::menus::services_menu(),
             MenuItem::separator(),
-            MenuItem::action("Hide Ferrum Editor", ferrum_ui::menus::HideApp),
+            MenuItem::action("Hide FerrumIDE", ferrum_ui::menus::HideApp),
             MenuItem::action("Hide Others", ferrum_ui::menus::HideOthers),
             MenuItem::action("Show All", ferrum_ui::menus::ShowAll),
             MenuItem::separator(),
-            item("Quit Ferrum Editor", "application:quit"),
+            item("Quit FerrumIDE", "application:quit"),
         ]),
         Menu::new("File").items([
             item("New File", "application:new-file"),

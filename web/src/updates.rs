@@ -48,6 +48,7 @@ pub const POSTS: &[Post] = &[
     posts::launcher_settings_compact::POST,
     posts::per_app_themes::POST,
     posts::system_and_vibe::POST,
+    posts::three_new_names::POST,
 ];
 
 /// Posts sorted by date, newest first (ties by title).

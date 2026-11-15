@@ -53,7 +53,7 @@ async fn send_with(releases: Releases, req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 41] = [
+const PAGES: [&str; 42] = [
     "/",
     "/apps",
     "/features",
@@ -64,10 +64,10 @@ const PAGES: [&str; 41] = [
     "/ferrumkit",
     "/ferrumcontainers",
     "/ferrumports",
-    "/ferrumenv",
-    "/ferrumvibe",
+    "/ferrumvariables",
+    "/ferrumengineer",
     "/ferrum-system",
-    "/ferrum-editor",
+    "/ferrumide",
     "/ferrum-launcher",
     "/download",
     "/docs",
@@ -92,6 +92,7 @@ const PAGES: [&str; 41] = [
     "/updates/launcher-settings-and-compact-mode",
     "/updates/every-app-keeps-its-own-theme",
     "/updates/ferrum-system-and-ferrumvibe",
+    "/updates/ferrumide-ferrumengineer-and-ferrumvariables",
     "/about",
     "/licenses",
     "/privacy",
@@ -190,8 +191,8 @@ async fn brand_assets_are_served() {
 async fn new_app_pages_show_their_logo_demo_and_status() {
     for (path, name, logo) in [
         ("/ferrumports", "FerrumPorts", "ports"),
-        ("/ferrumenv", "FerrumEnv", "env"),
-        ("/ferrumvibe", "FerrumVibe", "vibe"),
+        ("/ferrumvariables", "FerrumVariables", "env"),
+        ("/ferrumengineer", "FerrumEngineer", "vibe"),
     ] {
         let html = get(path).await.text();
         assert!(html.contains(&format!(">{name}</h1>")), "{path}");
@@ -408,15 +409,62 @@ async fn ferrumdock_was_renamed_ferrumcontainers() {
 async fn old_ide_page_redirects_to_editor() {
     let res = get("/ferrum-ide").await;
     assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT);
-    assert_eq!(res.header(header::LOCATION), "/ferrum-editor");
+    assert_eq!(res.header(header::LOCATION), "/ferrumide");
+}
+
+#[tokio::test]
+async fn renamed_apps_redirect_to_their_new_pages_in_one_hop() {
+    for (old, new, name, logo) in [
+        ("/ferrum-editor", "/ferrumide", "FerrumIDE", "editor"),
+        ("/ferrumvibe", "/ferrumengineer", "FerrumEngineer", "vibe"),
+        (
+            "/ferrumagentic",
+            "/ferrumengineer",
+            "FerrumEngineer",
+            "vibe",
+        ),
+        ("/ferrumenv", "/ferrumvariables", "FerrumVariables", "env"),
+    ] {
+        let res = get(old).await;
+        assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT, "{old}");
+        assert_eq!(res.header(header::LOCATION), new, "{old}");
+        let page = get(new).await;
+        assert_eq!(page.status, StatusCode::OK, "{new}");
+        let html = page.text();
+        assert!(html.contains(&format!(">{name}</h1>")), "{new}");
+        assert!(
+            html.contains(&format!("/assets/img/brand/{logo}.svg?v=")),
+            "logo file keeps the app id"
+        );
+    }
+    let sitemap = get("/sitemap.xml").await.text();
+    for gone in [
+        "/ferrum-editor<",
+        "/ferrumvibe<",
+        "/ferrumenv<",
+        "/ferrumagentic<",
+    ] {
+        assert!(!sitemap.contains(gone), "{gone}");
+    }
+    for path in ["/", "/features", "/apps", "/download", "/faq"] {
+        let html = get(path).await.text();
+        for old in [
+            "Ferrum Editor",
+            "FerrumVibe",
+            "FerrumEnv",
+            "href=\"/ferrum-editor",
+        ] {
+            assert!(!html.contains(old), "{old} on {path}");
+        }
+    }
 }
 
 #[tokio::test]
 async fn old_ci_page_redirects_to_the_editors_ci_section() {
     let res = get("/ferrumci").await;
     assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT);
-    assert_eq!(res.header(header::LOCATION), "/ferrum-editor#ci");
-    let editor = get("/ferrum-editor").await.text();
+    assert_eq!(res.header(header::LOCATION), "/ferrumide#ci");
+    let editor = get("/ferrumide").await.text();
     assert!(editor.contains(r#"id="ci""#));
     assert!(editor.contains("GitHub Actions"));
 }
@@ -425,8 +473,8 @@ async fn old_ci_page_redirects_to_the_editors_ci_section() {
 async fn old_logs_page_redirects_to_the_editors_logs_section() {
     let res = get("/ferrumlogs").await;
     assert_eq!(res.status, StatusCode::PERMANENT_REDIRECT);
-    assert_eq!(res.header(header::LOCATION), "/ferrum-editor#logs");
-    let editor = get("/ferrum-editor").await.text();
+    assert_eq!(res.header(header::LOCATION), "/ferrumide#logs");
+    let editor = get("/ferrumide").await.text();
     assert!(editor.contains(r#"id="logs""#));
 }
 
@@ -737,7 +785,7 @@ async fn docs_cover_install_commands_bar_and_shortcuts() {
     assert!(install.contains(r#"href="/docs" aria-current="page""#));
     let shell = get("/docs/shell-commands").await.text();
     for cmd in [
-        "fee", "fea", "feg", "fed", "fet", "fek", "fec", "fep", "fev", "fel",
+        "fei", "fea", "feg", "fed", "fet", "fek", "fec", "fep", "fen", "fev", "fel",
     ] {
         assert!(shell.contains(&format!("<code>{cmd}</code>")), "{cmd}");
     }

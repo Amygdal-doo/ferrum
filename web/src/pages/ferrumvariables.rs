@@ -1,11 +1,11 @@
-//! FerrumEnv product page. Claims follow the FerrumEnv README ("What it
+//! FerrumVariables product page. Claims follow the FerrumVariables README ("What it
 //! does", "Security model", "Not built yet") and nothing beyond it. The
 //! security section must keep the README's limits next to its protections.
 
 use maud::{Markup, html};
 
 use super::product_sections::{self as sections, BulletGroup, ProductPage};
-use crate::products::FERRUMENV;
+use crate::products::FERRUMVARIABLES;
 
 const FEATURES: &[(&str, &str)] = &[
     (
@@ -90,8 +90,8 @@ const LIMITS: &[&str] = &[
 ];
 
 const PAGE: ProductPage = ProductPage {
-    product: FERRUMENV,
-    meta_description: "FerrumEnv is a native vault for project environment variables: \
+    product: FERRUMVARIABLES,
+    meta_description: "FerrumVariables is a native vault for project environment variables: \
                        locked by a master password, shared as encrypted bundles, with .env \
                        import and export.",
     intro: "Your projects' environment variables in one encrypted file instead of loose .env \
@@ -104,7 +104,7 @@ const PAGE: ProductPage = ProductPage {
         "a project's variables with secret values masked",
         "copying a revealed value",
     ],
-    status_summary: "FerrumEnv is in alpha. Its tests are automated; the app hasn't been \
+    status_summary: "FerrumVariables is in alpha. Its tests are automated; the app hasn't been \
                      clicked through by hand yet.",
     status_groups: &[
         BulletGroup {
@@ -118,7 +118,7 @@ const PAGE: ProductPage = ProductPage {
     ],
     specs: &[
         ("Install", "Ferrum Launcher (free, see Download)"),
-        ("Shell command", "fen, turned on in Ferrum Launcher"),
+        ("Shell command", "fev, turned on in Ferrum Launcher"),
         ("Vault file", "~/.ferrum/env/vault.json, encrypted"),
         (
             "Built with",
@@ -140,7 +140,7 @@ fn security() -> Markup {
                 h2 id="security-title" { "Security model" }
                 p class="lead" {
                     "What the encryption protects, and what it can't. Both lists come from \
-                     FerrumEnv's own documentation. The "
+                     FerrumVariables's own documentation. The "
                     a href="/security#vault" { "security page" }
                     " has the details."
                 }
@@ -175,8 +175,8 @@ mod tests {
     fn renders_title_status_and_demo() {
         let html = render("https://example.test").into_string();
         assert_eq!(html.matches("<h1").count(), 1);
-        assert!(html.contains(">FerrumEnv</h1>"));
-        assert!(html.contains("Animated preview of FerrumEnv"));
+        assert!(html.contains(">FerrumVariables</h1>"));
+        assert!(html.contains("Animated preview of FerrumVariables"));
         assert!(html.contains("/assets/img/brand/env.svg"));
         assert!(html.contains("href=\"/download\""));
     }

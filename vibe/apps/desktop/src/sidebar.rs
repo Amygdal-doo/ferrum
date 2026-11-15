@@ -14,7 +14,7 @@ use ferrum_ui::prelude::*;
 use ferrum_ui::project;
 use ferrumagent_ui::core::Mode;
 
-use crate::app::{FerrumVibe, SIDEBAR_FOLDERS};
+use crate::app::{FerrumEngineer, SIDEBAR_FOLDERS};
 use crate::nav::Page;
 use crate::threads::{self, Entry};
 use ferrumagent_ui::core::status::{StatusEntry, ThreadStatus, short_ago};
@@ -45,7 +45,7 @@ fn nav_row(
         .child(div().flex_1().min_w_0().truncate().child(label.into()))
 }
 
-impl FerrumVibe {
+impl FerrumEngineer {
     /// ◧ and back / forward: in the sidebar's title row, or at the start
     /// of the main title row while the sidebar is folded.
     pub(crate) fn window_controls(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -310,7 +310,8 @@ impl FerrumVibe {
                 scroll = scroll.child(self.status_row(entry, entry_status, shown, cx));
             }
         }
-        let mut recent = self.index.recent(RECENT_THREADS + active.len());
+        let active_count: usize = active.iter().map(|(_, rows)| rows.len()).sum();
+        let mut recent = self.index.recent(RECENT_THREADS + active_count);
         recent.retain(|e| {
             !active
                 .iter()
@@ -395,7 +396,7 @@ impl FerrumVibe {
                     .flex_1()
                     .text_size(px(13.))
                     .font_weight(gpui::FontWeight::SEMIBOLD)
-                    .child("FerrumVibe"),
+                    .child("FerrumEngineer"),
             )
             .child(
                 ferrum_ui::title_button("usage", IconName::Zap, "Usage")
@@ -425,7 +426,7 @@ impl FerrumVibe {
                                 },
                             )
                             .icon_entry(
-                                "FerrumVibe settings…",
+                                "FerrumEngineer settings…",
                                 IconName::Settings,
                                 |_, cx| {
                                     ferrum_ui::open_settings(None, cx);

@@ -1,6 +1,6 @@
 //! Knowledge Center: the project's rule files FerrumChat puts in the
 //! agent's prompt (AGENTS.md, CLAUDE.md, `.ferrum/rules/*.md`,
-//! `.cursor/rules/*.mdc`), what each does, Open in Ferrum Editor, and New
+//! `.cursor/rules/*.mdc`), what each does, Open in FerrumIDE, and New
 //! rule (`.ferrum/rules/<name>.md`).
 
 use std::path::{Path, PathBuf};
@@ -10,7 +10,7 @@ use ferrum_ui::prelude::*;
 use ferrumagent_ui::core::rules::{Rule, RuleSource};
 
 use super::{field, frame, placeholder, row, section, two_lines};
-use crate::app::FerrumVibe;
+use crate::app::FerrumEngineer;
 use crate::nav::Page;
 
 /// When a rule reaches the agent, in a few words.
@@ -74,7 +74,7 @@ pub fn create_rule(root: &Path, name: &str) -> Result<PathBuf, String> {
     Ok(file)
 }
 
-impl FerrumVibe {
+impl FerrumEngineer {
     fn new_rule(&mut self, cx: &mut Context<Self>) {
         let Some(root) = self.project.clone() else {
             return;

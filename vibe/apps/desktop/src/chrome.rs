@@ -9,7 +9,7 @@ use ferrum_ui::gpui::{Axis, DragMoveEvent, MouseButton};
 use ferrum_ui::prelude::*;
 
 use crate::app::{
-    FerrumVibe, GoBack, GoForward, KEY_CONTEXT, NewDiscussion, NewTask, OpenFolder, ShowSearch,
+    FerrumEngineer, GoBack, GoForward, KEY_CONTEXT, NewDiscussion, NewTask, OpenFolder, ShowSearch,
     ToggleFiles, ToggleGit, ToggleSidebar, ToggleTerm,
 };
 use crate::layout::Column;
@@ -19,7 +19,7 @@ use crate::threads;
 /// Drag id of the splitter between the sidebar and the cards.
 const SIDEBAR_SPLITTER: &str = "vibe-sidebar";
 
-impl FerrumVibe {
+impl FerrumEngineer {
     /// ☰: this project's threads with their mode and age; a click opens one.
     fn tasks_menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let weak = cx.weak_entity();
@@ -198,7 +198,7 @@ impl FerrumVibe {
     }
 }
 
-impl Render for FerrumVibe {
+impl Render for FerrumEngineer {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.follow_focus(window, cx);
         self.sync_chat_visibility(cx);

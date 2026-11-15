@@ -1,5 +1,5 @@
-//! Animated mock windows for the embedded tools: FerrumVibe's three
-//! columns, and Ferrum Editor with its Git, Agent and Term panes. Same rules
+//! Animated mock windows for the embedded tools: FerrumEngineer's three
+//! columns, and FerrumIDE with its Git, Agent and Term panes. Same rules
 //! as `feature_demos` (CSS-only, 9s loop, a still frame under reduced
 //! motion). Styles: `assets/css/features.css` (`.ax*`, `.edp*`).
 
@@ -19,11 +19,11 @@ fn header(class: &str, title: &str, hint: &str) -> Markup {
     }
 }
 
-/// FerrumVibe: the chat edits a file, the git column shows the change at
+/// FerrumEngineer: the chat edits a file, the git column shows the change at
 /// once, and Run in terminal runs the tests in the terminal column.
 pub fn vibe() -> Markup {
     window(
-        "FerrumVibe — shop",
+        "FerrumEngineer — shop",
         "ax",
         html! {
             div class="ax__top" {
@@ -63,7 +63,7 @@ pub fn vibe() -> Markup {
     )
 }
 
-/// Ferrum Editor with Git and Agent docked right, Term at the bottom, and a
+/// FerrumIDE with Git and Agent docked right, Term at the bottom, and a
 /// pane's ⋯ menu offering its moves.
 pub fn editor_panes() -> Markup {
     window(

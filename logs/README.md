@@ -1,9 +1,9 @@
-# logs — the library behind Ferrum Editor's Logs page
+# logs — the library behind FerrumIDE's Logs page
 
 Logs **per project**: everything a project produces while you develop — log files, dev
 servers and other commands, Docker containers and compose services — merged into one live,
 filterable view. `crates/core` (`ferrumlogs-core`) is the UI-free library; the page itself
-lives in **Ferrum Editor** (`editor/apps/desktop/src/logs/`, opened with ⌥⌘L, *View → Logs*,
+lives in **FerrumIDE** (`editor/apps/desktop/src/logs/`, opened with ⌥⌘L, *View → Logs*,
 `Logs: Toggle View` in the command palette, or the Logs button of the Editor | Git | CI |
 Logs switch). There is no separate FerrumLogs app any more. The page follows the editor's
 open folder; sources of other projects keep running when the editor switches folders.
@@ -45,7 +45,7 @@ Kubernetes / Railway presets (run them as commands).
 ## Commands
 Run from the monorepo root (`ferrum/`).
 ```bash
-cargo editor                                      # Ferrum Editor; ⌥⌘L opens the Logs page
+cargo editor                                      # FerrumIDE; ⌥⌘L opens the Logs page
 cargo test -p ferrumlogs-core
 cargo test -p ferrumeditor-desktop tests_logs     # the editor's Logs page, headless
 ```
@@ -75,7 +75,7 @@ crates/core/             ferrumlogs-core (no UI)
   buffer.rs              200k-line ring buffer, byte → line splitter
   filter.rs              levels / sources / text / regex, incremental filtered view
   session.rs             a project's sources, runs, counters, history and view
-editor/apps/desktop/src/logs/   the Logs page in Ferrum Editor (GPUI)
+editor/apps/desktop/src/logs/   the Logs page in FerrumIDE (GPUI)
   mod.rs                 LogsView: event pump, projects, key bindings
   commands.rs            source management, filters, follow, selection, copy, export
   sidebar.rs             sources, suggestions, projects

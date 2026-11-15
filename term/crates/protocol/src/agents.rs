@@ -92,11 +92,53 @@ pub fn agent_from_argv<S: AsRef<str>>(argv: &[S]) -> Option<&'static str> {
 }
 
 /// [`agent_from_argv`] for a whitespace-separated command line (what `ps`
-/// prints).
+/// prints). `ps` does not quote, so a program or script path with spaces
+/// in it (`/Users/Jane Doe/bin/claude`) is tried too: after an absolute
+/// path, words that do not start with `-` or `/` may continue it.
 #[must_use]
 pub fn agent_from_command_line(line: &str) -> Option<&'static str> {
-    let argv: Vec<&str> = line.split_whitespace().collect();
-    agent_from_argv(&argv)
+    let words: Vec<&str> = line.split_whitespace().collect();
+    if let Some(agent) = agent_from_argv(&words) {
+        return Some(agent);
+    }
+    let continues = |w: &&str| !w.starts_with(['-', '/']);
+    for k in 1..=words.len() {
+        if k > 1 && !continues(&words[k - 1]) {
+            break;
+        }
+        let prog = words[..k].join(" ");
+        let rest = &words[k..];
+        // A joined program path names an executable (no extension), not
+        // a file argument (`/usr/bin/vim my notes/claude.md`).
+        if k > 1 && words[0].starts_with('/') && !basename(&prog).contains('.') {
+            let argv: Vec<&str> = std::iter::once(prog.as_str())
+                .chain(rest.iter().copied())
+                .collect();
+            if let Some(agent) = agent_from_argv(&argv) {
+                return Some(agent);
+            }
+        }
+        if !RUNTIMES.contains(&basename(&prog)) {
+            continue;
+        }
+        // The runtime's script, with spaces in its path.
+        let Some(start) = rest.iter().position(|w| !w.starts_with('-')) else {
+            continue;
+        };
+        if !rest[start].starts_with('/') {
+            continue;
+        }
+        for end in start + 1..rest.len() {
+            if !continues(&rest[end]) {
+                break;
+            }
+            let script = rest[start..=end].join(" ");
+            if let Some(agent) = agent_from_argv(&[prog.as_str(), script.as_str()]) {
+                return Some(agent);
+            }
+        }
+    }
+    None
 }
 
 /// The agent a block was started as (`claude`, or `zsh -lic "exec claude"`).
@@ -162,5 +204,25 @@ mod tests {
         assert_eq!(agent_from_command_line("vim claude.md"), None);
         assert_eq!(agent_from_command_line(""), None);
         assert_eq!(agent_from_command_line("claudette"), None);
+    }
+
+    #[test]
+    fn paths_with_spaces_in_ps_output() {
+        assert_eq!(
+            agent_from_command_line("/Users/Jane Doe/.local/bin/claude --resume"),
+            Some("claude")
+        );
+        assert_eq!(
+            agent_from_command_line(
+                "node /Users/Jane Doe/lib/node_modules/@anthropic-ai/claude-code/cli.js --resume"
+            ),
+            Some("claude")
+        );
+        assert_eq!(agent_from_command_line("vim my notes/claude.md"), None);
+        assert_eq!(agent_from_command_line("node my server.js"), None);
+        assert_eq!(
+            agent_from_command_line("/usr/bin/vim my notes/claude.md"),
+            None
+        );
     }
 }

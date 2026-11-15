@@ -74,7 +74,7 @@ jobs:
             env)     package=ferrumenv-desktop;     binaries="ferrumenv" ;;
             launcher) package=ferrumlauncher-desktop; binaries="ferrum-launcher" ;;
             toolbox) echo "::error::toolbox-v* is the Ferrum Toolbox 0.5.0 bridge; build it with scripts/package-bridge.sh"; exit 1 ;;
-            ide) echo "::error::Ferrum IDE is no longer released; Ferrum Editor (editor-v*) is the suite's code editor"; exit 1 ;;
+            ide) echo "::error::the Zed-based Ferrum IDE (ide-v*) is no longer released; FerrumIDE (editor-v*) is the suite's code editor"; exit 1 ;;
             *) echo "::error::unknown app id '$app'"; exit 1 ;;
           esac
           {
@@ -134,7 +134,7 @@ jobs:
             echo "FERRUM_SKIP=true" >> "$GITHUB_ENV"
           fi
           if [ "${{ runner.os }}" = "Windows" ] && [ "$APP" = "vibe" ]; then
-            echo "FerrumVibe embeds FerrumTerm and has no Windows build yet; skipping."
+            echo "FerrumEngineer embeds FerrumTerm and has no Windows build yet; skipping."
             echo "FERRUM_SKIP=true" >> "$GITHUB_ENV"
           fi
       - uses: actions/checkout@v4

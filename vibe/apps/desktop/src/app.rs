@@ -36,7 +36,7 @@ actions!(
     ]
 );
 
-pub const KEY_CONTEXT: &str = "FerrumVibe";
+pub const KEY_CONTEXT: &str = "FerrumEngineer";
 /// This app's binary, recorded in `~/.ferrum/projects.json`.
 pub const BINARY: &str = "ferrumvibe";
 /// No pane gets narrower than this while resizing.
@@ -62,7 +62,7 @@ pub fn bind_keys(cx: &mut App) {
     crate::files::bind_keys(cx);
 }
 
-/// The project FerrumVibe had open last (from `~/.ferrum/projects.json`).
+/// The project FerrumEngineer had open last (from `~/.ferrum/projects.json`).
 #[must_use]
 pub fn last_project() -> Option<PathBuf> {
     let file = project::projects_file()?;
@@ -125,7 +125,7 @@ pub struct ChatSlot {
     pub(crate) _subscriptions: Vec<Subscription>,
 }
 
-pub struct FerrumVibe {
+pub struct FerrumEngineer {
     /// Hidden: hosts the ⌥⌘O switcher and the folder dialog.
     pub(crate) project_bar: Entity<ProjectBar>,
     pub(crate) project: Option<PathBuf>,
@@ -171,7 +171,7 @@ pub struct FerrumVibe {
     _subscriptions: Vec<Subscription>,
 }
 
-impl FerrumVibe {
+impl FerrumEngineer {
     pub fn new(options: Options, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let projects_file = options.projects_file.clone();
         let project_bar = cx.new(|cx| {
@@ -469,13 +469,13 @@ impl FerrumVibe {
     }
 }
 
-impl Focusable for FerrumVibe {
+impl Focusable for FerrumEngineer {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }
 
-impl Drop for FerrumVibe {
+impl Drop for FerrumEngineer {
     fn drop(&mut self) {
         // A resize still waiting to be saved.
         if self.save_task.take().is_some()

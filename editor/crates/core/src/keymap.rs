@@ -325,7 +325,7 @@ fn display_key(key: &str, mac: bool) -> String {
 pub fn default_keymap_document(commands: &[CommandInfo], mac: bool) -> String {
     let defaults = Keymap::defaults(commands, mac);
     let mut out = String::from(
-        "# Ferrum Editor key bindings. Changes apply as soon as you save.\n\
+        "# FerrumIDE key bindings. Changes apply as soon as you save.\n\
          #\n\
          # Bind a key sequence to any command name below; an empty string unbinds:\n\
          #   \"cmd-shift-d\" = \"editor:duplicate-lines\"\n\

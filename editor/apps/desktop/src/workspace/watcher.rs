@@ -23,6 +23,11 @@ pub struct Watcher {
 impl Workspace {
     pub(super) fn start_watcher(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.watcher = None;
+        // Tests drive `on_fs_changes` directly; starting an FSEvents stream
+        // would make every workspace test hang whenever fseventsd stalls.
+        if cfg!(test) {
+            return;
+        }
         let (sender, receiver) = channel::<notify::Result<notify::Event>>();
         let mut watcher = match notify::recommended_watcher(sender) {
             Ok(watcher) => watcher,

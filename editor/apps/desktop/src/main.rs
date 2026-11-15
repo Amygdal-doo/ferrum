@@ -1,4 +1,4 @@
-//! Ferrum Editor desktop entry point: `ferrumeditor [path[:line[:col]]...]`.
+//! FerrumIDE desktop entry point: `ferrumeditor [path[:line[:col]]...]`.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod actions;
@@ -73,7 +73,7 @@ fn main() {
         }
         CliAction::Run(targets) => targets,
     };
-    let config = AppConfig::new("Ferrum Editor")
+    let config = AppConfig::new("FerrumIDE")
         .unified_titlebar()
         .size(1280., 820.)
         .min_size(640., 400.)

@@ -8,11 +8,11 @@ use ferrum_ui::project;
 use ferrumagent_ui::core::Mode;
 
 use super::{frame, placeholder, row, two_lines};
-use crate::app::FerrumVibe;
+use crate::app::FerrumEngineer;
 use crate::nav::Page;
 use crate::threads;
 
-impl FerrumVibe {
+impl FerrumEngineer {
     pub(crate) fn projects_page(&mut self, cx: &mut Context<Self>) -> AnyElement {
         self.reload_recent();
         let home = project::home_dir();

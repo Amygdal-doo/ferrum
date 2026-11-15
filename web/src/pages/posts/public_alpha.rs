@@ -5,7 +5,7 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::pages::feature_demos;
-use crate::products::{self, FERRUM_LAUNCHER, FERRUMVIBE, Product};
+use crate::products::{self, FERRUM_LAUNCHER, FERRUMENGINEER, Product};
 use crate::site;
 use crate::updates::Post;
 
@@ -54,7 +54,8 @@ const NOT_BUILT_YET: [(&str, &str); 9] = [
 /// The apps this post announced. FerrumVibe came two days later, in
 /// [`super::editor_panes_agentic`].
 fn announced() -> impl Iterator<Item = &'static Product> {
-    products::apps().filter(|p| p.slug != FERRUMVIBE.slug && p.slug != products::FERRUM_SYSTEM.slug)
+    products::apps()
+        .filter(|p| p.slug != FERRUMENGINEER.slug && p.slug != products::FERRUM_SYSTEM.slug)
 }
 
 fn body() -> Markup {
@@ -66,7 +67,7 @@ fn body() -> Markup {
              Silicon, installed through Ferrum Launcher. They are alpha software, and this post \
              says what that means in practice."
         }
-        figure class="post__figure" style=(products::FERRUM_EDITOR.accent_style()) {
+        figure class="post__figure" style=(products::FERRUMIDE.accent_style()) {
             div class="post__demo" role="img"
                 aria-label="Ferrum Editor with a tree view and tabs: three cursors type at once, then the command palette filters commands" {
                 (feature_demos::editor())
@@ -217,7 +218,7 @@ mod tests {
         assert_eq!(announced().count(), 9);
         for p in products::ALL
             .iter()
-            .filter(|p| p.slug != FERRUMVIBE.slug && p.slug != products::FERRUM_SYSTEM.slug)
+            .filter(|p| p.slug != FERRUMENGINEER.slug && p.slug != products::FERRUM_SYSTEM.slug)
         {
             assert!(
                 html.contains(&format!(r#"href="{}""#, p.path())),

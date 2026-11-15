@@ -1,7 +1,7 @@
 # Installing Ferrum
 
 You install **Ferrum Launcher** once. It then installs, updates and rolls back
-every other Ferrum app (Ferrum Editor, FerrumVibe, FerrumAPI, FerrumGIT,
+every other Ferrum app (FerrumIDE, FerrumEngineer, FerrumAPI, FerrumGIT,
 FerrumData, FerrumTerm, FerrumKit, FerrumContainers, and apps published later).
 Only the launcher has an installer (`.dmg`, `.exe`, `.deb`); the other apps are
 installed through it and have no separate download.
@@ -9,7 +9,7 @@ installed through it and have no separate download.
 Ferrum Launcher was called **Ferrum Toolbox** up to 0.5.0. See
 [Coming from Ferrum Toolbox](#coming-from-ferrum-toolbox).
 
-Ferrum IDE is no longer offered; Ferrum Editor is the suite's code editor
+The Zed-based Ferrum IDE is no longer offered; FerrumIDE (formerly Ferrum Editor) is the suite's code editor
 (`ferrumeditor path[:line[:col]]`). A copy of Ferrum IDE installed earlier is
 listed in the launcher as **No longer offered**: it still launches and can be
 uninstalled, but gets no updates.
@@ -136,7 +136,7 @@ Toolbox to v0.6.0** as usual. Then, on the first start, the launcher
   `FerrumLauncher` (macOS may ask once whether Ferrum Launcher may read it);
 - points `~/.ferrum/bin/ferrum-launcher` at itself and keeps
   `ferrum-toolbox` as a link for this release;
-- shows FerrumKit, FerrumContainers and Ferrum Editor, added after 0.5.0, as **New**.
+- shows FerrumKit, FerrumContainers and FerrumIDE, added after 0.5.0, as **New**.
 
 Installed apps, `~/Applications/Ferrum` and the other `~/.ferrum/bin` links
 keep working throughout. The `install.sh` one-liner installs the launcher

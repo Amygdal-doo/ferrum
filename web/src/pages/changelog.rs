@@ -124,7 +124,7 @@ fn timeline(entries: &[ChangelogEntry]) -> Markup {
 pub fn render(site_url: &str, entries: Option<&[ChangelogEntry]>) -> Markup {
     let meta = PageMeta::new(
         Some("Changelog: every Ferrum release"),
-        "Every release of every Ferrum app, newest first, with its notes: Ferrum Editor, \
+        "Every release of every Ferrum app, newest first, with its notes: FerrumIDE, \
          FerrumAPI, FerrumGIT, FerrumData, FerrumTerm and the rest.",
         PATH,
         "page-changelog",

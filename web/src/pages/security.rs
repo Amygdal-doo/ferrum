@@ -66,14 +66,14 @@ const VAULT_LIMITS: [&str; 4] = [
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
-        Some("Security: signed builds and the FerrumEnv vault"),
-        "Signed builds checked against SHA-256, no telemetry, and FerrumEnv's Argon2id and \
+        Some("Security: signed builds and the FerrumVariables vault"),
+        "Signed builds checked against SHA-256, no telemetry, and FerrumVariables's Argon2id and \
          XChaCha20-Poly1305 vault, with its limits stated plainly.",
         PATH,
         "page-security",
     )
     .trail(vec![Crumb::new("Security", PATH)]);
-    let env = products::FERRUMENV;
+    let env = products::FERRUMVARIABLES;
     page(
         site_url,
         &meta,
@@ -126,11 +126,11 @@ pub fn render(site_url: &str) -> Markup {
                 }
             }))
 
-            (Section::new("vault", "The FerrumEnv vault")
+            (Section::new("vault", "The FerrumVariables vault")
                 .band()
                 .lead(html! {
                     p {
-                        a href=(env.path()) { "FerrumEnv" } " keeps your projects' environment \
+                        a href=(env.path()) { "FerrumVariables" } " keeps your projects' environment \
                          variables behind a master password and shares them encrypted."
                     }
                 })
@@ -170,11 +170,11 @@ pub fn render(site_url: &str) -> Markup {
                             code { "127.0.0.1" } " only."
                         }
                         li {
-                            "Ferrum Editor's AI agent sessions take API keys through per-agent \
+                            "FerrumIDE's AI agent sessions take API keys through per-agent \
                              environment variables, masked in the panel and never logged."
                         }
                         li {
-                            "Ferrum Editor's CI page reuses a GitHub token you already have "
+                            "FerrumIDE's CI page reuses a GitHub token you already have "
                             "(FerrumGIT's Keychain entry or the GitHub CLI), or one you paste."
                         }
                     }

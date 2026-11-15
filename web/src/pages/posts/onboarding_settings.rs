@@ -5,8 +5,8 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::products::{
-    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENV, FERRUMGIT,
-    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVIBE, Product,
+    FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENGINEER, FERRUMGIT, FERRUMIDE,
+    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVARIABLES, Product,
 };
 use crate::updates::Post;
 
@@ -29,12 +29,12 @@ const RELEASES: [(Product, &str, &str); 11] = [
         "Settings for font, cursor, keyboard, selection, shell and SSH hosts.",
     ),
     (
-        FERRUM_EDITOR,
+        FERRUMIDE,
         "0.5.2-alpha.1",
         "Onboarding and the shared Settings window.",
     ),
     (
-        FERRUMVIBE,
+        FERRUMENGINEER,
         "0.1.2-alpha.1",
         "Onboarding and the shared Settings window.",
     ),
@@ -64,7 +64,7 @@ const RELEASES: [(Product, &str, &str); 11] = [
         "Onboarding and the shared Settings window.",
     ),
     (
-        FERRUMENV,
+        FERRUMVARIABLES,
         "0.1.4-alpha.1",
         "Onboarding and the shared Settings window.",
     ),

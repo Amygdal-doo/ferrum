@@ -353,11 +353,13 @@ pub fn activate(id: u64, window: &mut Window, cx: &mut App) {
 }
 
 /// The macOS system sound (in `/System/Library/Sounds`) for an event, so
-/// "needs you" and "finished" sound different.
+/// "needs you", "failed" and "finished" sound different. Knows FerrumTerm's
+/// ids and the agent chat's (`agent-needs-you`, `agent-failed`,
+/// `agent-done`).
 pub fn sound_for(event: &str) -> &'static str {
     match event {
-        "blocked" => "Ping",
-        "error" => "Basso",
+        "blocked" | "agent-needs-you" => "Ping",
+        "error" | "agent-failed" => "Basso",
         _ => "Glass",
     }
 }
@@ -441,6 +443,9 @@ mod tests {
     fn events_have_their_own_sounds() {
         assert_ne!(sound_for("blocked"), sound_for("done"));
         assert_eq!(sound_for("anything"), "Glass");
+        assert_eq!(sound_for("agent-needs-you"), sound_for("blocked"));
+        assert_eq!(sound_for("agent-failed"), sound_for("error"));
+        assert_eq!(sound_for("agent-done"), "Glass");
     }
 
     #[test]

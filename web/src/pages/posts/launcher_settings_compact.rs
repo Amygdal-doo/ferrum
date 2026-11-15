@@ -6,8 +6,8 @@ use maud::{Markup, html};
 
 use super::product_row;
 use crate::products::{
-    FERRUM_EDITOR, FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENV, FERRUMGIT,
-    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVIBE, Product,
+    FERRUM_LAUNCHER, FERRUMAPI, FERRUMCONTAINERS, FERRUMDATA, FERRUMENGINEER, FERRUMGIT, FERRUMIDE,
+    FERRUMKIT, FERRUMPORTS, FERRUMTERM, FERRUMVARIABLES, Product,
 };
 use crate::updates::Post;
 
@@ -28,15 +28,15 @@ const RELEASES: [(Product, &str, &str); 11] = [
         "0.12.1",
         "Settings › Launcher: menu bar, Dock, update checks.",
     ),
-    (FERRUM_EDITOR, "0.8.1-alpha.1", "Compact mode."),
-    (FERRUMVIBE, "0.4.1-alpha.1", "Compact mode."),
+    (FERRUMIDE, "0.8.1-alpha.1", "Compact mode."),
+    (FERRUMENGINEER, "0.4.1-alpha.1", "Compact mode."),
     (FERRUMGIT, "0.6.1-alpha.1", "Compact mode."),
     (FERRUMTERM, "0.9.3-alpha.1", "Compact mode."),
     (FERRUMCONTAINERS, "0.4.1-alpha.1", "Compact mode."),
     (FERRUMPORTS, "0.3.1-alpha.1", "Compact mode."),
     (FERRUMAPI, "0.5.2-alpha.1", "Compact mode."),
     (FERRUMDATA, "0.5.2-alpha.1", "Compact mode."),
-    (FERRUMENV, "0.2.2-alpha.1", "Compact mode."),
+    (FERRUMVARIABLES, "0.2.2-alpha.1", "Compact mode."),
     (FERRUMKIT, "0.2.2-alpha.1", "Compact mode."),
 ];
 

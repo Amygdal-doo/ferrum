@@ -1,4 +1,4 @@
-//! FerrumEnv core: everything except the UI.
+//! FerrumVariables core: everything except the UI.
 //!
 //! - [`model`]: the vault (projects → environments → variables).
 //! - [`crypto`]: Argon2id key derivation and XChaCha20-Poly1305 sealing.

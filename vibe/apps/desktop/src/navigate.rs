@@ -7,11 +7,11 @@ use std::path::{Path, PathBuf};
 use ferrum_ui::prelude::*;
 use ferrumagent_ui::core::Mode;
 
-use crate::app::{ChatAction, FerrumVibe, SIDEBAR_FOLDERS};
+use crate::app::{ChatAction, FerrumEngineer, SIDEBAR_FOLDERS};
 use crate::nav::{Location, Page};
 use crate::threads::ThreadIndex;
 
-impl FerrumVibe {
+impl FerrumEngineer {
     /// A folder picked in the switcher, the folder dialog or the Projects
     /// page: switch to it and show its chat.
     pub fn open_project(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {

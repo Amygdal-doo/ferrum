@@ -6,10 +6,10 @@ use ferrum_ui::prelude::*;
 use ferrumagent_ui::core::context::Mention;
 
 use super::{field, frame, placeholder, row, two_lines};
-use crate::app::FerrumVibe;
+use crate::app::FerrumEngineer;
 use crate::nav::Page;
 
-impl FerrumVibe {
+impl FerrumEngineer {
     fn save_sites(&mut self, cx: &mut Context<Self>) {
         if let Some(file) = self.pages.sites_file()
             && let Err(e) = crate::sites::save(&file, &self.pages.sites)

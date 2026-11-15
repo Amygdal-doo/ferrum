@@ -1,9 +1,9 @@
-# FerrumEnv
+# FerrumVariables
 
 A password-locked vault for project environment variables, with encrypted sharing between
 developers. Native GPUI desktop app (the UI framework of Zed, from the `ide/` submodule) on the
 shared `ferrum-ui` crate. Part of the Ferrum monorepo, sibling of [FerrumKit](../kit),
-[FerrumContainers](../dock) and [Ferrum Editor](../editor).
+[FerrumContainers](../dock) and [FerrumIDE](../editor).
 
 > **Status: alpha.** "Tested" means automated tests: unit tests of `ferrumenv-core` and headless
 > GPUI tests of the app (real views, actions and keystrokes, no window shown). The app has

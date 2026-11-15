@@ -1,4 +1,4 @@
-//! FerrumEnv desktop entry point: a password-locked vault for project
+//! FerrumVariables desktop entry point: a password-locked vault for project
 //! environment variables. Nothing is sent over the network; the only file
 //! written is the encrypted vault (plus `.env` files the user exports).
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
@@ -19,7 +19,7 @@ use ferrum_ui::AppConfig;
 use ferrum_ui::gpui::AppContext as _;
 
 fn main() {
-    let config = AppConfig::new("FerrumEnv")
+    let config = AppConfig::new("FerrumVariables")
         .size(1180., 760.)
         .min_size(860., 540.)
         .unified_titlebar()

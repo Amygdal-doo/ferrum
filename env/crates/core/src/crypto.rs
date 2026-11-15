@@ -1,4 +1,4 @@
-//! The two primitives FerrumEnv uses: Argon2id to turn the master password
+//! The two primitives FerrumVariables uses: Argon2id to turn the master password
 //! into a key, and XChaCha20-Poly1305 (random 192-bit nonces, so nonces
 //! never need a counter) to seal data with associated data bound to it.
 

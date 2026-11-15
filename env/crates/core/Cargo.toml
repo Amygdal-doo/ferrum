@@ -1,6 +1,6 @@
 [package]
 name = "ferrumenv-core"
-description = "FerrumEnv core: encrypted vault, share keys and bundles, .env parsing, diffs and auto-lock (no UI)."
+description = "FerrumVariables core: encrypted vault, share keys and bundles, .env parsing, diffs and auto-lock (no UI)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

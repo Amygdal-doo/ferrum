@@ -1,7 +1,7 @@
 # FerrumChat
 
 A Cursor-like agentic coding chat, built as two reusable crates. It is embedded
-as the Agent pane in Ferrum Editor and as the Chat column in the FerrumVibe
+as the Agent pane in FerrumIDE and as the Chat column in the FerrumEngineer
 app.
 
 | Crate | What it is |
@@ -37,7 +37,7 @@ chat.update(cx, |c, cx| c.set_visible(false, cx));
 
 A host that wants the chat's notifications to be switchable adds
 `ferrumagent_ui::NEEDS_YOU` and `ferrumagent_ui::DONE` to its `AppInfo`
-with `.event(...)`. Both Ferrum Editor and FerrumVibe do. Without them the
+with `.event(...)`. Both FerrumIDE and FerrumEngineer do. Without them the
 chat stays quiet; `ChatOptions::notifier` replaces the delivery entirely.
 
 `ChatOptions::config` takes a full `SessionConfig`, for example a custom
@@ -218,7 +218,7 @@ row shows:
   failed), a spinner for Working and a hollow circle for Idle
 
 The header's thread button carries a dot when another thread needs you
-(amber) or finished unseen (blue). FerrumVibe draws its own sidebar: it adds
+(amber) or finished unseen (blue). FerrumEngineer draws its own sidebar: it adds
 Needs you, Done and Working sections across all open projects above "Recent
 conversations", using the exported `status_indicator` and `thread_logo`.
 
@@ -233,19 +233,19 @@ channels (toast, system, sound, Dock badge):
 Nothing notifies while the user is viewing the thread, because the prompt
 or the result is already on screen. Clicking the toast
 (`notify_with_action`) shows that thread and emits `ChatEvent::Reveal`. On
-`Reveal`, Ferrum Editor opens the Agent pane and FerrumVibe opens that
+`Reveal`, FerrumIDE opens the Agent pane and FerrumEngineer opens that
 project's thread. Clicking a system notification only brings the app
 forward.
 
 **Background behaviour.**
 - Hiding the chat does not stop it. That covers closing the Agent pane in
-  the editor, showing another FerrumVibe page or project, and switching
+  the editor, showing another FerrumEngineer page or project, and switching
   threads.
 - The `ChatSession` owns its turn on the core tokio runtime, and the view
   only listens. Turns that end while the chat is hidden become Done and
   notify.
 - The editor keeps one chat per project for the window's life, as
-  FerrumVibe already did. Changing folders no longer drops the previous
+  FerrumEngineer already did. Changing folders no longer drops the previous
   project's chat mid-turn.
 - When a view is really gone (its window closed), its running turns go on
   to the end and are saved. Any permission prompt they raise is denied,

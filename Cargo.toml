@@ -114,7 +114,7 @@ ferrumports-core = { path = "ports/crates/core" }
 # Ferrum System (FeS)
 ferrumsystem-core = { path = "system/crates/core" }
 
-# FerrumEnv
+# FerrumVariables
 ferrumenv-core = { path = "env/crates/core" }
 # Vault encryption: XChaCha20-Poly1305 with an Argon2id-derived key.
 chacha20poly1305 = { version = "0.10", features = ["std"] }
@@ -133,7 +133,7 @@ ferrumagent-ui = { path = "agent/crates/ui" }
 # Rule globs (`.cursor/rules/*.mdc`); already in the graph through `ignore`.
 globset = "0.4"
 
-# Ferrum Editor
+# FerrumIDE
 ferrumeditor-core = { path = "editor/crates/core" }
 # Text buffer, file walking/watching, Trash, and tree-sitter highlighting.
 ropey = { version = "1.6", default-features = false, features = ["simd"] }

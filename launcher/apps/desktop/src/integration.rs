@@ -1,4 +1,4 @@
-//! Opening apps without the launcher window: shell commands (`fee .`),
+//! Opening apps without the launcher window: shell commands (`fei .`),
 //! Dock icons, global shortcuts and the menu bar icon. The choices live in
 //! `Settings::app_prefs` / `menu_bar`; the files they produce (command
 //! scripts, `~/.ferrum/preferences.json`) are rewritten from them.
@@ -134,18 +134,6 @@ impl FerrumLauncher {
         self.keep_subscription(subscription);
         self.integration.command_inputs.insert(app, input.clone());
         input
-    }
-
-    /// Brings the enabled shell commands up to date with this launcher.
-    pub fn refresh_shell_commands(&self) {
-        let paths = self.services.paths.clone();
-        for (app, prefs) in &self.state.settings.app_prefs {
-            if let Some(command) = &prefs.command
-                && let Err(error) = shell::refresh(&paths, &self.state.info(*app), command)
-            {
-                tracing::warn!(%error, command, "could not refresh a shell command");
-            }
-        }
     }
 
     /// Turns `app`'s shell command on (with the name in its field) or off.

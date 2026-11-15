@@ -6,9 +6,9 @@ one look through `shared/ui`.
 
 | Path | Product | Stack |
 | --- | --- | --- |
-| `editor/` | Ferrum Editor: the suite's code editor, lightweight and hackable, with Git, CI (GitHub Actions) and Logs pages | GPUI + `ferrum-ui` |
-| `agentic/` | FerrumVibe: FerrumChat, FerrumGIT and FerrumTerm side by side in one window for agentic development | GPUI + `ferrum-ui` |
-| `agent/` | Library only: FerrumChat (`ferrumagent-core`, `ferrumagent-ui`), the agentic coding chat embedded in Ferrum Editor and FerrumVibe | GPUI + `ferrum-ui` |
+| `editor/` | FerrumIDE: the suite's code editor, lightweight and hackable, with Git, CI (GitHub Actions) and Logs pages | GPUI + `ferrum-ui` |
+| `vibe/` | FerrumEngineer (formerly FerrumVibe): FerrumChat, FerrumGIT and FerrumTerm side by side in one window for agentic development | GPUI + `ferrum-ui` |
+| `agent/` | Library only: FerrumChat (`ferrumagent-core`, `ferrumagent-ui`), the agentic coding chat embedded in FerrumIDE and FerrumEngineer | GPUI + `ferrum-ui` |
 | `api/` | FerrumAPI: HTTP/API client | GPUI + `ferrum-ui` |
 | `git/` | FerrumGIT: Git client | GPUI + `ferrum-ui` |
 | `data/` | FerrumData: database IDE | GPUI + `ferrum-ui` |
@@ -16,13 +16,13 @@ one look through `shared/ui`.
 | `kit/` | FerrumKit: developer utilities | GPUI + `ferrum-ui` |
 | `dock/` | FerrumContainers: container manager | GPUI + `ferrum-ui` |
 | `ports/` | FerrumPorts: listening ports and their processes | GPUI + `ferrum-ui` |
-| `env/` | FerrumEnv: password-locked, shareable vault for project env variables | GPUI + `ferrum-ui` |
-| `logs/` | Library only: `ferrumlogs-core` (log sources, parsing, filtering) behind Ferrum Editor's Logs page | Rust (no UI) |
-| `ci/` | Library only: `ferrumci-core` (GitHub Actions runs, logs, dispatch, PR checks) behind Ferrum Editor's CI page | Rust (no UI) |
+| `env/` | FerrumVariables: password-locked, shareable vault for project env variables | GPUI + `ferrum-ui` |
+| `logs/` | Library only: `ferrumlogs-core` (log sources, parsing, filtering) behind FerrumIDE's Logs page | Rust (no UI) |
+| `ci/` | Library only: `ferrumci-core` (GitHub Actions runs, logs, dispatch, PR checks) behind FerrumIDE's CI page | Rust (no UI) |
 | `launcher/` | Ferrum Launcher (formerly Ferrum Toolbox): installs, updates and launches the apps | GPUI + `ferrum-ui` |
 | `shared/ui` | `ferrum-ui`: shared shell, theme, widgets, icons and fonts | GPUI |
 | `web/` | Marketing site | axum + maud (standalone package) |
-| `ide/` | Library only: the Zed codebase (git submodule) that provides GPUI (Apache-2.0). Not a product: Ferrum IDE was dropped in favour of Ferrum Editor | GPUI (own Cargo workspace) |
+| `ide/` | Library only: the Zed codebase (git submodule) that provides GPUI (Apache-2.0). Not a product: the Zed-based Ferrum IDE was dropped in favour of FerrumIDE (`editor/`) | GPUI (own Cargo workspace) |
 
 ## Layout
 
@@ -68,7 +68,7 @@ one look through `shared/ui`.
 - `ProjectBar`: the strip at the top of the windows with the current project
   (name, path, git branch), a switcher over the recent projects shared by
   every app (`~/.ferrum/projects.json`, ⌥⌘O) and buttons that open the project
-  in Ferrum Editor, FerrumGIT or FerrumTerm. The data side is
+  in FerrumIDE, FerrumGIT or FerrumTerm. The data side is
   `ferrum_ui::project`.
 - `Modal`, `Notice` / `render_notice`, `toolbar`, `status_bar`,
   `section_header`, `badge`, `kbd` and `empty_state`.
@@ -91,8 +91,8 @@ one look through `shared/ui`.
     `~/.ferrum/appearance.json` and followed live by every running app.
     `theme::presets` holds the built-in themes.
   - `surface`: the window backdrop for the interface style, and the pane
-    cards (`pane_frame`, `pane_header`, `gap_splitter`) that Ferrum Editor,
-    FerrumVibe and FerrumTerm lay out on it.
+    cards (`pane_frame`, `pane_header`, `gap_splitter`) that FerrumIDE,
+    FerrumEngineer and FerrumTerm lay out on it.
   - `notify`: in-app toasts, system notifications, Dock badge and sound,
     switchable per event, stored in `~/.ferrum/<binary>/notifications.json`.
   - `keymap`: shortcuts recorded in Settings, stored in
@@ -130,10 +130,10 @@ cargo term       # FerrumTerm GUI
 cargo fterm      # FerrumTerm CLI
 cargo kit        # FerrumKit
 cargo dock       # FerrumContainers
-cargo editor     # Ferrum Editor
+cargo editor     # FerrumIDE
 cargo ports      # FerrumPorts
-cargo env-ui     # FerrumEnv
-cargo vibe       # FerrumVibe (cargo vibe <folder>)
+cargo env-ui     # FerrumVariables
+cargo vibe       # FerrumEngineer (cargo vibe <folder>)
 cargo launcher   # Ferrum Launcher
 cargo lint       # clippy, whole workspace, -D warnings
 cargo test --workspace

@@ -1,7 +1,7 @@
 //! The macOS menu bar every Ferrum app shares: the app menu (About, Check
 //! for Updates…, Settings…, Services, Hide, Quit), File, Edit, View, Window and Help.
 //! `ferrum_ui::run` installs [`standard`]; apps with menus of their own
-//! (Ferrum Editor) splice in [`app_menu`], [`window_menu`] and [`help_menu`].
+//! (FerrumIDE) splice in [`app_menu`], [`window_menu`] and [`help_menu`].
 
 use gpui::{App, KeyBinding, Menu, MenuItem, OsAction, SystemMenuType};
 

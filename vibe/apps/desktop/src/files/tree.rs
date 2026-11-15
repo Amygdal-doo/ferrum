@@ -146,13 +146,39 @@ impl FileTree {
     /// Re-reads the folders read so far; ones that disappeared are
     /// forgotten (with their expanded state).
     pub fn refresh(&mut self) {
-        let dirs: Vec<PathBuf> = self.children.keys().cloned().collect();
-        for dir in dirs {
-            if dir == self.root || dir.is_dir() {
-                self.children.insert(dir.clone(), read_dir(&dir));
-            } else {
-                self.children.remove(&dir);
-                self.expanded.remove(&dir);
+        let reads = Self::read_again(&self.root, self.loaded_dirs());
+        self.apply_reads(reads);
+    }
+
+    /// The folders read so far (what [`Self::refresh`] reads again).
+    #[must_use]
+    pub fn loaded_dirs(&self) -> Vec<PathBuf> {
+        self.children.keys().cloned().collect()
+    }
+
+    /// Reads `dirs` again (no `self`: runs off the UI thread). `None`: the
+    /// folder is gone.
+    #[must_use]
+    pub fn read_again(root: &Path, dirs: Vec<PathBuf>) -> Vec<(PathBuf, Option<Vec<Entry>>)> {
+        dirs.into_iter()
+            .map(|dir| {
+                let entries = (dir == root || dir.is_dir()).then(|| read_dir(&dir));
+                (dir, entries)
+            })
+            .collect()
+    }
+
+    /// Takes in what [`Self::read_again`] found.
+    pub fn apply_reads(&mut self, reads: Vec<(PathBuf, Option<Vec<Entry>>)>) {
+        for (dir, entries) in reads {
+            match entries {
+                Some(entries) => {
+                    self.children.insert(dir, entries);
+                }
+                None => {
+                    self.children.remove(&dir);
+                    self.expanded.remove(&dir);
+                }
             }
         }
     }

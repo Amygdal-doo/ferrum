@@ -191,7 +191,7 @@ fn parse_stop(chars: &[char], at: usize) -> Option<(u32, String, usize)> {
 }
 
 /// Default `snippets.toml` written on first launch.
-pub const DEFAULT_SNIPPETS_TOML: &str = r##"# Ferrum Editor snippets. Type a prefix and press Tab to expand; Tab /
+pub const DEFAULT_SNIPPETS_TOML: &str = r##"# FerrumIDE snippets. Type a prefix and press Tab to expand; Tab /
 # Shift+Tab move between $1, $2, … and $0 (the final caret). ${1:text}
 # pre-fills a placeholder. Changes apply as soon as you save.
 #

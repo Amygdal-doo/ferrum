@@ -5,10 +5,10 @@ use ferrum_ui::components::{Checkbox, IconSize};
 use ferrum_ui::prelude::*;
 
 use super::{field, frame, placeholder, row, section, two_lines};
-use crate::app::FerrumVibe;
+use crate::app::FerrumEngineer;
 use crate::nav::Page;
 
-impl FerrumVibe {
+impl FerrumEngineer {
     fn mcp_file(&self) -> std::path::PathBuf {
         ferrumagent_ui::core::paths::mcp_config(&self.agent_home)
     }

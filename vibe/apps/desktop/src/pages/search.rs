@@ -9,14 +9,14 @@ use ferrum_ui::prelude::*;
 use ferrum_ui::project;
 
 use super::{field, frame, placeholder, row, two_lines};
-use crate::app::FerrumVibe;
+use crate::app::FerrumEngineer;
 use crate::nav::Page;
 use crate::threads;
 
 /// Results shown at most.
 const MAX_HITS: usize = 60;
 
-impl FerrumVibe {
+impl FerrumEngineer {
     /// Searches for the query, after a short pause in typing.
     pub(crate) fn run_search(&mut self, cx: &mut Context<Self>) {
         let query = self.pages.search.read(cx).text().to_string();

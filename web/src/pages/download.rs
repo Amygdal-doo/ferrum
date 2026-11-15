@@ -215,9 +215,9 @@ pub fn render(site_url: &str) -> Markup {
                 .tight()
                 .lead(html! {
                     p {
-                        "The launcher is the only thing you download by hand. Ferrum Editor, \
-                         FerrumVibe, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, \
-                         FerrumContainers, FerrumPorts and FerrumEnv install, update and roll back \
+                        "The launcher is the only thing you download by hand. FerrumIDE, \
+                         FerrumEngineer, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, \
+                         FerrumContainers, FerrumPorts and FerrumVariables install, update and roll back \
                          from the launcher. Each also has its own DMG and .deb in the releases \
                          if you'd rather install one by hand."
                     }

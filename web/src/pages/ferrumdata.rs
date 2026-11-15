@@ -177,6 +177,6 @@ mod tests {
     fn links_to_the_other_products() {
         let html = rendered();
         assert!(html.contains("href=\"/ferrumapi\""));
-        assert!(html.contains("href=\"/ferrum-editor\""));
+        assert!(html.contains("href=\"/ferrumide\""));
     }
 }

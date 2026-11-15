@@ -7,7 +7,7 @@ use ferrum_ui::prelude::*;
 use ferrum_ui::project;
 
 use super::{frame, placeholder, row, section, two_lines};
-use crate::app::FerrumVibe;
+use crate::app::FerrumEngineer;
 use crate::nav::Page;
 use crate::threads::format_tokens;
 
@@ -35,7 +35,7 @@ fn stat(label: &str, value: String, cx: &App) -> impl IntoElement {
         )
 }
 
-impl FerrumVibe {
+impl FerrumEngineer {
     pub(crate) fn usage_page(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let usage = self.index.usage(Utc::now());
         let mut page = frame(

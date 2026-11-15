@@ -1,4 +1,4 @@
-//! FerrumVibe desktop entry point: an agent always live in a project,
+//! FerrumEngineer desktop entry point: an agent always live in a project,
 //! with its threads in a sidebar and FerrumGIT and FerrumTerm beside it.
 //! `ferrumvibe [folder]` opens on that project.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
@@ -42,7 +42,7 @@ fn main() {
     let path_env = std::thread::spawn(shell_path::login_shell_path);
     let project = folder_argument(std::env::args_os().skip(1)).or_else(app::last_project);
 
-    let config = AppConfig::new("FerrumVibe")
+    let config = AppConfig::new("FerrumEngineer")
         .unified_titlebar()
         .size(1560., 920.)
         .min_size(720., 480.)
@@ -62,7 +62,7 @@ fn main() {
             }),
             ..app::Options::default()
         };
-        cx.new(|cx| app::FerrumVibe::new(options, window, cx))
+        cx.new(|cx| app::FerrumEngineer::new(options, window, cx))
     });
 }
 
@@ -84,7 +84,7 @@ fn folder_argument(mut args: impl Iterator<Item = std::ffi::OsString>) -> Option
 }
 
 /// FerrumAgentic kept its files in `~/.ferrum/agentic` and
-/// `~/.ferrum/ferrumagentic`; FerrumVibe takes them over on its first start.
+/// `~/.ferrum/ferrumagentic`; FerrumEngineer takes them over on its first start.
 fn move_legacy_data() {
     for (old, new) in [("agentic", "vibe"), ("ferrumagentic", "ferrumvibe")] {
         if let (Some(old), Some(new)) = (ferrum_ui::prefs::path(old), ferrum_ui::prefs::path(new))

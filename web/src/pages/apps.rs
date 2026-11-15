@@ -20,7 +20,7 @@ pub struct AppEntry {
 /// The four apps most of a working day happens in. Home shows these.
 pub const MAIN: [AppEntry; 4] = [
     AppEntry {
-        product: products::FERRUM_EDITOR,
+        product: products::FERRUMIDE,
         summary: "A small, hackable code editor written from scratch in Rust and configured in \
                   plain TOML.",
         features: &[
@@ -73,7 +73,7 @@ pub const MAIN: [AppEntry; 4] = [
 /// The tools around the main four.
 pub const MORE: [AppEntry; 7] = [
     AppEntry {
-        product: products::FERRUMVIBE,
+        product: products::FERRUMENGINEER,
         summary: "FerrumChat, FerrumGIT and FerrumTerm side by side on one project, for working \
                   with coding agents.",
         features: &[
@@ -148,7 +148,7 @@ pub const MORE: [AppEntry; 7] = [
         ],
     },
     AppEntry {
-        product: products::FERRUMENV,
+        product: products::FERRUMVARIABLES,
         summary: "A password-locked vault for your projects' environment variables.",
         features: &[
             "Projects and environments behind a master password, locked after 30 idle minutes",

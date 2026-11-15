@@ -60,7 +60,8 @@ const EDITOR: &[Shortcut] = &[
     (&["F5", "F9"], "Debugger: continue / toggle breakpoint"),
     (&["F10", "F11"], "Debugger: step over / step into"),
     (&["⇧⌘M"], "Markdown preview"),
-    (&["⌘,"], "Open the config file"),
+    (&["⌘,"], "Settings"),
+    (&["⌥⌘,"], "Open the config file (config.toml)"),
 ];
 
 const API: &[Shortcut] = &[
@@ -165,8 +166,8 @@ const ENV: &[Shortcut] = &[
 
 /// Every app with its shortcuts, in site order.
 pub const APPS: [(Product, &[Shortcut]); 11] = [
-    (products::FERRUM_EDITOR, EDITOR),
-    (products::FERRUMVIBE, VIBE),
+    (products::FERRUMIDE, EDITOR),
+    (products::FERRUMENGINEER, VIBE),
     (products::FERRUM_SYSTEM, SYSTEM),
     (products::FERRUMAPI, API),
     (products::FERRUMGIT, GIT),
@@ -175,7 +176,7 @@ pub const APPS: [(Product, &[Shortcut]); 11] = [
     (products::FERRUMKIT, KIT),
     (products::FERRUMCONTAINERS, DOCK),
     (products::FERRUMPORTS, PORTS),
-    (products::FERRUMENV, ENV),
+    (products::FERRUMVARIABLES, ENV),
 ];
 
 fn table(caption: &str, rows: &[Shortcut]) -> Markup {
@@ -205,8 +206,8 @@ fn table(caption: &str, rows: &[Shortcut]) -> Markup {
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Keyboard shortcuts for every Ferrum app"),
-        "macOS keyboard shortcuts for Ferrum Editor, FerrumVibe, FerrumAPI, FerrumGIT, \
-         FerrumData, FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumEnv.",
+        "macOS keyboard shortcuts for FerrumIDE, FerrumEngineer, FerrumAPI, FerrumGIT, \
+         FerrumData, FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumVariables.",
         PATH,
         "page-docs",
     )
@@ -245,7 +246,7 @@ pub fn render(site_url: &str) -> Markup {
                         (p.name)
                     }
                     (table(&format!("{} shortcuts", p.name), rows))
-                    @if p.slug == products::FERRUM_EDITOR.slug {
+                    @if p.slug == products::FERRUMIDE.slug {
                         p class="muted" {
                             "These are the defaults. Rebind any command in "
                             code { "keymap.toml" } "; " (code::keys("⇧⌘P")) " lists every \
@@ -284,6 +285,16 @@ mod tests {
             );
         }
         assert!(html.contains("Shift Command P"));
+        assert!(
+            EDITOR
+                .iter()
+                .any(|(keys, what)| keys == &["⌘,"] && *what == "Settings")
+        );
+        assert!(
+            EDITOR
+                .iter()
+                .any(|(keys, what)| keys == &["⌥⌘,"] && what.starts_with("Open the config file"))
+        );
         assert_eq!(APPS.len(), products::apps().count());
     }
 }

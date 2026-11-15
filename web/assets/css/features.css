@@ -334,7 +334,7 @@
 .ports__actions span { padding: 1px 8px; border: 1px solid var(--border-strong); border-radius: 4px; }
 .ports__actions .ports__stop { border-color: transparent; background: var(--app-accent); color: var(--on-color); font-weight: 600; animation: demo-press var(--cycle) var(--ease) infinite; animation-delay: 4.3s; }
 
-/* ---------- FerrumEnv ---------- */
+/* ---------- FerrumVariables ---------- */
 .env__body { flex: 1; display: grid; grid-template-columns: 110px minmax(0, 1fr); }
 .env__side { padding: 10px !important; border-right: 1px solid var(--border); background: var(--bg-elev); }
 .env__side li { display: flex; justify-content: space-between; padding: 3px 6px; border-radius: 3px; color: var(--text); }
@@ -361,7 +361,7 @@
 .env__row.is-revealed { animation: demo-row var(--cycle) var(--ease) infinite, env-pick var(--cycle) var(--ease) infinite; }
 .env__status { margin-top: 10px !important; font-size: 11px; color: var(--text-faint); }
 
-/* ---------- Ferrum Editor's Logs page (on /ferrum-editor#logs) ---------- */
+/* ---------- FerrumIDE's Logs page (on /ferrumide#logs) ---------- */
 .logs__body { flex: 1; display: grid; grid-template-columns: 130px minmax(0, 1fr); }
 .logs__side { padding: 10px !important; border-right: 1px solid var(--border); background: var(--bg-elev); }
 .logs__side li { display: flex; flex-wrap: wrap; align-items: center; gap: 0 6px; padding: 3px 6px; color: var(--text); }
@@ -396,7 +396,7 @@
   animation: demo-toast var(--cycle) var(--ease) infinite;
 }
 
-/* ---------- Ferrum Editor's CI page (on /ferrum-editor#ci) ---------- */
+/* ---------- FerrumIDE's CI page (on /ferrumide#ci) ---------- */
 .ci__body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
 .ci__runs { padding: 8px !important; border-right: 1px solid var(--border); background: var(--bg-elev); }
 .ci__runs li { display: flex; gap: 8px; align-items: flex-start; padding: 4px 6px; border-radius: 3px; color: var(--text); }
@@ -438,7 +438,7 @@
 @keyframes env-pick { 0%, 24%, 80%, 100% { background: transparent; } 30%, 74% { background: color-mix(in srgb, var(--app-accent) 16%, transparent); } }
 @keyframes ci-err { 0%, 30% { background: transparent; } 36%, 92% { background: color-mix(in srgb, var(--bronze) 18%, transparent); } 100% { background: transparent; } }
 
-/* ---------- Ferrum Editor ---------- */
+/* ---------- FerrumIDE ---------- */
 .ed { display: grid; grid-template-columns: 120px minmax(0, 1fr); grid-template-rows: 1fr auto; }
 .ed__tree { padding: 10px 8px !important; border-right: 1px solid var(--border); background: var(--bg-elev); overflow: hidden; }
 .ed__tree li { padding: 1px 6px; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -507,7 +507,7 @@
   .tb__chan, .tb__ver { display: none; }
 }
 
-/* ---------- Embedded tools: FerrumVibe columns, Ferrum Editor panes ---------- */
+/* ---------- Embedded tools: FerrumEngineer columns, FerrumIDE panes ---------- */
 .ax, .edp { display: flex; flex-direction: column; }
 .ax__top { display: flex; flex: none; align-items: stretch; border-bottom: 1px solid var(--border); background: var(--bg-elev); }
 .ax__top .pstrip { flex: 1; min-width: 0; border-bottom: 0; }

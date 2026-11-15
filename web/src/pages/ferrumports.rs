@@ -38,7 +38,7 @@ const FEATURES: &[(&str, &str)] = &[
         "Details and hints",
         "Addresses and exposure (local, one interface or all), every port of the same pid, \
          and hints for about 45 well-known ports such as 5173 Vite or 6379 Redis. Open the \
-         project in Ferrum Editor, FerrumGIT or FerrumTerm.",
+         project in FerrumIDE, FerrumGIT or FerrumTerm.",
     ),
 ];
 

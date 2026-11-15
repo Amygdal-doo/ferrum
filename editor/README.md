@@ -1,4 +1,4 @@
-# Ferrum Editor
+# FerrumIDE
 
 A small, hackable text editor in the spirit of Atom — tree view, tabs, split panes, fuzzy
 finder, command palette, and plain-text config / keymap / theme / snippets you edit in the
@@ -92,13 +92,15 @@ cargo run -p ferrumeditor-desktop -- src/main.rs:10   # open a file at line 10
 cargo test -p ferrumeditor-core -p ferrumeditor-desktop
 cargo clippy -p ferrumeditor-core -p ferrumeditor-desktop --all-targets -- -D warnings
 ```
-The binary is `ferrumeditor`; the window / bundle display name is "Ferrum Editor". Release
+The binary is `ferrumeditor`; the window / bundle display name is "FerrumIDE". Release
 builds read the version from `FERRUM_VERSION` at compile time (shown in About).
 
 ## Hacking it
 Everything lives in `~/.ferrum/editor/` (override with `FERRUM_EDITOR_HOME`). Open the files
-from the palette: *Application: Open Config / Open Keymap / Open Snippets / Open Theme*.
-Saving any of them applies the change immediately.
+from the palette: *Application: Open Config* (⌥⌘,, or *FerrumIDE › Config File…*) / *Open
+Keymap / Open Snippets / Open Theme*. Saving any of them applies the change immediately. ⌘,
+(and the gear in the title bar) opens the Settings window shared by every Ferrum app, as in
+the other apps; before the rename to FerrumIDE it opened `config.toml`.
 
 - **`config.toml`** — font family/size, line height, `theme`, `icon_theme`, `show_file_icons`,
   `[[agents]]` and `agent_idle_seconds` (see [AI agents](#ai-agents)),
@@ -129,7 +131,8 @@ stop…):
 | `application:new-file` | `cmd-n` | window |
 | `application:open-file` | `cmd-o` | window |
 | `application:open-folder` | `cmd-shift-o` | window |
-| `application:open-config` | `cmd-,` | window |
+| `application:open-settings` | `cmd-,` | window |
+| `application:open-config` | `cmd-alt-,` | window |
 | `application:open-keymap` | — | window |
 | `application:open-snippets` | — | window |
 | `application:open-theme` | — | window |
@@ -300,12 +303,12 @@ Completions, problems, go to definition, rename (F2), references (Shift+F12), co
 (Cmd+.), formatting (Shift+Alt+F, and on save) and signature help come from the language
 server for the file's language. The project switcher (⌥⌘O) is not an editor command: it is
 bound by the shared project bar. You don't need to install anything: the first time you open a Rust, Go, TypeScript /
-JavaScript (or Python, JSON, CSS, HTML, YAML, TOML, shell) file without its server, Ferrum
-Editor installs it into `~/.ferrum/editor/servers/` and starts it; the status bar shows
+JavaScript (or Python, JSON, CSS, HTML, YAML, TOML, shell) file without its server,
+FerrumIDE installs it into `~/.ferrum/editor/servers/` and starts it; the status bar shows
 `Installing …` meanwhile. A server you installed yourself (on your login shell's `PATH`, or
 in the project's `node_modules/.bin`) is used instead.
 
-| Id | Languages | Program | How Ferrum Editor installs it |
+| Id | Languages | Program | How FerrumIDE installs it |
 |----|-----------|---------|-------------------------------|
 | `rust` | Rust | `rust-analyzer` | `rustup component add rust-analyzer`, or the official GitHub release without rustup |
 | `typescript` | JavaScript, TypeScript, TSX | `typescript-language-server --stdio` | npm: `typescript`, `typescript-language-server` |
@@ -655,7 +658,7 @@ theme that no longer needs the original files; the first is applied. Importing a
 the file. *Install from File…* also accepts `.vsix`.
 
 ## Icon themes
-The built-in `ferrum` set (drawn for Ferrum Editor, tinted per file type) covers folders
+The built-in `ferrum` set (drawn for FerrumIDE, tinted per file type) covers folders
 (open / closed), common languages and extensions, and special names (`Cargo.toml`,
 `package.json`, lock files, `Dockerfile`, `.gitignore`, `README`, `LICENSE`, `.env`, `Makefile`,
 images, archives, fonts, media…). Set `show_file_icons = false` to hide icons. An icon theme is
@@ -668,7 +671,7 @@ default) comes from the built-in set. The bundled `material` theme is the same l
 solid Material-style glyphs and folders coloured by role (`src`, `lib`/`crates`, `tests`,
 `docs`, `node_modules`, `.github`, `.vscode`, `assets`, `components`, `config`,
 `dist`/`build`/`target`, `scripts`, `public`, `api`, `styles`, `examples`, `.git`); its icons
-are drawn for Ferrum Editor (no third-party icon files).
+are drawn for FerrumIDE (no third-party icon files).
 
 ```toml
 name = "mono"                 # default: the folder name

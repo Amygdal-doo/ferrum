@@ -8,15 +8,15 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Error {
     #[error("Wrong master password (or the vault file was modified).")]
     WrongPassword,
-    #[error("The vault file is damaged or not a FerrumEnv vault: {0}")]
+    #[error("The vault file is damaged or not a FerrumVariables vault: {0}")]
     CorruptVault(String),
-    #[error("This vault was written by a newer FerrumEnv (format {0}).")]
+    #[error("This vault was written by a newer FerrumVariables (format {0}).")]
     UnsupportedVersion(u32),
     #[error("A vault already exists at {0}.")]
     VaultExists(String),
     #[error("Invalid share key: {0}")]
     ShareKey(String),
-    #[error("Not a FerrumEnv bundle: {0}")]
+    #[error("Not a FerrumVariables bundle: {0}")]
     BadBundle(String),
     #[error(
         "This bundle was encrypted with a different share key (bundle {bundle}, yours {yours})."

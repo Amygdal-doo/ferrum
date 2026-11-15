@@ -319,17 +319,39 @@ impl HostStore {
         }
     }
 
-    /// Adds a machine typed as `user@host`, `host` or `user@host:port`,
-    /// named after the host (`host-2`… when taken). Returns its name.
+    /// Adds a machine typed as `user@host`, `host` or `user@host:port`
+    /// (an IPv6 address bare, or as `[addr]:port`), named after the host
+    /// (`host-2`… when taken). Returns its name.
     pub fn add_typed(&mut self, text: &str) -> Result<String, String> {
         let text = text.trim();
-        let (rest, port) = match text.rsplit_once(':') {
-            Some((rest, port)) if !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => {
-                (rest, port)
-            }
-            _ => (text, ""),
+        let (user, address) = match text.rsplit_once('@') {
+            Some((user, address)) => (Some(user), address),
+            None => (None, text),
         };
-        let host = rest.rsplit_once('@').map_or(rest, |(_, h)| h);
+        let is_port = |p: &str| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit());
+        let (host, port) = if let Some(bracketed) = address.strip_prefix('[') {
+            match bracketed.split_once(']') {
+                Some((host, "")) => (host, ""),
+                Some((host, port)) => match port.strip_prefix(':') {
+                    Some(port) if is_port(port) => (host, port),
+                    _ => return Err(format!("“{text}” is not user@host:port")),
+                },
+                None => return Err(format!("“{text}” is not user@host:port")),
+            }
+        } else if address.matches(':').count() > 1 {
+            // A bare IPv6 address: its last group is not a port.
+            (address, "")
+        } else {
+            match address.rsplit_once(':') {
+                Some((host, port)) if is_port(port) => (host, port),
+                _ => (address, ""),
+            }
+        };
+        let rest = match user {
+            Some(user) => format!("{user}@{host}"),
+            None => host.to_owned(),
+        };
+        let rest = rest.as_str();
         let base = if host.parse::<std::net::IpAddr>().is_ok() {
             host
         } else {
@@ -595,6 +617,16 @@ mod tests {
         assert_eq!((h.user.as_deref(), h.port), (Some("root"), Some(2222)));
         assert_eq!(h.host, "box.lan");
         assert_eq!(s.add_typed("10.0.0.5").expect("add"), "10.0.0.5");
+        // IPv6: the last group is not a port, unless bracketed.
+        assert_eq!(s.add_typed("fe80::1").expect("add"), "fe80::1");
+        assert_eq!(s.get("fe80::1").map(|h| h.port), Some(None));
+        let name = s.add_typed("me@[2001:db8::2]:2200").expect("add");
+        let h = s.get(&name).expect("saved");
+        assert_eq!(
+            (h.user.as_deref(), h.host.as_str(), h.port),
+            (Some("me"), "2001:db8::2", Some(2200))
+        );
+        assert!(s.add_typed("[::1]x").is_err());
         assert!(s.add_typed("me@-oProxyCommand=x").is_err());
         assert!(s.add_typed("  ").is_err());
         s.rename_machine("box", "vps").expect("rename");

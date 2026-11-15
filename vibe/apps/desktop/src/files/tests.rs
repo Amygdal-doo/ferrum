@@ -203,3 +203,20 @@ fn nested_and_repeated_drops_are_merged() {
     );
     assert!(without_nested(&[]).is_empty());
 }
+
+#[test]
+fn a_refresh_read_elsewhere_applies_like_a_direct_one() {
+    let dir = sample();
+    let src = dir.path().join("src");
+    let mut tree = FileTree::new(dir.path());
+    tree.expand(&src);
+    tree.expand(&src.join("nested"));
+    fs::write(src.join("new.rs"), "").expect("write");
+    fs::remove_dir_all(src.join("nested")).expect("rm");
+    let reads = FileTree::read_again(tree.root(), tree.loaded_dirs());
+    tree.apply_reads(reads);
+    let all = names(&tree);
+    assert!(all.contains(&(1, "new.rs".into())));
+    assert!(!all.iter().any(|(_, n)| n == "nested" || n == "deep.rs"));
+    assert!(!tree.is_expanded(&src.join("nested")));
+}

@@ -1,6 +1,6 @@
 [package]
 name = "ferrumenv-desktop"
-description = "FerrumEnv: a password-locked vault for project environment variables. GPUI desktop shell."
+description = "FerrumVariables: a password-locked vault for project environment variables. GPUI desktop shell."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

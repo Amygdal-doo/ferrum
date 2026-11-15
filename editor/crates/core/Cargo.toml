@@ -1,6 +1,6 @@
 [package]
 name = "ferrumeditor-core"
-description = "Ferrum Editor core: rope buffer, multi-cursor editing, undo, search, highlighting, git marks and user config — no GPUI."
+description = "FerrumIDE core: rope buffer, multi-cursor editing, undo, search, highlighting, git marks and user config — no GPUI."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
