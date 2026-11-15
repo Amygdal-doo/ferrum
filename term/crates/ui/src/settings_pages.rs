@@ -120,7 +120,7 @@ fn fterm() -> Option<std::path::PathBuf> {
 
 fn install_fterm_skill() -> String {
     let Some(fterm) = fterm() else {
-        return "`fterm` was not found. Install FerrumTerm with Ferrum Launcher to get it.".into();
+        return "`fterm` was not found. Install FerrumTerm with FerrumLauncher to get it.".into();
     };
     match std::process::Command::new(fterm)
         .args(["skill", "setup", "--hooks"])

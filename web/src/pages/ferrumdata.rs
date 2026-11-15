@@ -115,7 +115,7 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Launcher (free, see Download)"),
+        ("Install", "FerrumLauncher (free, see Download)"),
         ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
         (
             "Databases",
@@ -124,7 +124,7 @@ const PAGE: ProductPage = ProductPage {
         ("Built with", "Rust, GPUI, SQLx"),
         ("Data", "Stored locally; passwords in the OS keychain"),
     ],
-    specs_note: "Builds are free public GitHub Releases, installed through Ferrum Launcher.",
+    specs_note: "Builds are free public GitHub Releases, installed through FerrumLauncher.",
 };
 
 pub fn render(site_url: &str) -> Markup {

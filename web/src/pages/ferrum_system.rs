@@ -1,4 +1,4 @@
-//! Ferrum System product page. Claims follow `system/` (the core crate's
+//! FerrumSystem product page. Claims follow `system/` (the core crate's
 //! model, catalogue and runtime readers, and the desktop app) and nothing
 //! beyond it.
 
@@ -10,7 +10,7 @@ use crate::products::FERRUM_SYSTEM;
 const FEATURES: &[(&str, &str)] = &[
     (
         "Kept with the code",
-        "Pick a project and Ferrum System creates an .architecture folder in it: system.json \
+        "Pick a project and FerrumSystem creates an .architecture folder in it: system.json \
          for the design and icons/ for your own icons. It is plain JSON, so it is reviewed \
          and versioned like the rest of the repo.",
     ),
@@ -64,10 +64,10 @@ const NOT_BUILT_YET: &[&str] = &[
 
 const PAGE: ProductPage = ProductPage {
     product: FERRUM_SYSTEM,
-    meta_description: "Ferrum System is a native Rust app for designing a system's \
+    meta_description: "FerrumSystem is a native Rust app for designing a system's \
                        architecture: layers, services on any cloud, databases, flows and the \
                        pods that run them, kept in the project's .architecture folder.",
-    intro: "Design the system next to its code. Ferrum System draws layers, components and the \
+    intro: "Design the system next to its code. FerrumSystem draws layers, components and the \
             connections between them, explains the design (APIs, data, flows, reliability) \
             and shows what is running right now.",
     features_lead: "The model, the catalogue, the demos and the kubectl and docker readers are \
@@ -77,7 +77,7 @@ const PAGE: ProductPage = ProductPage {
         "the core banking demo on AWS",
         "a database schema opened from the diagram",
     ],
-    status_summary: "Ferrum System is new in this alpha.",
+    status_summary: "FerrumSystem is new in this alpha.",
     status_groups: &[
         BulletGroup {
             heading: "Works today",
@@ -89,8 +89,8 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Launcher (free, see Download)"),
-        ("Shell command", "fes, turned on in Ferrum Launcher"),
+        ("Install", "FerrumLauncher (free, see Download)"),
+        ("Shell command", "fes, turned on in FerrumLauncher"),
         ("Platforms", "macOS"),
         ("Built with", "Rust, GPUI, kubectl and docker"),
         ("Stored in", ".architecture/system.json in your project"),
@@ -111,7 +111,7 @@ mod tests {
     fn renders_title_and_logo() {
         let html = render("https://example.test").into_string();
         assert_eq!(html.matches("<h1").count(), 1);
-        assert!(html.contains(">Ferrum System</h1>"));
+        assert!(html.contains(">FerrumSystem</h1>"));
         assert!(html.contains("/assets/img/brand/system.svg"));
         assert!(html.contains("href=\"/download\""));
     }

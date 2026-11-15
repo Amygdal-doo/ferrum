@@ -96,7 +96,7 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Launcher (free, see Download)"),
+        ("Install", "FerrumLauncher (free, see Download)"),
         ("Requires", "git 2.32 or newer and OpenSSH on PATH"),
         ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
         ("Built with", "Rust, GPUI, the system git binary, SQLite"),
@@ -105,8 +105,8 @@ const PAGE: ProductPage = ProductPage {
             "Repository paths and profiles stay local; keys are never copied",
         ),
     ],
-    specs_note: "Builds are free public GitHub Releases, installed through Ferrum \
-                 Launcher.",
+    specs_note: "Builds are free public GitHub Releases, installed through \
+                 FerrumLauncher.",
 };
 
 pub fn render(site_url: &str) -> Markup {

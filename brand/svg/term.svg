@@ -1,25 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <title>Ferrum term</title>
-  <defs>
-    <linearGradient id="term-bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2b241c"/>
-      <stop offset="1" stop-color="#14110d"/>
-    </linearGradient>
-    <radialGradient id="term-glow" cx="0.3" cy="0.25" r="0.9">
-      <stop offset="0" stop-color="#7CC85A" stop-opacity="0.22"/>
-      <stop offset="0.6" stop-color="#7CC85A" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect x="48" y="48" width="928" height="928" rx="208" fill="url(#term-bg)"/>
-  <rect x="48" y="48" width="928" height="928" rx="208" fill="url(#term-glow)"/>
-  <rect x="96" y="96" width="832" height="832" rx="164" fill="none" stroke="#7CC85A" stroke-width="28"/>
-  <g transform="translate(0 -34)">
-  <g fill="none" stroke="#7CC85A" stroke-opacity="0.18" stroke-width="12" stroke-linejoin="round">
-    <polygon points="830.0,560.0 671.0,835.4 353.0,835.4 194.0,560.0 353.0,284.6 671.0,284.6"/>
-    <polygon points="712.0,560.0 612.0,733.2 412.0,733.2 312.0,560.0 412.0,386.8 612.0,386.8"/>
-  </g>
-  <g fill="#7CC85A" fill-opacity="0.45"><circle cx="830.0" cy="560.0" r="20"/><circle cx="671.0" cy="835.4" r="20"/><circle cx="353.0" cy="835.4" r="20"/><circle cx="194.0" cy="560.0" r="20"/><circle cx="353.0" cy="284.6" r="20"/><circle cx="671.0" cy="284.6" r="20"/></g>
-  <g transform="translate(512 560) scale(0.72) translate(-375.0 -560)"><g fill="none" stroke="#f1e9df" stroke-width="76" stroke-linecap="butt" stroke-linejoin="miter"><path transform="translate(-330 0)" d="M330 730 V390 H530"/><path transform="translate(-330 0)" d="M330 555 H485"/></g><g fill="none" stroke="#f1e9df" stroke-width="76" stroke-linecap="butt" stroke-linejoin="round"><path transform="translate(-334 0)" d="M584 605 H768 A92 126 0 1 0 748 692"/></g><g fill="none" stroke="#7CC85A" stroke-width="76" stroke-linecap="butt" stroke-linejoin="round"><path transform="translate(540 0)" d="M-10 390 H210"/><path transform="translate(540 0)" d="M100 390 V730"/></g></g>
-  </g>
-  <circle cx="800" cy="224" r="128" fill="#16130f"/><circle cx="800" cy="224" r="106" fill="#7CC85A"/><g transform="translate(800 224)"><path fill="none" stroke="#16130f" stroke-width="30" stroke-linecap="round" stroke-linejoin="round" d="M-70 -50 L-20 0 L-70 50 M5 55 H75"/></g>
+  <rect width="1024" height="1024" rx="245" fill="#0d1318"/><rect x="17.0" y="17.0" width="990" height="990" rx="228.0" fill="none" stroke="#7CC85A" stroke-width="34"/><g transform="translate(191.4 71.7) scale(0.7863)"><clipPath id="clip-F-cap-64" clipPathUnits="userSpaceOnUse"><rect x="-1000" y="358.0" width="3000" height="404"/></clipPath><clipPath id="clip-e-64" clipPathUnits="userSpaceOnUse"><rect x="-1000" y="358.0" width="3000" height="404"/></clipPath><clipPath id="clip-T-cap-64" clipPathUnits="userSpaceOnUse"><rect x="-1000" y="358.0" width="3000" height="404"/></clipPath><g transform="translate(32.0 0)" clip-path="url(#clip-F-cap-64)" fill="none" stroke="#eef2f5" stroke-width="64" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="10"><path d="M0 730 V390 H190"/><path d="M0 552 H160"/></g><g transform="translate(299.5 0)" clip-path="url(#clip-e-64)" fill="none" stroke="#eef2f5" stroke-width="64" stroke-linecap="butt" stroke-linejoin="round" stroke-miterlimit="10"><path d="M0 605 H180 A90 125 0 1 0 160 690"/></g><g transform="translate(573.5 0)" clip-path="url(#clip-T-cap-64)" fill="none" stroke="#7CC85A" stroke-width="64" stroke-linecap="square" stroke-linejoin="miter" stroke-miterlimit="10"><path d="M0 390 H210"/><path d="M105 390 V730"/></g></g>
 </svg>

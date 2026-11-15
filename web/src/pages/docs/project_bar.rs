@@ -117,7 +117,7 @@ pub fn render(site_url: &str) -> Markup {
                     }
                     ". FerrumData shows the database connection in place of the path."
                 }
-                li { "FerrumKit and Ferrum Launcher have no project bar." }
+                li { "FerrumKit and FerrumLauncher have no project bar." }
             }
 
             h2 id="file" { "The recent projects file" }

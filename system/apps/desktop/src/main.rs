@@ -1,4 +1,4 @@
-//! Ferrum System (FeS) desktop entry point. `ferrumsystem [folder]` opens
+//! FerrumSystem (FeS) desktop entry point. `ferrumsystem [folder]` opens
 //! that project (its `.architecture/` folder when it has one); without one
 //! the project open last, the demo at the very first start, else nothing.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
@@ -30,7 +30,7 @@ fn main() {
         .map(PathBuf::from)
         .and_then(|p| std::fs::canonicalize(p).ok())
         .filter(|p| p.is_dir());
-    let config = AppConfig::new("Ferrum System")
+    let config = AppConfig::new("FerrumSystem")
         .size(1440., 880.)
         .min_size(1000., 600.)
         .unified_titlebar()

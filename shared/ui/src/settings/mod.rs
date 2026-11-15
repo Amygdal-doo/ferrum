@@ -1,5 +1,6 @@
 //! The Settings window every Ferrum app shares (⌘,): Interface, Themes,
-//! Shortcuts, Integrations and Notifications, plus pages the app adds
+//! Shortcuts, System (shell command, `ferrum` command, Dock icon),
+//! Integrations and Notifications, plus pages the app adds
 //! through [`crate::AppInfo::page`] (FerrumTerm's Terminal and Remote Hosts,
 //! …). Pages are drawn with [`widgets`].
 
@@ -8,6 +9,7 @@ mod integrations_page;
 pub(crate) mod interface_page;
 mod notifications_page;
 mod shortcuts_page;
+pub(crate) mod system_page;
 pub(crate) mod themes_page;
 pub mod widgets;
 mod window;
@@ -58,6 +60,7 @@ pub(crate) fn shared_pages() -> (Pages, Pages) {
         ],
         vec![
             Rc::new(shortcuts_page::ShortcutsPage::default()),
+            Rc::new(system_page::SystemPage::default()),
             Rc::new(integrations_page::IntegrationsPage),
             Rc::new(notifications_page::NotificationsPage),
             Rc::new(about_page::AboutPage),

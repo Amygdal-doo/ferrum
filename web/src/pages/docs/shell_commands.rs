@@ -29,7 +29,7 @@ pub const COMMANDS: [(&str, Product, &str); 12] = [
     (
         "fes",
         products::FERRUM_SYSTEM,
-        "Opens Ferrum System; `fes .` opens the current folder's architecture",
+        "Opens FerrumSystem; `fes .` opens the current folder's architecture",
     ),
     ("fea", products::FERRUMAPI, "Opens FerrumAPI"),
     (
@@ -51,7 +51,7 @@ pub const COMMANDS: [(&str, Product, &str); 12] = [
     ),
     ("fep", products::FERRUMPORTS, "Opens FerrumPorts"),
     ("fev", products::FERRUMVARIABLES, "Opens FerrumVariables"),
-    ("fel", products::FERRUM_LAUNCHER, "Opens Ferrum Launcher"),
+    ("fel", products::FERRUM_LAUNCHER, "Opens FerrumLauncher"),
 ];
 
 /// Renders "`x` text" descriptions: backticked spans become `<code>`.
@@ -67,7 +67,7 @@ pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Shell commands: fei, feg, fet and more"),
         "Open Ferrum apps from a terminal: fei for FerrumIDE, feg for FerrumGIT, fet for \
-         FerrumTerm, fen for FerrumEngineer, fes for Ferrum System, and fea, fed, fek, fec, fep, \
+         FerrumTerm, fen for FerrumEngineer, fes for FerrumSystem, and fea, fed, fek, fec, fep, \
          fev and fel for the rest.",
         PATH,
         "page-docs",
@@ -80,14 +80,14 @@ pub fn render(site_url: &str) -> Markup {
         html! {
             p {
                 "Open any Ferrum app from a terminal, the way " code { "zed ." } " or "
-                code { "code ." } " work. Each command is off until you turn it on in Ferrum \
-                 Launcher, and you can rename it."
+                code { "code ." } " work. Each command is off until you turn it on in \
+                 FerrumLauncher, and you can rename it."
             }
         },
         html! {
             h2 id="turn-on" { "Turn a command on" }
             ol class="prose-steps" {
-                li { "Open Ferrum Launcher and click the app." }
+                li { "Open FerrumLauncher and click the app." }
                 li {
                     "Turn on " strong { "Shell command" } ". The name field suggests the default \
                      below; type another name and press Return to rename it."
@@ -118,7 +118,7 @@ pub fn render(site_url: &str) -> Markup {
                      FerrumVariables, and their commands follow the new letters: "
                     code { "fee" } " became " code { "fei" } ", " code { "fen" } " (which opened \
                      FerrumEnv) now opens FerrumEngineer, and " code { "fev" } " (which opened \
-                     FerrumVibe) now opens FerrumVariables. Ferrum Launcher moves commands you \
+                     FerrumVibe) now opens FerrumVariables. FerrumLauncher moves commands you \
                      already turned on by itself; names you chose yourself are left alone."
                 }
             }))

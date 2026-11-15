@@ -32,10 +32,10 @@ case "$app" in
   dock)    name="FerrumContainers"; binaries="ferrumdock ferrumdock-cli" ;;
   editor)  name="FerrumIDE";      binaries="ferrumeditor" ;;
   vibe)    name="FerrumEngineer"; binaries="ferrumvibe" ;;
-  system)  name="Ferrum System";  binaries="ferrumsystem" ;;
+  system)  name="FerrumSystem";   binaries="ferrumsystem" ;;
   ports)   name="FerrumPorts";    binaries="ferrumports" ;;
   env)     name="FerrumVariables"; binaries="ferrumenv" ;;
-  launcher) name="Ferrum Launcher"; binaries="ferrum-launcher" ;;
+  launcher) name="FerrumLauncher"; binaries="ferrum-launcher" ;;
   *) echo "error: unknown app id '$app'" >&2; usage ;;
 esac
 

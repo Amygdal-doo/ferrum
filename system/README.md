@@ -1,4 +1,4 @@
-# Ferrum System (FeS)
+# FerrumSystem (FeS)
 
 Draw a system's architecture: layers, components on any cloud, connections, APIs, sockets,
 data, flows (with a step-by-step walkthrough), reliability notes, deployment and live pods.

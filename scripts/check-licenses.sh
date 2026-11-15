@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Fails if a GPL-family crate (GPL / AGPL / LGPL with no permissive
 # alternative) is in the normal or build dependency graph of any shipped
-# binary. Ferrum apps are distributed closed source, so copyleft crates from
-# the `ide/` Zed fork (ui, theme, menu, icons, assets, ...) must stay out.
+# binary. Ferrum is MIT OR Apache-2.0, so copyleft crates (e.g. Zed's GPL
+# `ui`, `theme`, `menu`, `icons`, `assets`, ...; only its Apache-2.0 GPUI
+# crates are used) must stay out.
 #
 #   scripts/check-licenses.sh            # all binaries of */apps/*
 #   scripts/check-licenses.sh -v         # also list every crate checked

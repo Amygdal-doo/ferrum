@@ -1,4 +1,4 @@
-//! Ferrum Launcher core: which Ferrum apps exist, which versions are
+//! FerrumLauncher core: which Ferrum apps exist, which versions are
 //! published as GitHub Releases, which are installed locally, and the
 //! one-time move from Ferrum Toolbox (the launcher's former name).
 //!
@@ -17,6 +17,7 @@ pub mod self_update;
 pub mod shared_prefs;
 pub mod shell;
 pub mod store;
+pub mod uninstall;
 
 pub use auth::{GitHubToken, TokenSource};
 pub use catalog::{AppId, AppInfo, AppStatus, Catalog, CatalogEntry};

@@ -1,13 +1,16 @@
-//! The launcher started under its old name: from `Ferrum Toolbox.app` (after
-//! Toolbox 0.5.0 updated itself through the `toolbox-v*` bridge release) or
-//! as a binary named `ferrum-toolbox`. It renames itself to Ferrum Launcher
-//! in the same folder, fixes the CLI link and desktop entry, and (for a
-//! bundle) relaunches from the new path.
+//! The launcher started under an old name: from `Ferrum Toolbox.app` (after
+//! Toolbox 0.5.0 updated itself through the `toolbox-v*` bridge release),
+//! from a bundle named after one of its [former names](AppInfo::former_names)
+//! (`Ferrum Launcher.app`, which a self-update swaps in place, keeping the
+//! name), or as a binary named `ferrum-toolbox`. It renames itself to its
+//! current bundle name (`FerrumLauncher.app`) in the same folder, fixes the
+//! CLI link and desktop entry, and (for a bundle) relaunches from the new
+//! path.
 //!
 //! A running bundle is renamed by the same kind of detached script as the
 //! self-update swap: it waits for this process to exit, moves the bundle
-//! (keeping any existing `Ferrum Launcher.app` until the move succeeded) and
-//! opens it. When the move fails it reopens the old bundle with
+//! (keeping any existing copy under the new name until the move succeeded,
+//! then deleting it, so only one copy is left) and opens it. When the move fails it reopens the old bundle with
 //! [`RENAME_FAILED_ARG`], so the launcher doesn't try again in a loop.
 
 use crate::catalog::AppInfo;
@@ -26,7 +29,7 @@ pub const RENAME_FAILED_ARG: &str = "--ferrum-rename-failed";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Rename {
-    /// `…/Ferrum Toolbox.app` → `…/Ferrum Launcher.app`.
+    /// `…/Ferrum Toolbox.app` or `…/Ferrum Launcher.app` → `…/FerrumLauncher.app`.
     Bundle { from: PathBuf, to: PathBuf },
     /// `…/ferrum-toolbox` → `…/ferrum-launcher` (not in a bundle).
     Binary { from: PathBuf, to: PathBuf },
@@ -80,7 +83,7 @@ pub enum Outcome {
     Blocked(String),
 }
 
-/// Renames the running launcher if it still has Ferrum Toolbox's name:
+/// Renames the running launcher if it still has an old name:
 /// fixes the CLI links and desktop entry, then either starts the bundle
 /// rename (the caller must exit on [`Outcome::Relaunch`]) or renames a plain
 /// binary in place. `rename_failed` is set when a previous attempt
@@ -120,7 +123,7 @@ pub fn run(paths: &Paths, info: &AppInfo, rename_failed: bool) -> Outcome {
     };
     match result {
         Ok(outcome) => {
-            tracing::info!(from = %rename.old_name(), to = %rename.new_name(), "renaming Ferrum Toolbox to Ferrum Launcher");
+            tracing::info!(from = %rename.old_name(), to = %rename.new_name(), "renaming the launcher to its current name");
             fix_links(paths, info, &rename.executable_after(info));
             outcome
         }
@@ -145,8 +148,12 @@ fn fix_links(paths: &Paths, info: &AppInfo, executable: &Path) {
 #[must_use]
 pub fn plan(executable: &Path, platform: Platform, info: &AppInfo) -> Option<Rename> {
     if let Some(bundle) = bundle_containing(executable) {
-        let legacy = format!("{LEGACY_BUNDLE_NAME}.app");
-        return (bundle.file_name()? == legacy.as_str()).then(|| Rename::Bundle {
+        let name = bundle.file_name()?.to_str()?;
+        let legacy = std::iter::once(LEGACY_BUNDLE_NAME)
+            .chain(info.former_names.iter().map(String::as_str))
+            .filter(|former| *former != info.bundle_name)
+            .any(|former| name == format!("{former}.app"));
+        return legacy.then(|| Rename::Bundle {
             to: bundle.with_file_name(format!("{}.app", info.bundle_name)),
             from: bundle,
         });
@@ -328,19 +335,30 @@ mod tests {
             rename,
             Rename::Bundle {
                 from: "/Applications/Ferrum Toolbox.app".into(),
-                to: "/Applications/Ferrum Launcher.app".into(),
+                to: "/Applications/FerrumLauncher.app".into(),
             }
         );
         assert_eq!(rename.folder(), Path::new("/Applications"));
         assert_eq!(rename.old_name(), "Ferrum Toolbox.app");
-        assert_eq!(rename.new_name(), "Ferrum Launcher.app");
+        assert_eq!(rename.new_name(), "FerrumLauncher.app");
         assert_eq!(
             rename.executable_after(&info),
-            Path::new("/Applications/Ferrum Launcher.app/Contents/MacOS/ferrum-launcher")
+            Path::new("/Applications/FerrumLauncher.app/Contents/MacOS/ferrum-launcher")
+        );
+
+        // A self-update swapped the new version in under the former name
+        // `Ferrum Launcher.app`: it takes the current one.
+        let swapped = Path::new("/Applications/Ferrum Launcher.app/Contents/MacOS/ferrum-launcher");
+        assert_eq!(
+            plan(swapped, Platform::MacOs, &info),
+            Some(Rename::Bundle {
+                from: "/Applications/Ferrum Launcher.app".into(),
+                to: "/Applications/FerrumLauncher.app".into(),
+            })
         );
 
         // Already renamed, or a dev build: nothing to do.
-        let current = Path::new("/Applications/Ferrum Launcher.app/Contents/MacOS/ferrum-launcher");
+        let current = Path::new("/Applications/FerrumLauncher.app/Contents/MacOS/ferrum-launcher");
         assert_eq!(plan(current, Platform::MacOs, &info), None);
         assert_eq!(
             plan(
@@ -378,15 +396,15 @@ mod tests {
     fn rename_script_waits_moves_and_reopens() {
         let script = rename_script(
             Path::new("/Applications/Ferrum Toolbox.app"),
-            Path::new("/Applications/Ferrum Launcher.app"),
+            Path::new("/Applications/FerrumLauncher.app"),
             42,
         );
         let wait = script.find("kill -0 42").expect("waits for the pid");
         let mv = script
-            .find("mv '/Applications/Ferrum Toolbox.app' '/Applications/Ferrum Launcher.app'")
+            .find("mv '/Applications/Ferrum Toolbox.app' '/Applications/FerrumLauncher.app'")
             .expect("moves the bundle");
         assert!(wait < mv);
-        assert!(script.contains("open '/Applications/Ferrum Launcher.app'"));
+        assert!(script.contains("open '/Applications/FerrumLauncher.app'"));
         assert!(script.contains(&format!(
             "open '/Applications/Ferrum Toolbox.app' --args {RENAME_FAILED_ARG}"
         )));
@@ -413,7 +431,7 @@ mod tests {
     fn renames_a_bundle_end_to_end_replacing_an_older_copy() {
         let dir = tempfile::tempdir().expect("tmp");
         let from = dir.path().join("Ferrum Toolbox.app");
-        let to = dir.path().join("Ferrum Launcher.app");
+        let to = dir.path().join("FerrumLauncher.app");
         std::fs::create_dir_all(from.join("Contents")).expect("from");
         std::fs::write(from.join("Contents/version"), "0.6.0").expect("write");
         std::fs::create_dir_all(to.join("Contents")).expect("to");
@@ -442,7 +460,7 @@ mod tests {
     fn failed_rename_restores_the_existing_copy() {
         let dir = tempfile::tempdir().expect("tmp");
         let from = dir.path().join("Ferrum Toolbox.app");
-        let to = dir.path().join("Ferrum Launcher.app");
+        let to = dir.path().join("FerrumLauncher.app");
         std::fs::create_dir_all(to.join("Contents")).expect("to");
         // `from` is missing, so the move fails.
         assert!(!run(rename_script(&from, &to, exited_pid())));
@@ -475,7 +493,7 @@ mod tests {
         let info = launcher();
         let exe = dir
             .path()
-            .join("Ferrum Launcher.app/Contents/MacOS/ferrum-launcher");
+            .join("FerrumLauncher.app/Contents/MacOS/ferrum-launcher");
         assert!(!fix_cli_links(&bin, Platform::MacOs, &info, &exe).expect("no links"));
         assert!(!bin.join("ferrum-launcher").exists());
 
@@ -526,7 +544,7 @@ mod tests {
         assert!(!share.join("applications/ferrum-toolbox.desktop").exists());
         let entry = std::fs::read_to_string(share.join("applications/ferrum-launcher.desktop"))
             .expect("new entry");
-        assert!(entry.contains("Name=Ferrum Launcher\n"));
+        assert!(entry.contains("Name=FerrumLauncher\n"));
         assert!(entry.contains(&format!("Exec=\"{}\" %U", exe.display())));
         assert!(
             share

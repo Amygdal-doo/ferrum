@@ -1,7 +1,7 @@
 # FerrumVariables
 
 A password-locked vault for project environment variables, with encrypted sharing between
-developers. Native GPUI desktop app (the UI framework of Zed, from the `ide/` submodule) on the
+developers. Native GPUI desktop app (the UI framework of Zed, a pinned git dependency) on the
 shared `ferrum-ui` crate. Part of the Ferrum monorepo, sibling of [FerrumKit](../kit),
 [FerrumContainers](../dock) and [FerrumIDE](../editor).
 

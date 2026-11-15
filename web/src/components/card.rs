@@ -1,12 +1,12 @@
 //! The app card, app logos, the compact app strip and numbered steps.
 //!
 //! Classes: `.card`, `.card--product`, `.app-logo` (`--hero`, `--sm`, `--xs`),
-//! `.app-strip`, `.steps`, `.step`.
+//! `.app-strip`, `.app-groups`, `.steps`, `.step`.
 
 use maud::{Markup, html};
 
 use crate::components::{badge, icons};
-use crate::products::Product;
+use crate::products::{self, Group, Product};
 use crate::routes::assets;
 
 /// The app's logo as an `<img>`. Alt text names the app unless the logo sits
@@ -66,6 +66,21 @@ pub fn app_strip<'a>(apps: impl IntoIterator<Item = &'a Product>, with_kind: boo
     }
 }
 
+/// The apps in their two groups (Apps, then Tools), each an [`app_strip`]
+/// under a small label. The launcher is not included.
+pub fn grouped_app_strips(with_kind: bool) -> Markup {
+    html! {
+        div class="app-groups" {
+            @for group in Group::ALL {
+                div class="app-groups__group" {
+                    p class="app-groups__label" { (group.label()) }
+                    (app_strip(products::in_group(group), with_kind))
+                }
+            }
+        }
+    }
+}
+
 /// Numbered how-to steps. Each body is trusted, authored markup.
 pub fn steps(items: &[(&str, Markup)]) -> Markup {
     html! {
@@ -83,7 +98,6 @@ pub fn steps(items: &[(&str, Markup)]) -> Markup {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::products;
 
     #[test]
     fn card_links_to_detail_page_with_logo_and_accent() {
@@ -112,6 +126,18 @@ mod tests {
         );
         assert!(html.contains("app-strip--rows"));
         assert!(html.contains("Container manager"));
+    }
+
+    #[test]
+    fn grouped_strips_label_apps_and_tools() {
+        let html = grouped_app_strips(false).into_string();
+        assert!(html.contains(r#"<p class="app-groups__label">Apps</p>"#));
+        assert!(html.contains(r#"<p class="app-groups__label">Tools</p>"#));
+        assert_eq!(
+            html.matches("app-strip__link").count(),
+            products::apps().count()
+        );
+        assert!(html.find("FerrumData") < html.find("FerrumVariables"));
     }
 
     #[test]

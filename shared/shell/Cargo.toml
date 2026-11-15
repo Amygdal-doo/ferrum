@@ -1,0 +1,18 @@
+[package]
+name = "ferrum-shell"
+description = "Shell commands (`fei .`, `ferrum ide .`) and ~/.ferrum/preferences.json, shared by Ferrum Launcher and every Ferrum app."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

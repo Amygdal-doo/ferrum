@@ -110,10 +110,10 @@ mod tests {
 
     #[test]
     fn finds_the_enclosing_bundle() {
-        let exe = Path::new("/Applications/Ferrum Launcher.app/Contents/MacOS/ferrum-launcher");
+        let exe = Path::new("/Applications/FerrumLauncher.app/Contents/MacOS/ferrum-launcher");
         assert_eq!(
             bundle_containing(exe),
-            Some(PathBuf::from("/Applications/Ferrum Launcher.app"))
+            Some(PathBuf::from("/Applications/FerrumLauncher.app"))
         );
         assert_eq!(
             bundle_containing(Path::new("/repo/target/release/ferrum-launcher")),
@@ -129,21 +129,21 @@ mod tests {
     #[test]
     fn script_waits_then_swaps_with_rollback() {
         let script = swap_script(
-            Path::new("/data/launcher/0.7.0/Ferrum Launcher.app"),
-            Path::new("/Applications/Ferrum Launcher.app"),
+            Path::new("/data/launcher/0.7.0/FerrumLauncher.app"),
+            Path::new("/Applications/FerrumLauncher.app"),
             42,
         );
         let wait = script.find("kill -0 42").expect("waits for the pid");
         let copy = script.find("ditto").expect("copies the new bundle");
         assert!(wait < copy);
-        assert!(script.contains("'/Applications/Ferrum Launcher.app.old-42'"));
+        assert!(script.contains("'/Applications/FerrumLauncher.app.old-42'"));
         assert!(script.contains(
-            "mv '/Applications/Ferrum Launcher.app.old-42' '/Applications/Ferrum Launcher.app'"
+            "mv '/Applications/FerrumLauncher.app.old-42' '/Applications/FerrumLauncher.app'"
         ));
         assert!(
             script
                 .trim_end()
-                .ends_with("open '/Applications/Ferrum Launcher.app'")
+                .ends_with("open '/Applications/FerrumLauncher.app'")
         );
     }
 

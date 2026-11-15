@@ -1,8 +1,8 @@
 # FerrumContainers
 
 A fast, native container manager written in Rust, meant as a lighter alternative to
-Docker Desktop's dashboard. It is a GPUI desktop app (the UI framework of Zed, from the
-`ide/` submodule) built on the shared `ferrum-ui` crate. FerrumContainers **does not ship an
+Docker Desktop's dashboard. It is a GPUI desktop app (the UI framework of Zed, a pinned
+git dependency) built on the shared `ferrum-ui` crate. FerrumContainers **does not ship an
 engine**. It talks to the Docker-compatible engine you already run (Docker Desktop, OrbStack,
 Colima, or Podman with the Docker API) over the Docker Engine API. It is part of the Ferrum
 monorepo, alongside [FerrumAPI](../api), [FerrumGIT](../git), [FerrumData](../data) and
@@ -11,7 +11,7 @@ monorepo, alongside [FerrumAPI](../api), [FerrumGIT](../git), [FerrumData](../da
 > **Formerly FerrumDock.** Only the name people see changed (app, window, `FerrumContainers.app`,
 > menus, catalog). The launcher id `dock`, the crates `ferrumdock-*`, the binary `ferrumdock`,
 > the release tags `dock-v*` and the brand files (`brand/*/dock.*`) keep the old name, so
-> FerrumDock installs update in place: Ferrum Launcher publishes the update as
+> FerrumDock installs update in place: FerrumLauncher publishes the update as
 > `FerrumContainers.app` and removes the old `FerrumDock.app` copy (see `former_names` in
 > `launcher/crates/core/src/catalog.rs`). The suggested shell command is `fec`.
 

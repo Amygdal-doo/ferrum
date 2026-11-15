@@ -65,6 +65,8 @@ pub struct FerrumLauncher {
     notice_task: Option<Task<()>>,
     /// Shown until dismissed or acted on.
     pub new_app_notice: Option<NewAppNotice>,
+    /// The open "Uninstall …?" confirmation.
+    pub uninstall_dialog: Option<crate::components::uninstall::UninstallDialog>,
     pub(crate) check_loop: Task<()>,
     progress_ticker: Option<Task<()>>,
     pub focus_handle: FocusHandle,
@@ -102,6 +104,7 @@ impl FerrumLauncher {
             notice: None,
             notice_task: None,
             new_app_notice: None,
+            uninstall_dialog: None,
             check_loop: Task::ready(()),
             progress_ticker: None,
             focus_handle: cx.focus_handle(),
@@ -118,6 +121,14 @@ impl FerrumLauncher {
         this.load_logos(cx);
         this.detect_token(window, cx);
         this.start_integration(cx);
+        // Shell commands and Dock icons may have been changed in an app's
+        // Settings › System (or the launcher's own Settings window).
+        let activation = cx.observe_window_activation(window, |this, window, cx| {
+            if window.is_window_active() {
+                this.reload_shared_prefs(cx);
+            }
+        });
+        this.keep_subscription(activation);
         this
     }
 
@@ -357,6 +368,13 @@ impl Render for FerrumLauncher {
             .size_full()
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(Self::on_key_down))
+            .on_key_down(
+                cx.listener(|this, event: &ferrum_ui::gpui::KeyDownEvent, _, cx| {
+                    if this.uninstall_dialog.is_some() && event.keystroke.key == "escape" {
+                        this.close_uninstall_dialog(cx);
+                    }
+                }),
+            )
             .text_color(colors.text)
             .child(self.render_title_row(window, cx))
             .child(
@@ -369,6 +387,9 @@ impl Render for FerrumLauncher {
             )
             .when_some(self.onboarding.clone(), |this, onboarding| {
                 this.child(onboarding)
+            })
+            .when_some(self.render_uninstall_dialog(cx), |this, dialog| {
+                this.child(dialog)
             })
             .when_some(self.notice.as_ref(), |this, notice| {
                 this.child(render_notice(

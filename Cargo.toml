@@ -1,8 +1,8 @@
 # Ferrum monorepo — one Cargo workspace for the Ferrum desktop tools.
 #
-# `ide/` (the Zed fork) keeps its own workspace so upstream merges stay easy;
-# the apps here depend only on its GPUI crates (Apache-2.0) by path. Widgets,
-# theme, icons and fonts come from `shared/ui` (ferrum-ui).
+# The apps depend on GPUI (Apache-2.0) from upstream Zed as a pinned git
+# dependency (see `[workspace.dependencies]`). Widgets, theme, icons and fonts
+# come from `shared/ui` (ferrum-ui).
 # `web/` is a standalone package (own Dockerfile / Railway build context).
 [workspace]
 resolver = "3"
@@ -36,12 +36,13 @@ members = [
     "agent/crates/*",
     "vibe/apps/*",
 ]
-exclude = ["ide", "web"]
+exclude = ["web"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.99"
+license = "MIT OR Apache-2.0"
 publish = false
 
 [workspace.dependencies]
@@ -49,11 +50,12 @@ publish = false
 resvg = { version = "0.46", default-features = false }
 ferrum-ui = { path = "shared/ui" }
 
-# GPUI (Apache-2.0) from the `ide/` submodule, used as a library only. Only
-# permissively licensed `ide/` crates may be added here: the apps are shipped
-# closed source (see scripts/check-licenses.sh).
-gpui = { path = "ide/crates/gpui" }
-gpui_platform = { path = "ide/crates/gpui_platform" }
+# GPUI (Apache-2.0) from upstream Zed, pinned to one commit and used as a
+# library only. Only permissively licensed Zed crates may be added here; Zed's
+# GPL-3.0 / AGPL-3.0 crates must stay out (see scripts/check-licenses.sh).
+# When bumping `rev`, re-sync `[patch.crates-io]` below with Zed's Cargo.toml.
+gpui = { git = "https://github.com/zed-industries/zed", rev = "03efd49220ba06703d04f9c4732fdf814f9c523c" }
+gpui_platform = { git = "https://github.com/zed-industries/zed", rev = "03efd49220ba06703d04f9c4732fdf814f9c523c" }
 
 # FerrumAPI
 ferrumapi-domain = { path = "api/crates/domain" }
@@ -97,7 +99,7 @@ ferrumterm-client = { path = "term/crates/client" }
 ferrumterm-net = { path = "term/crates/net" }
 ferrumterm-ui = { path = "term/crates/ui" }
 
-# Ferrum Launcher
+# FerrumLauncher
 ferrumlauncher-core = { path = "launcher/crates/core" }
 
 # FerrumContainers
@@ -111,7 +113,7 @@ ferrumkit-core = { path = "kit/crates/core" }
 # FerrumPorts
 ferrumports-core = { path = "ports/crates/core" }
 
-# Ferrum System (FeS)
+# FerrumSystem (FeS)
 ferrumsystem-core = { path = "system/crates/core" }
 
 # FerrumVariables
@@ -214,7 +216,7 @@ zip = { version = "2.2", default-features = false, features = ["deflate"] }
 tar = "0.4"
 unicode-segmentation = "1.10"
 smallvec = { version = "1.6", features = ["union", "const_new"] }
-# FerrumKit tools (same versions as ide/ where it uses them)
+# FerrumKit tools (same versions as Zed where it uses them)
 regex = "1.12"
 similar = "2.7"
 serde_yaml_ng = "0.10"
@@ -252,7 +254,9 @@ opt-level = 2
 lto = "thin"
 codegen-units = 1
 
-# Mirrors ide/Cargo.toml: GPUI relies on Zed's forks of these crates.
+# Mirrors the `[patch.crates-io]` of Zed's Cargo.toml at the pinned `rev`:
+# GPUI relies on Zed's forks of these crates (a git dependency's own patches
+# are not applied to this workspace).
 [patch.crates-io]
 async-process = { git = "https://github.com/zed-industries/async-process.git", rev = "0b6d6713570af61806e1e5cb40e0f757cb93fd9d" }
 async-task = { git = "https://github.com/zed-industries/async-task.git", rev = "015845a19fc31752c02367567d3b8900a406f9da" }

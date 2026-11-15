@@ -194,7 +194,7 @@ pub fn ci() -> Markup {
     )
 }
 
-/// A layer of the Ferrum System demo: name, colour and its cards (badge,
+/// A layer of the FerrumSystem demo: name, colour and its cards (badge,
 /// title, role).
 type Layer = (
     &'static str,
@@ -202,7 +202,7 @@ type Layer = (
     &'static [(&'static str, &'static str, &'static str)],
 );
 
-/// Ferrum System: the banking demo's layers, a card picked, its database
+/// FerrumSystem: the banking demo's layers, a card picked, its database
 /// schema sliding in.
 pub fn system() -> Markup {
     let layers: [Layer; 4] = [
@@ -240,7 +240,7 @@ pub fn system() -> Markup {
         ),
     ];
     window(
-        "Ferrum System",
+        "FerrumSystem",
         "sys",
         html! {
             (project_strip("nova-bank", "~/code/nova-bank", "main"))

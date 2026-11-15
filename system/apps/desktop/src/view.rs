@@ -21,7 +21,7 @@ impl FerrumSystem {
         let colors = cx.theme().colors().clone();
         let empty = self.is_empty();
         let (title, tagline): (SharedString, SharedString) = if empty {
-            ("Ferrum System".into(), "No diagram open".into())
+            ("FerrumSystem".into(), "No diagram open".into())
         } else {
             (
                 self.system.name.clone().into(),

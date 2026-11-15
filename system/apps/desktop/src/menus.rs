@@ -1,4 +1,4 @@
-//! Ferrum System's menu bar: the shared one with File › New Diagram (⌘N),
+//! FerrumSystem's menu bar: the shared one with File › New Diagram (⌘N),
 //! Open… (⌘O) and Open Demo ›, View toggles for the sidebar (⌘B) and the
 //! right panel (⌥⌘B) plus zoom, and Help › Open Demo.
 

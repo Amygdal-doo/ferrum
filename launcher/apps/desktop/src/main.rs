@@ -1,4 +1,4 @@
-//! Ferrum Launcher desktop entry point.
+//! FerrumLauncher desktop entry point.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
@@ -20,7 +20,7 @@ use tracing_subscriber::EnvFilter;
 fn main() {
     init_tracing();
     let Some(paths) = Paths::default_for_user() else {
-        eprintln!("Ferrum Launcher: could not determine a home directory for local state");
+        eprintln!("FerrumLauncher: could not determine a home directory for local state");
         std::process::exit(1);
     };
     // Ferrum Toolbox's data (installed apps, channels, cached releases)
@@ -36,14 +36,14 @@ fn main() {
         Ok(state) => state,
         Err(e) => {
             eprintln!(
-                "Ferrum Launcher: could not read {}: {e}",
+                "FerrumLauncher: could not read {}: {e}",
                 paths.state_file().display()
             );
             std::process::exit(1);
         }
     };
     if migration.happened() {
-        tracing::info!(?migration, "moved Ferrum Toolbox's data to Ferrum Launcher");
+        tracing::info!(?migration, "moved Ferrum Toolbox's data to FerrumLauncher");
         for (app, e) in state.relink_active(&paths) {
             tracing::warn!(%app, error = %e, "could not relink after the move");
         }
@@ -89,13 +89,13 @@ fn main() {
     let services = match Services::start(paths) {
         Ok(services) => services,
         Err(e) => {
-            eprintln!("Ferrum Launcher failed to start: {e}");
+            eprintln!("FerrumLauncher failed to start: {e}");
             std::process::exit(1);
         }
     };
-    tracing::info!(data_dir = %services.paths.data_dir.display(), "starting Ferrum Launcher");
+    tracing::info!(data_dir = %services.paths.data_dir.display(), "starting FerrumLauncher");
 
-    let config = AppConfig::new("Ferrum Launcher")
+    let config = AppConfig::new("FerrumLauncher")
         .size(1040., 680.)
         .min_size(760., 480.)
         .unified_titlebar()

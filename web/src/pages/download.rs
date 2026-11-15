@@ -14,8 +14,8 @@ use crate::components::{
 use crate::layout::{PageMeta, page};
 use crate::{products, site};
 
-const DESCRIPTION: &str = "Download Ferrum Launcher for macOS or Linux and install every \
-     Ferrum app from it. Free public builds: no GitHub account, no sign-in.";
+const DESCRIPTION: &str = "Download FerrumLauncher for macOS or Linux and install every \
+     Ferrum app from it. Free, open-source builds: no account, no sign-in. Or build from source.";
 
 /// Per-OS launcher installers: (system, file, how to install, published yet).
 /// The launcher installs the other apps; their own DMGs and .debs are in the
@@ -24,13 +24,13 @@ const INSTALLERS: [(&str, &str, &str, bool); 3] = [
     (
         "macOS (Apple Silicon)",
         "FerrumLauncher-<version>-aarch64.dmg",
-        "open it and drag Ferrum Launcher onto Applications.",
+        "open it and drag FerrumLauncher onto Applications.",
         true,
     ),
     (
         "macOS (Intel)",
         "FerrumLauncher-<version>-x86_64.dmg",
-        "open it and drag Ferrum Launcher onto Applications.",
+        "open it and drag FerrumLauncher onto Applications.",
         true,
     ),
     (
@@ -60,11 +60,11 @@ fn get_launcher_steps() -> [(&'static str, Markup); 3] {
         (
             "Install it",
             html! {
-                p { "Open the DMG and drag " strong { "Ferrum Launcher.app" } " to Applications." }
+                p { "Open the DMG and drag " strong { "FerrumLauncher.app" } " to Applications." }
             },
         ),
         (
-            "Open Ferrum Launcher",
+            "Open FerrumLauncher",
             html! {
                 p {
                     "Open it from Applications. There is nothing to sign in to: it downloads \
@@ -106,7 +106,7 @@ fn gatekeeper_section() -> Markup {
                         app and choose Open.) Or clear the quarantine flag:"
                     }
                     pre class="code-block" {
-                        code { "xattr -dr com.apple.quarantine \"/Applications/Ferrum Launcher.app\"" }
+                        code { "xattr -dr com.apple.quarantine \"/Applications/FerrumLauncher.app\"" }
                     }
                     p class="muted" {
                         "You only need to do this once. Apps the launcher installs, and the \
@@ -153,10 +153,36 @@ fn use_launcher_steps() -> [(&'static str, Markup); 3] {
     ]
 }
 
+/// Build from source: the repository and three commands.
+fn source_section() -> Markup {
+    Section::new("source", "Build from source")
+        .lead(html! {
+            p {
+                "Every app and the launcher are open source under " (site::LICENSE_SPDX) ". \
+                 With Rust installed (rust-toolchain.toml picks the version), three commands \
+                 build and run FerrumIDE:"
+            }
+        })
+        .render(html! {
+            pre class="code-block source-commands" {
+                code { @for line in site::BUILD_FROM_SOURCE { (line) "\n" } }
+            }
+            p class="muted" {
+                "Swap the package for another app; each app's README names its own. The first build \
+                 downloads and compiles GPUI, which takes a few minutes. On macOS you need the \
+                 Xcode command line tools; on Linux, the packages CONTRIBUTING.md lists."
+            }
+            div class="download-actions" {
+                (button::link("Source on GitHub", site::SOURCE_REPO_URL, Variant::Secondary))
+                (button::link("Contributing", site::CONTRIBUTING_URL, Variant::Ghost))
+            }
+        })
+}
+
 pub fn render(site_url: &str) -> Markup {
     let launcher = products::FERRUM_LAUNCHER;
     let meta = PageMeta::new(
-        Some("Download Ferrum Launcher for macOS"),
+        Some("Download FerrumLauncher for macOS and Linux"),
         DESCRIPTION,
         site::DOWNLOAD_PATH,
         "page-download",
@@ -166,18 +192,20 @@ pub fn render(site_url: &str) -> Markup {
         site_url,
         &meta,
         html! {
-            (PageHeader::new(&meta.trail, "Get Ferrum Launcher")
+            (PageHeader::new(&meta.trail, "Get FerrumLauncher")
                 .accent(launcher.accent_style())
                 .media(card::app_logo(&launcher, "app-logo--hero", false))
                 .lead(html! {
                     p {
                         "Install the launcher once, then install, update and roll back every \
-                         Ferrum app from one window. Free for Apple Silicon Macs, no sign-in."
+                         Ferrum app from one window. Free and open source, for macOS and Linux, \
+                         with no sign-in."
                     }
                 })
                 .actions(html! {
                     (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
                     (button::link("Linux (.deb)", site::RELEASES_URL, Variant::Secondary))
+                    (button::link("Build from source", "#source", Variant::Ghost))
                 })
                 .render())
             (Section::new("terminal", "Or install from Terminal")
@@ -202,24 +230,24 @@ pub fn render(site_url: &str) -> Markup {
                         }))
                     }
                 }))
-            (Section::new("get", "Install Ferrum Launcher")
+            (Section::new("get", "Install FerrumLauncher")
                 .render(card::steps(&get_launcher_steps())))
             (gatekeeper_section())
             (Section::new("use", "Install the apps")
                 .band()
                 .render(html! {
                     (card::steps(&use_launcher_steps()))
-                    div class="download-apps" { (card::app_strip(products::apps(), false)) }
+                    div class="download-apps" { (card::grouped_app_strips(false)) }
                 }))
             (Section::new("platforms", "Launcher installers")
                 .tight()
                 .lead(html! {
                     p {
-                        "The launcher is the only thing you download by hand. FerrumIDE, \
-                         FerrumEngineer, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, \
-                         FerrumContainers, FerrumPorts and FerrumVariables install, update and roll back \
-                         from the launcher. Each also has its own DMG and .deb in the releases \
-                         if you'd rather install one by hand."
+                        "The launcher is the only thing you download by hand. The apps \
+                         (FerrumIDE, FerrumEngineer, FerrumGIT, FerrumTerm, FerrumAPI, \
+                         FerrumContainers, FerrumData) and the tools (FerrumVariables, FerrumPorts, \
+                         FerrumKit, FerrumSystem) install, update and roll back from the launcher. \
+                         Each also has its own DMG and .deb in the releases if you'd rather install one by hand."
                     }
                 })
                 .render(html! {
@@ -237,9 +265,10 @@ pub fn render(site_url: &str) -> Markup {
                     div class="download-actions" {
                         (button::link("All releases on GitHub", site::RELEASES_URL, Variant::Secondary))
                         (button::link("Read the changelog", "/changelog", Variant::Secondary))
-                        (button::link("About Ferrum Launcher", &launcher.path(), Variant::Ghost))
+                        (button::link("About FerrumLauncher", &launcher.path(), Variant::Ghost))
                     }
                 }))
+            (source_section())
         },
     )
 }
@@ -292,6 +321,18 @@ mod tests {
         for os in ["macOS (Apple Silicon)", "macOS (Intel)", "Linux"] {
             assert!(html.contains(&format!(r#"<dt>{os}</dt>"#)), "{os}");
         }
+    }
+
+    #[test]
+    fn explains_how_to_build_from_source() {
+        let html = rendered();
+        assert!(html.contains(r#"id="source""#));
+        assert!(html.contains(r##"href="#source""##));
+        for line in site::BUILD_FROM_SOURCE {
+            assert!(html.contains(line), "{line}");
+        }
+        assert!(html.contains(site::SOURCE_REPO_URL));
+        assert!(html.contains("MIT OR Apache-2.0"));
     }
 
     #[test]

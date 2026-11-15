@@ -1,7 +1,7 @@
 # FerrumKit
 
 Offline developer utilities in the style of DevUtils / DevToys, written in Rust: a native
-GPUI desktop app (the UI framework of Zed, from the `ide/` submodule) built on the shared
+GPUI desktop app (the UI framework of Zed, a pinned git dependency) built on the shared
 `ferrum-ui` crate. One window: a searchable list of tools on the left, the selected tool on
 the right. Everything runs locally — FerrumKit makes no network requests and writes nothing
 to disk. Part of the Ferrum monorepo, sibling of [FerrumAPI](../api), [FerrumGIT](../git),
@@ -38,12 +38,12 @@ files, HMAC, other algorithms (SHA-3, BLAKE3, CRC32); regex replace and other re
 path queries, JSON schema, XML / CSV conversion; colour picker, contrast ratio and named
 colours; keyboard navigation of the tool list (arrow keys) and ⌘1… shortcuts; soft-wrap in
 text fields (long lines such as JWTs scroll horizontally — the shared text field lays out
-unwrapped lines); a light theme; packaging, signing and a Ferrum Launcher entry.
+unwrapped lines); a light theme; packaging, signing and a FerrumLauncher entry.
 
 ## Prerequisites
 - Rust via rustup. `rust-toolchain.toml` installs the pinned toolchain automatically.
 - macOS: Xcode command line tools (GPUI renders with Metal). Linux/Windows: whatever GPUI
-  needs on that platform (see `ide/` docs).
+  needs on that platform (see Zed's Linux/Windows build docs).
 - No Node, no CSS build: styling is Rust code using the Ferrum theme.
 
 ## Commands

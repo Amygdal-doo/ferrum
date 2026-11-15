@@ -288,7 +288,7 @@ pub fn open_in(app: FerrumApp, folder: &Path) -> Result<(), String> {
     let home = home_dir();
     let Some(exe) = find_app(app, home.as_deref()) else {
         return Err(format!(
-            "{} is not installed. Install it in Ferrum Launcher.",
+            "{} is not installed. Install it in FerrumLauncher.",
             app.name()
         ));
     };
@@ -343,7 +343,7 @@ pub fn open_file_in_editor(
     let app = FerrumApp::Editor;
     let Some(exe) = find_app(app, home_dir().as_deref()) else {
         return Err(format!(
-            "{} is not installed. Install it in Ferrum Launcher.",
+            "{} is not installed. Install it in FerrumLauncher.",
             app.name()
         ));
     };

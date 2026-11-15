@@ -1,5 +1,5 @@
-//! `/apps`: every Ferrum app with its logo, one line and its key features.
-//! The home page shows the four main apps from [`MAIN`] next to their demos.
+//! `/apps`: every Ferrum app with its logo, one line and its key features,
+//! in two groups (Apps, then Tools) and the launcher.
 //! Facts come from each app's README ("What works today") and catalog.json.
 
 use maud::{Markup, html};
@@ -7,7 +7,7 @@ use serde_json::json;
 
 use crate::components::{badge, breadcrumb::Crumb, card, cta, page_header::PageHeader};
 use crate::layout::{PageMeta, page};
-use crate::products::{self, Product};
+use crate::products::{self, Group, Product};
 
 pub const PATH: &str = "/apps";
 
@@ -17,8 +17,8 @@ pub struct AppEntry {
     pub features: &'static [&'static str],
 }
 
-/// The four apps most of a working day happens in. Home shows these.
-pub const MAIN: [AppEntry; 4] = [
+/// The apps a working day happens in, in site order (`products::Group::Apps`).
+pub const APPS: [AppEntry; 7] = [
     AppEntry {
         product: products::FERRUMIDE,
         summary: "A small, hackable code editor written from scratch in Rust and configured in \
@@ -31,6 +31,20 @@ pub const MAIN: [AppEntry; 4] = [
              JavaScript",
             "Git, Agent and Term open inside the window as panes you can move and resize",
             "CI and Logs pages: GitHub Actions runs, and live logs of dev servers and containers",
+        ],
+    },
+    AppEntry {
+        product: products::FERRUMENGINEER,
+        summary: "FerrumChat, FerrumGIT and FerrumTerm side by side on one project, for working \
+                  with coding agents.",
+        features: &[
+            "Three columns you can close, reopen (⌥⌘1, ⌥⌘2, ⌥⌘3), resize and reorder, saved \
+             per project",
+            "Chat with Anthropic, OpenAI or Ollama models, or with Claude Code, Codex or Gemini \
+             CLI over ACP",
+            "Review agent edits per hunk, and restore a checkpoint from any turn",
+            "Run in terminal sends a command from the chat to the terminal column",
+            "Agent edits show up in the git column right away",
         ],
     },
     AppEntry {
@@ -57,49 +71,6 @@ pub const MAIN: [AppEntry; 4] = [
         ],
     },
     AppEntry {
-        product: products::FERRUMDATA,
-        summary: "A local-first database IDE for PostgreSQL, MySQL and MariaDB, SQLite, \
-                  SurrealDB, MongoDB and Redis.",
-        features: &[
-            "Run the statement under the cursor and stream it into a typed results grid",
-            "Sort the grid, keep a query history, and export to CSV or JSON",
-            "Browse tables with their columns and indexes, and Redis keys with their TTL",
-            "Read-only profiles, a confirmation before writes on production, and passwords in \
-             the keychain",
-        ],
-    },
-];
-
-/// The tools around the main four.
-pub const MORE: [AppEntry; 7] = [
-    AppEntry {
-        product: products::FERRUMENGINEER,
-        summary: "FerrumChat, FerrumGIT and FerrumTerm side by side on one project, for working \
-                  with coding agents.",
-        features: &[
-            "Three columns you can close, reopen (⌥⌘1, ⌥⌘2, ⌥⌘3), resize and reorder, saved \
-             per project",
-            "Chat with Anthropic, OpenAI or Ollama models, or with Claude Code, Codex or Gemini \
-             CLI over ACP",
-            "Review agent edits per hunk, and restore a checkpoint from any turn",
-            "Run in terminal sends a command from the chat to the terminal column",
-            "Agent edits show up in the git column right away",
-        ],
-    },
-    AppEntry {
-        product: products::FERRUM_SYSTEM,
-        summary: "A project's architecture, kept next to its code: layers, components, \
-                  connections, data and flows, with every cloud's service names.",
-        features: &[
-            "Components on layers with icons for languages, frameworks, databases and AI \
-             tools, and your own icons",
-            "Switch the diagram between AWS, Azure, GCP, Hetzner, DigitalOcean and open source",
-            "Double-click a database for its tables; walk through a flow step by step",
-            "APIs, sockets, reliability notes and where each component runs",
-            "Live Kubernetes pods and Docker containers next to the components",
-        ],
-    },
-    AppEntry {
         product: products::FERRUMAPI,
         summary: "A native, local-first API client for REST, GraphQL, gRPC and more, minus the \
                   bloat.",
@@ -115,17 +86,6 @@ pub const MORE: [AppEntry; 7] = [
         ],
     },
     AppEntry {
-        product: products::FERRUMKIT,
-        summary: "The small conversions you would look up on random websites, in one native \
-                  window that works offline.",
-        features: &[
-            "Format, validate and convert JSON, YAML and TOML, with the exact error position",
-            "Decode JWTs, with the expiry shown as a date",
-            "Base64, URL, timestamps, UUID and ULID, hashes, number bases and colours",
-            "A regex tester with capture groups, and a line diff of two texts",
-        ],
-    },
-    AppEntry {
         product: products::FERRUMCONTAINERS,
         summary: "A native window on your containers, for Docker Desktop, OrbStack, Colima and \
                   Podman.",
@@ -134,6 +94,32 @@ pub const MORE: [AppEntry; 7] = [
             "Start, stop, restart or remove, and bring a Compose project up or down",
             "Live logs with search, and a shell in the container through FerrumTerm",
             "Images, volumes and networks, with a prune that shows the space you get back",
+        ],
+    },
+    AppEntry {
+        product: products::FERRUMDATA,
+        summary: "A local-first database IDE for PostgreSQL, MySQL and MariaDB, SQLite, \
+                  SurrealDB, MongoDB and Redis.",
+        features: &[
+            "Run the statement under the cursor and stream it into a typed results grid",
+            "Sort the grid, keep a query history, and export to CSV or JSON",
+            "Browse tables with their columns and indexes, and Redis keys with their TTL",
+            "Read-only profiles, a confirmation before writes on production, and passwords in \
+             the keychain",
+        ],
+    },
+];
+
+/// The smaller tools around them, in site order (`products::Group::Tools`).
+pub const TOOLS: [AppEntry; 4] = [
+    AppEntry {
+        product: products::FERRUMVARIABLES,
+        summary: "A password-locked vault for your projects' environment variables.",
+        features: &[
+            "Projects and environments behind a master password, locked after 30 idle minutes",
+            "Secret values masked, and the clipboard cleared after a copy",
+            "Send a teammate a project's variables, encrypted with its share key",
+            "Import and write .env files, and compare two environments",
         ],
     },
     AppEntry {
@@ -148,13 +134,27 @@ pub const MORE: [AppEntry; 7] = [
         ],
     },
     AppEntry {
-        product: products::FERRUMVARIABLES,
-        summary: "A password-locked vault for your projects' environment variables.",
+        product: products::FERRUMKIT,
+        summary: "The small conversions you would look up on random websites, in one native \
+                  window that works offline.",
         features: &[
-            "Projects and environments behind a master password, locked after 30 idle minutes",
-            "Secret values masked, and the clipboard cleared after a copy",
-            "Send a teammate a project's variables, encrypted with its share key",
-            "Import and write .env files, and compare two environments",
+            "Format, validate and convert JSON, YAML and TOML, with the exact error position",
+            "Decode JWTs, with the expiry shown as a date",
+            "Base64, URL, timestamps, UUID and ULID, hashes, number bases and colours",
+            "A regex tester with capture groups, and a line diff of two texts",
+        ],
+    },
+    AppEntry {
+        product: products::FERRUM_SYSTEM,
+        summary: "A project's architecture, kept next to its code: layers, components, \
+                  connections, data and flows, with every cloud's service names.",
+        features: &[
+            "Components on layers with icons for languages, frameworks, databases and AI \
+             tools, and your own icons",
+            "Switch the diagram between AWS, Azure, GCP, Hetzner, DigitalOcean and open source",
+            "Double-click a database for its tables; walk through a flow step by step",
+            "APIs, sockets, reliability notes and where each component runs",
+            "Live Kubernetes pods and Docker containers next to the components",
         ],
     },
 ];
@@ -170,9 +170,9 @@ pub const LAUNCHER: AppEntry = AppEntry {
     ],
 };
 
-const DESCRIPTION: &str = "Every Ferrum app in one list: code editor, Git client, terminal, \
-     database IDE, agentic workspace, API client, utilities, containers, ports, env vault and \
-     the launcher.";
+const DESCRIPTION: &str = "Every Ferrum app: code editor, agentic workspace, Git client, \
+     terminal, API client, containers and database IDE, four tools for variables, ports, \
+     conversions and architecture, and the launcher.";
 
 pub fn render(site_url: &str) -> Markup {
     let trail = vec![Crumb::new("Apps", PATH)];
@@ -186,16 +186,16 @@ pub fn render(site_url: &str) -> Markup {
             (PageHeader::new(&trail, "Every Ferrum app")
                 .lead(html! {
                     p {
-                        "Eleven native macOS apps, written in Rust and drawn on the GPU. All of \
-                         them are free and in alpha, and Ferrum Launcher installs any of them \
+                        "Seven apps and four tools, native on macOS, written in Rust and drawn \
+                         on the GPU. All of them are free and in alpha, and FerrumLauncher installs any of them \
                          and keeps it up to date."
                     }
                 })
                 .render())
-            (group("main", "Write it, commit it, run it, query it",
-                "The four apps most of a working day happens in.", &MAIN))
-            (group("more", "Tools for the rest of the job",
-                "Agents, APIs, containers, ports, secrets, and the small conversions in between.", &MORE))
+            (group(Group::Apps.id(), Group::Apps.label(),
+                "Write, review, commit, run, call and query: where a working day happens.", &APPS))
+            (group(Group::Tools.id(), Group::Tools.label(),
+                "Secrets, ports, quick conversions and the architecture next to the code.", &TOOLS))
             (group("launcher", "The launcher",
                 "One free download that installs every other app.", std::slice::from_ref(&LAUNCHER)))
             (cta::get_launcher())
@@ -247,8 +247,8 @@ fn row(e: &AppEntry) -> Markup {
 
 /// Every entry, in page order.
 pub fn all() -> impl Iterator<Item = &'static AppEntry> {
-    MAIN.iter()
-        .chain(MORE.iter())
+    APPS.iter()
+        .chain(TOOLS.iter())
         .chain(std::iter::once(&LAUNCHER))
 }
 
@@ -298,8 +298,23 @@ mod tests {
     }
 
     #[test]
+    fn groups_follow_the_product_groups() {
+        for (group, entries) in [(Group::Apps, &APPS[..]), (Group::Tools, &TOOLS[..])] {
+            let slugs: Vec<_> = entries.iter().map(|e| e.product.slug).collect();
+            let expected: Vec<_> = products::in_group(group).map(|p| p.slug).collect();
+            assert_eq!(slugs, expected, "{}", group.label());
+        }
+        let html = render("https://example.test").into_string();
+        assert!(html.contains(r#"<h2 id="apps-title">Apps</h2>"#));
+        assert!(html.contains(r#"<h2 id="tools-title">Tools</h2>"#));
+        let apps_at = html.find(r#"id="apps-title""#).unwrap_or(0);
+        let tools_at = html.find(r#"id="tools-title""#).unwrap_or(0);
+        assert!(apps_at < tools_at);
+    }
+
+    #[test]
     fn api_lists_its_request_kinds() {
-        let api = MORE.iter().find(|e| e.product.slug == "ferrumapi");
+        let api = APPS.iter().find(|e| e.product.slug == "ferrumapi");
         let text = api.map(|e| e.features.join(" ")).unwrap_or_default();
         for kind in ["GraphQL", "SOAP", "OData", "tRPC", "WebSocket", "gRPC"] {
             assert!(text.contains(kind), "{kind}");

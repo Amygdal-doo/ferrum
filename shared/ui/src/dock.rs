@@ -1,12 +1,13 @@
-//! Running without a Dock icon. Ferrum Launcher records the choice per app
-//! in `~/.ferrum/preferences.json` (`hide_from_dock`: binary names); every
-//! app reads it when it starts.
+//! Running without a Dock icon. The choice is recorded per app in
+//! `~/.ferrum/preferences.json` (`hide_from_dock`: binary names) by
+//! Settings › System or FerrumLauncher; every app reads it when it starts
+//! and switches at once when it is changed in its own Settings.
 //!
 //! macOS shows the menu bar only for apps with a Dock icon (activation
 //! policy `Regular`); an `Accessory` app keeps the previous app's menu bar
 //! even while its own window is key. So a hidden app carries its menus in a
 //! menu bar extra instead (see `status_item`), unless it has one of its own
-//! (Ferrum Launcher).
+//! (FerrumLauncher).
 
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -75,28 +76,13 @@ pub fn hidden_by_preference() -> bool {
     std::fs::read_to_string(file).is_ok_and(|text| listed(&text, &binary))
 }
 
-/// Adds or removes `binary` from the launcher's `hide_from_dock` list,
-/// keeping every other field of the file.
+/// Adds or removes `binary` from the `hide_from_dock` list (Settings ›
+/// System › Show in Dock), keeping every other field of the file.
 pub fn set_hidden(binary: &str, hidden: bool) {
     let Some(file) = preferences_file() else {
         return;
     };
-    let mut json: serde_json::Value = std::fs::read_to_string(&file)
-        .ok()
-        .and_then(|t| serde_json::from_str(&t).ok())
-        .filter(serde_json::Value::is_object)
-        .unwrap_or_else(|| serde_json::json!({}));
-    let mut list: Vec<String> = json
-        .get("hide_from_dock")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-        .unwrap_or_default();
-    list.retain(|b| b != binary);
-    if hidden {
-        list.push(binary.to_owned());
-        list.sort();
-    }
-    json["hide_from_dock"] = serde_json::json!(list);
-    if let Err(error) = crate::prefs::write(&file, &json) {
+    if let Err(error) = ferrum_shell::ops::set_hidden(&file, binary, hidden) {
         eprintln!("ferrum: could not save {}: {error}", file.display());
     }
 }

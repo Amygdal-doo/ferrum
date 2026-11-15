@@ -60,9 +60,9 @@ impl SettingsPage for AboutPage {
             .child(
                 Section::new("Updates").row(
                     Row::new("check-updates", "Check for updates")
-                        .detail("Ferrum Launcher installs and updates every Ferrum app.")
+                        .detail("FerrumLauncher installs and updates every Ferrum app.")
                         .control(
-                            Button::new("open-launcher", "Open Ferrum Launcher")
+                            Button::new("open-launcher", "Open FerrumLauncher")
                                 .style(ButtonStyle::Subtle)
                                 .on_click(|_, _, _| crate::menus::open_launcher()),
                         ),

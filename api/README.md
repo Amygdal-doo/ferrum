@@ -1,7 +1,7 @@
 # FerrumAPI
 
 A local-first, Postman-style API client written in Rust: a native GPUI desktop app (the UI
-framework of Zed, from the `ide/` submodule) built on the shared `ferrum-ui` crate,
+framework of Zed, a pinned git dependency) built on the shared `ferrum-ui` crate,
 reqwest + rustls, SQLite. No backend server, no account, no Electron, no webview. Part of
 the Ferrum monorepo — sibling of [FerrumData](../data), [FerrumGIT](../git) and
 [FerrumIDE](../editor), with the same theme and components.
@@ -94,7 +94,7 @@ Protocol gaps:
 ## Prerequisites
 - Rust via rustup. `rust-toolchain.toml` installs **1.99.1** automatically.
 - macOS: Xcode command line tools (GPUI renders with Metal). Linux/Windows: whatever GPUI
-  needs on that platform (see `ide/` docs); only macOS has been smoke-tested.
+  needs on that platform (see Zed's Linux/Windows build docs); only macOS has been smoke-tested.
 - No Node, no CSS build: styling is Rust code using the Ferrum theme.
 
 ## Commands

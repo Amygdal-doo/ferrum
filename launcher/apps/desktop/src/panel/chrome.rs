@@ -20,7 +20,7 @@ impl LauncherPanel {
             .anchor(Anchor::TopRight)
             .trigger(
                 IconButton::new("panel-settings-button", IconName::Settings)
-                    .tooltip(Tooltip::text("Ferrum Launcher")),
+                    .tooltip(Tooltip::text("FerrumLauncher")),
             )
             .menu(move |window, cx| {
                 let weak = weak.clone();
@@ -29,7 +29,7 @@ impl LauncherPanel {
                         (weak.clone(), weak.clone(), weak.clone(), weak.clone());
                     let menu = menu
                         .icon_entry(
-                            "Open Ferrum Launcher",
+                            "Open FerrumLauncher",
                             IconName::ArrowUpRight,
                             move |window, cx| {
                                 open.update(cx, |this, cx| this.show_main(None, false, window, cx))
@@ -64,7 +64,7 @@ impl LauncherPanel {
                                 .update(cx, |this, cx| this.show_main(None, true, window, cx))
                                 .ok();
                         })
-                        .entry("Quit Ferrum Launcher", None, |_, cx| cx.quit())
+                        .entry("Quit FerrumLauncher", None, |_, cx| cx.quit())
                 }))
             });
         h_flex()

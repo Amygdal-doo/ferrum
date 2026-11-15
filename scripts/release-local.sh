@@ -2,7 +2,7 @@
 # Builds and publishes Ferrum releases from this Mac, without CI:
 #   scripts/release-local.sh <out-dir> <app>:<version> [...]
 # For each app: the Apple Silicon and Intel builds (`.tar.gz`, `.app.tar.gz`
-# for Ferrum Launcher, and a `.dmg`), plus the Linux files that
+# for FerrumLauncher, and a `.dmg`), plus the Linux files that
 # scripts/build-linux.sh put in <out-dir>/<app>-v<version>/ (run it first,
 # with the same <out-dir>). Then it creates the GitHub release for the tag
 # `<app>-v<version>` (made with scripts/release.sh) and uploads everything.
@@ -56,7 +56,7 @@ for pair in "$@"; do
   echo "=== $tag: publish"
   notes="$(git tag -l --format='%(contents)' "$tag")"
   [ -n "$notes" ] || notes="$tag"
-  # A new release stays a draft until every file is up, so Ferrum Launcher
+  # A new release stays a draft until every file is up, so FerrumLauncher
   # never offers a version whose build is still uploading. Not marked
   # pre-release: the launcher reads the channel from the version.
   if ! gh release view "$tag" --repo "$REPO" >/dev/null 2>&1; then

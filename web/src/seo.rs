@@ -1,8 +1,9 @@
 //! Structured data (JSON-LD) for search engines.
 //!
 //! Builders return `serde_json::Value`s; [`script`] embeds one in a page.
-//! Claims follow the site: every build is a free download for macOS
-//! (Apple Silicon), published by AMYGDAL d.o.o. in Sarajevo.
+//! Claims follow the site: every build is a free download for macOS and
+//! Linux, published by AMYGDAL d.o.o. in Sarajevo, and the source is open
+//! under MIT OR Apache-2.0.
 
 use maud::{Markup, PreEscaped, html};
 use serde_json::{Value, json};
@@ -76,6 +77,24 @@ pub fn breadcrumb_list(site_url: &str, crumbs: &[Crumb]) -> Value {
     json!({ "@context": CONTEXT, "@type": "BreadcrumbList", "itemListElement": items })
 }
 
+/// SPDX pages of the two licences Ferrum is offered under (either applies).
+const LICENSE_URLS: [&str; 2] = [
+    "https://spdx.org/licenses/MIT.html",
+    "https://spdx.org/licenses/Apache-2.0.html",
+];
+
+/// The public source of every app: `codeRepository` lives on
+/// `SoftwareSourceCode`, linked from the app with `isBasedOn`.
+pub fn source_code() -> Value {
+    json!({
+        "@type": "SoftwareSourceCode",
+        "name": "Ferrum",
+        "codeRepository": site::SOURCE_REPO_URL,
+        "programmingLanguage": "Rust",
+        "license": LICENSE_URLS,
+    })
+}
+
 /// One Ferrum app. `price: 0` because every build is a free download.
 pub fn software_application(
     site_url: &str,
@@ -92,10 +111,11 @@ pub fn software_application(
         "image": image,
         "applicationCategory": "DeveloperApplication",
         "applicationSubCategory": product.kind,
-        "operatingSystem": "macOS",
-        "processorRequirements": "Apple Silicon",
+        "operatingSystem": "macOS, Linux",
         "downloadUrl": format!("{site_url}{}", site::DOWNLOAD_PATH),
         "isAccessibleForFree": true,
+        "license": LICENSE_URLS,
+        "isBasedOn": source_code(),
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
         "publisher": { "@id": organization_id(site_url) },
     })
@@ -170,7 +190,14 @@ mod tests {
     fn app_is_a_free_macos_developer_application() {
         let v = software_application("https://f.test", &products::FERRUMCONTAINERS, "d", "i.png");
         assert_eq!(v["@type"], "SoftwareApplication");
-        assert_eq!(v["operatingSystem"], "macOS");
+        assert_eq!(v["operatingSystem"], "macOS, Linux");
+        assert_eq!(v["license"][0], "https://spdx.org/licenses/MIT.html");
+        assert_eq!(v["license"][1], "https://spdx.org/licenses/Apache-2.0.html");
+        assert_eq!(v["isBasedOn"]["@type"], "SoftwareSourceCode");
+        assert_eq!(
+            v["isBasedOn"]["codeRepository"],
+            "https://github.com/Amygdal-doo/ferrum"
+        );
         assert_eq!(v["applicationCategory"], "DeveloperApplication");
         assert_eq!(v["offers"]["price"], "0");
         assert_eq!(v["publisher"]["@id"], "https://f.test/#organization");

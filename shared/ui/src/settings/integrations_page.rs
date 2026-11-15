@@ -108,7 +108,7 @@ impl SettingsPage for IntegrationsPage {
             Row::new("cli", format!("`{}` command", info.binary))
                 .detail(match &cli {
                     Some(path) => format!("Installed at {}", path.display()),
-                    None => "Not installed. Ferrum Launcher links the apps' commands into \
+                    None => "Not installed. FerrumLauncher links the apps' commands into \
                              ~/.ferrum/bin."
                         .to_owned(),
                 })

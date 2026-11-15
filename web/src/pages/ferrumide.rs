@@ -118,7 +118,7 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Launcher (free, see Download)"),
+        ("Install", "FerrumLauncher (free, see Download)"),
         (
             "Network",
             "Only for what you use: language server downloads, the CI page (GitHub, with your \

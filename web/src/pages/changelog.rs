@@ -137,8 +137,8 @@ pub fn render(site_url: &str, entries: Option<&[ChangelogEntry]>) -> Markup {
             (PageHeader::new(&meta.trail, "Changelog")
                 .lead(html! {
                     p {
-                        "Every release of every app, newest first, with its notes. Ferrum \
-                         Launcher offers the same releases as updates. Announcements are on "
+                        "Every release of every app, newest first, with its notes. \
+                         FerrumLauncher offers the same releases as updates. Announcements are on "
                         a href=(updates::INDEX_PATH) { "Updates" } "."
                     }
                 })

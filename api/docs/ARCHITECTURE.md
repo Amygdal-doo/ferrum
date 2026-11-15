@@ -22,7 +22,7 @@ crates/domain  ◄── every crate (pure serde types; no UI, no I/O)
 - `http`, `persistence`, `interop`, `server` depend on `domain` only — never on each other.
 - `application` wires them together and never depends on GPUI.
 - `desktop` depends on `application` (which re-exports the other crates), `domain`, and the
-  UI stack: `ferrum-ui` plus GPUI / `ui` from `ide/`.
+  UI stack: `ferrum-ui` plus GPUI (a pinned git dependency on upstream Zed).
 
 ## Request lifecycle
 ```

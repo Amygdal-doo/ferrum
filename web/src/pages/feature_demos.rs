@@ -9,6 +9,7 @@ use maud::{Markup, html};
 
 use super::project_demos;
 use crate::products;
+use crate::routes::assets;
 
 /// The demo for a product, by slug.
 pub fn for_slug(slug: &str) -> Option<Markup> {
@@ -214,25 +215,26 @@ pub fn term() -> Markup {
 
 pub fn launcher() -> Markup {
     let apps = [
-        ("FerrumIDE", "--app-editor", "0.1.0-alpha.1"),
-        ("FerrumAPI", "--app-api", "0.2.0-alpha.1"),
-        ("FerrumGIT", "--app-git", "0.2.0-alpha.1"),
-        ("FerrumData", "--app-data", "0.3.0-alpha.1"),
-        ("FerrumTerm", "--app-term", "0.2.0-alpha.1"),
+        (products::FERRUMIDE, "0.1.0-alpha.1"),
+        (products::FERRUMGIT, "0.2.0-alpha.1"),
+        (products::FERRUMTERM, "0.2.0-alpha.1"),
+        (products::FERRUMAPI, "0.2.0-alpha.1"),
+        (products::FERRUMDATA, "0.3.0-alpha.1"),
     ];
     window(
-        "Ferrum Launcher",
+        "FerrumLauncher",
         "tb",
         html! {
             div class="tb__banner" {
-                span { "Ferrum Launcher 0.5.0 is available" }
+                span { "FerrumLauncher 0.5.0 is available" }
                 span class="tb__btn tb__btn--self" { "Update Launcher" }
             }
             ul class="tb__apps" {
-                @for (name, var, version) in apps {
-                    li style={ "--c: var(" (var) ")" } {
-                        i class="tb__logo" {}
-                        span class="tb__name" { (name) }
+                @for (p, version) in apps {
+                    li style={ "--c: var(" (p.accent_var) ")" } {
+                        img class="tb__logo" src=(assets::url(&p.logo_asset())) alt=""
+                            width="18" height="18" decoding="async";
+                        span class="tb__name" { (p.name) }
                         span class="tb__chan" { "Alpha" }
                         span class="tb__ver" { "v" (version) }
                         span class="tb__btn" { span { "Update" } span { "✓ Up to date" } }

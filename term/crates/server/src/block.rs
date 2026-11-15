@@ -102,7 +102,7 @@ impl Block {
         for (k, v) in &spec.env {
             cmd.env(k, v);
         }
-        // Shell commands from Ferrum Launcher (`fei`, `feg`, …) work in
+        // Shell commands from FerrumLauncher (`fei`, `feg`, …) work in
         // every FerrumTerm block, even before the shell profile adds them.
         if let Some(path) = with_ferrum_bin(
             spec.env
@@ -259,7 +259,7 @@ impl Block {
     }
 }
 
-/// `path` with `~/.ferrum/bin` (Ferrum Launcher's commands) in front,
+/// `path` with `~/.ferrum/bin` (FerrumLauncher's commands) in front,
 /// unless it is already there.
 fn with_ferrum_bin(path: Option<String>) -> Option<String> {
     let home = std::env::var_os("HOME")?;

@@ -2,7 +2,7 @@
 # Tags a Ferrum app release: scripts/release.sh <app-id> <version> [-m "notes"]
 # Creates the annotated tag `<app-id>-v<version>` locally. Pushing it runs
 # .github/workflows/release.yml, which builds and publishes the release that
-# Ferrum Launcher picks up. This script never pushes.
+# FerrumLauncher picks up. This script never pushes.
 set -euo pipefail
 
 usage() {

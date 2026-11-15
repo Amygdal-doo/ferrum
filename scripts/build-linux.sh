@@ -3,8 +3,9 @@
 #   scripts/build-linux.sh <amd64|arm64> <out-dir> <app>:<version> [...]
 # Each app gets `<app>-<version>-<target>.tar.gz` (the binaries) and a .deb
 # in <out-dir>/<app>-v<version>/. amd64 runs emulated on Apple Silicon
-# (Rosetta in Docker Desktop keeps it reasonably fast). Cargo's registry and
-# target directory live in Docker volumes, so later builds are incremental.
+# (Rosetta in Docker Desktop keeps it reasonably fast). Cargo's registry, git
+# checkouts (GPUI from upstream Zed) and target directory live in Docker
+# volumes, so later builds are incremental.
 set -euo pipefail
 
 [ $# -ge 3 ] || { echo "usage: $0 <amd64|arm64> <out-dir> <app>:<version> [...]" >&2; exit 2; }
@@ -28,6 +29,7 @@ docker run --rm --platform "linux/$arch" \
   -v "$root:/src:ro" \
   -v "$out:/out" \
   -v "ferrum-cargo-registry-$arch:/usr/local/cargo/registry" \
+  -v "ferrum-cargo-git-$arch:/usr/local/cargo/git" \
   -v "ferrum-target-$arch:/target" \
   -e CARGO_TARGET_DIR=/target \
   -e CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-6}" \

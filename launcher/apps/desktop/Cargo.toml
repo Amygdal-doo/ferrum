@@ -1,11 +1,12 @@
 [package]
 name = "ferrumlauncher-desktop"
-description = "Ferrum Launcher: installs, updates and launches the Ferrum apps (GPUI)."
+description = "FerrumLauncher: installs, updates and launches the Ferrum apps (GPUI)."
 # Release builds take their version from the `launcher-v<semver>` tag (FERRUM_VERSION).
 version = "0.6.0"
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [[bin]]
 name = "ferrum-launcher"

@@ -1,8 +1,8 @@
 # FerrumPorts
 
 "Who is using port 3000?" A native view of the listening ports on your machine and the
-processes behind them. It is a GPUI desktop app (the UI framework of Zed, from the `ide/`
-submodule) built on the shared `ferrum-ui` crate. One window has the Ferrum project strip
+processes behind them. It is a GPUI desktop app (the UI framework of Zed, a pinned
+git dependency) built on the shared `ferrum-ui` crate. One window has the Ferrum project strip
 on top and a table of listeners below it, with a detail pane for the selected row.
 Everything runs locally: FerrumPorts reads the system with `lsof`, `ps` and `ss` and writes
 nothing except the shared recent-projects list (`~/.ferrum/projects.json`, through the

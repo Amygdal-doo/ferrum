@@ -1,10 +1,11 @@
 [package]
 name = "ferrumsystem-desktop"
-description = "Ferrum System (FeS) — system architecture diagrams with layers, flows, data and live pods, GPUI desktop shell."
+description = "FerrumSystem (FeS) — system architecture diagrams with layers, flows, data and live pods, GPUI desktop shell."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [[bin]]
 name = "ferrumsystem"

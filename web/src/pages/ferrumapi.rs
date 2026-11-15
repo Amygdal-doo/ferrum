@@ -127,7 +127,7 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Launcher (free, see Download)"),
+        ("Install", "FerrumLauncher (free, see Download)"),
         ("Builds", "macOS (Apple Silicon and Intel) and Linux x86_64"),
         (
             "Request kinds",
@@ -146,8 +146,8 @@ const PAGE: ProductPage = ProductPage {
             "Stored locally on your machine; collections can be saved to .ferrum/api/ in a repo",
         ),
     ],
-    specs_note: "Builds are free public GitHub Releases, installed through Ferrum \
-                 Launcher. Only macOS has been smoke-tested so far.",
+    specs_note: "Builds are free public GitHub Releases, installed through \
+                 FerrumLauncher. Only macOS has been smoke-tested so far.",
 };
 
 pub fn render(site_url: &str) -> Markup {

@@ -1,7 +1,9 @@
-//! Opening apps without the launcher window: shell commands (`fei .`),
-//! Dock icons, global shortcuts and the menu bar icon. The choices live in
-//! `Settings::app_prefs` / `menu_bar`; the files they produce (command
-//! scripts, `~/.ferrum/preferences.json`) are rewritten from them.
+//! Opening apps without the launcher window: shell commands (`fei .`,
+//! `ferrum ide .`), Dock icons, global shortcuts and the menu bar icon.
+//! Shell commands and Dock icons live in `~/.ferrum/preferences.json`,
+//! shared with every app's Settings › System (`Settings::app_prefs`
+//! mirrors them, see `reload_shared_prefs`); shortcuts and the menu bar
+//! icon in `Settings::app_prefs` / `menu_bar`.
 
 use std::collections::HashMap;
 
@@ -119,9 +121,13 @@ impl FerrumLauncher {
         if let Some(input) = self.integration.command_inputs.get(&app) {
             return input.clone();
         }
-        let name = self
-            .prefs(app)
-            .command
+        let name = shared_prefs::path_for(&self.services.paths.bin_dir)
+            .map(|path| {
+                shared_prefs::SharedPrefs::load(&path)
+                    .command(app.as_str())
+                    .name
+            })
+            .filter(|name| !name.is_empty())
             .or_else(|| shell::default_command(app).map(str::to_string))
             .unwrap_or_default();
         let input = cx.new(|cx| TextInput::new(window, cx).with_text(name).monospace());
@@ -136,110 +142,65 @@ impl FerrumLauncher {
         input
     }
 
+    /// `~/.ferrum/preferences.json`, where the shell commands and Dock
+    /// choices live (shared with every app's Settings › System).
+    fn shell_env(&self) -> Option<shell::Env> {
+        shell::env(&self.services.paths)
+    }
+
+    /// Re-reads the shared preferences (an app's Settings may have changed
+    /// them) into the launcher's mirror and the command name fields.
+    pub fn reload_shared_prefs(&mut self, cx: &mut Context<Self>) {
+        let Some(path) = shared_prefs::path_for(&self.services.paths.bin_dir) else {
+            return;
+        };
+        let shared = shared_prefs::SharedPrefs::load(&path);
+        let changed = self.state.adopt_shared_prefs(&shared);
+        for (app, input) in &self.integration.command_inputs {
+            let name = shared.command(app.as_str()).name;
+            if input.read(cx).text().trim() != name {
+                input.update(cx, |input, cx| input.set_text(name, cx));
+            }
+        }
+        if changed {
+            self.persist(cx);
+            cx.notify();
+        }
+    }
+
     /// Turns `app`'s shell command on (with the name in its field) or off.
+    /// The script is written or removed at once; the choice is saved in the
+    /// shared preferences, so the app's own Settings › System agrees.
     pub fn set_shell_command(&mut self, app: AppId, enabled: bool, cx: &mut Context<Self>) {
-        let info = self.state.info(app);
-        let paths = self.services.paths.clone();
-        let mut prefs = self.prefs(app);
+        let Some(env) = self.shell_env() else {
+            return;
+        };
         let typed = self
             .integration
             .command_inputs
             .get(&app)
             .map(|i| i.read(cx).text().trim().to_string())
-            .filter(|t| !t.is_empty())
-            .or_else(|| shell::default_command(app).map(str::to_string))
             .unwrap_or_default();
-        if let Some(old) = prefs.command.take()
-            && let Err(e) = shell::remove(&paths, &old)
-        {
-            self.notify_user(format!("Could not remove `{old}`: {e}"), true, cx);
+        let result = shell::set_command(&env, app.as_str(), &typed, enabled);
+        self.reload_shared_prefs(cx);
+        cx.notify();
+        match result {
+            Ok(message) => self.notify_user(message, false, cx),
+            Err(error) => self.notify_user(error, true, cx),
         }
-        if !enabled {
-            self.set_prefs(app, prefs, cx);
-            self.notify_user(format!("The `{typed}` command is off"), false, cx);
-            return;
-        }
-        if let Err(e) = shell::validate(&typed) {
-            self.set_prefs(app, prefs, cx);
-            self.notify_user(e, true, cx);
-            return;
-        }
-        let taken = self
-            .state
-            .settings
-            .app_prefs
-            .iter()
-            .find(|(other, p)| **other != app && p.command.as_deref() == Some(typed.as_str()))
-            .map(|(other, _)| self.state.info(*other).name);
-        if let Some(other) = taken {
-            self.set_prefs(app, prefs, cx);
-            self.notify_user(format!("`{typed}` already opens {other}"), true, cx);
-            return;
-        }
-        if let Err(e) = shell::install(&paths, &info, &typed) {
-            self.set_prefs(app, prefs, cx);
-            self.notify_user(e, true, cx);
-            return;
-        }
-        let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
-        let shell_kind = shell::Shell::from_env(std::env::var("SHELL").ok().as_deref());
-        let rc = home
-            .as_deref()
-            .map(|home| shell::ensure_on_path(&paths.bin_dir, home, shell_kind));
-        let conflict = shell::conflict(
-            &typed,
-            &paths.bin_dir,
-            &std::env::var("PATH").unwrap_or_default(),
-        );
-        prefs.command = Some(typed.clone());
-        self.set_prefs(app, prefs, cx);
-        let usage = if app == AppId::TERM {
-            format!("`{typed}` opens FerrumTerm in the current folder")
-        } else if app.as_str() == "dock" {
-            format!(
-                "`{typed}` opens {}; `{typed} start`, `stop`, `up`, `ps`… run the VM and docker",
-                info.name
-            )
-        } else if matches!(app.as_str(), "editor" | "git") {
-            format!("`{typed} .` opens {} on the current folder", info.name)
-        } else {
-            format!("`{typed}` opens {}", info.name)
-        };
-        let mut message = format!("{usage}. Open a new terminal window to use it.");
-        match rc {
-            Some(Ok(files)) if !files.is_empty() => {
-                let names: Vec<String> = files
-                    .iter()
-                    .map(|file| match home.as_deref().map(|h| file.strip_prefix(h)) {
-                        Some(Ok(rest)) => format!("~/{}", rest.display()),
-                        _ => file.display().to_string(),
-                    })
-                    .collect();
-                message.push_str(&format!(
-                    " (Added ~/.ferrum/bin to PATH in {}.)",
-                    names.join(" and ")
-                ));
-            }
-            Some(Err(e)) => {
-                message = format!(
-                    "{usage}, but PATH could not be updated: {e}. Add ~/.ferrum/bin to your PATH."
-                );
-            }
-            _ => {}
-        }
-        if let Some(other) = conflict {
-            message.push_str(&format!(" Note: {} also exists.", other.display()));
-        }
-        self.notify_user(message, false, cx);
     }
 
     /// Runs `app` without a Dock icon (from its next start; the launcher
     /// itself switches at once).
     pub fn set_hide_from_dock(&mut self, app: AppId, hide: bool, cx: &mut Context<Self>) {
-        let mut prefs = self.prefs(app);
-        prefs.hide_from_dock = hide;
-        self.set_prefs(app, prefs, cx);
-        self.write_shared_prefs(cx);
+        let binary = self.state.info(app).binary;
+        if let Some(path) = shared_prefs::path_for(&self.services.paths.bin_dir)
+            && let Err(e) = shell::set_hidden(&path, &binary, hide)
+        {
+            self.notify_user(format!("Could not save {}: {e}", path.display()), true, cx);
+            return;
+        }
+        self.reload_shared_prefs(cx);
         let name = self.state.info(app).name;
         if app == AppId::LAUNCHER {
             ferrum_ui::dock::set_dock_icon_visible(!hide);
@@ -249,7 +210,7 @@ impl FerrumLauncher {
                 self.persist(cx);
                 self.refresh_menu_bar(cx);
                 self.notify_user(
-                    "Ferrum Launcher is now in the menu bar instead of the Dock",
+                    "FerrumLauncher is now in the menu bar instead of the Dock",
                     false,
                     cx,
                 );
@@ -257,26 +218,12 @@ impl FerrumLauncher {
         } else {
             let when = if hide { "without" } else { "with" };
             self.notify_user(
-                format!("{name} starts {when} a Dock icon from now on (quit and reopen it if it's running)"),
+                format!("{name} starts {when} a Dock icon from now on (quit and reopen it if it's running, or switch it in its Settings › System)"),
                 false,
                 cx,
             );
         }
-    }
-
-    fn write_shared_prefs(&mut self, cx: &mut Context<Self>) {
-        let mut prefs = shared_prefs::SharedPrefs::default();
-        for (app, p) in &self.state.settings.app_prefs {
-            if p.hide_from_dock {
-                prefs.hide_from_dock.insert(self.state.info(*app).binary);
-            }
-        }
-        let Some(path) = shared_prefs::path_for(&self.services.paths.bin_dir) else {
-            return;
-        };
-        if let Err(e) = shared_prefs::write(&path, &prefs) {
-            self.notify_user(format!("Could not save {}: {e}", path.display()), true, cx);
-        }
+        cx.notify();
     }
 
     /// Starts recording `app`'s shortcut: the next key pressed (with ⌘, ⌃
@@ -462,14 +409,20 @@ impl FerrumLauncher {
     }
 
     /// Adds the PATH line to startup files that lack it while a shell
-    /// command is on (older launchers only wrote the login file).
+    /// command is on, or `ferrum` was turned on by hand (older launchers
+    /// only wrote the login file).
     fn repair_shell_path(&self) {
-        let any_command = self
-            .state
-            .settings
-            .app_prefs
-            .values()
-            .any(|prefs| prefs.command.is_some());
+        let umbrella_chosen =
+            shared_prefs::path_for(&self.services.paths.bin_dir).is_some_and(|path| {
+                shared_prefs::SharedPrefs::load(&path).ferrum_command == Some(true)
+            });
+        let any_command = umbrella_chosen
+            || self
+                .state
+                .settings
+                .app_prefs
+                .values()
+                .any(|prefs| prefs.command.is_some());
         let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else {
             return;
         };
@@ -614,14 +567,14 @@ impl FerrumLauncher {
             .ok();
         menu.append(&MenuItem::with_id(
             "show",
-            "Open Ferrum Launcher",
+            "Open FerrumLauncher",
             true,
             None,
         ))
         .ok();
         menu.append(&MenuItem::with_id(
             "quit",
-            "Quit Ferrum Launcher",
+            "Quit FerrumLauncher",
             true,
             None,
         ))
@@ -632,7 +585,7 @@ impl FerrumLauncher {
         }
         let icon = menu_bar_icon();
         let mut builder = tray_icon::TrayIconBuilder::new()
-            .with_tooltip("Ferrum Launcher")
+            .with_tooltip("FerrumLauncher")
             .with_menu(Box::new(menu))
             .with_menu_on_left_click(false);
         if let Some(icon) = icon {

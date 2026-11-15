@@ -1,7 +1,8 @@
 # Third-party notices
 
-The Ferrum apps are proprietary ("All rights reserved"). They include the
-following third-party works, each under its own licence. Rust crate
+Ferrum is licensed under MIT OR Apache-2.0 (see `LICENSE-MIT` and
+`LICENSE-APACHE`). The apps include the following third-party works, each
+under its own licence; those licences are unaffected by Ferrum's. Rust crate
 dependencies are listed in `Cargo.lock`; `scripts/check-licenses.sh` checks
 that none of them is GPL-family.
 
@@ -35,6 +36,15 @@ that none of them is GPL-family.
 
 ## GPUI
 
-- Crates: `gpui`, `gpui_platform` and their internal crates from the `ide/`
-  submodule (the Zed codebase), used as a library.
-- Licence: Apache-2.0 (`ide/LICENSE-APACHE`).
+- Crates: `gpui`, `gpui_platform` and the Zed crates they pull in
+  (`gpui_apple`, `gpui_ios`, `gpui_linux`, `gpui_macos`, `gpui_macros`,
+  `gpui_shared_string`, `gpui_util`, `gpui_web`, `gpui_wgpu`, `gpui_windows`,
+  `collections`, `derive_refineable`, `refineable`, `http_client`,
+  `scheduler`, `sum_tree`, `ztracing`, `ztracing_macro`), used as a library,
+  unmodified.
+- Source: <https://github.com/zed-industries/zed>, commit
+  `03efd49220ba06703d04f9c4732fdf814f9c523c` (Cargo git dependency).
+- Licence: Apache-2.0, Copyright 2022 - 2025 Zed Industries, Inc. Notice:
+  <https://github.com/zed-industries/zed/blob/03efd49220ba06703d04f9c4732fdf814f9c523c/LICENSE-APACHE>;
+  licence text as in this repository's [`LICENSE-APACHE`](LICENSE-APACHE).
+  Zed's GPL-3.0 / AGPL-3.0 crates are not used.

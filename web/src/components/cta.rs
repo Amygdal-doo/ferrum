@@ -26,8 +26,8 @@ pub fn band(id: &str, title: &str, text: &str, actions: Markup) -> Markup {
 pub fn get_launcher() -> Markup {
     band(
         "get-ferrum",
-        "Install Ferrum Launcher",
-        "One free download for Apple Silicon Macs. The launcher installs and updates every app.",
+        "Install FerrumLauncher",
+        "One free download for macOS and Linux. The launcher installs and updates every app, and all of it is open source.",
         html! {
             (button::link(site::DOWNLOAD_LABEL, site::DOWNLOAD_PATH, Variant::Primary))
             (button::link("Read the install guide", "/docs/install", Variant::Secondary))

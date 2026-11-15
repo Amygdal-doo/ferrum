@@ -37,7 +37,7 @@ ferrum_app() {
       # Embeds FerrumTerm, whose server uses Unix sockets; no Windows build yet.
       APP_WINDOWS=no ;;
     system)
-      APP_NAME="Ferrum System"; APP_BINARIES="ferrumsystem"; DEB_PACKAGE="ferrum-system"
+      APP_NAME="FerrumSystem"; APP_BINARIES="ferrumsystem"; DEB_PACKAGE="ferrum-system"
       APP_SUMMARY="System architecture diagrams: layers, clouds, data, flows and live pods" ;;
     ports)
       APP_NAME="FerrumPorts"; APP_BINARIES="ferrumports"; DEB_PACKAGE="ferrumports"
@@ -46,7 +46,7 @@ ferrum_app() {
       APP_NAME="FerrumVariables"; APP_BINARIES="ferrumenv"; DEB_PACKAGE="ferrumenv"
       APP_SUMMARY="Password-locked vault for project environment variables" ;;
     launcher)
-      APP_NAME="Ferrum Launcher"; APP_BINARIES="ferrum-launcher"; DEB_PACKAGE="ferrum-launcher"
+      APP_NAME="FerrumLauncher"; APP_BINARIES="ferrum-launcher"; DEB_PACKAGE="ferrum-launcher"
       APP_SUMMARY="Installs, updates and rolls back the Ferrum apps" ;;
     *) return 1 ;;
   esac

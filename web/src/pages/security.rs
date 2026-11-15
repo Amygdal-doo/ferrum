@@ -120,7 +120,7 @@ pub fn render(site_url: &str) -> Markup {
                             "The apps link only permissively licensed third-party code, and CI \
                              fails a build if a GPL-family crate gets in. Each component and its \
                              licence is listed on "
-                            a href=(crate::pages::licenses::PATH) { "Open source licences" } "."
+                            a href=(crate::pages::licenses::PATH) { "Licences" } "."
                         }
                     }
                 }
@@ -193,16 +193,20 @@ pub fn render(site_url: &str) -> Markup {
                 }
             }))
 
-            (Section::new("report", "Report a problem").tight().render(html! {
+            (Section::new("report", "Report a vulnerability").tight().render(html! {
                 div class="prose" {
-                    @match site::CONTACT_EMAIL {
-                        Some(email) => p {
-                            "Found a security issue? Email " a href={ "mailto:" (email) } { (email) } "."
-                        },
-                        None => p {
-                            "Found a security issue? Reach the team through "
-                            a href=(site::AMYGDAL_URL) rel="noopener" { "amygdal.com" } "."
-                        },
+                    p {
+                        "Found a security issue? Report it privately through a "
+                        a href=(site::SECURITY_ADVISORY_URL) rel="noopener" {
+                            "GitHub security advisory"
+                        }
+                        " on the Ferrum repository, not in a public issue. Include the app, its \
+                         version and the steps to reproduce."
+                    }
+                    p {
+                        "Ferrum is open source, so you can read the code behind every claim on \
+                         this page in "
+                        a href=(site::SOURCE_REPO_URL) rel="noopener" { (site::SOURCE_REPO_SLUG) } "."
                     }
                 }
             }))
@@ -225,6 +229,7 @@ mod tests {
             ".sha256",
             "no analytics",
             "no recovery",
+            "security/advisories/new",
         ] {
             assert!(html.contains(claim), "{claim}");
         }

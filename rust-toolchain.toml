@@ -1,5 +1,5 @@
 [toolchain]
-# sqlx 0.9 requires >= 1.94; edition 2024 requires >= 1.85. ide/ pins its own.
+# sqlx 0.9 requires >= 1.94; edition 2024 requires >= 1.85.
 channel = "1.99.1"
 components = ["rustfmt", "clippy"]
 profile = "minimal"

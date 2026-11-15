@@ -26,9 +26,10 @@ const PRINCIPLES: &[(&str, &str)] = &[
          placeholder, it is labelled as one.",
     ),
     (
-        "Upstreams respected",
-        "Ferrum builds on open-source work. Upstream projects are credited by name and their \
-         licenses are followed.",
+        "Open source",
+        "Every app, the launcher and this website are open source under MIT OR Apache-2.0. \
+         Ferrum builds on open-source work too: upstream projects are credited by name and \
+         their licences followed.",
     ),
 ];
 
@@ -52,7 +53,7 @@ const CREDITS: &[(&str, &str)] = &[
     ),
     (
         "reqwest & rustls",
-        "HTTP and TLS for FerrumAPI and Ferrum Launcher.",
+        "HTTP and TLS for FerrumAPI and FerrumLauncher.",
     ),
     (
         "Axum & maud",
@@ -63,8 +64,8 @@ const CREDITS: &[(&str, &str)] = &[
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("About Ferrum and Amygdal"),
-        "Ferrum is a family of native, local-first developer tools written in Rust, without \
-         Electron. Our principles, the status of each tool and credits.",
+        "Ferrum is a family of open-source, native, local-first developer tools written in Rust, \
+         without Electron. Our principles, the status of each tool and credits.",
         "/about",
         "page-about",
     )
@@ -80,10 +81,12 @@ pub fn render(site_url: &str) -> Markup {
                          editor with CI and logs built in, a window for working with coding \
                          agents, an API client, a Git client, a \
                          database IDE, a terminal, a container manager, developer utilities, and \
-                         tools for ports and environment variables, plus Ferrum Launcher to \
+                         tools for ports and environment variables, plus FerrumLauncher to \
                          install and update them. They are local-first, share one GPUI-based \
                          interface and run without Electron. "
-                        (site::ORGANIZATION_LEGAL_NAME) " builds them in " (site::ORGANIZATION_CITY) "."
+                        (site::ORGANIZATION_LEGAL_NAME) " builds them in " (site::ORGANIZATION_CITY)
+                        ", in the open: the source is on "
+                        a href=(site::SOURCE_REPO_URL) rel="noopener" { "GitHub" } "."
                     }
                 })
                 .render())
@@ -113,11 +116,37 @@ pub fn render(site_url: &str) -> Markup {
                         }
                     }
                     p class="muted" {
-                        "Builds are free public downloads, installed through Ferrum Launcher. "
+                        "Builds are free public downloads, installed through FerrumLauncher. "
                         a href=(site::DOWNLOAD_PATH) { "Download it" } "."
                     }
                 }
             }
+            (Section::new("open-source", "Open source").band().render(html! {
+                div class="prose" {
+                    p {
+                        "Ferrum's source has been public since "
+                        (crate::updates::display_date(site::OPEN_SOURCE_DATE))
+                        ", under the MIT licence or Apache-2.0, at your option. That covers every \
+                         app, FerrumLauncher, the shared UI crate and this site."
+                    }
+                    ul class="prose-list" {
+                        li {
+                            "Read it, build it and change it: "
+                            a href=(site::SOURCE_REPO_URL) rel="noopener" { (site::SOURCE_REPO_SLUG) } "."
+                        }
+                        li {
+                            "Report bugs in "
+                            a href=(site::ISSUES_URL) rel="noopener" { "issues" }
+                            " and ask questions in "
+                            a href=(site::DISCUSSIONS_URL) rel="noopener" { "discussions" } "."
+                        }
+                        li {
+                            "Send a pull request after reading "
+                            a href=(site::CONTRIBUTING_URL) rel="noopener" { "CONTRIBUTING.md" } "."
+                        }
+                    }
+                }
+            }))
             section class="section" aria-labelledby="credits-title" {
                 div class="container" {
                     h2 id="credits-title" { "Built on the shoulders of" }
@@ -134,7 +163,7 @@ pub fn render(site_url: &str) -> Markup {
                         a href=(site::ZED_UPSTREAM_URL) rel="noopener" { "Zed editor" }
                         ". Ferrum is not affiliated with or endorsed by Zed Industries. The \
                          apps' third-party icons, fonts and libraries and their licences are on "
-                        a href=(crate::pages::licenses::PATH) { "Open source licences" } "."
+                        a href=(crate::pages::licenses::PATH) { "Licences" } "."
                     }
                 }
             }
@@ -165,6 +194,8 @@ mod tests {
         assert!(html.contains("Local-first"));
         assert!(html.contains("GPUI"));
         assert!(html.contains(site::ZED_UPSTREAM_URL));
+        assert!(html.contains(site::SOURCE_REPO_URL));
+        assert!(html.contains("MIT OR Apache-2.0"));
     }
 
     #[test]

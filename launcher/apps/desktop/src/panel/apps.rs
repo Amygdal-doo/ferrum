@@ -10,6 +10,7 @@ use semver::Version;
 use super::LauncherPanel;
 use super::layout::{RowState, matches};
 use crate::app::FerrumLauncher;
+use crate::components::uninstall::can_uninstall;
 
 /// One app row, read from the launcher before rendering.
 struct AppRow {
@@ -17,8 +18,8 @@ struct AppRow {
     name: String,
     state: RowState,
     logo: AnyElement,
-    /// The only installed version, which Uninstall removes.
-    removable: Option<Version>,
+    /// Installed and not the launcher: the menu offers Uninstall….
+    removable: bool,
 }
 
 fn row_state(launcher: &FerrumLauncher, app: AppId) -> RowState {
@@ -64,15 +65,12 @@ impl LauncherPanel {
             .filter(|info| matches(&query, &info.name))
             .map(|info| {
                 let app = info.id;
-                let installed = launcher.state.app(app).installed;
                 AppRow {
                     app,
                     name: info.name,
                     state: row_state(launcher, app),
                     logo: launcher.logo(app, px(32.)).into_any_element(),
-                    removable: (installed.len() == 1)
-                        .then(|| launcher.state.active(app).cloned())
-                        .flatten(),
+                    removable: can_uninstall(launcher, app),
                 }
             })
             .collect()
@@ -238,7 +236,7 @@ impl LauncherPanel {
     fn render_app_menu(
         &self,
         app: AppId,
-        removable: Option<Version>,
+        removable: bool,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let weak = cx.weak_entity();
@@ -253,7 +251,7 @@ impl LauncherPanel {
                 .icon_color(Color::Muted),
             )
             .menu(move |window, cx| {
-                let (weak, removable) = (weak.clone(), removable.clone());
+                let weak = weak.clone();
                 Some(ContextMenu::build(window, cx, move |menu, _, _| {
                     let [open, reveal, versions, remove, settings] =
                         std::array::from_fn(|_| weak.clone());
@@ -270,19 +268,19 @@ impl LauncherPanel {
                                 .update(cx, |this, cx| this.show_main(Some(app), false, window, cx))
                                 .ok();
                         });
-                    let menu = match removable {
-                        Some(version) => {
-                            menu.icon_entry("Uninstall", IconName::Trash, move |_, cx| {
-                                let version = version.clone();
-                                remove
-                                    .update(cx, |this, cx| {
-                                        this.launcher
-                                            .update(cx, |l, cx| l.uninstall(app, version, cx));
-                                    })
-                                    .ok();
-                            })
-                        }
-                        None => menu,
+                    // Asks in the main window, which lists what is removed.
+                    let menu = if removable {
+                        menu.icon_entry("Uninstall…", IconName::Trash, move |window, cx| {
+                            remove
+                                .update(cx, |this, cx| {
+                                    this.show_main(Some(app), false, window, cx);
+                                    this.launcher
+                                        .update(cx, |l, cx| l.confirm_uninstall(app, cx));
+                                })
+                                .ok();
+                        })
+                    } else {
+                        menu
                     };
                     menu.separator().icon_entry(
                         "Settings…",

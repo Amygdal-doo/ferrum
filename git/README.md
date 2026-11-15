@@ -1,7 +1,7 @@
 # FerrumGIT
 
 A local-first, GitKraken/Tower-style Git client written in Rust: a native GPUI desktop app
-(the UI framework of Zed, from the `../ide` submodule), the shared `ferrum-ui` crate
+(the UI framework of Zed, a pinned git dependency), the shared `ferrum-ui` crate
 (`../shared/ui`), the system `git` binary, SQLite. No backend, no account, no Electron, no webview.
 Part of the Ferrum monorepo next to [FerrumData](../data) and [FerrumAPI](../api): same toolchain
 and the same Ferrum theme, fonts and icons.
@@ -74,7 +74,7 @@ progress percentages for network ops, and packaging and signing.
 - `git` ≥ 2.32 and OpenSSH on `PATH` (`ssh`, `ssh-keygen`).
 - Optional: the GitHub CLI (`gh`) to reuse its login for pull requests.
 - macOS: Xcode (GPUI compiles Metal shaders). Linux: the GPUI/Zed build dependencies
-  (`../ide/script/linux` installs them).
+  (listed in `../packaging/linux/Dockerfile`).
 
 ## Commands
 Run from the monorepo root (`..`):

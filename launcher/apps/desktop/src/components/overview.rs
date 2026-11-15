@@ -1,9 +1,12 @@
 //! Overview: every app with its status, versions and the next action.
 //! Clicking a row opens the app's page.
 
+use super::uninstall::can_uninstall;
 use super::{discontinued_badge, format_count, format_date, status_badge};
 use crate::app::FerrumLauncher;
+use ferrum_ui::components::right_click_menu;
 use ferrum_ui::prelude::*;
+use ferrumlauncher_core::catalog::AppGroup;
 use ferrumlauncher_core::{AppId, Channel, current_target};
 
 const STATUS_WIDTH: f32 = 116.;
@@ -26,6 +29,23 @@ fn cell(width: f32) -> Div {
     div().flex_none().w(px(width)).overflow_hidden()
 }
 
+/// A section heading inside the table ("Apps", "Tools", …).
+fn group_header(title: &'static str, cx: &App) -> AnyElement {
+    h_flex()
+        .px_4()
+        .pt_3()
+        .pb_1()
+        .border_b_1()
+        .border_color(cx.theme().colors().border_variant)
+        .child(
+            Label::new(title)
+                .size(LabelSize::Small)
+                .weight(ferrum_ui::gpui::FontWeight::SEMIBOLD)
+                .color(Color::Muted),
+        )
+        .into_any_element()
+}
+
 fn version_label(version: Option<String>) -> Label {
     match version {
         Some(version) => Label::new(format!("v{version}")).size(LabelSize::Small),
@@ -37,14 +57,35 @@ fn version_label(version: Option<String>) -> Label {
 
 impl FerrumLauncher {
     pub fn render_overview(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-        // Apps still offered, then installed apps the suite dropped.
-        let rows: Vec<AnyElement> = self
-            .state
-            .managed_apps()
-            .into_iter()
-            .chain(self.state.discontinued_apps())
-            .map(|info| self.render_overview_row(info.id, cx))
-            .collect();
+        // The Apps, then the Tools, then the launcher itself, then installed
+        // apps the suite dropped.
+        let managed = self.state.managed_apps();
+        let mut rows: Vec<AnyElement> = Vec::new();
+        for group in AppGroup::ALL {
+            let ids: Vec<AppId> = managed
+                .iter()
+                .filter(|info| info.group == group && info.id != AppId::LAUNCHER)
+                .map(|info| info.id)
+                .collect();
+            if ids.is_empty() {
+                continue;
+            }
+            rows.push(group_header(group.label(), cx));
+            rows.extend(ids.into_iter().map(|app| self.render_overview_row(app, cx)));
+        }
+        if managed.iter().any(|info| info.id == AppId::LAUNCHER) {
+            rows.push(group_header("Launcher", cx));
+            rows.push(self.render_overview_row(AppId::LAUNCHER, cx));
+        }
+        let discontinued = self.state.discontinued_apps();
+        if !discontinued.is_empty() {
+            rows.push(group_header("No longer offered", cx));
+            rows.extend(
+                discontinued
+                    .into_iter()
+                    .map(|info| self.render_overview_row(info.id, cx)),
+            );
+        }
         let colors = cx.theme().colors();
 
         let header = |text: &'static str, width: Option<f32>| {
@@ -115,7 +156,7 @@ impl FerrumLauncher {
         let downloads = self.state.total_downloads(app);
         let has_releases = !self.state.releases_for(app).is_empty();
 
-        h_flex()
+        let row = h_flex()
             .id(SharedString::from(format!("overview-{app}")))
             .px_4()
             .py_2()
@@ -178,7 +219,51 @@ impl FerrumLauncher {
                     .color(Color::Muted),
                 ),
             )
-            .on_click(cx.listener(move |this, _, _, cx| this.select_app(app, cx)))
+            .on_click(cx.listener(move |this, _, _, cx| this.select_app(app, cx)));
+        self.with_row_menu(app, row, cx)
+    }
+
+    /// Right-click menu of an overview row: Open, Details and Uninstall….
+    fn with_row_menu(
+        &self,
+        app: AppId,
+        row: impl IntoElement + 'static,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let weak = cx.weak_entity();
+        let installed = self.state.active(app).is_some();
+        let removable = can_uninstall(self, app);
+        right_click_menu(SharedString::from(format!("overview-menu-{app}")))
+            .trigger(move |_, _, _| row)
+            .menu(move |window, cx| {
+                let weak = weak.clone();
+                ContextMenu::build(window, cx, move |menu, _, _| {
+                    let [open, details, uninstall] = std::array::from_fn(|_| weak.clone());
+                    let menu = if installed && app != AppId::LAUNCHER {
+                        menu.icon_entry("Open", IconName::PlayFilled, move |_, cx| {
+                            open.update(cx, |this, cx| this.launch(app, cx)).ok();
+                        })
+                    } else {
+                        menu
+                    };
+                    let menu = menu.icon_entry("Details", IconName::Info, move |_, cx| {
+                        details.update(cx, |this, cx| this.select_app(app, cx)).ok();
+                    });
+                    if removable {
+                        menu.separator().icon_entry(
+                            "Uninstall…",
+                            IconName::Trash,
+                            move |_, cx| {
+                                uninstall
+                                    .update(cx, |this, cx| this.confirm_uninstall(app, cx))
+                                    .ok();
+                            },
+                        )
+                    } else {
+                        menu
+                    }
+                })
+            })
             .into_any_element()
     }
 

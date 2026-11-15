@@ -7,7 +7,7 @@ use maud::{Markup, html};
 use super::{feature_demos, project_demos, tool_demos};
 use crate::components::{breadcrumb::Crumb, page_header::PageHeader};
 use crate::layout::{PageMeta, page};
-use crate::products::{self, Product};
+use crate::products::{self, Group, Product};
 use crate::site;
 
 pub const PATH: &str = "/features";
@@ -114,6 +114,56 @@ const APPS: [AppFeatures; 11] = [
                      shows the change, and the terminal column runs the tests",
     },
     AppFeatures {
+        product: products::FERRUMGIT,
+        version: "0.3.0-alpha.1",
+        summary: "Review and ship pull requests without leaving the Git client.",
+        points: &[
+            (
+                "GitHub and GitLab",
+                "Pull and merge requests for github.com, gitlab.com and self-hosted GitLab or \
+                 GitHub Enterprise, with a token in the keychain or your gh login.",
+            ),
+            (
+                "Review in place",
+                "Description, conversation, commits, checks, and the changed files in \
+                 FerrumGIT's own diff view.",
+            ),
+            (
+                "Act on it",
+                "Check out a pull request, open one from your branch, comment, approve or \
+                 request changes, and merge after a confirmation.",
+            ),
+        ],
+        demo: feature_demos::git,
+        demo_label: "FerrumGIT with a commit graph, a highlighted search match, a side-by-side \
+                     diff and an Undo notification",
+    },
+    AppFeatures {
+        product: products::FERRUMTERM,
+        version: "0.3.0-alpha.1",
+        summary: "Remote machines and the ports on yours, from the sidebar.",
+        points: &[
+            (
+                "SSH hosts",
+                "Hosts from ~/.ssh/config and ones you save open in a new tab with one click, \
+                 or with fterm ssh. Passwords and keys stay with ssh.",
+            ),
+            (
+                "Port forwards",
+                "Local, remote and SOCKS forwards per host, started and stopped from the \
+                 sidebar. They keep running when you close the window.",
+            ),
+            (
+                "What's using a port?",
+                "See which process listens on a port, and stop it after a confirmation. Also \
+                 fterm port 3000.",
+            ),
+        ],
+        demo: feature_demos::term,
+        demo_label: "FerrumTerm with a sidebar of sessions and agents, an agent finishing its \
+                     work and terminal output being selected and copied",
+    },
+    AppFeatures {
         product: products::FERRUMAPI,
         version: "0.4.0-alpha.1",
         summary: "Six request kinds join REST, mixed freely in one collection, and collections \
@@ -146,29 +196,32 @@ const APPS: [AppFeatures; 11] = [
                      collection run passing REST, GraphQL, SOAP and tRPC requests one by one",
     },
     AppFeatures {
-        product: products::FERRUMGIT,
-        version: "0.3.0-alpha.1",
-        summary: "Review and ship pull requests without leaving the Git client.",
+        product: products::FERRUMCONTAINERS,
+        version: "0.1.0-alpha.1",
+        summary: "New: a fast native window on Docker Desktop, OrbStack or Colima, and Podman \
+                  through DOCKER_HOST.",
         points: &[
             (
-                "GitHub and GitLab",
-                "Pull and merge requests for github.com, gitlab.com and self-hosted GitLab or \
-                 GitHub Enterprise, with a token in the keychain or your gh login.",
+                "Containers by Compose project",
+                "Status, ports and live CPU and memory, with start, stop, restart and remove.",
             ),
             (
-                "Review in place",
-                "Description, conversation, commits, checks, and the changed files in \
-                 FerrumGIT's own diff view.",
+                "Logs and a shell",
+                "Follow logs live with search, and open a shell in the container in \
+                 FerrumTerm.",
             ),
             (
-                "Act on it",
-                "Check out a pull request, open one from your branch, comment, approve or \
-                 request changes, and merge after a confirmation.",
+                "Images, volumes and networks",
+                "Pull with progress, remove, and prune unused data with the space you get back.",
+            ),
+            (
+                "Compose in one click",
+                "Bring a whole project up, down or restart it.",
             ),
         ],
-        demo: feature_demos::git,
-        demo_label: "FerrumGIT with a commit graph, a highlighted search match, a side-by-side \
-                     diff and an Undo notification",
+        demo: feature_demos::dock,
+        demo_label: "FerrumContainers listing a Compose project's running containers with live CPU \
+                     bars and their logs",
     },
     AppFeatures {
         product: products::FERRUMDATA,
@@ -198,147 +251,6 @@ const APPS: [AppFeatures; 11] = [
         demo: feature_demos::data,
         demo_label: "FerrumData typing a SQL query, filling a sorted results grid, with query \
                      history and an export menu",
-    },
-    AppFeatures {
-        product: products::FERRUMTERM,
-        version: "0.3.0-alpha.1",
-        summary: "Remote machines and the ports on yours, from the sidebar.",
-        points: &[
-            (
-                "SSH hosts",
-                "Hosts from ~/.ssh/config and ones you save open in a new tab with one click, \
-                 or with fterm ssh. Passwords and keys stay with ssh.",
-            ),
-            (
-                "Port forwards",
-                "Local, remote and SOCKS forwards per host, started and stopped from the \
-                 sidebar. They keep running when you close the window.",
-            ),
-            (
-                "What's using a port?",
-                "See which process listens on a port, and stop it after a confirmation. Also \
-                 fterm port 3000.",
-            ),
-        ],
-        demo: feature_demos::term,
-        demo_label: "FerrumTerm with a sidebar of sessions and agents, an agent finishing its \
-                     work and terminal output being selected and copied",
-    },
-    AppFeatures {
-        product: products::FERRUMKIT,
-        version: "0.1.0-alpha.1",
-        summary: "New: the small tools you otherwise look up on random websites, in one native \
-                  window that works offline.",
-        points: &[
-            (
-                "JSON, YAML and TOML",
-                "Format, minify and validate with the exact error position, and convert \
-                 between the three.",
-            ),
-            (
-                "JWT decoder",
-                "Header and payload pretty-printed, expiry shown as a date. Tokens never \
-                 leave your Mac.",
-            ),
-            (
-                "Everyday converters",
-                "Base64, URL, timestamps, UUID and ULID, hashes, number bases, colours and \
-                 text case.",
-            ),
-            (
-                "Regex tester and diff",
-                "Live match highlighting with capture groups, and a line diff of two texts.",
-            ),
-        ],
-        demo: feature_demos::kit,
-        demo_label: "FerrumKit decoding a JWT: the header and payload are shown and the token \
-                     is marked expired",
-    },
-    AppFeatures {
-        product: products::FERRUMCONTAINERS,
-        version: "0.1.0-alpha.1",
-        summary: "New: a fast native window on Docker Desktop, OrbStack or Colima, and Podman \
-                  through DOCKER_HOST.",
-        points: &[
-            (
-                "Containers by Compose project",
-                "Status, ports and live CPU and memory, with start, stop, restart and remove.",
-            ),
-            (
-                "Logs and a shell",
-                "Follow logs live with search, and open a shell in the container in \
-                 FerrumTerm.",
-            ),
-            (
-                "Images, volumes and networks",
-                "Pull with progress, remove, and prune unused data with the space you get back.",
-            ),
-            (
-                "Compose in one click",
-                "Bring a whole project up, down or restart it.",
-            ),
-        ],
-        demo: feature_demos::dock,
-        demo_label: "FerrumContainers listing a Compose project's running containers with live CPU \
-                     bars and their logs",
-    },
-    AppFeatures {
-        product: products::FERRUM_SYSTEM,
-        version: "0.1.0-alpha.1",
-        summary: "New: design a system's architecture next to its code, on any cloud.",
-        points: &[
-            (
-                "Layers and connections",
-                "Components on layers, connected as requests, RPC, async messages, sockets or \
-                 change data capture, dragged into place.",
-            ),
-            (
-                "Every cloud's names",
-                "Generic, AWS, Azure, GCP, Hetzner, DigitalOcean or open source, one switch.",
-            ),
-            (
-                "Data and flows",
-                "Double-click a database for its tables; walk a request through, hop by hop.",
-            ),
-            (
-                "What runs it",
-                "Pods, containers, VMs or managed services, with live status from kubectl and \
-                 docker.",
-            ),
-        ],
-        demo: project_demos::system,
-        demo_label: "Ferrum System with the core banking demo on AWS: layers of components, \
-                     the ledger database picked and its schema opening.",
-    },
-    AppFeatures {
-        product: products::FERRUMPORTS,
-        version: "0.1.0-alpha.1",
-        summary: "New: which process is on port 3000, which project it belongs to, and a \
-                  confirmed way to stop it.",
-        points: &[
-            (
-                "Ports by project",
-                "TCP listeners, and UDP on request, with process, command and user, grouped \
-                 by the git project they run in.",
-            ),
-            (
-                "Stop a process",
-                "SIGTERM after a confirmation that shows the full command, then SIGKILL if it \
-                 is still running 2 s later.",
-            ),
-            (
-                "Is port N free?",
-                "Check a port before you use it, and get the nearest free one if it's taken.",
-            ),
-            (
-                "Search and hints",
-                "Refreshes every 2 s, searches every column, and names about 45 well-known \
-                 ports.",
-            ),
-        ],
-        demo: project_demos::ports,
-        demo_label: "FerrumPorts listing a project's listening ports, then stopping a dev \
-                     server after a confirmation",
     },
     AppFeatures {
         product: products::FERRUMVARIABLES,
@@ -371,14 +283,102 @@ const APPS: [AppFeatures; 11] = [
         demo_label: "FerrumVariables showing a project's development variables with secrets masked, \
                      one value revealed and copied",
     },
+    AppFeatures {
+        product: products::FERRUMPORTS,
+        version: "0.1.0-alpha.1",
+        summary: "New: which process is on port 3000, which project it belongs to, and a \
+                  confirmed way to stop it.",
+        points: &[
+            (
+                "Ports by project",
+                "TCP listeners, and UDP on request, with process, command and user, grouped \
+                 by the git project they run in.",
+            ),
+            (
+                "Stop a process",
+                "SIGTERM after a confirmation that shows the full command, then SIGKILL if it \
+                 is still running 2 s later.",
+            ),
+            (
+                "Is port N free?",
+                "Check a port before you use it, and get the nearest free one if it's taken.",
+            ),
+            (
+                "Search and hints",
+                "Refreshes every 2 s, searches every column, and names about 45 well-known \
+                 ports.",
+            ),
+        ],
+        demo: project_demos::ports,
+        demo_label: "FerrumPorts listing a project's listening ports, then stopping a dev \
+                     server after a confirmation",
+    },
+    AppFeatures {
+        product: products::FERRUMKIT,
+        version: "0.1.0-alpha.1",
+        summary: "New: the small tools you otherwise look up on random websites, in one native \
+                  window that works offline.",
+        points: &[
+            (
+                "JSON, YAML and TOML",
+                "Format, minify and validate with the exact error position, and convert \
+                 between the three.",
+            ),
+            (
+                "JWT decoder",
+                "Header and payload pretty-printed, expiry shown as a date. Tokens never \
+                 leave your Mac.",
+            ),
+            (
+                "Everyday converters",
+                "Base64, URL, timestamps, UUID and ULID, hashes, number bases, colours and \
+                 text case.",
+            ),
+            (
+                "Regex tester and diff",
+                "Live match highlighting with capture groups, and a line diff of two texts.",
+            ),
+        ],
+        demo: feature_demos::kit,
+        demo_label: "FerrumKit decoding a JWT: the header and payload are shown and the token \
+                     is marked expired",
+    },
+    AppFeatures {
+        product: products::FERRUM_SYSTEM,
+        version: "0.1.0-alpha.1",
+        summary: "New: design a system's architecture next to its code, on any cloud.",
+        points: &[
+            (
+                "Layers and connections",
+                "Components on layers, connected as requests, RPC, async messages, sockets or \
+                 change data capture, dragged into place.",
+            ),
+            (
+                "Every cloud's names",
+                "Generic, AWS, Azure, GCP, Hetzner, DigitalOcean or open source, one switch.",
+            ),
+            (
+                "Data and flows",
+                "Double-click a database for its tables; walk a request through, hop by hop.",
+            ),
+            (
+                "What runs it",
+                "Pods, containers, VMs or managed services, with live status from kubectl and \
+                 docker.",
+            ),
+        ],
+        demo: project_demos::system,
+        demo_label: "FerrumSystem with the core banking demo on AWS: layers of components, \
+                     the ledger database picked and its schema opening.",
+    },
 ];
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Features of every Ferrum app"),
-        "What every Ferrum app can do in the current alpha: FerrumIDE, FerrumEngineer, \
-         FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts \
-         and FerrumVariables.",
+        "What each Ferrum app does today: FerrumIDE, FerrumEngineer, FerrumGIT, \
+         FerrumTerm, FerrumAPI, FerrumContainers, FerrumData, and the tools FerrumVariables, \
+         FerrumPorts, FerrumKit and FerrumSystem.",
         PATH,
         "page-features",
     )
@@ -401,7 +401,7 @@ fn hero(trail: &[Crumb]) -> Markup {
             p {
                 "Eleven native developer apps, written in Rust and rendered with GPUI. This \
                  is what each one can do in the current alpha. "
-                a href=(site::DOWNLOAD_PATH) { "Ferrum Launcher" }
+                a href=(site::DOWNLOAD_PATH) { "FerrumLauncher" }
                 " installs them and keeps them up to date."
             }
             p {
@@ -411,12 +411,17 @@ fn hero(trail: &[Crumb]) -> Markup {
             }
         })
         .actions(html! {
-            nav aria-label="Apps on this page" {
-                ul class="feature-index" {
-                    @for app in &APPS {
-                        li {
-                            a href={ "#" (app.product.slug) } style=(app.product.accent_style()) {
-                                (app.product.name)
+            nav class="feature-index-nav" aria-label="Apps on this page" {
+                @for group in Group::ALL {
+                    div class="feature-index__group" {
+                        p class="feature-index__label" id={ "index-" (group.id()) } { (group.label()) }
+                        ul class="feature-index" aria-labelledby={ "index-" (group.id()) } {
+                            @for app in APPS.iter().filter(|a| a.product.group == Some(group)) {
+                                li {
+                                    a href={ "#" (app.product.slug) } style=(app.product.accent_style()) {
+                                        (app.product.name)
+                                    }
+                                }
                             }
                         }
                     }
@@ -487,6 +492,16 @@ mod tests {
         }
         assert_eq!(html.matches(r#"class="demo""#).count(), APPS.len());
         assert_eq!(html.matches(r#"role="img""#).count(), APPS.len());
+    }
+
+    #[test]
+    fn follows_the_site_order_in_two_groups() {
+        let order: Vec<_> = APPS.iter().map(|a| a.product.slug).collect();
+        let expected: Vec<_> = products::apps().map(|p| p.slug).collect();
+        assert_eq!(order, expected);
+        let html = rendered();
+        assert!(html.contains(r#"id="index-apps">Apps<"#));
+        assert!(html.contains(r#"id="index-tools">Tools<"#));
     }
 
     #[test]

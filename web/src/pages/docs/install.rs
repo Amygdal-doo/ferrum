@@ -1,4 +1,4 @@
-//! `/docs/install`: installing Ferrum Launcher and, through it, the apps.
+//! `/docs/install`: installing FerrumLauncher and, through it, the apps.
 //! Follows INSTALL.md at the repo root.
 
 use maud::{Markup, html};
@@ -12,12 +12,12 @@ use crate::layout::PageMeta;
 use crate::{products, site};
 
 pub const PATH: &str = "/docs/install";
-pub const TITLE: &str = "Install Ferrum Launcher";
+pub const TITLE: &str = "Install FerrumLauncher";
 
-const UNINSTALL_ALL: &str = "rm -rf \"/Applications/Ferrum Launcher.app\" ~/Applications/Ferrum ~/.ferrum \\\n       ~/Library/Application\\ Support/dev.Ferrum.FerrumLauncher";
+const UNINSTALL_ALL: &str = "rm -rf \"/Applications/FerrumLauncher.app\" ~/Applications/Ferrum ~/.ferrum \\\n       ~/Library/Application\\ Support/dev.Ferrum.FerrumLauncher";
 
 const FILES: [(&str, &str); 5] = [
-    ("Launcher", "/Applications/Ferrum Launcher.app"),
+    ("Launcher", "/Applications/FerrumLauncher.app"),
     ("Active apps", "~/Applications/Ferrum/<App>.app"),
     (
         "Installed versions",
@@ -32,8 +32,8 @@ const FILES: [(&str, &str); 5] = [
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
-        Some("Install Ferrum Launcher on macOS"),
-        "Install Ferrum Launcher with one Terminal command or the DMG, then install, update, \
+        Some("Install FerrumLauncher on macOS"),
+        "Install FerrumLauncher with one Terminal command or the DMG, then install, update, \
          roll back and uninstall every Ferrum app from it. No account needed.",
         PATH,
         "page-docs",
@@ -45,7 +45,7 @@ pub fn render(site_url: &str) -> Markup {
         TITLE,
         html! {
             p {
-                "You install Ferrum Launcher once. It installs, updates and rolls back every \
+                "You install FerrumLauncher once. It installs, updates and rolls back every \
                  other Ferrum app, which have no installers of their own. Builds are public, so \
                  you need no GitHub account."
             }
@@ -53,7 +53,9 @@ pub fn render(site_url: &str) -> Markup {
         html! {
             h2 id="requirements" { "What you need" }
             p {
-                "A Mac with Apple Silicon. The launcher downloads builds from the public "
+                "A Mac with Apple Silicon or an Intel chip, or Linux on x86_64 (Debian, Ubuntu \
+                 and derivatives; see the "
+                a href=(site::DOWNLOAD_PATH) { "download page" } "). The launcher downloads builds from the public "
                 code { (site::REPO_SLUG) } " repository on GitHub, so it needs to reach GitHub."
             }
 
@@ -74,8 +76,8 @@ pub fn render(site_url: &str) -> Markup {
                      from the newest " code { "launcher-v…" } " release on "
                     a href=(site::RELEASES_URL) rel="noopener" { "GitHub" } "."
                 }
-                li { "Open it and drag " strong { "Ferrum Launcher" } " onto " strong { "Applications" } "." }
-                li { "Open Ferrum Launcher. There is nothing to sign in to." }
+                li { "Open it and drag " strong { "FerrumLauncher" } " onto " strong { "Applications" } "." }
+                li { "Open FerrumLauncher. There is nothing to sign in to." }
             }
             @if site::MACOS_NOTARIZED {
                 p {

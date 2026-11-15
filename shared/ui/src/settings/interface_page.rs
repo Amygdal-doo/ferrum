@@ -1,10 +1,10 @@
-//! Settings › Interface: colour scheme, toolbar density, text size, Dock
-//! icon and the onboarding walkthrough.
+//! Settings › Interface: colour scheme, toolbar density, text size and the
+//! onboarding walkthrough. (Show in Dock is under Settings › System.)
 
 use gpui::{AnyElement, App, Hsla, IntoElement, ParentElement, Styled, Window, px};
 
 use super::widgets::{
-    ChoiceCard, Row, Section, Segmented, Switch, scheme_preview, style_preview, toolbar_preview,
+    ChoiceCard, Row, Section, Segmented, scheme_preview, style_preview, toolbar_preview,
 };
 use super::{SettingsPage, ShowOnboarding, tint};
 use crate::appearance::{self, ColorScheme, InterfaceStyle, TextSize, ToolbarStyle};
@@ -91,7 +91,6 @@ impl SettingsPage for InterfacePage {
             "scheme",
             "toolbar",
             "text size",
-            "dock",
             "onboarding",
         ]
     }
@@ -103,10 +102,8 @@ impl SettingsPage for InterfacePage {
             .iter()
             .position(|s| *s == prefs.text_size)
             .unwrap_or(1);
-        let in_dock = !crate::dock::hidden_by_preference();
         let tinted = usize::from(prefs.title_bar == appearance::TitleBarStyle::Tinted);
         let info = crate::app_info::app_info(cx);
-        let dock_info = info.clone();
         let extra_rows: Vec<AnyElement> =
             info.window_rows.iter().map(|row| row(window, cx)).collect();
         gpui::div()
@@ -161,21 +158,6 @@ impl SettingsPage for InterfacePage {
                                         appearance::update(cx, |p| p.text_size = sizes[i])
                                     }),
                             ),
-                    )
-                    .row(
-                        Row::new("dock-icon", "Show in Dock")
-                            .detail("Off: the app runs without a Dock icon or ⌘-Tab entry.")
-                            .control(Switch::new("dock-icon-switch", in_dock).on_change(
-                                move |on, _, cx| {
-                                    if let Some(on_dock) = &dock_info.on_dock {
-                                        on_dock(on, cx);
-                                    } else {
-                                        crate::dock::set_hidden(dock_info.binary, !on);
-                                        crate::dock::set_dock_icon_visible(on);
-                                    }
-                                    cx.refresh_windows();
-                                },
-                            )),
                     )
                     .rows(extra_rows),
             )

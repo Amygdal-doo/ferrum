@@ -1,8 +1,8 @@
 # web-ferrum
 
-Server-rendered marketing site for the **Ferrum** family of Rust developer tools
+Server-rendered marketing site for the **Ferrum** family of open-source Rust developer tools
 (FerrumIDE, FerrumEngineer, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm, FerrumKit, FerrumContainers,
-FerrumPorts, FerrumVariables and Ferrum Launcher). Project logs and GitHub Actions live
+FerrumPorts, FerrumVariables and FerrumLauncher). Project logs and GitHub Actions live
 in FerrumIDE's Logs and CI pages, presented as sections of `/ferrumide`.
 It is a single Rust binary built with
 Axum 0.8, maud templates and tower-http. All CSS, JS and images are embedded in
@@ -95,7 +95,9 @@ railway.toml       Railway build + deploy config
 
 ### Links and brand assets
 
-Site-wide links live in **`src/site.rs`**: every download CTA points to
+Site-wide links live in **`src/site.rs`**, including the source repository
+(`Amygdal-doo/ferrum`), its issues, discussions, CONTRIBUTING and security-advisory
+links, the licence (`MIT OR Apache-2.0`) and the three build-from-source commands: every download CTA points to
 `/download`, whose primary button is `/download/macos`. Builds are public
 GitHub Releases in `Amygdal-doo/ferrum-releases` (no sign-in needed). Set
 `site::MACOS_NOTARIZED = true` once notarized builds ship to hide the
@@ -116,8 +118,10 @@ again, run `tools/og/render.sh`, which needs Google Chrome. Keep its rows in syn
   uniqueness and length), a canonical URL from `SITE_URL`, Open Graph and Twitter cards,
   and exactly one `<h1>`.
 - JSON-LD: `Organization` (AMYGDAL d.o.o., Sarajevo) and `WebSite` on the home page.
-  `BreadcrumbList` on every page with a trail. `SoftwareApplication` on app pages (macOS,
-  `DeveloperApplication`, `price: 0`, because the site says every build is free).
+  `BreadcrumbList` on every page with a trail. `SoftwareApplication` on app pages (macOS and
+  Linux, `DeveloperApplication`, `price: 0`, because the site says every build is free,
+  `license` MIT and Apache-2.0, and `isBasedOn` a `SoftwareSourceCode` with the
+  `codeRepository`).
   `FAQPage` on `/faq` and `BlogPosting` on posts.
 - The 404 page is `noindex` and has no canonical URL.
 - `<html lang="en">`, light and dark `theme-color`, an SVG and a 32px PNG favicon, the

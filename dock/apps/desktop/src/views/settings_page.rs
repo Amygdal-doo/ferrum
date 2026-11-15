@@ -241,7 +241,7 @@ impl Render for EngineSettingsView {
         );
 
         let mut cli = Section::new("Command line: fec").detail(
-            "Like colima and docker in one. Turn the `fec` command on in Ferrum Launcher if your shell can't find it.",
+            "Like colima and docker in one. Turn the `fec` command on in FerrumLauncher if your shell can't find it.",
         );
         for (i, (command, what)) in COMMANDS.iter().enumerate() {
             cli = cli.row(

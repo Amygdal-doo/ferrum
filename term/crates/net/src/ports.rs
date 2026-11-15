@@ -346,10 +346,10 @@ mod tests {
 
     const LSOF: &str = "\
 COMMAND                   PID           USER   FD   TYPE             DEVICE SIZE/OFF NODE NAME
-rapportd                  626 abdulrahimklis   10u  IPv4 0xe3d7ee0f65b71f71      0t0  TCP *:56996 (LISTEN)
-rapportd                  626 abdulrahimklis   11u  IPv6 0xc9d07487146f8bf2      0t0  TCP *:56996 (LISTEN)
-adb                      1053 abdulrahimklis    8u  IPv4 0xbda726d263894082      0t0  TCP 127.0.0.1:5037 (LISTEN)
-node                     8077 abdulrahimklis   42u  IPv6 0xbd8456e937d6e004      0t0  TCP [::1]:5310 (LISTEN)
+rapportd                  626 me               10u  IPv4 0xe3d7ee0f65b71f71      0t0  TCP *:56996 (LISTEN)
+rapportd                  626 me               11u  IPv6 0xc9d07487146f8bf2      0t0  TCP *:56996 (LISTEN)
+adb                      1053 me                8u  IPv4 0xbda726d263894082      0t0  TCP 127.0.0.1:5037 (LISTEN)
+node                     8077 me               42u  IPv6 0xbd8456e937d6e004      0t0  TCP [::1]:5310 (LISTEN)
 Google\\x20Chrome\\x20Helper 21135 501   23u  IPv4 0x3c51      0t0  TCP 127.0.0.1:9222 (LISTEN)
 curl                     4242 me   5u  IPv4 0x1      0t0  TCP 10.0.0.2:51000->1.1.1.1:443 (ESTABLISHED)
 ";
@@ -371,7 +371,7 @@ curl                     4242 me   5u  IPv4 0x1      0t0  TCP 10.0.0.2:51000->1.
             ],
             "IPv4/IPv6 wildcard duplicates merge; connections are skipped"
         );
-        assert_eq!(v[0].user.as_deref(), Some("abdulrahimklis"));
+        assert_eq!(v[0].user.as_deref(), Some("me"));
         assert_eq!(v[2].user, None, "numeric uid is not a name");
         assert!(parse_lsof("").is_empty());
         assert!(parse_lsof("garbage line\n").is_empty());

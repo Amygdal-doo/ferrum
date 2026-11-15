@@ -1,7 +1,7 @@
 # FerrumData
 
 A local-first, DataGrip-class database IDE written in Rust: GPUI desktop (the UI framework
-from Zed, from the `../ide` submodule) with the shared `ferrum-ui` crate, SQLx. No backend server,
+from Zed, a pinned git dependency) with the shared `ferrum-ui` crate, SQLx. No backend server,
 no webview, no React/TypeScript/Tauri/Electron. Part of the Ferrum monorepo (`../`).
 
 > **Status: M0/M1 foundation + PostgreSQL, MySQL, SQLite, SurrealDB and MongoDB drivers, plus a Redis key browser (alpha).**
@@ -87,9 +87,9 @@ column widths and sort, keyboard navigation of the grid selection, history pagin
 - Rust via rustup. `rust-toolchain.toml` installs **1.99.1** automatically. SQLx 0.9
   needs ≥ 1.94.
 - macOS: Xcode command line tools (Metal shaders are compiled at build time). Linux: the
-  GPUI system packages listed in `../ide/script/linux` (Vulkan, Wayland/X11, fontconfig).
+  GPUI system packages listed in `../packaging/linux/Dockerfile` (Vulkan, Wayland/X11, fontconfig).
 - Build from the monorepo root (`../`): the workspace and Cargo aliases live there, and GPUI
-  is a path dependency into `../ide`.
+  is a git dependency on upstream Zed, pinned in the root `Cargo.toml`.
 - Optional: Docker (local PostgreSQL, MySQL, SurrealDB, MongoDB, Redis for integration tests).
 
 ## Commands
@@ -122,7 +122,7 @@ Lucide icons.
 
 ### Packaging
 FerrumData is bundled with `scripts/bundle-macos.sh` like the other apps; released macOS
-builds are signed with the Developer ID and notarized, and installed through Ferrum Launcher
+builds are signed with the Developer ID and notarized, and installed through FerrumLauncher
 (see [INSTALL.md](../INSTALL.md)).
 
 ## Layout

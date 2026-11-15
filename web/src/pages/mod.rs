@@ -23,6 +23,7 @@ pub mod ferrumports;
 pub mod ferrumterm;
 pub mod ferrumvariables;
 pub mod home;
+pub mod home_readme;
 pub mod licenses;
 pub mod not_found;
 pub mod posts;

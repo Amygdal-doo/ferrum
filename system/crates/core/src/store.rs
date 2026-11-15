@@ -71,7 +71,7 @@ pub fn save(project: &Path, system: &System) -> Result<(), StoreError> {
 }
 
 const README: &str = "# Architecture\n\n\
-This folder is the system's architecture, edited in Ferrum System (`fes .`).\n\n\
+This folder is the system's architecture, edited in FerrumSystem (`fes .`).\n\n\
 - `system.json`: layers, components, connections, APIs, sockets, databases, flows, \
 reliability notes and where each component runs.\n\
 - `icons/`: custom icons, named after the technology id (`my-tech.svg`). An icon \

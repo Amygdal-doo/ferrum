@@ -95,7 +95,7 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Launcher (free, see Download)"),
+        ("Install", "FerrumLauncher (free, see Download)"),
         ("Shell command", "fen (turn it on in the launcher)"),
         (
             "For the chat",

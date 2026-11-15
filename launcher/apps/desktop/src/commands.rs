@@ -416,7 +416,7 @@ impl FerrumLauncher {
         match swap {
             Ok(()) => {
                 self.notify_user(
-                    format!("Restarting into Ferrum Launcher {version}…"),
+                    format!("Restarting into FerrumLauncher {version}…"),
                     false,
                     cx,
                 );
@@ -447,7 +447,7 @@ impl FerrumLauncher {
 
     /// Runs a file-system operation on a copy of the app's state off the UI
     /// thread, then adopts the result for that app.
-    fn update_app_state(
+    pub(crate) fn update_app_state(
         &mut self,
         app: AppId,
         success: Option<String>,

@@ -1,8 +1,8 @@
 # Publishes a Ferrum app release when a tag `<app-id>-v<semver>` is pushed,
-# e.g. `api-v0.2.0`. Ferrum Launcher reads these releases.
+# e.g. `api-v0.2.0`. FerrumLauncher reads these releases.
 #
 # Assets per target, each with a `<same>.sha256`.
-# Read by Ferrum Launcher:
+# Read by FerrumLauncher:
 #   <app-id>-<version>-<target>.tar.gz      macOS/Linux: binaries at the root
 #   <app-id>-<version>-<target>.app.tar.gz  macOS: the .app bundle
 #   <app-id>-<version>-<target>.zip         Windows: .exe files and <app-id>.ico
@@ -14,8 +14,8 @@
 # FerrumTerm has no Windows build (its server uses Unix sockets).
 #
 # Releases are published to the public, releases-only repo $RELEASE_REPO
-# (customers and Ferrum Launcher download from it without signing in), not to
-# this private source repo.
+# (customers and FerrumLauncher download from it without signing in), not to
+# this source repo.
 #
 # `toolbox-v*` releases (the bridge for Ferrum Toolbox 0.5.0) are not built
 # here: scripts/package-bridge.sh makes them from a launcher release (see
@@ -23,10 +23,9 @@
 #
 # Secrets:
 #   RELEASES_TOKEN   A token with Contents: write on $RELEASE_REPO.
-#   SUBMODULE_TOKEN  A token with read access to Amygdal-doo/ferrum-ide (the
-#                    repo behind the ide/ submodule). Every app needs it checked
-#                    out, because the apps depend on its GPUI crates by path.
-#                    It is only a library; nothing is released from it.
+#
+# GPUI comes from upstream Zed as a pinned git dependency (Cargo.toml), so no
+# extra checkout or token is needed for it.
 name: Release
 
 on:
@@ -141,14 +140,16 @@ jobs:
           fi
       - uses: actions/checkout@v4
         if: env.FERRUM_SKIP != 'true'
-        with:
-          submodules: recursive
-          token: ${{ secrets.SUBMODULE_TOKEN }}
       - name: Linux dependencies
         if: env.FERRUM_SKIP != 'true' && runner.os == 'Linux'
+        # GPUI's build dependencies (same list as packaging/linux/Dockerfile).
         run: |
-          ide/script/linux
-          sudo apt-get install -y dpkg-dev
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config cmake clang lld llvm jq file \
+            libasound2-dev libfontconfig-dev libgit2-dev libglib2.0-dev libssl-dev libva-dev \
+            libvulkan1 libwayland-dev libx11-xcb-dev libxkbcommon-x11-dev libzstd-dev \
+            libsqlite3-dev dpkg-dev
       - name: License check (no GPL-family crates in shipped binaries)
         if: env.FERRUM_SKIP != 'true' && runner.os == 'Linux'
         run: scripts/check-licenses.sh
@@ -216,7 +217,7 @@ jobs:
           checksum "$name"
 
           if [ "${{ runner.os }}" = "macOS" ]; then
-            # .app bundle archive: preferred by Ferrum Launcher on macOS.
+            # .app bundle archive: preferred by FerrumLauncher on macOS.
             bundles="$(mktemp -d)"
             bundle="$(scripts/bundle-macos.sh "$APP" "$VERSION" "${{ matrix.target }}" "$TARGET_DIR" "$bundles")"
             if [ -n "${FERRUM_NOTARY_KEY:-}" ]; then

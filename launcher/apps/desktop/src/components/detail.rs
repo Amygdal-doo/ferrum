@@ -1,7 +1,9 @@
 //! Selected app: actions, versions and release notes.
 
+use super::uninstall::can_uninstall;
 use super::{channel_badge, discontinued_badge, format_count, format_size, status_badge};
 use crate::app::{FerrumLauncher, Page};
+use ferrum_ui::components::TintColor;
 use ferrum_ui::prelude::*;
 use ferrumlauncher_core::{AppId, ReleaseInfo, UpdateChannel, current_target};
 use semver::Version;
@@ -257,7 +259,7 @@ impl FerrumLauncher {
                                 )
                             })
                             .child(
-                                Label::new("Works anywhere while Ferrum Launcher runs (keep it in the menu bar)")
+                                Label::new("Works anywhere while FerrumLauncher runs (keep it in the menu bar)")
                                     .size(LabelSize::XSmall)
                                     .color(Color::Muted),
                             ),
@@ -428,6 +430,19 @@ impl FerrumLauncher {
                         })),
                 )
             })
+            // Every installed version, the app and its links, after a
+            // confirmation (see `components::uninstall`).
+            .when(can_uninstall(self, app), |this| {
+                this.child(
+                    Button::new("uninstall", "Uninstall…")
+                        .style(ButtonStyle::Tinted(TintColor::Error))
+                        .start_icon(Icon::new(IconName::Trash))
+                        .disabled(downloading)
+                        .on_click(
+                            cx.listener(move |this, _, _, cx| this.confirm_uninstall(app, cx)),
+                        ),
+                )
+            })
             .when_some(install, |this, version| {
                 this.child(
                     Button::new("install", format!("Install v{version}"))
@@ -455,20 +470,6 @@ impl FerrumLauncher {
                         )
                         .size(LabelSize::Small)
                         .color(Color::Muted),
-                    )
-                },
-            )
-            .when_some(
-                active.filter(|_| self.state.app(app).installed.len() == 1),
-                |this, version| {
-                    this.child(
-                        Button::new("uninstall", "Uninstall")
-                            .style(ButtonStyle::Subtle)
-                            .start_icon(Icon::new(IconName::Trash))
-                            .disabled(downloading)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.uninstall(app, version.clone(), cx)
-                            })),
                     )
                 },
             )

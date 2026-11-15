@@ -4,10 +4,38 @@
 pub const SITE_NAME: &str = "Ferrum";
 pub const SITE_TAGLINE: &str = "One launcher, every tool.";
 /// Home page `<title>` after "Ferrum: ".
-pub const SITE_TITLE: &str = "native developer tools for macOS, built in Rust";
-pub const SITE_DESCRIPTION: &str = "Ferrum is a family of native developer tools written in Rust and \
-     rendered with GPUI: a code editor, a window for coding agents, an API client, a Git client, a database IDE, a terminal, a \
-     container manager and developer utilities, installed and updated by Ferrum Launcher.";
+pub const SITE_TITLE: &str = "open-source native developer tools, built in Rust";
+pub const SITE_DESCRIPTION: &str = "Ferrum is a family of open-source native developer tools written \
+     in Rust and rendered with GPUI: a code editor, a window for coding agents, an API client, a Git client, a database IDE, a terminal, a \
+     container manager and developer utilities, installed and updated by FerrumLauncher.";
+
+/// The source code of every app and the launcher (public since 2026-11-15).
+pub const SOURCE_REPO_URL: &str = "https://github.com/Amygdal-doo/ferrum";
+/// `owner/name` of [`SOURCE_REPO_URL`], for display.
+pub const SOURCE_REPO_SLUG: &str = "Amygdal-doo/ferrum";
+pub const ISSUES_URL: &str = "https://github.com/Amygdal-doo/ferrum/issues";
+pub const DISCUSSIONS_URL: &str = "https://github.com/Amygdal-doo/ferrum/discussions";
+pub const CONTRIBUTING_URL: &str =
+    "https://github.com/Amygdal-doo/ferrum/blob/main/CONTRIBUTING.md";
+pub const CODE_OF_CONDUCT_URL: &str =
+    "https://github.com/Amygdal-doo/ferrum/blob/main/CODE_OF_CONDUCT.md";
+/// Private vulnerability reports (GitHub Security Advisories).
+pub const SECURITY_ADVISORY_URL: &str =
+    "https://github.com/Amygdal-doo/ferrum/security/advisories/new";
+/// Ferrum's own licence, as an SPDX expression.
+pub const LICENSE_SPDX: &str = "MIT OR Apache-2.0";
+pub const LICENSE_MIT_URL: &str = "https://github.com/Amygdal-doo/ferrum/blob/main/LICENSE-MIT";
+pub const LICENSE_APACHE_URL: &str =
+    "https://github.com/Amygdal-doo/ferrum/blob/main/LICENSE-APACHE";
+/// Day the source went public (`YYYY-MM-DD`).
+pub const OPEN_SOURCE_DATE: &str = "2026-11-15";
+/// Clone and run FerrumIDE from source: three commands. Each app's README
+/// names its package (`cargo run -p <package>`).
+pub const BUILD_FROM_SOURCE: [&str; 3] = [
+    "git clone https://github.com/Amygdal-doo/ferrum",
+    "cd ferrum",
+    "cargo run -p ferrumeditor-desktop",
+];
 
 /// Every download CTA on the site links here.
 pub const DOWNLOAD_PATH: &str = "/download";
@@ -22,7 +50,7 @@ pub const RELEASES_URL: &str = "https://github.com/Amygdal-doo/ferrum-releases/r
 pub const RELEASES_API_URL: &str =
     "https://api.github.com/repos/Amygdal-doo/ferrum-releases/releases?per_page=100";
 
-/// Redirects (302) to the newest stable Ferrum Launcher DMG (Apple Silicon).
+/// Redirects (302) to the newest stable FerrumLauncher DMG (Apple Silicon).
 pub const MACOS_DOWNLOAD_PATH: &str = "/download/macos";
 
 /// One-line Terminal install. curl downloads aren't quarantined, so this
@@ -54,7 +82,7 @@ pub const ORGANIZATION_COUNTRY: &str = "BA";
 
 /// Date the static page copy was last revised (`YYYY-MM-DD`): the sitemap's
 /// `lastmod` for pages without a date of their own. Bump it with content edits.
-pub const CONTENT_UPDATED: &str = "2026-11-13";
+pub const CONTENT_UPDATED: &str = "2026-11-15";
 
 /// Raw `install.sh` used by [`MACOS_INSTALL_COMMAND`].
 pub const INSTALL_SCRIPT_URL: &str =

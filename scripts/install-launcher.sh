@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Installs the latest Ferrum Launcher on macOS from GitHub Releases:
+# Installs the latest FerrumLauncher on macOS from GitHub Releases:
 #   curl -fsSL https://raw.githubusercontent.com/Amygdal-doo/ferrum-releases/main/install.sh | bash
 #   scripts/install-launcher.sh [--repo owner/name]
 #
@@ -11,10 +11,11 @@
 # used instead.
 #
 # Picks the newest launcher-v* release; before the first one exists, the
-# newest toolbox-v* release (Ferrum Launcher's former name). Installs the
+# newest toolbox-v* release (the launcher's first name, Ferrum Toolbox). Installs the
 # DMG's app, or the .app.tar.gz when the release has no DMG (the toolbox-v*
 # bridge), into /Applications, or ~/Applications when /Applications isn't
-# writable. An old "Ferrum Toolbox.app" next to it is moved to the Trash.
+# writable. An old "Ferrum Toolbox.app" or "Ferrum Launcher.app" (the
+# launcher's former names) is moved to the Trash, so one copy is left.
 set -euo pipefail
 
 repo="Amygdal-doo/ferrum-releases"
@@ -25,7 +26,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-[ "$(uname -s)" = "Darwin" ] || { echo "error: this installer is for macOS; on Linux use Ferrum Launcher's .deb or tarball" >&2; exit 1; }
+[ "$(uname -s)" = "Darwin" ] || { echo "error: this installer is for macOS; on Linux use FerrumLauncher's .deb or tarball" >&2; exit 1; }
 use_gh=false
 if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then use_gh=true; fi
 
@@ -55,13 +56,11 @@ prefix="${tag%%-v*}"
 version="${tag#*-v}"
 if [ "$prefix" = "launcher" ]; then
   dmg="FerrumLauncher-$version-$arch.dmg"
-  app="Ferrum Launcher.app"
 else
   dmg="FerrumToolbox-$version-$arch.dmg"
-  app="Ferrum Toolbox.app"
 fi
 archive="$prefix-$version-$target.app.tar.gz"
-echo "Installing Ferrum Launcher $version ($arch) from $repo…"
+echo "Installing FerrumLauncher $version ($arch) from $repo…"
 
 work="$(mktemp -d)"
 mount=""
@@ -96,7 +95,9 @@ if fetch "$dmg"; then
   verify "$dmg"
   mount="$(mktemp -d)"
   hdiutil attach -quiet -nobrowse -readonly -mountpoint "$mount" "$work/$dmg"
-  source_app="$mount/$app"
+  # FerrumLauncher.app; "Ferrum Launcher.app" or "Ferrum Toolbox.app" in
+  # older releases.
+  source_app="$(find "$mount" -maxdepth 1 -name '*.app' -type d | head -1)"
 elif fetch "$archive"; then
   verify "$archive"
   mkdir -p "$work/unpacked"
@@ -114,12 +115,14 @@ cp -R "$source_app" "$installed"
 # Downloaded by gh/curl, not a browser, but clear quarantine in case it was set.
 xattr -dr com.apple.quarantine "$installed" 2>/dev/null || true
 
-# Ferrum Toolbox is the same app under its old name; its data moves to the
-# launcher on first start. Move the old bundle to the Trash (recoverable).
-for old in "/Applications/Ferrum Toolbox.app" "$HOME/Applications/Ferrum Toolbox.app"; do
+# Ferrum Toolbox and Ferrum Launcher are the same app under its old names;
+# Toolbox's data moves to the launcher on first start. Move the old bundles
+# to the Trash (recoverable).
+for old in "/Applications/Ferrum Toolbox.app" "$HOME/Applications/Ferrum Toolbox.app" \
+  "/Applications/Ferrum Launcher.app" "$HOME/Applications/Ferrum Launcher.app"; do
   if [ "$old" != "$installed" ] && [ -d "$old" ] && [ -w "$(dirname "$old")" ]; then
     mkdir -p "$HOME/.Trash"
-    mv "$old" "$HOME/.Trash/Ferrum Toolbox $(date +%Y%m%d%H%M%S).app" \
+    mv "$old" "$HOME/.Trash/$(basename "$old" .app) $(date +%Y%m%d%H%M%S).app" \
       && echo "Moved the old $old to the Trash."
   fi
 done

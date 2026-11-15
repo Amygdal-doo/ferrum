@@ -2,7 +2,7 @@
 #   scripts/package-windows.ps1 -App <id> -Version <semver> -BinaryDir <dir> -OutDir <dir>
 #
 # Produces, in OutDir:
-#   <id>-<version>-x86_64-pc-windows-msvc.zip   exes + <id>.ico, read by Ferrum Launcher
+#   <id>-<version>-x86_64-pc-windows-msvc.zip   exes + <id>.ico, read by FerrumLauncher
 #   <AppFileName>-<version>-x86_64-setup.exe     Inno Setup installer for people
 # Pass -SkipInstaller to build only the zip (e.g. when Inno Setup is missing).
 # Keep the app table in sync with scripts/lib/apps.sh.
@@ -28,7 +28,7 @@ $apps = @{
     editor  = @{ Name = "FerrumIDE";      Binaries = @("ferrumeditor") }
     ports   = @{ Name = "FerrumPorts";    Binaries = @("ferrumports") }
     env     = @{ Name = "FerrumVariables"; Binaries = @("ferrumenv") }
-    launcher = @{ Name = "Ferrum Launcher"; Binaries = @("ferrum-launcher") }
+    launcher = @{ Name = "FerrumLauncher"; Binaries = @("ferrum-launcher") }
 }
 if ($App -eq "term") {
     throw "FerrumTerm has no Windows build yet (its server uses Unix sockets)."

@@ -36,7 +36,8 @@ impl Post {
     }
 }
 
-/// Every post. Order doesn't matter: [`newest_first`] sorts them.
+/// Every post. [`newest_first`] sorts them by date; among posts of the same
+/// day, the one listed later here comes first.
 pub const POSTS: &[Post] = &[
     posts::public_alpha::POST,
     posts::editor_panes_agentic::POST,
@@ -49,13 +50,15 @@ pub const POSTS: &[Post] = &[
     posts::per_app_themes::POST,
     posts::system_and_vibe::POST,
     posts::three_new_names::POST,
+    posts::open_source::POST,
 ];
 
-/// Posts sorted by date, newest first (ties by title).
+/// Posts sorted by date, newest first; on the same day, the one listed
+/// later in [`POSTS`] first.
 pub fn newest_first() -> Vec<&'static Post> {
-    let mut all: Vec<&Post> = POSTS.iter().collect();
-    all.sort_by(|a, b| b.date.cmp(a.date).then(a.title.cmp(b.title)));
-    all
+    let mut all: Vec<(usize, &Post)> = POSTS.iter().enumerate().collect();
+    all.sort_by(|(i, a), (j, b)| b.date.cmp(a.date).then(j.cmp(i)));
+    all.into_iter().map(|(_, p)| p).collect()
 }
 
 pub fn find(slug: &str) -> Option<&'static Post> {
@@ -122,5 +125,6 @@ mod tests {
         let posts = newest_first();
         assert!(posts.windows(2).all(|w| w[0].date >= w[1].date));
         assert_eq!(posts.len(), POSTS.len());
+        assert_eq!(posts[0].slug, "ferrum-is-open-source");
     }
 }

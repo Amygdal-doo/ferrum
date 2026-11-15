@@ -1,12 +1,12 @@
 # Installing Ferrum
 
-You install **Ferrum Launcher** once. It then installs, updates and rolls back
+You install **FerrumLauncher** once. It then installs, updates and rolls back
 every other Ferrum app (FerrumIDE, FerrumEngineer, FerrumAPI, FerrumGIT,
 FerrumData, FerrumTerm, FerrumKit, FerrumContainers, and apps published later).
 Only the launcher has an installer (`.dmg`, `.exe`, `.deb`); the other apps are
 installed through it and have no separate download.
 
-Ferrum Launcher was called **Ferrum Toolbox** up to 0.5.0. See
+FerrumLauncher (Ferrum Launcher until 2026-11) was called **Ferrum Toolbox** up to 0.5.0. See
 [Coming from Ferrum Toolbox](#coming-from-ferrum-toolbox).
 
 The Zed-based Ferrum IDE is no longer offered; FerrumIDE (formerly Ferrum Editor) is the suite's code editor
@@ -17,7 +17,7 @@ uninstalled, but gets no updates.
 Releases are public, in <https://github.com/Amygdal-doo/ferrum-releases>, so
 no GitHub account is needed. Every app is in **alpha**.
 
-## 1. Install Ferrum Launcher
+## 1. Install FerrumLauncher
 
 **Option A: Terminal**
 
@@ -36,7 +36,7 @@ show the "could not verify" dialog. The same script is
 1. Download `FerrumLauncher-<version>-aarch64.dmg` (Apple Silicon) from the
    newest `launcher-v…` release at
    <https://github.com/Amygdal-doo/ferrum-releases/releases>.
-2. Open it and drag **Ferrum Launcher** onto **Applications**.
+2. Open it and drag **FerrumLauncher** onto **Applications**.
 3. Open it. Releases are signed with the AMYGDAL d.o.o. Sarajevo Developer
    ID and notarized by Apple, so macOS opens them without a warning.
 
@@ -77,6 +77,19 @@ Click an app in the overview, then **Install**. The launcher:
    echo 'export PATH="$HOME/.ferrum/bin:$PATH"' >> ~/.zshrc
    ```
 
+   Turning on a shell command (below) does this for you.
+
+**Shell commands.** Each app can be opened from a terminal: turn on its
+command in the app's **Settings › System** (or on its page in the
+launcher) and `fei .` opens the current folder in FerrumIDE, `feg .` in
+FerrumGIT, `fet` FerrumTerm there, and so on. The launcher also installs one
+command for all of them, `ferrum <app> [path]` (`ferrum ide .`,
+`ferrum git`, `ferrum list`, `ferrum help`), so the short names are
+optional. Short commands can be renamed or turned off at any time; the
+scripts in `~/.ferrum/bin` change at once. The choices (and Show in Dock)
+are kept in `~/.ferrum/preferences.json`, shared by the launcher and every
+app. See the [README](README.md#shell-commands) for the full list.
+
 **Launch** opens the app through macOS (`open`), like double-clicking it.
 Apps installed by the launcher aren't quarantined, so they open without a
 Gatekeeper prompt.
@@ -91,8 +104,15 @@ available" banner with **Install**. No launcher update is needed.
   newer release get an **Update to vX** button.
 - **The launcher itself:** when a newer launcher is released, the toolbar
   shows **Update Launcher to vX**. It downloads the new version, replaces
-  `/Applications/Ferrum Launcher.app` and restarts. No DMG, no Gatekeeper
+  `/Applications/FerrumLauncher.app` and restarts. No DMG, no Gatekeeper
   prompt.
+  A copy still called `Ferrum Launcher.app` (the name before 2026-11) renames
+  itself to `FerrumLauncher.app` after that update, replacing any other copy
+  with the new name in the same folder, so one copy is left.
+- **Uninstall an app:** **Uninstall…** on the app's page (or in its
+  right-click menu) removes every installed version, its app and its
+  command-line links. Its settings and data in `~/.ferrum` are kept unless
+  you tick **Also remove settings and data**.
 - **Update** installs the new version and makes it active.
   `~/Applications/Ferrum/<App>.app` and `~/.ferrum/bin` switch over.
 - **Rollback:** pick an older version in the versions list and click
@@ -112,7 +132,7 @@ available" banner with **Install**. No launcher update is needed.
   `~/Applications/Ferrum/<App>.app` and its `~/.ferrum/bin` links.
 - **Everything:**
   ```bash
-  rm -rf "/Applications/Ferrum Launcher.app" ~/Applications/Ferrum ~/.ferrum \
+  rm -rf "/Applications/FerrumLauncher.app" ~/Applications/Ferrum ~/.ferrum \
          ~/Library/Application\ Support/dev.Ferrum.FerrumLauncher
   security delete-generic-password -s FerrumLauncher   # saved token, if any
   ```
@@ -123,17 +143,17 @@ available" banner with **Install**. No launcher update is needed.
 
 ## Coming from Ferrum Toolbox
 
-Ferrum Toolbox 0.5.0 updates itself to Ferrum Launcher: click **Update
+Ferrum Toolbox 0.5.0 updates itself to FerrumLauncher: click **Update
 Toolbox to v0.6.0** as usual. Then, on the first start, the launcher
 
-- renames `Ferrum Toolbox.app` to `Ferrum Launcher.app` in the same folder
+- renames `Ferrum Toolbox.app` to `FerrumLauncher.app` in the same folder
   and restarts from there (if the folder isn't writable it keeps running and
   says so; drag it to the new name yourself or reinstall);
 - moves its data from `dev.Ferrum.FerrumToolbox` to `dev.Ferrum.FerrumLauncher`
   (installed apps, active versions, update channels, settings) and leaves a
   link at the old path;
 - copies the GitHub token from the `FerrumToolbox` keychain entry to
-  `FerrumLauncher` (macOS may ask once whether Ferrum Launcher may read it);
+  `FerrumLauncher` (macOS may ask once whether FerrumLauncher may read it);
 - points `~/.ferrum/bin/ferrum-launcher` at itself and keeps
   `ferrum-toolbox` as a link for this release;
 - shows FerrumKit, FerrumContainers and FerrumIDE, added after 0.5.0, as **New**.
@@ -150,7 +170,7 @@ and moves an old `Ferrum Toolbox.app` to the Trash.
   Developer ID and notarized by Apple, so they open without a warning. A build
   you make yourself without `FERRUM_SIGN_IDENTITY` is only ad-hoc signed; open
   it once with **System Settings → Privacy & Security → Open Anyway**, or run
-  `xattr -dr com.apple.quarantine "/Applications/Ferrum Launcher.app"`.
+  `xattr -dr com.apple.quarantine "/Applications/FerrumLauncher.app"`.
 - **Windows:** SmartScreen shows "Windows protected your PC" for the setup
   file. Click **More info → Run anyway**.
 - **Linux:** no prompt. GPUI needs a Vulkan driver (`mesa-vulkan-drivers` is
@@ -163,12 +183,13 @@ over Unix sockets.
 
 | What | Where |
 | --- | --- |
-| Launcher | `/Applications/Ferrum Launcher.app` |
+| Launcher | `/Applications/FerrumLauncher.app` |
 | Active apps | `~/Applications/Ferrum/<App>.app` |
 | All installed versions | `~/Library/Application Support/dev.Ferrum.FerrumLauncher/apps/<app>/<version>/<App>.app` |
 | Settings and state | `…/dev.Ferrum.FerrumLauncher/state.json` (no token) |
 | Catalog logos | `…/dev.Ferrum.FerrumLauncher/logos/` |
-| CLI links | `~/.ferrum/bin/` |
+| CLI links and shell commands | `~/.ferrum/bin/` |
+| Shell commands, Show in Dock | `~/.ferrum/preferences.json` |
 | Token | macOS Keychain, service `FerrumLauncher` |
 
 ## Linux
@@ -227,9 +248,10 @@ scripts/bundle-macos.sh data 0.3.0 aarch64-apple-darwin target/release dist
 scripts/make-dmg.sh dist/FerrumData.app dist/FerrumData-0.3.0-aarch64.dmg FerrumData
 ```
 
-The workflow needs the `SUBMODULE_TOKEN` secret (read access to
-`Amygdal-doo/ferrum-ide`, the repository behind the `ide/` submodule that
-provides GPUI). See [launcher/README.md](launcher/README.md).
+The workflow needs the `RELEASES_TOKEN` secret (see the header of
+`.github/workflows/release.yml`). GPUI is a pinned git dependency on upstream
+Zed, so no other repository access is needed. See
+[launcher/README.md](launcher/README.md).
 
 ## Known limitations
 
@@ -254,3 +276,12 @@ provides GPUI). See [launcher/README.md](launcher/README.md).
   shortcuts use `<app>.ico`. SmartScreen warns because nothing is signed.
 - **Linux:** only x86_64 `.deb` packages and tarballs (no arm64, RPM, Flatpak
   or AppImage).
+
+## Building from source
+
+Ferrum is open source under MIT OR Apache-2.0 (see [`LICENSE-MIT`](LICENSE-MIT)
+and [`LICENSE-APACHE`](LICENSE-APACHE)). To build an app yourself instead of
+installing a release, see [`CONTRIBUTING.md`](CONTRIBUTING.md): with
+[rustup](https://rustup.rs) installed, `cargo run --release -p <package>`
+from the repository root (for example `ferrumgit-desktop`) is enough; the first
+build downloads and compiles GPUI from upstream Zed.

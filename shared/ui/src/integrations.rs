@@ -110,7 +110,7 @@ pub fn installed_agents() -> Vec<Agent> {
 /// The skill teaching agents to drive the Ferrum apps from the shell.
 pub const SKILL: &str = r#"---
 name: ferrum
-description: Open and drive the Ferrum developer tools (FerrumIDE, FerrumGIT, FerrumTerm, FerrumAPI, FerrumData, FerrumContainers, FerrumPorts, FerrumVariables, FerrumKit, FerrumEngineer, Ferrum System) from the command line. Use when the user asks to open a file or project in Ferrum, show a repo in FerrumGIT, run something in a FerrumTerm pane, or mentions any Ferrum app.
+description: Open and drive the Ferrum developer tools (FerrumIDE, FerrumGIT, FerrumTerm, FerrumAPI, FerrumData, FerrumContainers, FerrumPorts, FerrumVariables, FerrumKit, FerrumEngineer, FerrumSystem) from the command line. Use when the user asks to open a file or project in Ferrum, show a repo in FerrumGIT, run something in a FerrumTerm pane, or mentions any Ferrum app.
 ---
 
 # Ferrum tools
@@ -124,7 +124,7 @@ Launcher). Call them by full path if `~/.ferrum/bin` is not on `PATH`.
 - `ferrumgit <repo>` — show a repository in FerrumGIT.
 - `ferrumvibe <folder>` — chat, git and terminal side by side for a project
   (FerrumEngineer).
-- `ferrumsystem <folder>` — the project's architecture diagram (Ferrum System);
+- `ferrumsystem <folder>` — the project's architecture diagram (FerrumSystem);
   it is kept in `<folder>/.architecture/system.json`, which you may read or edit.
 - `ferrumdock <folder>` — containers for a project (FerrumContainers).
 - `ferrumports <folder>` — listening ports and their processes.
@@ -192,7 +192,7 @@ pub fn remove_skill() -> std::io::Result<()> {
     Ok(())
 }
 
-/// `~/.ferrum/bin/<binary>`, when Ferrum Launcher linked it.
+/// `~/.ferrum/bin/<binary>`, when FerrumLauncher linked it.
 pub fn cli_path(binary: &str) -> Option<PathBuf> {
     Some(prefs::ferrum_dir()?.join("bin").join(binary)).filter(|p| p.exists())
 }

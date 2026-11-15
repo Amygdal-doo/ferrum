@@ -2,6 +2,7 @@ pub mod detail;
 pub mod logo;
 pub mod onboarding;
 pub mod overview;
+pub mod uninstall;
 
 use ferrum_ui::gpui::Hsla;
 use ferrum_ui::prelude::*;

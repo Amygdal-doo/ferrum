@@ -2,7 +2,7 @@
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status {
-    /// Installable through Ferrum Launcher, actively developed. Every app today.
+    /// Installable through FerrumLauncher, actively developed. Every app today.
     Alpha,
 }
 
@@ -20,6 +20,36 @@ impl Status {
     }
 }
 
+/// Which list an app is shown in. The launcher has no group: it is listed
+/// on its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Group {
+    /// The apps a working day happens in: editor, agents, Git, terminal, API,
+    /// containers and data.
+    Apps,
+    /// Smaller utilities: variables, ports, conversions and architecture.
+    Tools,
+}
+
+impl Group {
+    pub const ALL: [Group; 2] = [Group::Apps, Group::Tools];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Group::Apps => "Apps",
+            Group::Tools => "Tools",
+        }
+    }
+
+    /// Anchor id of the group's section.
+    pub fn id(self) -> &'static str {
+        match self {
+            Group::Apps => "apps",
+            Group::Tools => "tools",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct Product {
     pub slug: &'static str,
@@ -31,6 +61,8 @@ pub struct Product {
     pub kind: &'static str,
     pub tagline: &'static str,
     pub status: Status,
+    /// `None` only for the launcher.
+    pub group: Option<Group>,
 }
 
 impl Product {
@@ -62,6 +94,7 @@ pub const FERRUMENGINEER: Product = Product {
     kind: "Agentic engineering",
     tagline: "FerrumChat, FerrumGIT and FerrumTerm side by side on one project, in one window.",
     status: Status::Alpha,
+    group: Some(Group::Apps),
 };
 
 pub const FERRUMAPI: Product = Product {
@@ -73,6 +106,7 @@ pub const FERRUMAPI: Product = Product {
     tagline: "A native, local-first API client for REST, GraphQL, gRPC and more, minus \
               the bloat.",
     status: Status::Alpha,
+    group: Some(Group::Apps),
 };
 
 pub const FERRUMGIT: Product = Product {
@@ -83,6 +117,7 @@ pub const FERRUMGIT: Product = Product {
     kind: "Git client",
     tagline: "A native Git client with a commit graph, line staging and per-project SSH profiles.",
     status: Status::Alpha,
+    group: Some(Group::Apps),
 };
 
 pub const FERRUMDATA: Product = Product {
@@ -94,6 +129,7 @@ pub const FERRUMDATA: Product = Product {
     tagline: "A local-first, DataGrip-class database IDE for PostgreSQL, MySQL, SQLite, \
               SurrealDB, MongoDB and Redis.",
     status: Status::Alpha,
+    group: Some(Group::Apps),
 };
 
 pub const FERRUMTERM: Product = Product {
@@ -104,6 +140,7 @@ pub const FERRUMTERM: Product = Product {
     kind: "Terminal",
     tagline: "A GPU terminal whose sessions live in a server, with the fterm CLI for humans and agents.",
     status: Status::Alpha,
+    group: Some(Group::Apps),
 };
 
 pub const FERRUMKIT: Product = Product {
@@ -114,6 +151,7 @@ pub const FERRUMKIT: Product = Product {
     kind: "Developer utilities",
     tagline: "JSON, JWT, Base64, regex, hashes and timestamps in one native window. Nothing leaves your Mac.",
     status: Status::Alpha,
+    group: Some(Group::Tools),
 };
 
 pub const FERRUMCONTAINERS: Product = Product {
@@ -124,17 +162,19 @@ pub const FERRUMCONTAINERS: Product = Product {
     kind: "Container manager",
     tagline: "A fast, native window on your containers, for Docker Desktop, OrbStack, Colima and Podman.",
     status: Status::Alpha,
+    group: Some(Group::Apps),
 };
 
 pub const FERRUM_SYSTEM: Product = Product {
     slug: "ferrum-system",
-    name: "Ferrum System",
+    name: "FerrumSystem",
     logo: "system",
     accent_var: "--app-system",
     kind: "Architecture diagrams",
     tagline: "Design a system's architecture in its own repo: layers, services on any cloud, \
               data, flows and the pods that run it.",
     status: Status::Alpha,
+    group: Some(Group::Tools),
 };
 
 pub const FERRUMPORTS: Product = Product {
@@ -145,6 +185,7 @@ pub const FERRUMPORTS: Product = Product {
     kind: "Port inspector",
     tagline: "Every listening port with its process and project, and a confirmed way to stop it.",
     status: Status::Alpha,
+    group: Some(Group::Tools),
 };
 
 pub const FERRUMVARIABLES: Product = Product {
@@ -156,6 +197,7 @@ pub const FERRUMVARIABLES: Product = Product {
     tagline: "A password-locked vault for your projects' environment variables, with encrypted \
               sharing between developers.",
     status: Status::Alpha,
+    group: Some(Group::Tools),
 };
 
 pub const FERRUMIDE: Product = Product {
@@ -167,31 +209,33 @@ pub const FERRUMIDE: Product = Product {
     tagline: "A small, hackable code editor in the spirit of Atom, written from scratch in Rust and \
               configured in plain TOML.",
     status: Status::Alpha,
+    group: Some(Group::Apps),
 };
 
 pub const FERRUM_LAUNCHER: Product = Product {
     slug: "ferrum-launcher",
-    name: "Ferrum Launcher",
+    name: "FerrumLauncher",
     logo: "launcher",
     accent_var: "--app-launcher",
     kind: "App manager",
     tagline: "Installs, updates, rolls back and launches every Ferrum app from one window.",
     status: Status::Alpha,
+    group: None,
 };
 
-/// Site order: FerrumIDE, the suite's code editor, leads, as in catalog.json.
+/// Site order: the apps (FerrumIDE first), then the tools, then the launcher.
 pub const ALL: [Product; 12] = [
     FERRUMIDE,
     FERRUMENGINEER,
-    FERRUM_SYSTEM,
-    FERRUMAPI,
     FERRUMGIT,
-    FERRUMDATA,
     FERRUMTERM,
-    FERRUMKIT,
+    FERRUMAPI,
     FERRUMCONTAINERS,
-    FERRUMPORTS,
+    FERRUMDATA,
     FERRUMVARIABLES,
+    FERRUMPORTS,
+    FERRUMKIT,
+    FERRUM_SYSTEM,
     FERRUM_LAUNCHER,
 ];
 
@@ -201,9 +245,14 @@ pub fn by_release_id(id: &str) -> Option<&'static Product> {
     ALL.iter().find(|p| p.logo == id)
 }
 
-/// The apps Ferrum Launcher manages, i.e. everything except the launcher itself.
+/// The apps FerrumLauncher manages, i.e. everything except the launcher itself.
 pub fn apps() -> impl Iterator<Item = &'static Product> {
     ALL.iter().filter(|p| p.slug != FERRUM_LAUNCHER.slug)
+}
+
+/// The products of one group, in site order.
+pub fn in_group(group: Group) -> impl Iterator<Item = &'static Product> {
+    ALL.iter().filter(move |p| p.group == Some(group))
 }
 
 #[cfg(test)]
@@ -244,6 +293,38 @@ mod tests {
             Some("ferrum-launcher")
         );
         assert!(by_release_id("ide").is_none());
+    }
+
+    #[test]
+    fn groups_split_the_apps_in_order() {
+        let names = |g| in_group(g).map(|p| p.name).collect::<Vec<_>>();
+        assert_eq!(
+            names(Group::Apps),
+            [
+                "FerrumIDE",
+                "FerrumEngineer",
+                "FerrumGIT",
+                "FerrumTerm",
+                "FerrumAPI",
+                "FerrumContainers",
+                "FerrumData",
+            ]
+        );
+        assert_eq!(
+            names(Group::Tools),
+            [
+                "FerrumVariables",
+                "FerrumPorts",
+                "FerrumKit",
+                "FerrumSystem"
+            ]
+        );
+        // Every app but the launcher has a group, and ALL lists groups in order.
+        assert!(apps().all(|p| p.group.is_some()));
+        assert!(FERRUM_LAUNCHER.group.is_none());
+        let grouped: Vec<_> = Group::ALL.iter().flat_map(|g| in_group(*g)).collect();
+        assert_eq!(grouped.len(), apps().count());
+        assert!(grouped.iter().zip(apps()).all(|(a, b)| a.slug == b.slug));
     }
 
     #[test]

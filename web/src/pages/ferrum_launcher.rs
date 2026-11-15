@@ -1,10 +1,10 @@
-//! Ferrum Launcher product page. Claims follow the launcher README.
+//! FerrumLauncher product page. Claims follow the launcher README.
 
 use maud::Markup;
 
 use super::product_sections::{self as sections, BulletGroup, ProductPage};
 use crate::components::{card, section::Section};
-use crate::products::{self, FERRUM_LAUNCHER};
+use crate::products::FERRUM_LAUNCHER;
 
 const FEATURES: &[(&str, &str)] = &[
     (
@@ -45,7 +45,7 @@ const MANAGES: &[&str] = &[
     "Itself: new launcher versions install in place and restart the app",
     "Keeps the last 3 versions of each app by default",
     "Shell commands like `fei .` to open FerrumIDE on the current folder, `feg .` for \
-     FerrumGIT or `fet` for FerrumTerm, `fen` for FerrumEngineer, `fes` for Ferrum System, and `fep` and `fev` for \
+     FerrumGIT or `fet` for FerrumTerm, `fen` for FerrumEngineer, `fes` for FerrumSystem, and `fep` and `fev` for \
      FerrumPorts and FerrumVariables, each turned on per app",
     "Global shortcuts, a menu bar icon and hiding any app from the Dock (macOS)",
 ];
@@ -58,7 +58,7 @@ const AUTH: &[&str] = &[
 
 const PAGE: ProductPage = ProductPage {
     product: FERRUM_LAUNCHER,
-    meta_description: "Ferrum Launcher installs, updates, rolls back and launches every Ferrum \
+    meta_description: "FerrumLauncher installs, updates, rolls back and launches every Ferrum \
                        app from one native GPUI window.",
     intro: "One app to manage the whole Ferrum family, in the spirit of an IDE launcher. Every \
             version of every app is a GitHub Release; the launcher installs the one you pick \
@@ -66,7 +66,7 @@ const PAGE: ProductPage = ProductPage {
     features_lead: "Install the launcher once; it takes care of the rest.",
     features: FEATURES,
     screenshots: &["App list with update badges and the version history of one app"],
-    status_summary: "Ferrum Launcher is in alpha. Its install, checksum, unpacking and \
+    status_summary: "FerrumLauncher is in alpha. Its install, checksum, unpacking and \
                      version-pruning logic is covered by automated tests against a local fake \
                      release server.",
     status_groups: &[
@@ -80,7 +80,10 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Get it", "Free DMG for Apple Silicon Macs (see Download)"),
+        (
+            "Get it",
+            "Free DMG for Apple Silicon and Intel Macs, .deb for Linux (see Download)",
+        ),
         ("Installers", "macOS DMG and Linux .deb"),
         (
             "Releases",
@@ -96,7 +99,7 @@ const PAGE: ProductPage = ProductPage {
 fn managed_apps() -> Markup {
     Section::new("managed", "Apps it installs")
         .tight()
-        .render(card::app_strip(products::apps(), true))
+        .render(card::grouped_app_strips(true))
 }
 
 pub fn render(site_url: &str) -> Markup {
@@ -106,6 +109,7 @@ pub fn render(site_url: &str) -> Markup {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::products;
 
     fn rendered() -> String {
         render("https://example.test").into_string()
@@ -115,7 +119,7 @@ mod tests {
     fn renders_single_h1_and_lists_managed_apps() {
         let html = rendered();
         assert_eq!(html.matches("<h1").count(), 1);
-        assert!(html.contains(">Ferrum Launcher</h1>"));
+        assert!(html.contains(">FerrumLauncher</h1>"));
         for p in products::apps() {
             assert!(
                 html.contains(&format!("href=\"{}\"", p.path())),

@@ -92,7 +92,7 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Launcher (free, see Download)"),
+        ("Install", "FerrumLauncher (free, see Download)"),
         (
             "Needs",
             "A running Docker-compatible engine: Docker Desktop, OrbStack, Colima or Podman",

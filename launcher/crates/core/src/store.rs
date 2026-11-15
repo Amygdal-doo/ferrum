@@ -186,7 +186,9 @@ pub struct Settings {
     pub channels_revision: u32,
     /// Bumped by one-time moves of the suggested shell commands (see
     /// [`crate::shell::rename_defaults`]). Missing in older state files,
-    /// which read as 0 and get every move.
+    /// which read as 0 and get every move. Handed to
+    /// `~/.ferrum/preferences.json` with the commands, which keeps it from
+    /// then on (see [`State::sync_shell_commands`]).
     #[serde(default)]
     pub commands_revision: u32,
     /// Apps the user has been told about. `None` until the first start,
@@ -202,7 +204,8 @@ pub struct Settings {
     /// denied keychain prompt isn't repeated on every start.
     #[serde(default)]
     pub legacy_keychain_checked: bool,
-    /// Per-app choices: shell command, Dock icon, global shortcut.
+    /// Per-app choices: shell command, Dock icon, global shortcut. The
+    /// first two mirror `~/.ferrum/preferences.json`, which wins.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub app_prefs: BTreeMap<AppId, AppPrefs>,
     /// Show the launcher in the macOS menu bar (and keep it running there
@@ -238,7 +241,9 @@ const CHANNELS_REVISION: u32 = 1;
 
 /// 1: FerrumIDE `fee` → `fei`, FerrumEngineer `fev` → `fen`, FerrumVariables
 /// `fen` → `fev` (after FerrumAgentic's `fex` → `fev`, FerrumEnv's `fev` → `fen`).
-const COMMANDS_REVISION: u32 = 1;
+/// Shared with `~/.ferrum/preferences.json`, which carries it on once the
+/// commands moved there.
+const COMMANDS_REVISION: u32 = ferrum_shell::COMMANDS_REVISION;
 
 impl Settings {
     /// Whether the configured repo is [`PUBLIC_REPO`], which needs no token.
@@ -758,16 +763,77 @@ impl State {
         changed
     }
 
-    /// Writes the enabled shell commands' scripts and removes the launcher's
-    /// scripts no app uses any more (see [`crate::shell::sync`]), e.g. after
-    /// the renames moved `fee`, `fen` and `fev`. Returns whether anything
-    /// changed, so the state (with any command moved by [`State::load`], or
-    /// turned off because its name is someone else's file) is saved.
+    /// Brings the shell commands in line with `~/.ferrum/preferences.json`,
+    /// which every app's Settings › System shares with the launcher: on the
+    /// first start with that file the launcher's own choices (and Dock
+    /// icons) move there, at this state's `commands_revision`; the one-time
+    /// renames not made yet are made there; then the scripts are written
+    /// (the enabled commands and `ferrum`) and stale ones removed (see
+    /// [`ferrum_shell::ops::sync`]), and the choices are mirrored back into
+    /// `Settings::app_prefs`. Returns whether anything changed, so the
+    /// state is saved.
     pub fn sync_shell_commands(&mut self, paths: &Paths) -> bool {
-        let mut prefs = std::mem::take(&mut self.settings.app_prefs);
-        let synced = crate::shell::sync(paths, &mut prefs, |app| self.info(app));
-        self.settings.app_prefs = prefs;
-        synced.files_changed || !synced.turned_off.is_empty()
+        let Some(path) = crate::shared_prefs::path_for(&paths.bin_dir) else {
+            return false;
+        };
+        let mut shared = crate::shared_prefs::SharedPrefs::load(&path);
+        let before = shared.clone();
+        let enabled: Vec<(String, String)> = self
+            .settings
+            .app_prefs
+            .iter()
+            .filter_map(|(app, p)| Some((app.as_str().to_owned(), p.command.clone()?)))
+            .collect();
+        if shared.migrate_from(enabled, self.settings.commands_revision) {
+            for (app, p) in &self.settings.app_prefs {
+                if p.hide_from_dock {
+                    shared.hide_from_dock.insert(self.info(*app).binary);
+                }
+            }
+        }
+        for (app, old, new) in shared.apply_renames() {
+            tracing::info!(app, old, new, "moving a shell command to its new name");
+        }
+        let mut files_changed = false;
+        if paths.platform != Platform::Windows {
+            let synced = ferrum_shell::ops::sync(&paths.bin_dir, &mut shared);
+            files_changed = synced.files_changed;
+            for (app, reason) in synced.turned_off {
+                tracing::warn!(app, reason, "turning a shell command off");
+            }
+            if let Some(reason) = synced.umbrella_failed {
+                tracing::warn!(reason, "could not write the `ferrum` command");
+            }
+        }
+        if shared != before
+            && let Err(error) = shared.save(&path)
+        {
+            tracing::warn!(%error, "could not save {}", path.display());
+        }
+        let mirrored = self.adopt_shared_prefs(&shared);
+        files_changed || mirrored || shared != before
+    }
+
+    /// Copies the shell commands and Dock choices of `shared` (the source
+    /// of truth, also written by the apps) into `Settings::app_prefs`.
+    /// Returns whether they changed.
+    pub fn adopt_shared_prefs(&mut self, shared: &crate::shared_prefs::SharedPrefs) -> bool {
+        let before = self.settings.app_prefs.clone();
+        let apps: BTreeSet<AppId> = AppId::BUILTIN
+            .into_iter()
+            .chain(self.settings.app_prefs.keys().copied())
+            .collect();
+        for app in apps {
+            let command = shared.enabled_command(app.as_str());
+            let hidden = shared.hide_from_dock.contains(&self.info(app).binary);
+            let prefs = self.settings.app_prefs.entry(app).or_default();
+            prefs.command = command;
+            prefs.hide_from_dock = hidden;
+            if *prefs == AppPrefs::default() {
+                self.settings.app_prefs.remove(&app);
+            }
+        }
+        self.settings.app_prefs != before
     }
 
     /// Removes an installed version. The active one can only be removed when
@@ -1517,9 +1583,10 @@ mod tests {
         let old = |app: AppId, command: &str| {
             let info = Catalog::embedded().info(app).expect("app");
             let entry = paths.bin_dir.join(&info.binary);
+            let app = ferrum_shell::apps::by_id(info.id.as_str()).expect("app");
             std::fs::write(
                 paths.bin_dir.join(command),
-                crate::shell::script(&info, command, &entry),
+                ferrum_shell::script::app_script(app, command, &entry),
             )
             .expect("script");
         };
@@ -1545,27 +1612,28 @@ mod tests {
         assert!(script("fei").expect("fei").contains("/ferrumeditor'"));
         assert!(script("fen").expect("fen").contains("/ferrumvibe'"));
         assert!(script("fev").expect("fev").contains("/ferrumenv'"));
+        assert!(script("ferrum").expect("ferrum").contains("ferrum ide"));
         state.save(&paths).expect("save");
-        // Later the user gives FerrumVariables `fen` back (Engineer's is off):
-        // the move isn't made again.
-        state
-            .settings
-            .app_prefs
-            .get_mut(&AppId::VIBE)
-            .expect("vibe")
-            .command = None;
-        state
-            .settings
-            .app_prefs
-            .get_mut(&AppId::ENV)
-            .expect("env")
-            .command = Some("fen".into());
-        state.save(&paths).expect("save");
+        // The choices moved to the shared file, with the Dock icon.
+        let shared_path = crate::shared_prefs::path_for(&paths.bin_dir).expect("path");
+        let mut shared = crate::shared_prefs::SharedPrefs::load(&shared_path);
+        assert_eq!(shared.enabled_command("editor").as_deref(), Some("fei"));
+        assert!(shared.hide_from_dock.contains("ferrumvibe"));
+        assert_eq!(shared.commands_revision, COMMANDS_REVISION);
+        // Later the user gives FerrumVariables `fen` back (Engineer's is
+        // off), in an app's Settings: the move isn't made again, and the
+        // launcher follows the file.
+        shared.set_command("vibe", "fen", false);
+        shared.set_command("env", "fen", true);
+        shared.save(&shared_path).expect("save");
         let mut state = State::load(&paths).expect("load");
-        assert_eq!(command(&state, AppId::ENV), "fen");
         assert!(state.sync_shell_commands(&paths));
+        assert_eq!(command(&state, AppId::ENV), "fen");
+        assert_eq!(state.settings.app_prefs[&AppId::VIBE].command, None);
         assert!(script("fen").expect("fen").contains("/ferrumenv'"));
         assert!(script("fev").is_none(), "no app has fev now");
+        state.save(&paths).expect("save");
+        let mut state = State::load(&paths).expect("load");
         assert!(!state.sync_shell_commands(&paths), "nothing left to do");
         // A new install starts at the current revision.
         assert_eq!(

@@ -4,35 +4,43 @@ One core mark, with a variant for each app.
 
 ## Concept
 
-Every Ferrum logo is an **element tile**, in the style of a periodic-table cell for
-iron. The tile has these parts:
+Every Ferrum logo is a flat **element tile**, like a periodic-table cell for
+iron:
 
-- **Tile:** a dark, warm iron-black rounded square (`#2b241c` → `#14110d`) with a
-  soft accent glow in the top-left corner.
-- **Accent ring:** an inset border in the product's accent colour.
-- **Iron lattice:** two concentric hexagons with nodes at the outer vertices.
-  This is iron's crystal structure, drawn faintly behind the letters.
-- **Symbol:** monoline, geometric letters. The core mark is `Fe` (iron) with
-  a light "ingot" `F` (`#f1e9df`) and an accent `e`. Each app is `Fe` in ingot
-  ink plus a capital in its accent colour: `FeA`, `FeG`, `FeD`, `FeT`,
-  `FeL`, `FeK`, `FeC`, `FeI`, `FeP`, `FeV`, `FeN`, `FeS`: the capital is the app
-  name's (FerrumIDE, FerrumVariables, FerrumEngineer), so no two apps share a letter.
-  Renamed apps keep their accent, badge and file name (the app id).
-- **Job badge** (app variants only): a circle in the accent colour that
-  overlaps the top-right of the ring and shows the app's job in dark ink. The
-  core mark has no badge.
+- **Tile:** a dark rounded square (`#0d1318`), corner radius about 24% of the side.
+- **Border:** a thin line in the app's accent colour (1.5px at 46px).
+- **Symbol:** `Fe` in near-white (`#eef2f5`) plus the app's capital in its accent,
+  in bold geometric letters, centred on one line: `FeI`, `FeN`, `FeG`, `FeT`,
+  `FeA`, `FeC`, `FeD`, `FeV`, `FeP`, `FeK`, `FeS`, `FeL`. The capital is the app
+  name's (FerrumIDE, FerrumVariables, FerrumEngineer), so no two apps share a
+  letter. The core mark is `Fe` with an accent `e`. Every app's letters are
+  the same size. Renamed apps keep their accent and file name (the app id).
 
 The letters are drawn as stroked paths, so nothing depends on installed fonts.
-Every tile works on dark and light backgrounds, because the tile carries its
-own dark ground.
+Every tile works on dark and light backgrounds, because it carries its own
+dark ground.
+
+### Masters
+
+`generate_svg.py` writes three versions of each logo:
+
+| File | Use |
+| --- | --- |
+| `svg/<name>.svg` | The flat tile, full bleed: the website, in-app logos, PNGs from 64px up, `.ico`, Linux icons |
+| `svg/small/<name>.svg` | The same tile for 16–32px: a heavier border and bigger, bolder letters |
+| `svg/macos/<name>.svg` | The macOS app icon: the tile on Apple's icon grid (an 824px rounded square centred in the 1024 canvas, with a soft shadow), for the `.icns` from 64px up |
+
+`cargo brand` picks the small master for every output of 32px or less
+(PNGs, `.ico` and `.icns` entries) and the macOS master for the larger
+`.icns` entries.
 
 ## Palette
 
 | Role | Hex |
 | --- | --- |
-| Tile top / bottom | `#2b241c` / `#14110d` |
-| Ingot ink (the `F`, wordmark) | `#f1e9df` |
-| Dark ink (badge glyphs, light wordmark) | `#16130f` / `#1f1913` |
+| Tile | `#0d1318` |
+| Letters (`Fe`, wordmark) | `#eef2f5` |
+| Light-background wordmark | `#0d1318` |
 | Ferrum (core): rust | `#E8743B` |
 | API: patina | `#3FB8A0` |
 | GIT: brass | `#F0B43C` |
@@ -45,25 +53,27 @@ own dark ground.
 | Ports: cobalt | `#5B8DEF` |
 | Variables: vermilion | `#F2665A` |
 | Engineer: aurora | `#4CD97B` |
+| System: aqua | `#2DD4BF` |
 
 The rust and patina colours match the website tokens (`web/assets/css/tokens.css`).
 
 ## Marks
 
-| File | Symbol | Badge glyph |
+| File | Symbol | App |
 | --- | --- | --- |
-| `ferrum.svg` | Fe | none (core mark) |
-| `api.svg` | FeA | request/response arrows |
-| `git.svg` | FeG | branch |
-| `data.svg` | FeD | database cylinder |
-| `term.svg` | FeT | prompt `>_` |
-| `launcher.svg` | FeL | 2×2 app grid |
-| `kit.svg` | FeK | two sliders |
-| `dock.svg` | FeC (FerrumContainers; the file keeps the app id `dock`) | stacked containers |
-| `editor.svg` | FeI (FerrumIDE, formerly Ferrum Editor; the file keeps the app id `editor`) | lines of text and an I-beam cursor |
-| `ports.svg` | FeP | plug |
-| `env.svg` | FeV (FerrumVariables, formerly FerrumEnv; file `env`) | padlock |
-| `vibe.svg` | FeN (FerrumEngineer, formerly FerrumVibe; file `vibe`) | sparkle (a large and a small four-point star) |
+| `ferrum.svg` | Fe | the core mark |
+| `editor.svg` | FeI | FerrumIDE (formerly Ferrum Editor; the file keeps the app id `editor`) |
+| `vibe.svg` | FeN | FerrumEngineer (formerly FerrumVibe; file `vibe`) |
+| `git.svg` | FeG | FerrumGIT |
+| `term.svg` | FeT | FerrumTerm |
+| `api.svg` | FeA | FerrumAPI |
+| `dock.svg` | FeC | FerrumContainers (file `dock`) |
+| `data.svg` | FeD | FerrumData |
+| `env.svg` | FeV | FerrumVariables (formerly FerrumEnv; file `env`) |
+| `ports.svg` | FeP | FerrumPorts |
+| `kit.svg` | FeK | FerrumKit |
+| `system.svg` | FeS | FerrumSystem |
+| `launcher.svg` | FeL | FerrumLauncher |
 | `ferrum-wordmark.svg` | Fe + "Ferrum" | light lettering, for dark backgrounds |
 | `ferrum-wordmark-light.svg` | Fe + "Ferrum" | dark lettering, for light backgrounds |
 
@@ -83,7 +93,7 @@ python3 brand/generate_svg.py brand/svg   # only if you changed the generator
 cargo brand                                # SVG → PNG / ICNS / ICO
 ```
 
-To add an app, add an entry to `APPS` in `generate_svg.py` (second letter,
-accent colour and badge glyph), add its glyph to `glyph()`, then run both
-commands. You can also edit the SVGs by hand; `cargo brand` renders whatever
+To add an app, add an entry to `APPS` in `generate_svg.py` (its capital and
+accent colour; a capital not yet in `GLYPHS` needs its centre lines there),
+then run both commands and copy `svg/*.svg` to `web/assets/img/brand/`. You can also edit the SVGs by hand; `cargo brand` renders whatever
 is in `svg/`. `.icns` files are only built on macOS.

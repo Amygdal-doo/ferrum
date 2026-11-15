@@ -1,7 +1,7 @@
-# Ferrum Launcher
+# FerrumLauncher
 
 Installs, updates, switches between and launches the Ferrum apps
-(FerrumIDE, FerrumEngineer, Ferrum System, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm,
+(FerrumIDE, FerrumEngineer, FerrumSystem, FerrumAPI, FerrumGIT, FerrumData, FerrumTerm,
 FerrumKit, FerrumContainers, FerrumPorts, FerrumVariables, any app added to the catalog later, and itself), in the style of JetBrains
 Toolbox.
 GPUI desktop app built on `ferrum-ui`. Up to 0.5.0 it was called **Ferrum
@@ -19,13 +19,48 @@ Each app's page has three choices, all off by default:
 
 | Choice | What it does |
 | --- | --- |
-| **Shell command** | Writes a small script in `~/.ferrum/bin` named as typed (suggested: "Fe" plus the logo's capital — `fei` FerrumIDE, `fen` FerrumEngineer, `fes` Ferrum System, `fea` FerrumAPI, `feg` FerrumGIT, `fed` FerrumData, `fet` FerrumTerm, `fek` FerrumKit, `fec` FerrumContainers, `fep` FerrumPorts, `fev` FerrumVariables, `fel` the launcher). `fei .` opens FerrumIDE on the current folder (like `zed .`), `feg .` FerrumGIT on that repository, `fet` FerrumTerm in a session in the current folder. The first command turned on also adds `~/.ferrum/bin` to PATH in `~/.zprofile` (`~/.bash_profile` for bash, `conf.d/ferrum.fish` for fish) with one marked line; FerrumTerm and FerrumIDE's terminal have it on PATH anyway. Scripts not written by the launcher are never replaced or removed. Enter in the name field renames an enabled command. At every start the launcher rewrites the enabled commands' scripts and removes its own scripts no app uses any more (`shell::sync`). The 2026-11 renames moved the suggested names once (`State::migrate`, `shell::rename_defaults`): Ferrum Editor's `fee` became FerrumIDE's `fei`, and FerrumVibe's `fev` and FerrumEnv's `fen` swapped (FerrumEngineer `fen`, FerrumVariables `fev`); names the user chose, and moves onto a name another app already has, are left alone. |
-| **Hide from Dock** (macOS) | Listed in `~/.ferrum/preferences.json`, which every Ferrum app reads when it starts (`ferrum_ui::dock`); the app then runs as an accessory app (no Dock icon, not in ⌘-Tab). The launcher switches at once and moves to the menu bar. |
+| **Shell command** | Writes a small script in `~/.ferrum/bin` named as typed (suggested: "Fe" plus the logo's capital — `fei` FerrumIDE, `fen` FerrumEngineer, `fes` FerrumSystem, `fea` FerrumAPI, `feg` FerrumGIT, `fed` FerrumData, `fet` FerrumTerm, `fek` FerrumKit, `fec` FerrumContainers, `fep` FerrumPorts, `fev` FerrumVariables, `fel` the launcher). `fei .` opens FerrumIDE on the current folder (like `zed .`), `feg .` FerrumGIT on that repository, `fet` FerrumTerm in a session in the current folder. Names: 2–20 lowercase letters, digits or `-`, not another app's command (its chosen one, or its suggested one while it has none), not `ferrum` or an app's CLI link, and not a file in `~/.ferrum/bin` Ferrum didn't write. The same choice is in every app's **Settings › System**; both read and write `~/.ferrum/preferences.json` (below), so they always agree. The first command turned on also adds `~/.ferrum/bin` to PATH in `~/.zprofile` and `~/.zshrc` (`~/.bash_profile` / `~/.bashrc` for bash, `conf.d/ferrum.fish` for fish) with one marked line; FerrumTerm and FerrumIDE's terminal have it on PATH anyway. Scripts not written by Ferrum are never replaced or removed. Enter in the name field renames an enabled command. At every start the launcher rewrites the enabled commands' scripts and removes the Ferrum scripts no app uses any more (`State::sync_shell_commands`, `ferrum_shell::ops::sync`). The 2026-11 renames moved the suggested names once (`commands_revision`; `State::migrate`, `ferrum_shell::prefs::rename_defaults`): Ferrum Editor's `fee` became FerrumIDE's `fei`, and FerrumVibe's `fev` and FerrumEnv's `fen` swapped (FerrumEngineer `fen`, FerrumVariables `fev`); names the user chose, and moves onto a name another app already has, are left alone. |
+| **Hide from Dock** (macOS) | Listed in `~/.ferrum/preferences.json`, which every Ferrum app reads when it starts (`ferrum_ui::dock`); the app then runs as an accessory app (no Dock icon, not in ⌘-Tab) and carries its menus in a menu bar icon. The same switch is **Show in Dock** in each app's Settings › System, which applies at once. The launcher switches at once and moves to the menu bar. |
 | **Shortcut** (macOS) | A global shortcut (⌘, ⌃ or ⌥ plus a letter, digit, F-key or space) that opens or brings forward the app from anywhere, while the launcher runs. |
 
-**Settings → Show Ferrum Launcher in the menu bar** (macOS) adds a menu bar icon listing the
-installed apps (with their shortcuts), Open Ferrum Launcher and Quit. With it on, closing the
+**Settings → Show FerrumLauncher in the menu bar** (macOS) adds a menu bar icon listing the
+installed apps (with their shortcuts), Open FerrumLauncher and Quit. With it on, closing the
 window only hides the launcher, so shortcuts keep working.
+
+### `ferrum <app> [path]`
+
+Besides the short commands, the launcher installs `~/.ferrum/bin/ferrum`, one
+command for every app: `ferrum ide .`, `ferrum engineer`, `ferrum git`,
+`ferrum term`, `ferrum api`, `ferrum containers`, `ferrum data`,
+`ferrum variables`, `ferrum ports`, `ferrum kit`, `ferrum system`,
+`ferrum launcher` (app ids and the suggested short names work too, e.g.
+`ferrum editor`, `ferrum fei`). `ferrum list` prints each app, its short
+command (`-` while off) and whether it's installed; `ferrum help` the usage.
+It runs the app's CLI link exactly as its short command does, and is
+regenerated whenever a short command changes. It is on unless turned off in
+an app's Settings › System (`ferrum_command: false`).
+
+### `~/.ferrum/preferences.json`
+
+The source of truth for shell commands and Dock icons, written by the
+launcher and every app (`shared/shell`, crate `ferrum-shell`):
+
+```json
+{
+  "hide_from_dock": ["ferrumeditor"],
+  "shell_commands": { "editor": { "name": "fei", "enabled": true },
+                      "git": { "name": "g", "enabled": false } },
+  "commands_revision": 1,
+  "ferrum_command": true
+}
+```
+
+An app without an entry has its suggested name, turned off. On its first
+start with this file the launcher moves its own choices there from
+`state.json` (`Settings::app_prefs`, with its `commands_revision`); an app
+that gets there first takes over the scripts it finds in `~/.ferrum/bin`.
+After that `app_prefs` only mirrors the file (re-read whenever the launcher
+window becomes active). Unknown fields are kept.
 
 ## Where versions come from
 
@@ -183,10 +218,9 @@ clean, then creates the annotated tag. It never pushes. Pushing the tag runs
    `scripts/bundle-macos.sh` (plus the launcher DMG from `scripts/make-dmg.sh`),
    each with a `.sha256`.
 
-The workflow needs a repository secret **`SUBMODULE_TOKEN`** with read access
-to the repository behind the `ide/` submodule. Every app needs that submodule
-because the apps use its GPUI and UI crates (it is a library dependency only;
-Ferrum IDE itself is no longer built or released).
+The workflow needs a repository secret **`RELEASES_TOKEN`** with Contents: write
+on the releases repository. GPUI comes from upstream Zed as a pinned git
+dependency, so no other repository access is needed.
 
 ### Bridge release for Ferrum Toolbox 0.5.0
 
@@ -267,10 +301,19 @@ On every start (each step is a no-op once done):
   move reopens the old bundle with `--ferrum-rename-failed`, so it doesn't
   loop. A plain `ferrum-toolbox` binary is renamed in place to
   `ferrum-launcher`, with the old name left as a link.
+- **FerrumLauncher (2026-11):** the bundle is now `FerrumLauncher.app`
+  (catalog `former_names`: `Ferrum Launcher`; binary and data unchanged). A
+  self-update from a `Ferrum Launcher.app` copy swaps the new version in under
+  the old name, as always; the new version then renames itself the same way
+  (`self_rename::plan` treats every former name like `Ferrum Toolbox`), so an
+  existing `FerrumLauncher.app` in that folder is replaced and only one copy
+  is left.
 
 ## Using the launcher
 
-- **Overview** (the start page): one row per app, in catalog order, with
+- **Overview** (the start page): two sections, **Apps** and **Tools** (the
+  catalog's `group`, `"apps"` or `"tools"`; missing or unknown reads as apps),
+  then the launcher itself; one row per app, in catalog order, with
   its logo, a **New** badge for apps that just appeared, status, installed
   version, latest stable, latest alpha (or beta), last release date, total
   downloads (GitHub download counts, checksum files excluded) and the next
@@ -282,6 +325,13 @@ On every start (each step is a no-op once done):
   version with its channel, date, size, downloads and an active/installed
   marker, and **Install**, **Activate** or **Remove** buttons. Click a row to
   see that release's notes.
+- **Uninstall** (the app page's red button, or **Uninstall…** in a row's
+  right-click menu on the overview and in the menu bar panel) asks first, then
+  removes every installed version, the `~/Applications/Ferrum` copy (or the
+  desktop entry / Start Menu shortcut) and the CLI links
+  (`State::uninstall_app`). Settings and data in `~/.ferrum/<id>` and
+  `~/.ferrum/<binary>` are kept unless **Also remove settings and data** is
+  ticked. The launcher can't uninstall itself.
 - **Downloads** show a progress bar with **Cancel**, and several apps can
   download at once.
 - **Check for updates** runs on startup and then every *N* hours (Settings).

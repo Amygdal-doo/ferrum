@@ -229,7 +229,7 @@ pub fn render(site_url: &str) -> Markup {
                     @for (p, _) in &APPS {
                         li style=(p.accent_style()) { a class="app-dot" href={ "#" (p.slug) } { (p.name) } }
                     }
-                    li { a href="#launcher" { "Ferrum Launcher" } }
+                    li { a href="#launcher" { "FerrumLauncher" } }
                 }
             }
 
@@ -257,7 +257,7 @@ pub fn render(site_url: &str) -> Markup {
                 }
             }
 
-            h2 id="launcher" { "Ferrum Launcher" }
+            h2 id="launcher" { "FerrumLauncher" }
             p {
                 "The launcher has no shortcuts of its own beyond " (code::keys("⌘Q")) ". On each \
                  app's page you can record a global " strong { "Shortcut" } ": ⌘, ⌃ or ⌥ plus a \

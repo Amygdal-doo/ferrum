@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ferrum Toolbox is now Ferrum Launcher: this name is kept so existing links
+# Ferrum Toolbox is now FerrumLauncher: this name is kept so existing links
 # and docs keep working. Runs scripts/install-launcher.sh with the same
 # arguments, or the published installer when this file was piped to bash.
 set -euo pipefail

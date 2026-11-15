@@ -9,6 +9,9 @@ use crate::{seo, site};
 
 pub const PATH: &str = "/faq";
 
+/// The announcement post, linked from the open-source answer.
+const OPEN_SOURCE_POST: &str = "/updates/ferrum-is-open-source";
+
 /// A question, its plain-text answer, and an optional "read more" link.
 struct Faq {
     q: &'static str,
@@ -37,19 +40,42 @@ fn faqs() -> Vec<Faq> {
     vec![
         Faq {
             q: "What is Ferrum?",
-            a: "A family of native developer tools for macOS, written in Rust and drawn on the \
-                GPU with GPUI: FerrumIDE, FerrumEngineer, FerrumAPI, FerrumGIT, FerrumData, \
-                FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumVariables. Ferrum \
-                Launcher installs and updates them."
+            a: "A family of open-source native developer tools for macOS and Linux, written in \
+                Rust and drawn on the GPU with GPUI: FerrumIDE, FerrumEngineer, FerrumAPI, FerrumGIT, FerrumData, \
+                FerrumTerm, FerrumKit, FerrumContainers, FerrumPorts and FerrumVariables. \
+                FerrumLauncher installs and updates them."
                 .to_owned(),
             more: Some(("See every app", super::apps::PATH)),
         },
         Faq {
-            q: "How much does Ferrum cost?",
-            a: "Nothing. Every build is a free public download, with no account, sign-in or \
-                license key."
+            q: "Is Ferrum free and open source?",
+            a: format!(
+                "Yes, both. Every build is a free public download, with no account, sign-in or \
+                 licence key. Since {} the source of every app and the launcher is public at {} \
+                 under the MIT licence or Apache-2.0, whichever you prefer ({}).",
+                crate::updates::display_date(site::OPEN_SOURCE_DATE),
+                site::SOURCE_REPO_URL.trim_start_matches("https://"),
+                site::LICENSE_SPDX
+            ),
+            more: Some(("Ferrum is open source", OPEN_SOURCE_POST)),
+        },
+        Faq {
+            q: "How can I contribute?",
+            a: "Report bugs and suggest features in GitHub issues, and read CONTRIBUTING.md in \
+                the repository before you open a pull request. Security problems go to a private \
+                GitHub security advisory, not a public issue."
                 .to_owned(),
-            more: Some(("Download Ferrum Launcher", site::DOWNLOAD_PATH)),
+            more: Some(("Ferrum on GitHub", site::SOURCE_REPO_URL)),
+        },
+        Faq {
+            q: "Can I build the apps myself?",
+            a: format!(
+                "Yes. Clone the repository and run an app with cargo, for example FerrumIDE: {}. \
+                 rust-toolchain.toml pins the Rust version, the first build compiles GPUI (a \
+                 few minutes), and each app's README names its package.",
+                site::BUILD_FROM_SOURCE.join(", then ")
+            ),
+            more: Some(("Build from source", "/download#source")),
         },
         Faq {
             q: "Is Ferrum ready for daily use?",
@@ -61,8 +87,9 @@ fn faqs() -> Vec<Faq> {
         },
         Faq {
             q: "Which systems does it run on?",
-            a: "macOS on Apple Silicon today. Windows and Linux installers for the launcher are \
-                coming; FerrumTerm won't be available on Windows at first."
+            a: "macOS on Apple Silicon and Intel, and Linux on x86_64 (Debian, Ubuntu and \
+                derivatives, as a .deb). Windows builds compile but aren't published yet, and \
+                FerrumTerm and FerrumEngineer have no Windows build."
                 .to_owned(),
             more: Some(("Install guide", "/docs/install")),
         },
@@ -78,7 +105,7 @@ fn faqs() -> Vec<Faq> {
         },
         Faq {
             q: "Where is my data stored?",
-            a: "On your Mac. FerrumAPI keeps collections and history in a local SQLite file, \
+            a: "On your machine. FerrumAPI keeps collections and history in a local SQLite file, \
                 FerrumVariables keeps an encrypted vault in ~/.ferrum/env, and the apps share recent \
                 projects in ~/.ferrum/projects.json. There is no Ferrum server that holds your \
                 work."
@@ -100,7 +127,7 @@ fn faqs() -> Vec<Faq> {
         },
         Faq {
             q: "How do updates work?",
-            a: "Ferrum Launcher checks for new releases on startup and every 6 hours, updates \
+            a: "FerrumLauncher checks for new releases on startup and every 6 hours, updates \
                 each app with one click and updates itself in place. It keeps the last three \
                 versions of each app, so you can switch back."
                 .to_owned(),
@@ -114,15 +141,12 @@ fn faqs() -> Vec<Faq> {
             more: Some(("Shell commands", "/docs/shell-commands")),
         },
         Faq {
-            q: "Is Ferrum open source?",
-            a: format!(
-                "No. The apps are proprietary (© {}, all rights reserved) and their source isn't \
-                 published; the public releases repository holds builds only. They include \
-                 permissively licensed open-source work: GPUI from the Zed editor (Apache-2.0), \
-                 Lucide icons (ISC) and the IBM Plex Sans and Lilex fonts (OFL 1.1).",
-                site::ORGANIZATION_LEGAL_NAME
-            ),
-            more: Some(("Open source licences", "/licenses")),
+            q: "What else is inside the apps?",
+            a: "Permissively licensed open-source work: GPUI from the Zed editor (Apache-2.0), \
+                Lucide icons (ISC) and the IBM Plex Sans and Lilex fonts (OFL 1.1). A licence \
+                check in CI fails any build that pulls in GPL-family code."
+                .to_owned(),
+            more: Some(("Licences", "/licenses")),
         },
         Faq {
             q: "Who makes Ferrum?",
@@ -141,9 +165,9 @@ pub fn render(site_url: &str) -> Markup {
     let items = faqs();
     let pairs: Vec<(&str, String)> = items.iter().map(|f| (f.q, f.a.clone())).collect();
     let meta = PageMeta::new(
-        Some("FAQ: price, platforms, privacy and signing"),
-        "Answers about Ferrum: it's free, in alpha, macOS on Apple Silicon today, keeps your \
-         data on your Mac, has no telemetry, and ships signed builds.",
+        Some("FAQ: open source, platforms, privacy and signing"),
+        "Answers about Ferrum: free and open source (MIT or Apache-2.0), in alpha, for macOS and \
+         Linux, keeps your data local, has no telemetry, and ships signed builds.",
         PATH,
         "page-faq",
     )
@@ -154,7 +178,7 @@ pub fn render(site_url: &str) -> Markup {
         &meta,
         html! {
             (PageHeader::new(&meta.trail, "Frequently asked questions")
-                .lead(html! { p { "Short answers about cost, platforms, your data and how builds are made." } })
+                .lead(html! { p { "Short answers about the licence, platforms, your data and how builds are made." } })
                 .render())
             div class="container" {
                 dl class="faq" {
@@ -189,5 +213,12 @@ mod tests {
             assert!(html.contains(f.q), "{}", f.q);
         }
         assert_eq!(html.contains("notarized by Apple"), site::MACOS_NOTARIZED);
+        assert!(html.contains("Is Ferrum free and open source?"));
+        assert!(html.contains("MIT OR Apache-2.0"));
+        assert!(html.contains(OPEN_SOURCE_POST));
+        let lower = html.to_lowercase();
+        for gone in ["proprietary", "all rights reserved", "closed source"] {
+            assert!(!lower.contains(gone), "{gone}");
+        }
     }
 }

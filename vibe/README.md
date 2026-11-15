@@ -2,7 +2,7 @@
 
 One window for agentic development: **FerrumChat | FerrumGIT | FerrumTerm**
 side by side on the same project. It is a GPUI desktop app (the UI framework
-of Zed, from the `ide/` submodule) built on `ferrum-ui`. It embeds the
+of Zed, a pinned git dependency) built on `ferrum-ui`. It embeds the
 suite's own views rather than reimplementing them:
 
 | Column | Crate | What it is |

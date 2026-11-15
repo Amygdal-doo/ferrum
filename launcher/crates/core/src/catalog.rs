@@ -45,15 +45,15 @@ impl AppId {
     pub const BUILTIN: [AppId; 12] = [
         AppId::EDITOR,
         AppId::VIBE,
-        AppId::SYSTEM,
-        AppId::API,
         AppId::GIT,
-        AppId::DATA,
         AppId::TERM,
-        AppId::KIT,
+        AppId::API,
         AppId::DOCK,
-        AppId::PORTS,
+        AppId::DATA,
         AppId::ENV,
+        AppId::PORTS,
+        AppId::KIT,
+        AppId::SYSTEM,
         AppId::LAUNCHER,
     ];
 
@@ -190,6 +190,32 @@ pub struct AppInfo {
     pub logo: Option<String>,
     /// Position on the overview, ascending (ties sort by name).
     pub order: i32,
+    /// The overview section the app is listed in.
+    pub group: AppGroup,
+}
+
+/// The two sections apps are listed in: the main apps, and smaller tools.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum AppGroup {
+    #[default]
+    Apps,
+    Tools,
+}
+
+impl AppGroup {
+    pub const ALL: [AppGroup; 2] = [AppGroup::Apps, AppGroup::Tools];
+
+    /// Section heading.
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            AppGroup::Apps => "Apps",
+            AppGroup::Tools => "Tools",
+        }
+    }
 }
 
 impl AppInfo {
@@ -226,6 +252,7 @@ impl AppInfo {
             icon: String::new(),
             logo: None,
             order: DEFAULT_ORDER,
+            group: AppGroup::Apps,
         }
     }
 }
@@ -243,6 +270,7 @@ struct Builtin {
     former_names: &'static [&'static str],
     icon: &'static str,
     order: i32,
+    group: AppGroup,
 }
 
 impl Builtin {
@@ -258,6 +286,7 @@ impl Builtin {
             icon: self.icon.into(),
             logo: None,
             order: self.order,
+            group: self.group,
         }
     }
 }
@@ -274,6 +303,7 @@ static RETIRED: [Builtin; 1] = [Builtin {
     former_names: &[],
     icon: "Code",
     order: 10,
+    group: AppGroup::Apps,
 }];
 
 static BUILTIN: [Builtin; 12] = [
@@ -289,6 +319,7 @@ static BUILTIN: [Builtin; 12] = [
         former_names: &["Ferrum Editor"],
         icon: "CursorIBeam",
         order: 10,
+        group: AppGroup::Apps,
     },
     Builtin {
         id: AppId::VIBE,
@@ -302,28 +333,7 @@ static BUILTIN: [Builtin; 12] = [
         former_names: &["FerrumVibe", "FerrumAgentic"],
         icon: "Sparkle",
         order: 15,
-    },
-    Builtin {
-        id: AppId::SYSTEM,
-        name: "Ferrum System",
-        description: "System architecture diagrams: layers, services on any cloud, data, flows and live pods.",
-        binary: "ferrumsystem",
-        extra_binaries: &[],
-        bundle_name: "Ferrum System",
-        former_names: &[],
-        icon: "Blocks",
-        order: 17,
-    },
-    Builtin {
-        id: AppId::API,
-        name: "FerrumAPI",
-        description: "HTTP/API client: collections, environments, history and code generation.",
-        binary: "ferrumapi",
-        extra_binaries: &[],
-        bundle_name: "FerrumAPI",
-        former_names: &[],
-        icon: "Public",
-        order: 20,
+        group: AppGroup::Apps,
     },
     Builtin {
         id: AppId::GIT,
@@ -334,18 +344,8 @@ static BUILTIN: [Builtin; 12] = [
         bundle_name: "FerrumGIT",
         former_names: &[],
         icon: "GitBranch",
-        order: 30,
-    },
-    Builtin {
-        id: AppId::DATA,
-        name: "FerrumData",
-        description: "Database IDE: connections, SQL editor and result grid.",
-        binary: "ferrumdata",
-        extra_binaries: &[],
-        bundle_name: "FerrumData",
-        former_names: &[],
-        icon: "DatabaseZap",
-        order: 40,
+        order: 20,
+        group: AppGroup::Apps,
     },
     Builtin {
         id: AppId::TERM,
@@ -356,18 +356,20 @@ static BUILTIN: [Builtin; 12] = [
         bundle_name: "FerrumTerm",
         former_names: &[],
         icon: "Terminal",
-        order: 50,
+        order: 30,
+        group: AppGroup::Apps,
     },
     Builtin {
-        id: AppId::KIT,
-        name: "FerrumKit",
-        description: "Developer utilities: JSON, Base64, JWT, regex, timestamps, hashes and more.",
-        binary: "ferrumkit",
+        id: AppId::API,
+        name: "FerrumAPI",
+        description: "HTTP/API client: collections, environments, history and code generation.",
+        binary: "ferrumapi",
         extra_binaries: &[],
-        bundle_name: "FerrumKit",
+        bundle_name: "FerrumAPI",
         former_names: &[],
-        icon: "ToolHammer",
-        order: 60,
+        icon: "Public",
+        order: 40,
+        group: AppGroup::Apps,
     },
     Builtin {
         id: AppId::DOCK,
@@ -380,18 +382,20 @@ static BUILTIN: [Builtin; 12] = [
         bundle_name: "FerrumContainers",
         former_names: &["FerrumDock"],
         icon: "Blocks",
-        order: 70,
+        order: 50,
+        group: AppGroup::Apps,
     },
     Builtin {
-        id: AppId::PORTS,
-        name: "FerrumPorts",
-        description: "Listening ports and the processes behind them: open, inspect or stop them.",
-        binary: "ferrumports",
+        id: AppId::DATA,
+        name: "FerrumData",
+        description: "Database IDE: connections, SQL editor and result grid.",
+        binary: "ferrumdata",
         extra_binaries: &[],
-        bundle_name: "FerrumPorts",
+        bundle_name: "FerrumData",
         former_names: &[],
-        icon: "Server",
-        order: 80,
+        icon: "DatabaseZap",
+        order: 60,
+        group: AppGroup::Apps,
     },
     Builtin {
         id: AppId::ENV,
@@ -404,18 +408,59 @@ static BUILTIN: [Builtin; 12] = [
         bundle_name: "FerrumVariables",
         former_names: &["FerrumEnv"],
         icon: "Lock",
+        order: 70,
+        group: AppGroup::Tools,
+    },
+    Builtin {
+        id: AppId::PORTS,
+        name: "FerrumPorts",
+        description: "Listening ports and the processes behind them: open, inspect or stop them.",
+        binary: "ferrumports",
+        extra_binaries: &[],
+        bundle_name: "FerrumPorts",
+        former_names: &[],
+        icon: "Server",
+        order: 80,
+        group: AppGroup::Tools,
+    },
+    Builtin {
+        id: AppId::KIT,
+        name: "FerrumKit",
+        description: "Developer utilities: JSON, Base64, JWT, regex, timestamps, hashes and more.",
+        binary: "ferrumkit",
+        extra_binaries: &[],
+        bundle_name: "FerrumKit",
+        former_names: &[],
+        icon: "ToolHammer",
         order: 90,
+        group: AppGroup::Tools,
+    },
+    Builtin {
+        id: AppId::SYSTEM,
+        name: "FerrumSystem",
+        description: "System architecture diagrams: layers, services on any cloud, data, flows and live pods.",
+        binary: "ferrumsystem",
+        extra_binaries: &[],
+        bundle_name: "FerrumSystem",
+        // The id, binary and data stay `system`/`ferrumsystem`.
+        former_names: &["Ferrum System"],
+        icon: "Blocks",
+        order: 100,
+        group: AppGroup::Tools,
     },
     Builtin {
         id: AppId::LAUNCHER,
-        name: "Ferrum Launcher",
+        name: "FerrumLauncher",
         description: "Installs, updates and launches the Ferrum apps.",
         binary: "ferrum-launcher",
         extra_binaries: &[],
-        bundle_name: "Ferrum Launcher",
-        former_names: &[],
+        // The binary and data stay `ferrum-launcher`; a copy running as
+        // `Ferrum Launcher.app` renames itself (see `self_rename`).
+        bundle_name: "FerrumLauncher",
+        former_names: &["Ferrum Launcher"],
         icon: "Box",
         order: 1100,
+        group: AppGroup::Tools,
     },
 ];
 
@@ -476,6 +521,10 @@ pub struct CatalogEntry {
     pub logo: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub order: Option<i32>,
+    /// `"apps"` or `"tools"`; missing or unknown reads as apps (an app this
+    /// build knows keeps its built-in group). Ignored by older launchers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<AppGroup>,
 }
 
 impl CatalogEntry {
@@ -548,6 +597,13 @@ impl CatalogEntry {
                     tracing::warn!(app = %id, "catalog: ignoring non-integer `order`");
                     None
                 }
+            }),
+            group: field("group").and_then(|group| {
+                let parsed = serde_json::from_value::<AppGroup>(group.clone()).ok();
+                if parsed.is_none() {
+                    tracing::warn!(app = %id, "catalog: ignoring unknown `group`");
+                }
+                parsed
             }),
         };
         if !id.is_builtin() && !entry.is_complete() {
@@ -736,6 +792,9 @@ impl Catalog {
             if let Some(order) = entry.order {
                 info.order = order;
             }
+            if let Some(group) = entry.group {
+                info.group = group;
+            }
         }
         Some(info)
     }
@@ -834,13 +893,14 @@ mod tests {
         assert_eq!(info.bundle_name, "FerrumForge");
         assert_eq!(info.icon, "Hammer");
         assert_eq!(info.order, 65);
+        assert_eq!(info.group, AppGroup::Apps, "no group reads as apps");
         // Placed between the built-in apps by `order`.
         let order: Vec<_> = catalog.apps().iter().map(|a| a.id.as_str()).collect();
         assert_eq!(
             order,
             [
-                "editor", "vibe", "system", "api", "git", "data", "term", "kit", "forge", "dock",
-                "ports", "env", "launcher"
+                "editor", "vibe", "git", "term", "api", "dock", "data", "forge", "env", "ports",
+                "kit", "system", "launcher"
             ]
         );
     }
@@ -859,7 +919,7 @@ mod tests {
         assert_eq!(data.bundle_name, "FerrumData");
         assert_eq!(data.logo, None);
         assert_eq!(data.icon, "DatabaseZap");
-        assert_eq!(data.order, 40);
+        assert_eq!(data.order, 60);
         let kit = catalog.info(AppId::KIT).expect("kit");
         assert_eq!(kit.description, "Kit desc");
         assert_eq!(kit.extra_binaries, ["fkit"]);
@@ -947,6 +1007,67 @@ mod tests {
     }
 
     #[test]
+    fn groups_split_apps_and_tools_and_default_to_apps() {
+        let catalog = Catalog::parse(
+            r#"{"apps":[
+              {"id":"forge","status":"alpha","summary":"S","name":"FerrumForge",
+               "binary":"ferrumforge","bundle_name":"FerrumForge","group":"tools"},
+              {"id":"anvil","status":"alpha","summary":"S","name":"FerrumAnvil",
+               "binary":"ferrumanvil","bundle_name":"FerrumAnvil","group":"widgets"},
+              {"id":"kit","status":"alpha","summary":"S","group":"apps"},
+              {"id":"git","status":"alpha","summary":"S","group":7}
+            ]}"#,
+        )
+        .expect("parse");
+        let group = |id: &str| {
+            catalog
+                .info(AppId::new(id).expect("id"))
+                .expect("info")
+                .group
+        };
+        assert_eq!(group("forge"), AppGroup::Tools);
+        assert_eq!(
+            group("anvil"),
+            AppGroup::Apps,
+            "unknown group reads as apps"
+        );
+        assert_eq!(
+            group("kit"),
+            AppGroup::Apps,
+            "the catalog overrides the built-in group"
+        );
+        assert_eq!(
+            group("git"),
+            AppGroup::Apps,
+            "a malformed group keeps the built-in one"
+        );
+        assert_eq!(group("ports"), AppGroup::Tools);
+
+        // The embedded catalog and the built-in table agree.
+        let embedded = Catalog::embedded();
+        let ids = |g: AppGroup| -> Vec<&str> {
+            embedded
+                .apps()
+                .into_iter()
+                .filter(|info| info.group == g && info.id != AppId::LAUNCHER)
+                .map(|info| info.id.as_str())
+                .collect()
+        };
+        assert_eq!(
+            ids(AppGroup::Apps),
+            ["editor", "vibe", "git", "term", "api", "dock", "data"]
+        );
+        assert_eq!(ids(AppGroup::Tools), ["env", "ports", "kit", "system"]);
+        for app in AppId::BUILTIN {
+            assert_eq!(
+                embedded.entry(app).and_then(|entry| entry.group),
+                AppInfo::builtin(app).map(|info| info.group),
+                "{app}"
+            );
+        }
+    }
+
+    #[test]
     fn cached_catalog_round_trips_through_serde() {
         let catalog = Catalog::embedded().clone();
         let json = serde_json::to_string(&catalog).expect("serialize");
@@ -960,7 +1081,7 @@ mod tests {
         assert_eq!(old.apps[0].id, AppId::LAUNCHER);
         assert_eq!(
             old.info(AppId::LAUNCHER).map(|i| i.bundle_name),
-            Some("Ferrum Launcher".into())
+            Some("FerrumLauncher".into())
         );
     }
 
@@ -1009,7 +1130,7 @@ mod tests {
         assert!(serde_json::from_str::<AppId>(r#""no-pe""#).is_err());
         assert_eq!(
             AppInfo::builtin(AppId::LAUNCHER).map(|i| i.bundle_name),
-            Some("Ferrum Launcher".into())
+            Some("FerrumLauncher".into())
         );
         assert_eq!(
             AppInfo::builtin(AppId::TERM).map(|i| i.extra_binaries),

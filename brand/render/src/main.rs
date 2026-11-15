@@ -1,6 +1,11 @@
 //! Renders `brand/svg/*.svg` to `brand/png/<name>-<size>.png`, and the square
 //! logos to `brand/icons/<name>.icns` (via `iconutil`, macOS only) and `.ico`.
 //!
+//! Two optional masters per logo (see `brand/generate_svg.py`):
+//! `svg/small/<name>.svg` is drawn for 16-32px and replaces the main SVG at
+//! those sizes everywhere; `svg/macos/<name>.svg` is the macOS app icon on
+//! Apple's grid and is used for the `.icns` entries from 64px up.
+//!
 //! Usage: `cargo brand` from anywhere in the workspace.
 
 use std::fs;
@@ -12,6 +17,8 @@ use resvg::{tiny_skia, usvg};
 
 const SIZES: [u32; 7] = [16, 32, 64, 128, 256, 512, 1024];
 const ICO_SIZES: [u32; 5] = [16, 32, 64, 128, 256];
+/// Sizes up to this use the small master when there is one.
+const SMALL_MAX: u32 = 32;
 /// `iconutil` file names and the pixel size each one holds.
 const ICONSET: [(&str, u32); 10] = [
     ("icon_16x16.png", 16),
@@ -52,20 +59,58 @@ fn main() -> Result<()> {
             .file_stem()
             .and_then(|stem| stem.to_str())
             .context("non-UTF-8 SVG file name")?;
-        let tree = load(svg)?;
-        let square = (tree.size().width() - tree.size().height()).abs() < 0.5;
+        let masters = Masters::load(svg, &svg_dir, name)?;
+        let square = (masters.main.size().width() - masters.main.size().height()).abs() < 0.5;
 
         for size in SIZES {
-            let png = render(&tree, size)?;
+            let png = render(masters.at(size), size)?;
             fs::write(png_dir.join(format!("{name}-{size}.png")), png)?;
         }
         if square {
-            write_ico(&tree, &icon_dir.join(format!("{name}.ico")))?;
-            write_icns(&tree, name, &icon_dir)?;
+            write_ico(&masters, &icon_dir.join(format!("{name}.ico")))?;
+            write_icns(&masters, name, &icon_dir)?;
         }
         println!("rendered {name}");
     }
     Ok(())
+}
+
+/// A logo's SVGs: the main one, and the optional small and macOS masters.
+struct Masters {
+    main: usvg::Tree,
+    small: Option<usvg::Tree>,
+    macos: Option<usvg::Tree>,
+}
+
+impl Masters {
+    fn load(main: &Path, svg_dir: &Path, name: &str) -> Result<Self> {
+        let optional = |dir: &str| {
+            let path = svg_dir.join(dir).join(format!("{name}.svg"));
+            path.exists().then(|| load(&path)).transpose()
+        };
+        Ok(Self {
+            main: load(main)?,
+            small: optional("small")?,
+            macos: optional("macos")?,
+        })
+    }
+
+    /// The master for a PNG or `.ico` entry of `size` pixels.
+    fn at(&self, size: u32) -> &usvg::Tree {
+        match &self.small {
+            Some(small) if size <= SMALL_MAX => small,
+            _ => &self.main,
+        }
+    }
+
+    /// The master for an `.icns` entry: the small one where it applies, else
+    /// the macOS icon.
+    fn icns_at(&self, size: u32) -> &usvg::Tree {
+        match &self.macos {
+            Some(macos) if size > SMALL_MAX || self.small.is_none() => macos,
+            _ => self.at(size),
+        }
+    }
 }
 
 fn load(path: &Path) -> Result<usvg::Tree> {
@@ -120,7 +165,7 @@ fn render_dib(tree: &usvg::Tree, size: u32) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-fn write_icns(tree: &usvg::Tree, name: &str, icon_dir: &Path) -> Result<()> {
+fn write_icns(masters: &Masters, name: &str, icon_dir: &Path) -> Result<()> {
     if !cfg!(target_os = "macos") {
         println!("skipping {name}.icns (iconutil is macOS-only)");
         return Ok(());
@@ -131,7 +176,7 @@ fn write_icns(tree: &usvg::Tree, name: &str, icon_dir: &Path) -> Result<()> {
     }
     fs::create_dir_all(&iconset)?;
     for (file, size) in ICONSET {
-        fs::write(iconset.join(file), render(tree, size)?)?;
+        fs::write(iconset.join(file), render(masters.icns_at(size), size)?)?;
     }
     let output = icon_dir.join(format!("{name}.icns"));
     let status = Command::new("iconutil")
@@ -151,10 +196,11 @@ fn write_icns(tree: &usvg::Tree, name: &str, icon_dir: &Path) -> Result<()> {
 
 /// ICO with classic DIB entries up to 64px (every Windows tool reads those)
 /// and PNG-compressed entries above, like Windows' own icons.
-fn write_ico(tree: &usvg::Tree, path: &Path) -> Result<()> {
+fn write_ico(masters: &Masters, path: &Path) -> Result<()> {
     let images = ICO_SIZES
         .iter()
         .map(|size| {
+            let tree = masters.at(*size);
             let data = if *size <= 64 {
                 render_dib(tree, *size)?
             } else {

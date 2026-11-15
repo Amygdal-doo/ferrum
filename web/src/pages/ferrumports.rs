@@ -87,8 +87,8 @@ const PAGE: ProductPage = ProductPage {
         },
     ],
     specs: &[
-        ("Install", "Ferrum Launcher (free, see Download)"),
-        ("Shell command", "fep, turned on in Ferrum Launcher"),
+        ("Install", "FerrumLauncher (free, see Download)"),
+        ("Shell command", "fep, turned on in FerrumLauncher"),
         (
             "Platforms",
             "macOS with lsof; Linux with ss (written and tested, not yet run on Linux)",

@@ -1,4 +1,4 @@
-//! Ferrum System (FeS) core: the architecture model saved in a project's
+//! FerrumSystem (FeS) core: the architecture model saved in a project's
 //! `.architecture/` folder, the catalogue of component kinds, technologies
 //! and clouds, the demo systems, and live Kubernetes / Docker status.
 

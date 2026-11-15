@@ -7,6 +7,7 @@ pub mod editor_panes_agentic;
 pub mod glass_and_cards;
 pub mod launcher_settings_compact;
 pub mod onboarding_settings;
+pub mod open_source;
 pub mod per_app_themes;
 pub mod public_alpha;
 pub mod rex_layout_and_fec;

@@ -28,7 +28,7 @@ fn open_folder(binary: &str, name: &str, folder: &Path) -> Result<(), String> {
     }
     let home = project::home_dir();
     let exe = project::find_binary(binary, home.as_deref())
-        .ok_or_else(|| format!("{name} is not installed. Install it in Ferrum Launcher."))?;
+        .ok_or_else(|| format!("{name} is not installed. Install it in FerrumLauncher."))?;
     Command::new(exe)
         .current_dir(folder)
         .stdin(Stdio::null())

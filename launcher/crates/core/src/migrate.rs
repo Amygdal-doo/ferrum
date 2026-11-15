@@ -286,7 +286,7 @@ mod tests {
         assert!(state.releases.iter().any(|r| r.app == AppId::LAUNCHER));
         assert_eq!(
             state.info(AppId::LAUNCHER).bundle_name,
-            "Ferrum Launcher",
+            "FerrumLauncher",
             "the cached 0.5.0 catalog doesn't break the new metadata"
         );
         // Ferrum IDE was dropped: the installed copy stays launchable and
@@ -312,11 +312,11 @@ mod tests {
             vec![
                 AppId::EDITOR,
                 AppId::VIBE,
-                AppId::SYSTEM,
-                AppId::KIT,
                 AppId::DOCK,
+                AppId::ENV,
                 AppId::PORTS,
-                AppId::ENV
+                AppId::KIT,
+                AppId::SYSTEM
             ]
         );
         assert!(state.is_new(AppId::DOCK));

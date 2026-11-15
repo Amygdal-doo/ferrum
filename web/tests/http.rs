@@ -53,7 +53,7 @@ async fn send_with(releases: Releases, req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 42] = [
+const PAGES: [&str; 43] = [
     "/",
     "/apps",
     "/features",
@@ -93,6 +93,7 @@ const PAGES: [&str; 42] = [
     "/updates/every-app-keeps-its-own-theme",
     "/updates/ferrum-system-and-ferrumvibe",
     "/updates/ferrumide-ferrumengineer-and-ferrumvariables",
+    "/updates/ferrum-is-open-source",
     "/about",
     "/licenses",
     "/privacy",
@@ -125,7 +126,7 @@ async fn download_page_offers_public_macos_download() {
     let res = get("/download").await;
     assert_eq!(res.status, StatusCode::OK);
     let html = res.text();
-    assert!(html.contains("Get Ferrum Launcher"));
+    assert!(html.contains("Get FerrumLauncher"));
     assert!(html.contains(r#"href="/download/macos""#));
     assert!(html.contains("https://github.com/Amygdal-doo/ferrum-releases/releases"));
     assert!(!html.contains("gh auth login"));
@@ -726,7 +727,7 @@ async fn every_page_has_unique_seo_metadata() {
 }
 
 #[tokio::test]
-async fn app_pages_describe_a_free_macos_application() {
+async fn app_pages_describe_a_free_open_source_application() {
     for p in web_ferrum::products::ALL {
         let html = get(&p.path()).await.text();
         let ld = json_ld(&html);
@@ -735,8 +736,17 @@ async fn app_pages_describe_a_free_macos_application() {
             .find(|v| v["@type"] == "SoftwareApplication")
             .unwrap_or_else(|| panic!("{}: no SoftwareApplication", p.slug));
         assert_eq!(app["name"], p.name);
-        assert_eq!(app["operatingSystem"], "macOS");
+        assert_eq!(app["operatingSystem"], "macOS, Linux");
         assert_eq!(app["applicationCategory"], "DeveloperApplication");
+        assert_eq!(app["license"][0], "https://spdx.org/licenses/MIT.html");
+        assert_eq!(
+            app["license"][1],
+            "https://spdx.org/licenses/Apache-2.0.html"
+        );
+        assert_eq!(
+            app["isBasedOn"]["codeRepository"],
+            "https://github.com/Amygdal-doo/ferrum"
+        );
         assert_eq!(app["offers"]["price"], "0");
         assert_eq!(app["url"], format!("http://localhost:8080{}", p.path()));
         let crumbs = ld.iter().find(|v| v["@type"] == "BreadcrumbList").unwrap();
@@ -810,7 +820,7 @@ async fn changelog_lists_releases_from_github() {
     let res = get_with(fake_releases(Ok(json)), "/changelog").await;
     assert_eq!(res.status, StatusCode::OK);
     let html = res.text();
-    assert!(html.contains("Ferrum Launcher</a> 0.6.0"));
+    assert!(html.contains("FerrumLauncher</a> 0.6.0"));
     assert!(html.contains("FerrumAPI</a> 0.2.0-alpha.1"));
     assert!(html.contains("<li>Renamed from Ferrum Toolbox</li>"));
     assert!(html.contains(">November 2026</h2>"));
@@ -868,8 +878,8 @@ async fn licenses_page_lists_bundled_works_and_is_linked() {
         "ISC",
         "Apache-2.0",
         "MIT",
-        "all rights reserved",
-        "AMYGDAL d.o.o.",
+        "MIT OR Apache-2.0",
+        "github.com/Amygdal-doo/ferrum",
         "<details",
         "axum",
         "maud",
@@ -892,8 +902,54 @@ async fn licenses_page_lists_bundled_works_and_is_linked() {
         assert!(main.contains(r#"href="/licenses""#), "{path}");
     }
     let faq = get("/faq").await.text();
-    assert!(faq.contains("proprietary"));
+    assert!(faq.contains("Is Ferrum free and open source?"));
     assert!(!get("/about").await.text().contains("theme crates"));
+}
+
+#[tokio::test]
+async fn no_page_calls_ferrum_closed() {
+    for path in PAGES {
+        let html = get(path).await.text().to_lowercase();
+        for claim in [
+            "proprietary",
+            "closed source",
+            "closed-source",
+            "all rights reserved",
+            "source-available",
+            "aren't open source",
+            "isn't published",
+        ] {
+            assert!(!html.contains(claim), "{path}: {claim}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn open_source_post_and_header_link_the_repository() {
+    let post = get("/updates/ferrum-is-open-source").await;
+    assert_eq!(post.status, StatusCode::OK);
+    let html = post.text();
+    assert!(html.contains("<h1"));
+    assert!(html.contains("MIT OR Apache-2.0"));
+    assert!(ld_types(&json_ld(&html)).contains(&"BlogPosting".to_owned()));
+    let index = get("/updates").await.text();
+    let first = index
+        .find("/updates/ferrum-is-open-source")
+        .unwrap_or(usize::MAX);
+    let other = index
+        .find("/updates/ferrumide-ferrumengineer-and-ferrumvariables")
+        .unwrap_or(0);
+    assert!(first < other, "the open-source post leads the index");
+    for path in ["/", "/download", "/faq"] {
+        let html = get(path).await.text();
+        let header = html.split("</header>").next().unwrap_or_default();
+        assert!(
+            header.contains(r#"href="https://github.com/Amygdal-doo/ferrum""#),
+            "{path}"
+        );
+    }
+    let security = get("/security").await.text();
+    assert!(security.contains("https://github.com/Amygdal-doo/ferrum/security/advisories/new"));
 }
 
 #[test]
@@ -928,7 +984,6 @@ async fn apps_page_lists_every_app_and_nav_points_to_it() {
     let home = get("/").await.text();
     assert!(home.contains(r#"href="/apps""#));
     assert!(!home.contains(r##"href="/#apps""##));
-    assert_eq!(home.matches(r#"role="tab""#).count(), 4);
 
     let xml = get("/sitemap.xml").await.text();
     assert!(xml.contains("<loc>http://localhost:8080/apps</loc><lastmod>"));

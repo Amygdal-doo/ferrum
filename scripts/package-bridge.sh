@@ -8,14 +8,16 @@
 # launcher-v<version> release. For each one this writes
 #   <out-dir>/toolbox-<version>-<target>.app.tar.gz   (+ .sha256)
 # which is the launcher archive with one extra root entry: a symlink
-#   ferrum-toolbox -> Ferrum Launcher.app/Contents/MacOS/ferrum-launcher
+#   ferrum-toolbox -> FerrumLauncher.app/Contents/MacOS/ferrum-launcher
+# (the bundle's name is read from the archive: `Ferrum Launcher.app` before
+# the 2026-11 rename, `FerrumLauncher.app` after it)
 #
 # Why: Toolbox 0.5.0 only looks at toolbox-v* releases, downloads
 # toolbox-<version>-<target>.app.tar.gz, checks its .sha256, and accepts the
 # archive when `ferrum-toolbox` exists at its root or in the single .app's
 # Contents/MacOS. It then swaps that single .app (whatever its name) into the
 # place of the running "Ferrum Toolbox.app" and opens it; the launcher then
-# renames itself to "Ferrum Launcher.app". The entry is appended to the
+# renames itself to "FerrumLauncher.app". The entry is appended to the
 # original tar, so the signed, notarized bundle stays byte-for-byte the same.
 #
 # Upload the result as a release tagged toolbox-v<version> (see
@@ -38,7 +40,6 @@ if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+
 fi
 [ -d "$assets" ] || { echo "error: '$assets' is not a directory" >&2; exit 2; }
 
-bundle="Ferrum Launcher.app"
 binary="ferrum-launcher"
 legacy_binary="ferrum-toolbox"
 
@@ -64,10 +65,12 @@ for target in aarch64-apple-darwin x86_64-apple-darwin; do
 
   # The launcher archive must hold exactly one bundle, with the launcher binary.
   listing="$(tar -tzf "$source")"
-  if ! printf '%s\n' "$listing" | grep -qxE "(\./)?$bundle/Contents/MacOS/$binary"; then
-    echo "error: $source has no $bundle/Contents/MacOS/$binary" >&2
+  bundles="$(printf '%s\n' "$listing" | sed -nE "s#^(\./)?([^/]+\.app)/Contents/MacOS/$binary\$#\2#p" | sort -u)"
+  if [ -z "$bundles" ] || [ "$(printf '%s\n' "$bundles" | wc -l)" -ne 1 ]; then
+    echo "error: $source needs exactly one <name>.app/Contents/MacOS/$binary" >&2
     exit 1
   fi
+  bundle="$bundles"
   if printf '%s\n' "$listing" | sed 's|^\./||' | grep -q "^$legacy_binary\$"; then
     echo "error: $source already has a root $legacy_binary entry" >&2
     exit 1

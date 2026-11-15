@@ -14,7 +14,7 @@ gpui::actions!(
     [
         /// Show the About page of Settings.
         About,
-        /// Open Ferrum Launcher, which installs updates.
+        /// Open FerrumLauncher, which installs updates.
         CheckForUpdates,
         /// Hide this app.
         HideApp,
@@ -170,13 +170,23 @@ fn with_window(cx: &mut App, f: impl FnOnce(&mut gpui::Window)) {
     }
 }
 
-/// Opens Ferrum Launcher (which shows and installs updates).
+/// Opens FerrumLauncher (which shows and installs updates): by bundle id,
+/// so any copy's name works (`FerrumLauncher.app`, or `Ferrum Launcher.app`
+/// before it renamed itself).
 pub fn open_launcher() {
     if cfg!(target_os = "macos") {
-        let launched = std::process::Command::new("/usr/bin/open")
-            .args(["-a", "Ferrum Launcher"])
-            .status()
-            .is_ok_and(|s| s.success());
+        let launched = [
+            ["-b", "dev.ferrum.launcher"],
+            ["-a", "FerrumLauncher"],
+            ["-a", "Ferrum Launcher"],
+        ]
+        .into_iter()
+        .any(|args| {
+            std::process::Command::new("/usr/bin/open")
+                .args(args)
+                .status()
+                .is_ok_and(|s| s.success())
+        });
         if launched {
             return;
         }

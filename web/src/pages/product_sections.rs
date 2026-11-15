@@ -97,7 +97,7 @@ fn hero(p: &ProductPage, trail: &[Crumb]) -> Markup {
         .actions(html! {
             (button::link(site::DOWNLOAD_LABEL, site::DOWNLOAD_PATH, Variant::Primary))
             @if prod.slug != products::FERRUM_LAUNCHER.slug {
-                (button::link("Install with Ferrum Launcher",
+                (button::link("Install with FerrumLauncher",
                     &products::FERRUM_LAUNCHER.path(), Variant::Secondary))
             }
         })
@@ -203,7 +203,7 @@ fn guides(current: &Product) -> Vec<(String, String)> {
         links.push((c.title.to_owned(), c.path()));
     }
     links.push((
-        "Install and update with Ferrum Launcher".to_owned(),
+        "Install and update with FerrumLauncher".to_owned(),
         docs::install::PATH.to_owned(),
     ));
     links

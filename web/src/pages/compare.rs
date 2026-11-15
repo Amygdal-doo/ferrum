@@ -86,7 +86,7 @@ pub const COMPARISONS: [Comparison; 2] = [
             ),
             (
                 "App",
-                "Native Rust app drawn with GPUI, installed by Ferrum Launcher",
+                "Native Rust app drawn with GPUI, installed by FerrumLauncher",
                 "Desktop app with an Electron-based dashboard",
             ),
             (

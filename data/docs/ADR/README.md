@@ -11,5 +11,5 @@
 | [ADR-007](ADR-007-credential-fallback.md) | Credential store unavailable → session-only | Accepted |
 | [ADR-008](ADR-008-pg-cancellation.md) | PostgreSQL cancellation semantics | Accepted |
 | ADR-009 | macOS distribution (signing/notarization) | Not started |
-| ADR-010 | Licensing strategy | **Open** — no license chosen; avoid GPL deps until decided |
+| ADR-010 | Licensing strategy | **Decided 2026-11-15** — MIT OR Apache-2.0 (root `LICENSE-MIT` / `LICENSE-APACHE`); no GPL-family deps in shipped binaries |
 | [ADR-011](ADR-011-gpui.md) | GPUI (from the FerrumIDE fork) as the UI runtime | Accepted |

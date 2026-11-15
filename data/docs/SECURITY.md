@@ -42,6 +42,6 @@ Cell values render as plain GPUI text (`CellValue::display()`); there is no HTML
 layer, so nothing from a database is interpreted as markup.
 
 ## Supply chain
-Toolchain pinned (`rust-toolchain.toml`), `Cargo.lock` committed, GPUI and the `ui`/`theme`
-crates come from the in-repo Zed codebase (`../ide` submodule, path dependencies), weekly `cargo
-audit` workflow.
+Toolchain pinned (`rust-toolchain.toml`), `Cargo.lock` committed, GPUI comes from
+upstream Zed as a git dependency pinned to one commit (`ferrum-ui` replaces Zed's `ui`/`theme`),
+weekly `cargo audit` workflow.

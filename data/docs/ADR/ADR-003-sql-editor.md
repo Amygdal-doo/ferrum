@@ -3,6 +3,8 @@
 Status: **Open — blocking spike not yet executed** · 2026-10-18
 
 > **Note 2026-11-11:** Ferrum IDE was dropped as a product; `../ide` stays as a library (GPUI, `ui`, `theme`) and Ferrum Editor is the suite's code editor.
+>
+> **Note 2026-11-15:** the `../ide` submodule was removed. GPUI (`gpui`, `gpui_platform`) is now a git dependency on upstream Zed pinned to one commit; Zed's `ui`/`theme` were replaced by `ferrum-ui`. Ferrum is licensed MIT OR Apache-2.0.
 
 > **Update 2026-11-08 (ADR-011):** the interim editor is no longer a `<textarea>`. It is a
 > multi-line monospace `ferrum_ui::TextInput` (GPUI) with a line-number gutter; the run

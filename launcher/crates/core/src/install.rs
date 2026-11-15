@@ -479,13 +479,9 @@ pub(crate) mod tests {
         make_archive(
             &source,
             &[
+                ("FerrumLauncher.app/Contents/Info.plist", b"<plist/>", 0o644),
                 (
-                    "Ferrum Launcher.app/Contents/Info.plist",
-                    b"<plist/>",
-                    0o644,
-                ),
-                (
-                    "Ferrum Launcher.app/Contents/MacOS/ferrum-launcher",
+                    "FerrumLauncher.app/Contents/MacOS/ferrum-launcher",
                     b"#!/bin/sh\n",
                     0o755,
                 ),
@@ -520,7 +516,7 @@ pub(crate) mod tests {
         install_archive(&bridge, ArchiveKind::TarGz, &toolbox_dir, "ferrum-toolbox")
             .expect("Toolbox 0.5.0 accepts the bridge archive");
         let bundle = locate_bundle(&toolbox_dir).expect("one bundle to swap in");
-        assert_eq!(bundle, toolbox_dir.join("Ferrum Launcher.app"));
+        assert_eq!(bundle, toolbox_dir.join("FerrumLauncher.app"));
         assert!(bundle.join("Contents/MacOS/ferrum-launcher").is_file());
 
         // The launcher installs the same archive under its own binary name.

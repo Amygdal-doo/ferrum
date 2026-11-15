@@ -144,9 +144,9 @@ mod tests {
     use super::*;
 
     /// Captured on macOS 26 with `TCP_ARGS` (trimmed).
-    const TCP: &str = "p626\ncrapportd\nu501\nLabdulrahimklis\nf10\ntIPv4\nPTCP\nn*:56996\nTST=LISTEN\nTQR=0\nTQS=0\nf11\ntIPv6\nPTCP\nn*:56996\nTST=LISTEN\nTQR=0\nTQS=0\np1053\ncadb\nu501\nLabdulrahimklis\nf8\ntIPv4\nPTCP\nn127.0.0.1:5037\nTST=LISTEN\np2001\ncnode\nu0\nf22\ntIPv6\nPTCP\nn[::1]:3000\nTST=LISTEN\n";
+    const TCP: &str = "p626\ncrapportd\nu501\nLme\nf10\ntIPv4\nPTCP\nn*:56996\nTST=LISTEN\nTQR=0\nTQS=0\nf11\ntIPv6\nPTCP\nn*:56996\nTST=LISTEN\nTQR=0\nTQS=0\np1053\ncadb\nu501\nLme\nf8\ntIPv4\nPTCP\nn127.0.0.1:5037\nTST=LISTEN\np2001\ncnode\nu0\nf22\ntIPv6\nPTCP\nn[::1]:3000\nTST=LISTEN\n";
 
-    const UDP: &str = "p626\ncrapportd\nu501\nLabdulrahimklis\nf31\ntIPv6\nPUDP\nn*:3722\nf38\ntIPv4\nPUDP\nn*:3722\np648\ncidentityservicesd\nu501\nf7\ntIPv4\nPUDP\nn*:*\nf8\ntIPv4\nPUDP\nn10.0.0.2:5353->10.0.0.1:53\n";
+    const UDP: &str = "p626\ncrapportd\nu501\nLme\nf31\ntIPv6\nPUDP\nn*:3722\nf38\ntIPv4\nPUDP\nn*:3722\np648\ncidentityservicesd\nu501\nf7\ntIPv4\nPUDP\nn*:*\nf8\ntIPv4\nPUDP\nn10.0.0.2:5353->10.0.0.1:53\n";
 
     #[test]
     fn parses_listening_tcp() {
@@ -156,7 +156,7 @@ mod tests {
         assert_eq!(sockets[1].address, "::");
         assert_eq!(sockets[1].port, 56996);
         assert_eq!(sockets[2].process, "adb");
-        assert_eq!(sockets[2].user.as_deref(), Some("abdulrahimklis"));
+        assert_eq!(sockets[2].user.as_deref(), Some("me"));
         assert_eq!(sockets[2].pid, Some(1053));
         // No login name: the uid is shown.
         assert_eq!(sockets[3].user.as_deref(), Some("0"));

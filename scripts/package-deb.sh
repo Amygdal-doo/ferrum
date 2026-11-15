@@ -77,14 +77,21 @@ Categories=Development;
 StartupWMClass=$main_binary
 DESKTOP
 
-license="$root/$app/LICENSE"
-[ -f "$license" ] || license="$root/LICENSE"
 {
   echo "Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/"
   echo "Upstream-Name: $APP_NAME"
   echo "Source: https://github.com/Amygdal-doo/ferrum"
   echo
-  if [ -f "$license" ]; then cat "$license"; else echo "All rights reserved."; fi
+  echo "Files: *"
+  echo "Copyright: 2026 AMYGDAL d.o.o. Sarajevo and Ferrum contributors"
+  echo "License: MIT or Apache-2.0"
+  echo
+  echo "License: MIT"
+  sed 's/^$/./; s/^/ /' "$root/LICENSE-MIT"
+  echo
+  echo "License: Apache-2.0"
+  echo " On Debian systems, the full text of the Apache License 2.0 can be found"
+  echo " in /usr/share/common-licenses/Apache-2.0."
 } > "$pkg/usr/share/doc/$DEB_PACKAGE/copyright"
 
 # GPUI opens most of these with dlopen, so dpkg-shlibdeps can't see them.
