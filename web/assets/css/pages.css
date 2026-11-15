@@ -275,3 +275,13 @@ html:not(.js) .showcase__panel[hidden] { display: grid; margin-top: var(--sp-16)
 .page-download .callout--warn h2 { font-size: var(--fs-xl); }
 .page-download .download-actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-8); }
 .page-download .app-strip { margin-top: var(--sp-12); }
+
+/* Download: every app in one row, logo over name; scrolls sideways when the
+   window is too narrow for eleven tiles. */
+.page-download .download-apps { margin-top: var(--sp-12); overflow-x: auto; scrollbar-width: thin; }
+.page-download .download-apps .app-strip { margin: 0; display: flex; }
+.page-download .download-apps .app-strip li { flex: 1 1 auto; }
+.page-download .download-apps .app-strip__link {
+  flex-direction: column; justify-content: center; gap: var(--sp-2); height: 100%;
+  padding: var(--sp-3) var(--sp-2); font-size: var(--fs-xs); text-align: center; white-space: nowrap;
+}

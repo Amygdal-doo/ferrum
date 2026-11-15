@@ -194,10 +194,18 @@ pub fn ci() -> Markup {
     )
 }
 
+/// A layer of the Ferrum System demo: name, colour and its cards (badge,
+/// title, role).
+type Layer = (
+    &'static str,
+    &'static str,
+    &'static [(&'static str, &'static str, &'static str)],
+);
+
 /// Ferrum System: the banking demo's layers, a card picked, its database
 /// schema sliding in.
 pub fn system() -> Markup {
-    let layers: [(&str, &str, &[(&str, &str, &str)]); 4] = [
+    let layers: [Layer; 4] = [
         (
             "Clients",
             "#6366f1",

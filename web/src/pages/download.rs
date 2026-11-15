@@ -216,7 +216,7 @@ pub fn render(site_url: &str) -> Markup {
                 .band()
                 .render(html! {
                     (card::steps(&use_launcher_steps()))
-                    (card::app_strip(products::apps(), false))
+                    div class="download-apps" { (card::app_strip(products::apps(), false)) }
                 }))
             (Section::new("platforms", "Launcher installers")
                 .tight()

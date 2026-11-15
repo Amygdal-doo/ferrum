@@ -399,7 +399,7 @@ fn hero(trail: &[Crumb]) -> Markup {
     PageHeader::new(trail, "What's new across Ferrum")
         .lead(html! {
             p {
-                "Ten native developer apps, written in Rust and rendered with GPUI. This \
+                "Eleven native developer apps, written in Rust and rendered with GPUI. This \
                  is what each one can do in the current alpha. "
                 a href=(site::DOWNLOAD_PATH) { "Ferrum Launcher" }
                 " installs them and keeps them up to date."
@@ -439,7 +439,7 @@ fn app_section(app: &AppFeatures) -> Markup {
                         p class="feature-app__meta" { (p.kind) " · v" (app.version) }
                     }
                     p class="lead" { (app.summary) }
-                    ul class="feature-points" {
+                    ul class="feature-points" tabindex="0" aria-label=(format!("{} features", p.name)) {
                         @for (title, body) in app.points {
                             li {
                                 strong { (title) }

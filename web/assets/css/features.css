@@ -658,3 +658,14 @@
 .sys__schema em { color: var(--text-faint); }
 @keyframes sys-rise { 0% { opacity: 0; transform: translateY(6px); } 10%, 100% { opacity: 1; transform: none; } }
 @keyframes sys-schema { 0%, 30% { opacity: 0; transform: translateY(8px); } 40%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+
+/* Next to the demo, long feature lists scroll inside a box the demo's height,
+   so every section stays one screen tall. */
+@media (min-width: 960px) {
+  .feature-points {
+    max-height: 26rem; overflow-y: auto; overscroll-behavior: contain;
+    padding-right: var(--sp-3); scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--app-accent) 50%, transparent) transparent;
+  }
+  .feature-points:focus-visible { outline: 2px solid var(--app-accent); outline-offset: 4px; border-radius: var(--radius); }
+}

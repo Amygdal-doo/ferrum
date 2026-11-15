@@ -113,14 +113,17 @@ fn showcase() -> Markup {
     }
 }
 
-/// The other seven apps as one compact row, ending in the full list.
+/// Every app and the launcher as a compact grid, ending in the full list.
 fn more_apps() -> Markup {
-    let others = apps::MORE.iter().chain(std::iter::once(&apps::LAUNCHER));
+    let all = apps::MAIN
+        .iter()
+        .chain(apps::MORE.iter())
+        .chain(std::iter::once(&apps::LAUNCHER));
     html! {
         nav class="more-apps" aria-labelledby="more-apps-title" {
-            h3 class="more-apps__title" id="more-apps-title" { "Also in the launcher" }
-            (card::app_strip(others.map(|e| &e.product), false))
-            a class="more-apps__all" href=(apps::PATH) { "All eleven apps" }
+            h3 class="more-apps__title" id="more-apps-title" { "Every app in the launcher" }
+            (card::app_strip(all.map(|e| &e.product), false))
+            a class="more-apps__all" href=(apps::PATH) { "What each app does" }
         }
     }
 }
