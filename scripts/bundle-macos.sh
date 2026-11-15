@@ -123,8 +123,12 @@ fi
 
 if [ -n "${FERRUM_SIGN_IDENTITY:-}" ]; then
   # Sign the inner executables first; --deep is deprecated for signing.
+  # Helpers before the main executable: codesign checks a bundle's main
+  # executable against the other binaries next to it, and x86_64 builds
+  # (unlike arm64) come out of the linker without even an ad-hoc signature.
   entitlements="$root/packaging/macos/ferrum.entitlements"
-  for binary in $binaries; do
+  main=${binaries%% *}
+  for binary in ${binaries#"$main"} $main; do
     codesign --force --options runtime --timestamp --entitlements "$entitlements" \
       --sign "$FERRUM_SIGN_IDENTITY" --identifier "dev.ferrum.$app.$binary" \
       "$bundle/Contents/MacOS/$binary"
