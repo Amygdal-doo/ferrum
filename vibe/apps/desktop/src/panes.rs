@@ -22,6 +22,25 @@ impl FerrumVibe {
         if self.layout.is_visible(Column::Term) {
             self.ensure_term(window, cx);
         }
+        if self.layout.files.visible {
+            self.ensure_files(window, cx);
+        }
+    }
+
+    /// The Files pane on the current project.
+    pub(crate) fn ensure_files(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(root) = self.project.clone() else {
+            return;
+        };
+        if self.files.is_some() {
+            return;
+        }
+        let files = cx.new(|cx| crate::files::FilesView::new(Some(root), cx));
+        let events = cx.subscribe_in(&files, window, |this, _, event, _, cx| match event {
+            crate::files::FilesEvent::Open(path) => this.open_file(path, None, cx),
+        });
+        self.files_subscription = Some(events);
+        self.files = Some(files);
     }
 
     /// The current project's chat, started on first use.
@@ -121,6 +140,9 @@ impl FerrumVibe {
             ChatEvent::ChangesUpdated { files } if current => {
                 self.pending_changes = *files;
                 self.refresh_git(window, cx);
+                if let Some(tree) = &self.files {
+                    tree.update(cx, |tree, cx| tree.refresh(cx));
+                }
                 cx.notify();
             }
             ChatEvent::ChangesUpdated { .. } => {}

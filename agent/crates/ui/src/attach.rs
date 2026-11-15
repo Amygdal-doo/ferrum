@@ -82,11 +82,24 @@ impl ChatView {
             multiple: files,
             prompt: Some(if files { "Attach" } else { "Add folder" }.into()),
         });
-        let root = self.project.clone();
         let task = cx.spawn(async move |this, cx| {
             let Ok(Ok(Some(paths))) = picked.await else {
                 return;
             };
+            this.update(cx, |this, cx| this.add_context_paths(paths, cx))
+                .ok();
+        });
+        self.tasks.retain(|t| !t.is_ready());
+        self.tasks.push(task);
+    }
+
+    /// Adds files and folders as context chips (a host's file tree or a
+    /// Finder drop): project paths by reference, text files elsewhere by
+    /// their content; the others are refused with a notice. Read off the
+    /// UI thread.
+    pub fn add_context_paths(&mut self, paths: Vec<std::path::PathBuf>, cx: &mut Context<Self>) {
+        let root = self.project.clone();
+        let task = cx.spawn(async move |this, cx| {
             let mentions = cx
                 .background_spawn(async move {
                     paths
@@ -107,6 +120,12 @@ impl ChatView {
         });
         self.tasks.retain(|t| !t.is_ready());
         self.tasks.push(task);
+    }
+
+    /// The context chips waiting in the composer.
+    #[must_use]
+    pub fn mentions(&self) -> &[Mention] {
+        &self.mentions
     }
 
     /// The output of the thread's last command.

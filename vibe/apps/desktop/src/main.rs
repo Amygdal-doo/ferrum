@@ -9,7 +9,9 @@ mod automations;
 mod chrome;
 mod columns;
 mod extensions;
+mod files;
 mod layout;
+mod menus;
 mod nav;
 mod navigate;
 mod pages;
@@ -50,6 +52,7 @@ fn main() {
         ferrumgit_ui::init(cx);
         ferrumterm_ui::init(cx);
         app::bind_keys(cx);
+        cx.set_menus(menus::menus(&app_info::app_info()));
         let path_env = path_env.join().ok().flatten();
         let options = app::Options {
             project,

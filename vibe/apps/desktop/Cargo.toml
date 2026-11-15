@@ -16,6 +16,8 @@ ferrum-ui.workspace = true
 ferrumagent-ui.workspace = true
 ferrumgit-ui.workspace = true
 ferrumterm-ui.workspace = true
+# The Files pane reads folders the way git sees them (.gitignore).
+ignore.workspace = true
 gpui.workspace = true
 serde.workspace = true
 serde_json.workspace = true

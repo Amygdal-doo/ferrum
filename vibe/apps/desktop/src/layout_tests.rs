@@ -96,3 +96,41 @@ fn layouts_are_saved_per_project() {
     std::fs::write(&file, "not json").expect("write");
     assert_eq!(load(&file, Some(a)), Layout::default());
 }
+
+#[test]
+fn the_files_pane_is_shown_by_default_and_its_width_is_kept_in_limits() {
+    let mut layout = Layout::default();
+    assert!(layout.files.visible);
+    assert!(close(layout.files.width, DEFAULT_FILES_WIDTH));
+    assert!(layout.files.resize(10.));
+    assert!(close(layout.files.width, MIN_FILES_WIDTH));
+    assert!(!layout.files.resize(MIN_FILES_WIDTH));
+    assert!(layout.files.resize(5000.));
+    assert!(close(layout.files.width, MAX_FILES_WIDTH));
+    // Layouts saved before the Files pane, or with a broken width.
+    let old: Layout =
+        serde_json::from_str(r#"{"slots":[{"column":"chat","visible":true,"weight":1.0}]}"#)
+            .expect("parse");
+    assert_eq!(old.normalized().files, FilesPane::default());
+    let broken: Layout =
+        serde_json::from_str(r#"{"slots":[],"files":{"visible":false,"width":1e9}}"#)
+            .expect("parse");
+    let broken = broken.normalized();
+    assert!(!broken.files.visible);
+    assert!(close(broken.files.width, MAX_FILES_WIDTH));
+}
+
+#[test]
+fn the_files_pane_round_trips_per_project() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let file = dir.path().join("layouts.json");
+    let layout = Layout {
+        files: FilesPane {
+            visible: false,
+            width: 333.,
+        },
+        ..Layout::default()
+    };
+    save(&file, Some(Path::new("/p")), &layout).expect("save");
+    assert_eq!(load(&file, Some(Path::new("/p"))).files, layout.files);
+}

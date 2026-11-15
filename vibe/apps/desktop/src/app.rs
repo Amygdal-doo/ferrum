@@ -1,7 +1,8 @@
 //! The root view's state: the project, its chat (one per project, kept
 //! alive), the FerrumGIT and FerrumTerm panes, the sidebar and the page
 //! shown in the main card. Rendering lives in `chrome`, `sidebar`,
-//! `columns` and `pages`; navigation in `navigate`; the views in `panes`.
+//! `columns` and `pages`; navigation in `navigate`; the views in `panes`
+//! and the Files pane in `files`.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -22,8 +23,10 @@ use crate::threads::ThreadIndex;
 actions!(
     ferrum_vibe,
     [
+        ToggleFiles,
         ToggleGit,
         ToggleTerm,
+        OpenFolder,
         ToggleSidebar,
         NewTask,
         NewDiscussion,
@@ -44,6 +47,7 @@ pub const SIDEBAR_FOLDERS: usize = 6;
 pub fn bind_keys(cx: &mut App) {
     let context = Some(KEY_CONTEXT);
     cx.bind_keys([
+        KeyBinding::new("cmd-alt-1", ToggleFiles, None),
         KeyBinding::new("cmd-alt-2", ToggleGit, None),
         KeyBinding::new("cmd-alt-3", ToggleTerm, None),
         KeyBinding::new("cmd-\\", ToggleSidebar, context),
@@ -53,7 +57,9 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-[", GoBack, context),
         KeyBinding::new("cmd-]", GoForward, context),
         KeyBinding::new("cmd-shift-f", ShowSearch, context),
+        KeyBinding::new("cmd-o", OpenFolder, context),
     ]);
+    crate::files::bind_keys(cx);
 }
 
 /// The project FerrumVibe had open last (from `~/.ferrum/projects.json`).
@@ -133,6 +139,9 @@ pub struct FerrumVibe {
     pub(crate) chats: HashMap<PathBuf, ChatSlot>,
     pub(crate) git: Option<Entity<GitView>>,
     pub(crate) term: Option<Entity<TermView>>,
+    /// The Files pane, created when first shown with a project open.
+    pub(crate) files: Option<Entity<crate::files::FilesView>>,
+    pub(crate) files_subscription: Option<Subscription>,
     /// The project's head, mirrored into the chat's footer.
     pub(crate) git_summary: Option<RepoSummary>,
     /// Files the chat's agent changed that are still to review.
@@ -195,6 +204,8 @@ impl FerrumVibe {
             chats: HashMap::new(),
             git: None,
             term: None,
+            files: None,
+            files_subscription: None,
             git_summary: None,
             pending_changes: 0,
             git_refreshes: 0,
@@ -269,6 +280,9 @@ impl FerrumVibe {
         if let Some(term) = &self.term {
             term.update(cx, |term, cx| term.set_cwd(path.clone(), cx));
         }
+        if let Some(files) = &self.files {
+            files.update(cx, |files, cx| files.set_root(path.clone(), cx));
+        }
         self.reload_recent();
         self.ensure_views(window, cx);
         self.pages.project_changed(&path, cx);
@@ -306,6 +320,60 @@ impl FerrumVibe {
             self.save_layout(cx);
             cx.notify();
         }
+    }
+
+    /// Shows or hides the Files pane.
+    pub fn set_files_visible(
+        &mut self,
+        visible: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.layout.files.visible == visible {
+            return;
+        }
+        self.layout.files.visible = visible;
+        self.ensure_views(window, cx);
+        if let Some(files) = self.files.clone() {
+            if visible {
+                // Catch up on changes made while it was hidden.
+                files.update(cx, |files, cx| files.refresh(cx));
+            } else if files.focus_handle(cx).contains_focused(window, cx) {
+                self.focus_chat(window, cx);
+            }
+        }
+        self.save_layout(cx);
+        cx.notify();
+    }
+
+    /// Drag of the splitter right of the Files pane, `width` px from its
+    /// left edge.
+    pub fn resize_files(&mut self, width: f32, cx: &mut Context<Self>) {
+        if self.layout.files.resize(width) {
+            self.save_layout_later(cx);
+            cx.notify();
+        }
+    }
+
+    /// Files and folders dropped on the chat (from the Files pane or the
+    /// Finder) become context chips in its composer.
+    pub fn add_context_paths(
+        &mut self,
+        paths: &[PathBuf],
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let paths = crate::files::without_nested(paths);
+        if paths.is_empty() {
+            return;
+        }
+        let Some(chat) = self.chat() else {
+            self.show_notice(Notice::error("Open a project folder first."), cx);
+            return;
+        };
+        chat.update(cx, |chat, cx| chat.add_context_paths(paths, cx));
+        self.focus_chat(window, cx);
+        cx.notify();
     }
 
     pub fn toggle(&mut self, column: Column, window: &mut Window, cx: &mut Context<Self>) {

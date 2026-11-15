@@ -3346,6 +3346,7 @@ dependencies = [
  "ferrumgit-ui",
  "ferrumterm-ui",
  "gpui",
+ "ignore",
  "serde",
  "serde_json",
  "tempfile",

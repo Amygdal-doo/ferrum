@@ -1,7 +1,7 @@
-//! The pane layout, without pixels: the chat (always shown, on the left)
-//! and the FerrumGIT and FerrumTerm panes beside it, which are shown, in
-//! what order and how wide. Saved per project in
-//! `~/.ferrum/vibe/layouts.json`.
+//! The pane layout, without pixels: the Files pane on the far left (shown
+//! or not, its width in px), the chat (always shown) and the FerrumGIT and
+//! FerrumTerm panes beside it, which are shown, in what order and how wide.
+//! Saved per project in `~/.ferrum/vibe/layouts.json`.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -55,10 +55,57 @@ pub struct Slot {
     pub weight: f32,
 }
 
-/// Every column exactly once, in display order (hidden ones included).
+/// Every column exactly once, in display order (hidden ones included),
+/// and the Files pane left of them.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Layout {
     pub slots: Vec<Slot>,
+    /// Absent in layouts saved before the Files pane: shown, default width.
+    #[serde(default)]
+    pub files: FilesPane,
+}
+
+pub const DEFAULT_FILES_WIDTH: f32 = 240.;
+pub const MIN_FILES_WIDTH: f32 = 160.;
+pub const MAX_FILES_WIDTH: f32 = 600.;
+
+/// The project tree on the far left.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct FilesPane {
+    pub visible: bool,
+    /// In px; kept while hidden.
+    pub width: f32,
+}
+
+impl Default for FilesPane {
+    fn default() -> Self {
+        Self {
+            visible: true,
+            width: DEFAULT_FILES_WIDTH,
+        }
+    }
+}
+
+impl FilesPane {
+    /// `width` within the limits (a broken value gives the default).
+    #[must_use]
+    pub fn clamp_width(width: f32) -> f32 {
+        if width.is_finite() {
+            width.clamp(MIN_FILES_WIDTH, MAX_FILES_WIDTH)
+        } else {
+            DEFAULT_FILES_WIDTH
+        }
+    }
+
+    /// Sets the width (clamped); returns whether it changed.
+    pub fn resize(&mut self, width: f32) -> bool {
+        let width = Self::clamp_width(width);
+        let changed = (width - self.width).abs() >= 0.5;
+        if changed {
+            self.width = width;
+        }
+        changed
+    }
 }
 
 const MIN_WEIGHT: f32 = 0.05;
@@ -82,6 +129,7 @@ impl Default for Layout {
                     ..slot(Column::Term, 0.25)
                 },
             ],
+            files: FilesPane::default(),
         }
     }
 }
@@ -115,6 +163,7 @@ impl Layout {
         let mut slot = self.slots.remove(chat);
         slot.visible = true;
         self.slots.insert(0, slot);
+        self.files.width = FilesPane::clamp_width(self.files.width);
         self
     }
 

@@ -9,8 +9,8 @@ use ferrum_ui::gpui::{Axis, DragMoveEvent, MouseButton};
 use ferrum_ui::prelude::*;
 
 use crate::app::{
-    FerrumVibe, GoBack, GoForward, KEY_CONTEXT, NewDiscussion, NewTask, ShowSearch, ToggleGit,
-    ToggleSidebar, ToggleTerm,
+    FerrumVibe, GoBack, GoForward, KEY_CONTEXT, NewDiscussion, NewTask, OpenFolder, ShowSearch,
+    ToggleFiles, ToggleGit, ToggleSidebar, ToggleTerm,
 };
 use crate::layout::Column;
 use crate::nav::{MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, Page};
@@ -98,20 +98,37 @@ impl FerrumVibe {
         .on_click(cx.listener(move |this, _, window, cx| this.toggle(column, window, cx)))
     }
 
-    /// The tasks list and the Git / Terminal toggles, at the right of the
-    /// chat's (or a page's) header row.
+    /// Shows or hides the Files pane.
+    fn files_toggle(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let visible = self.layout.files.visible;
+        let verb = if visible { "Hide" } else { "Show" };
+        ferrum_ui::title_button(
+            "toggle-files",
+            IconName::FileTree,
+            format!("{verb} Files (⌥⌘1)"),
+        )
+        .toggle_state(visible)
+        .when(visible, |b| b.icon_color(Color::Default))
+        .on_click(cx.listener(move |this, _, window, cx| {
+            this.set_files_visible(!visible, window, cx);
+        }))
+    }
+
+    /// The tasks list and the Files / Git / Terminal toggles, at the right
+    /// of the chat's (or a page's) header row.
     pub(crate) fn header_end(&self, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .flex_none()
             .gap_0p5()
             .child(self.tasks_menu(cx))
+            .child(self.files_toggle(cx))
             .child(self.pane_toggle(Column::Git, IconName::GitBranch, "⌥⌘2", cx))
             .child(self.pane_toggle(Column::Term, IconName::Terminal, "⌥⌘3", cx))
     }
 
     /// A page's header row (the page replaces the chat in its card).
     pub(crate) fn page_header(&self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let folded = !self.ui.sidebar_open;
+        let folded = self.controls_in_chat();
         ferrum_ui::title_row("page-header", folded, window)
             .gap_1()
             .when(!folded, |row| row.pl_3())
@@ -129,7 +146,7 @@ impl FerrumVibe {
     /// sidebar state: setting them re-renders the chat).
     fn sync_chat_header(&mut self, cx: &mut Context<Self>) {
         let Some(chat) = self.chat() else { return };
-        let folded = !self.ui.sidebar_open;
+        let folded = self.controls_in_chat();
         let key = (chat.entity_id(), folded);
         if self.header_slots_for == Some(key) {
             return;
@@ -212,6 +229,14 @@ impl Render for FerrumVibe {
             .id("ferrumvibe")
             .key_context(KEY_CONTEXT)
             .track_focus(self.focus_handle())
+            .on_action(cx.listener(|this, _: &ToggleFiles, window, cx| {
+                let visible = !this.layout.files.visible;
+                this.set_files_visible(visible, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &OpenFolder, window, cx| {
+                this.project_bar
+                    .update(cx, |bar, cx| bar.open_folder_dialog(window, cx));
+            }))
             .on_action(cx.listener(|this, _: &ToggleGit, window, cx| {
                 this.toggle(Column::Git, window, cx);
             }))

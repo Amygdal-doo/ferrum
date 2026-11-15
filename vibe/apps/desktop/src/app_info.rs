@@ -13,6 +13,8 @@ pub fn app_info() -> AppInfo {
         .key("Search threads", "cmd-shift-f")
         .key("Show or hide the sidebar", "cmd-\\")
         .key("Back / forward", "cmd-[")
+        .key("Open a folder", "cmd-o")
+        .key("Show or hide Files", "cmd-alt-1")
         .key("Show or hide Git", "cmd-alt-2")
         .key("Show or hide terminal", "cmd-alt-3")
         .key("Switch project", "cmd-alt-o")

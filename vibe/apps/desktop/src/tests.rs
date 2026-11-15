@@ -20,6 +20,9 @@ use crate::automations::{Automation, Schedule};
 use crate::layout::{self, Column, Layout};
 use crate::nav::Page;
 
+#[path = "files_tests.rs"]
+mod files;
+
 type Opened = Rc<RefCell<Vec<(Option<PathBuf>, PathBuf, Option<u32>)>>>;
 
 struct Fixture {

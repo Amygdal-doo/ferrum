@@ -27,12 +27,16 @@ cargo vibe ~/code/my-app      # ferrumvibe <folder> once installed (shell comman
 | Feature | State |
 |---|---|
 | Three columns side by side, built from the shared views | ✅ headless-rendered at 1500 and 760 px wide |
-| Close any column (✕ in its header, ⋯ → Close column, or the top-bar toggle); all three can be closed, and the window then says how to reopen one | ✅ tested |
-| Reopen from the top-bar toggles **Chat**, **Git**, **Term** (⌥⌘1, ⌥⌘2, ⌥⌘3). A column's view is created the first time it is shown and kept while hidden | ✅ tested (keystrokes and methods) |
+| The chat is always shown; the Git and Term panes are shown and hidden with the top-bar toggles (⌥⌘2, ⌥⌘3). A pane's view is created the first time it is shown and kept while hidden | ✅ tested (keystrokes and methods) |
 | Resize by dragging the splitter between two columns; only those two change, and neither gets narrower than 260 px. Widths are kept while a column is hidden | ✅ tested with a simulated mouse drag |
 | Reorder by dragging a column header onto another column, or ⋯ → Move left / Move right (hidden columns are skipped) | ⚠️ Move left/right and the drop handler are tested; the header drag gesture itself is not simulated |
 | Layout (order, shown columns, widths) saved per project in `~/.ferrum/vibe/layouts.json`. A project without a saved layout starts from the last one used | ✅ round-trip tested, including switching projects |
 | Shared project bar: name, path, branch, the ⌥⌘O switcher and Open Folder…; buttons to open the project in Ferrum Editor, FerrumGIT or FerrumTerm | ✅ rendered (shared widget) |
+| **Open a project**: File › Open Folder… (⌘O), File › Switch Project… (⌥⌘O), the sidebar's + and folders, or `ferrumvibe <folder>`. The chat, git, terminal and Files pane all follow it | ✅ tested (menu actions handled, every pane on the opened folder) |
+| **Files pane** on the far left of the cards: the project tree, folders first, read when expanded, `.gitignore` respected, `.git` hidden, names coloured by `git status` (read in the background) | ✅ model unit-tested; headless-rendered |
+| Files: click a folder to expand / collapse; double-click a file (or ↑↓ → ← and Enter) to open it in Ferrum Editor; ⟳ re-reads it (also after the agent changes files); collapse all | ✅ keys and click tested; double-click not simulated |
+| Files: shown / hidden with the top-bar toggle, ⌥⌘1 or View › Toggle Files; width resized by dragging its splitter; both saved with the layout (`files` in `layouts.json`) | ✅ tested |
+| **Drag files to the chat**: drag a file or folder (⌘-click selects several) from the Files pane, or files from the Finder, onto the chat; each becomes a context chip in the composer (✕ removes it). Project paths go by reference (`@src/main.rs`, `@src/`), text files outside the project by their content; binaries and outside folders are refused with a notice | ✅ tested with a simulated drag and a simulated Finder drop |
 | Switching project: a new chat rooted at the new folder, `GitView::set_repo`, `TermView::set_cwd` (running shells stay where they are; new tabs open in the project) | ✅ tested |
 | `ferrumvibe <folder>` opens on that folder; without one, the last project FerrumVibe opened | ✅ argument parsing tested |
 | Chat **Run in terminal** shows the terminal column if it was closed, runs the command in a new tab there and focuses it | ✅ tested (column reopened, command queued); the command's output is not checked |
@@ -58,8 +62,10 @@ FerrumTerm's own sessions.
   (`scripts/package-windows.ps1` and the release workflow skip it).
 - Layouts are saved per project, not per window; two windows on one project
   share it (last write wins).
-- No menu bar entries beyond Quit; the column toggles are only in the top bar
-  and on ⌥⌘1–3.
+- The Files pane has no file operations (new, rename, delete) and does not
+  watch the disk: it re-reads on ⟳, when shown, and when the agent changes
+  files.
+- Dropping onto the terminal or git panes does nothing yet.
 
 ## Layout
 
@@ -70,7 +76,9 @@ vibe/apps/desktop/src/
   panes.rs       the three embedded views, created on first show, and their events
   columns.rs     column headers (drag, ⋯ menu, close), bodies, splitters
   chrome.rs      top bar with the toggles, Render
+  menus.rs       the menu bar (File › Open Folder…, View toggles)
+  files/         the Files pane: tree.rs (model), git_marks.rs (status colours), mod.rs (view)
   layout.rs      the pure layout model and layouts.json (+ layout_tests.rs)
   shell_path.rs  the login shell's PATH
-  tests.rs       headless window tests
+  tests.rs       headless window tests (+ files_tests.rs for the Files pane)
 ```
