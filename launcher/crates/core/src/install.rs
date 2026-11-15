@@ -106,6 +106,11 @@ fn extract(archive: &Path, into: &Path) -> Result<()> {
                 path.display().to_string(),
             ));
         }
+        // macOS tar stores extended attributes as `._name` AppleDouble
+        // files; unpacked as plain files they break an app's code seal.
+        if is_apple_double(&path) {
+            continue;
+        }
         let kind = entry.header().entry_type();
         if (kind.is_symlink() || kind.is_hard_link())
             && let Some(target) = entry.link_name()?
@@ -129,6 +134,12 @@ fn extract(archive: &Path, into: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn is_apple_double(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with("._"))
 }
 
 /// Zip counterpart of [`extract`]. Links are rejected outright: Windows
@@ -283,6 +294,26 @@ pub(crate) mod tests {
             .filter_map(|e| e.ok())
             .collect();
         assert_eq!(leftovers.len(), 1);
+    }
+
+    #[test]
+    fn skips_apple_double_files() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let archive = dir.path().join("app.tar.gz");
+        make_archive(
+            &archive,
+            &[
+                ("FerrumAPI.app/Contents/MacOS/ferrumapi", b"bin", 0o755),
+                ("FerrumAPI.app/Contents/MacOS/._ferrumapi", b"xattrs", 0o644),
+                ("._FerrumAPI.app", b"xattrs", 0o644),
+            ],
+        );
+        let destination = dir.path().join("apps/api/0.5.4");
+        install_archive(&archive, ArchiveKind::TarGz, &destination, "ferrumapi").expect("install");
+        let macos = destination.join("FerrumAPI.app/Contents/MacOS");
+        assert!(macos.join("ferrumapi").is_file());
+        assert!(!macos.join("._ferrumapi").exists());
+        assert!(!destination.join("._FerrumAPI.app").exists());
     }
 
     #[test]

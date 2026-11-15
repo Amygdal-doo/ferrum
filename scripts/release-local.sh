@@ -15,6 +15,9 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 # shellcheck source=lib/apps.sh
 . scripts/lib/apps.sh
+# macOS tar would add `._name` AppleDouble files for extended attributes;
+# unpacked elsewhere they break the apps' code seal ("damaged").
+export COPYFILE_DISABLE=1
 TARGETS="${TARGETS:-aarch64-apple-darwin x86_64-apple-darwin}"
 REPO="${REPO:-Amygdal-doo/ferrum-releases}"
 mkdir -p "$1"

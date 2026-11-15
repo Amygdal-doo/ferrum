@@ -38,6 +38,8 @@ permissions:
 
 env:
   RELEASE_REPO: Amygdal-doo/ferrum-releases
+  # macOS tar: no `._name` AppleDouble files (they break the code seal).
+  COPYFILE_DISABLE: "1"
 
 jobs:
   prepare:
