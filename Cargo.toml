@@ -49,6 +49,7 @@ publish = false
 # Shared
 resvg = { version = "0.46", default-features = false }
 ferrum-ui = { path = "shared/ui" }
+ferrum-account = { path = "shared/account" }
 
 # GPUI (Apache-2.0) from upstream Zed, pinned to one commit and used as a
 # library only. Only permissively licensed Zed crates may be added here; Zed's

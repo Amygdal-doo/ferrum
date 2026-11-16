@@ -2418,6 +2418,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrum-account"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "getrandom 0.3.4",
+ "keyring",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "ferrum-brand"
 version = "0.1.0"
 dependencies = [
@@ -3173,6 +3192,7 @@ name = "ferrumlauncher-desktop"
 version = "0.6.0"
 dependencies = [
  "chrono",
+ "ferrum-account",
  "ferrum-ui",
  "ferrumlauncher-core",
  "futures",

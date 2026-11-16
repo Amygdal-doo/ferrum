@@ -75,6 +75,8 @@ pub struct FerrumLauncher {
     pub focus_handle: FocusHandle,
     /// Shell commands, Dock, shortcuts and the menu bar icon.
     pub integration: crate::integration::Integration,
+    /// The Ferrum account (title row avatar, Settings › Account).
+    pub account: crate::account::AccountUi,
     /// Subscriptions that live as long as the window.
     kept: Vec<Subscription>,
     _subscriptions: Vec<Subscription>,
@@ -114,6 +116,7 @@ impl FerrumLauncher {
             progress_ticker: None,
             focus_handle: cx.focus_handle(),
             integration: crate::integration::Integration::default(),
+            account: crate::account::AccountUi::default(),
             kept: Vec::new(),
             _subscriptions: Vec::new(),
         };
@@ -128,6 +131,7 @@ impl FerrumLauncher {
         this.load_logos(cx);
         this.detect_token(window, cx);
         this.start_integration(cx);
+        this.start_account(cx);
         // Shell commands and Dock icons may have been changed in an app's
         // Settings › System (or the launcher's own Settings window).
         let activation = cx.observe_window_activation(window, |this, window, cx| {
@@ -212,7 +216,7 @@ impl FerrumLauncher {
     }
 
     /// The window's title row: traffic-light room, the update buttons, then
-    /// the last check and the check / settings buttons.
+    /// the last check, the check button and the account (sign in / avatar).
     fn render_title_row(&mut self, window: &Window, cx: &mut Context<Self>) -> impl IntoElement {
         use ferrum_ui::components::ButtonSize;
         let last_check = match self.state.last_check {
@@ -299,6 +303,9 @@ impl FerrumLauncher {
                     .disabled(self.checking)
                     .on_click(cx.listener(|this, _, _, cx| this.check_for_updates(true, cx))),
             )
+            .when_some(self.render_account(cx), |this, account| {
+                this.child(div().w(px(4.))).child(account)
+            })
     }
 }
 

@@ -22,6 +22,8 @@ struct Entry {
     icon: Option<IconName>,
     /// An agent's or model maker's logo, after the icon.
     logo: Option<crate::AgentLogo>,
+    /// A small badge at the end, e.g. a plan name.
+    badge: Option<SharedString>,
     toggle: Option<(bool, IconPosition)>,
     action: Option<Box<dyn Action>>,
     disabled: bool,
@@ -93,6 +95,7 @@ impl ContextMenu {
             label: label.into(),
             icon: None,
             logo: None,
+            badge: None,
             toggle: None,
             action,
             disabled: false,
@@ -111,6 +114,7 @@ impl ContextMenu {
             label: label.into(),
             icon: Some(icon),
             logo: None,
+            badge: None,
             toggle: None,
             action: None,
             disabled: false,
@@ -131,6 +135,7 @@ impl ContextMenu {
             label: label.into(),
             icon: None,
             logo: None,
+            badge: None,
             toggle: Some((toggled, position)),
             action,
             disabled: false,
@@ -146,12 +151,21 @@ impl ContextMenu {
         self
     }
 
+    /// Ends the entry added last with a small badge (e.g. a plan, "Free").
+    pub fn with_badge(mut self, badge: impl Into<SharedString>) -> Self {
+        if let Some(Item::Entry(entry)) = self.items.last_mut() {
+            entry.badge = Some(badge.into());
+        }
+        self
+    }
+
     /// A greyed-out entry that cannot be chosen.
     pub fn disabled_entry(self, label: impl Into<SharedString>) -> Self {
         self.push_entry(Entry {
             label: label.into(),
             icon: None,
             logo: None,
+            badge: None,
             toggle: None,
             action: None,
             disabled: true,
@@ -282,6 +296,12 @@ impl ContextMenu {
                 div()
                     .flex_1()
                     .child(Label::new(entry.label.clone()).color(label_color)),
+            )
+            .children(
+                entry
+                    .badge
+                    .clone()
+                    .map(|badge| crate::badge(badge, colors.text_muted, cx)),
             )
             .children(
                 shortcut.map(|keys| Label::new(keys).size(LabelSize::Small).color(Color::Muted)),

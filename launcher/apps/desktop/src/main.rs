@@ -1,6 +1,8 @@
 //! FerrumLauncher desktop entry point.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod account;
+mod account_page;
 mod app;
 mod app_info;
 mod commands;
