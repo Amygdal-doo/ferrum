@@ -7,11 +7,12 @@
 pub mod browse;
 mod connections;
 pub mod edits;
+pub mod er;
 pub mod key_tree;
 mod queries;
 pub mod safety;
 
-pub use connections::{ConnectionService, PasswordChange};
+pub use connections::{ConnectionService, MAX_SCHEMA_TABLES, PasswordChange};
 pub use ferrumdata_db_driver_api::ScriptStatement;
 pub use ferrumdata_persistence::HistoryQuery;
 pub use queries::QueryService;

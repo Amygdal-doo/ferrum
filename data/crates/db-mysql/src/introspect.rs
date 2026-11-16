@@ -7,7 +7,7 @@
 use crate::error::map_sqlx_error;
 use ferrumdata_db_driver_api::DbResult;
 use ferrumdata_domain::{
-    ColumnInfo, IndexInfo, Secret, TableDetails, TableInfo, TableKind, TableRef,
+    ColumnInfo, ForeignKeyInfo, IndexInfo, Secret, TableDetails, TableInfo, TableKind, TableRef,
 };
 use sqlx::{MySqlPool, Row};
 use std::collections::HashMap;
@@ -98,6 +98,20 @@ FROM information_schema.STATISTICS
 WHERE TABLE_SCHEMA = COALESCE(?, DATABASE()) AND TABLE_NAME = ?
 ORDER BY INDEX_NAME = 'PRIMARY' DESC, INDEX_NAME, SEQ_IN_INDEX";
 
+const FOREIGN_KEYS: &str = "
+SELECT CAST(k.CONSTRAINT_NAME AS CHAR) AS name, CAST(k.COLUMN_NAME AS CHAR) AS col,
+       CAST(k.REFERENCED_TABLE_SCHEMA AS CHAR) AS ref_schema,
+       CAST(k.REFERENCED_TABLE_NAME AS CHAR) AS ref_table,
+       CAST(k.REFERENCED_COLUMN_NAME AS CHAR) AS ref_col,
+       CAST(r.DELETE_RULE AS CHAR) AS on_delete, CAST(r.UPDATE_RULE AS CHAR) AS on_update
+FROM information_schema.KEY_COLUMN_USAGE k
+JOIN information_schema.REFERENTIAL_CONSTRAINTS r
+  ON r.CONSTRAINT_SCHEMA = k.CONSTRAINT_SCHEMA AND r.CONSTRAINT_NAME = k.CONSTRAINT_NAME
+ AND r.TABLE_NAME = k.TABLE_NAME
+WHERE k.TABLE_SCHEMA = COALESCE(?, DATABASE()) AND k.TABLE_NAME = ?
+  AND k.REFERENCED_TABLE_NAME IS NOT NULL
+ORDER BY k.CONSTRAINT_NAME, k.ORDINAL_POSITION";
+
 pub async fn describe_table(
     pool: &MySqlPool,
     secret: &Secret,
@@ -156,5 +170,37 @@ pub async fn describe_table(
             unique: non_unique == 0,
         });
     }
-    Ok(TableDetails { columns, indexes })
+    let mut foreign_keys: Vec<ForeignKeyInfo> = Vec::new();
+    for r in sqlx::query(FOREIGN_KEYS)
+        .bind(table.schema.as_deref())
+        .bind(&table.name)
+        .fetch_all(pool)
+        .await
+        .map_err(map)?
+    {
+        let name: String = r.try_get("name").map_err(map)?;
+        let col: String = r.try_get("col").map_err(map)?;
+        let ref_col: String = r.try_get("ref_col").map_err(map)?;
+        if let Some(last) = foreign_keys.last_mut().filter(|f| f.name == name) {
+            last.columns.push(col);
+            last.ref_columns.push(ref_col);
+            continue;
+        }
+        foreign_keys.push(ForeignKeyInfo {
+            name,
+            columns: vec![col],
+            ref_table: TableRef {
+                schema: r.try_get("ref_schema").map_err(map)?,
+                name: r.try_get("ref_table").map_err(map)?,
+            },
+            ref_columns: vec![ref_col],
+            on_delete: r.try_get("on_delete").map_err(map)?,
+            on_update: r.try_get("on_update").map_err(map)?,
+        });
+    }
+    Ok(TableDetails {
+        columns,
+        indexes,
+        foreign_keys,
+    })
 }

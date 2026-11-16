@@ -465,3 +465,48 @@ async fn scripts_are_atomic_and_literals_round_trip() {
         .expect("drop");
     conn.close().await;
 }
+
+#[tokio::test]
+async fn describes_composite_foreign_keys() {
+    if !enabled() {
+        return;
+    }
+    let conn = connect().await;
+    let schema = format!("fk_{}", ExecutionId::new().0.simple());
+    for sql in [
+        format!("create schema {schema}"),
+        format!("create table {schema}.parent (a int, b int, primary key (a, b))"),
+        format!(
+            "create table {schema}.child (id int primary key, x int, y int, \
+             constraint child_parent foreign key (x, y) references {schema}.parent (a, b) on delete set null)"
+        ),
+    ] {
+        let events = run(&conn, &sql, QueryLimits::default()).await;
+        assert!(
+            matches!(events.last(), Some(QueryEvent::Completed(_))),
+            "{sql}: {events:?}"
+        );
+    }
+    let details = conn
+        .describe_table(&ferrumdata_domain::TableRef {
+            schema: Some(schema.clone()),
+            name: "child".into(),
+        })
+        .await
+        .expect("describe");
+    let fk = &details.foreign_keys[0];
+    assert_eq!(fk.name, "child_parent");
+    assert_eq!(fk.columns, vec!["x", "y"]);
+    assert_eq!(fk.ref_table.schema.as_deref(), Some(schema.as_str()));
+    assert_eq!(fk.ref_table.name, "parent");
+    assert_eq!(fk.ref_columns, vec!["a", "b"]);
+    assert_eq!(fk.on_delete, "SET NULL");
+    assert_eq!(fk.on_update, "NO ACTION");
+    run(
+        &conn,
+        &format!("drop schema {schema} cascade"),
+        QueryLimits::default(),
+    )
+    .await;
+    conn.close().await;
+}

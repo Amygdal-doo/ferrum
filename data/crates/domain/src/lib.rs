@@ -27,7 +27,8 @@ pub use query::{
     ExecutionEnvelope, QueryEvent, QueryLimits, QueryOutcome, QueryRequest, QueryState, RowBatch,
 };
 pub use schema::{
-    ColumnInfo, IndexInfo, TableDetails, TableInfo, TableKind, TableRef, redis_quote,
+    ColumnInfo, ForeignKeyInfo, IndexInfo, SchemaSnapshot, TableDetails, TableInfo, TableKind,
+    TableRef, TableSchema, redis_quote,
 };
 pub use secret::Secret;
 pub use settings::{AppSettings, EditorTabState, LayoutSettings, Theme};

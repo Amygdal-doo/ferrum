@@ -154,3 +154,37 @@ async fn read_only_profiles_refuse_edit_scripts() {
     assert!(err.message.contains("read-only"), "{}", err.message);
     assert!(f.rows("SELECT * FROM t").await.is_empty());
 }
+
+#[tokio::test]
+async fn schema_snapshot_feeds_the_er_layout() {
+    let f = fixture(&[
+        "CREATE TABLE customer (id INTEGER PRIMARY KEY, name TEXT)",
+        "CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER REFERENCES customer(id))",
+        "CREATE TABLE line (order_id INTEGER REFERENCES orders, n INTEGER, PRIMARY KEY (order_id, n))",
+        "CREATE TABLE notes (body TEXT)",
+        "CREATE VIEW big_orders AS SELECT * FROM orders",
+    ])
+    .await;
+    let snapshot = f.connections.describe_schema(f.id).await.expect("snapshot");
+    let names: Vec<&str> = snapshot
+        .tables
+        .iter()
+        .map(|t| t.info.table.name.as_str())
+        .collect();
+    assert_eq!(names, vec!["big_orders", "customer", "line", "notes", "orders"]);
+    let line = &snapshot.tables[2];
+    assert_eq!(line.details.foreign_keys[0].ref_columns, vec!["id"]);
+
+    let layout = ferrumdata_application::er::layout(&snapshot);
+    assert_eq!(layout.edges.len(), 2);
+    let x = |name: &str| {
+        layout
+            .nodes
+            .iter()
+            .find(|n| n.title == name)
+            .map_or(f32::NAN, |n| n.x)
+    };
+    assert!(x("customer") < x("orders") && x("orders") < x("line"));
+    let line_node = layout.nodes.iter().find(|n| n.title == "line").expect("line");
+    assert!(line_node.rows[0].primary_key && line_node.rows[0].foreign_key);
+}

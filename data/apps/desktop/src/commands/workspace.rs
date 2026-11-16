@@ -88,8 +88,8 @@ impl FerrumData {
             .state
             .tabs
             .iter()
-            // Key tabs show live values and are not restored.
-            .filter(|t| t.key.is_none())
+            // Key and tool tabs show live state and are not restored.
+            .filter(|t| t.key.is_none() && t.tool.is_none())
             .enumerate()
             .map(|(i, t)| t.to_state(i))
             .collect();
@@ -157,6 +157,7 @@ impl FerrumData {
         self.table_inputs.remove(&id);
         self.key_inputs.remove(&id);
         self.state.key_views.remove(&id);
+        self.forget_tool(id);
         let tabs = &mut self.state.tabs;
         let Some(idx) = tabs.iter().position(|t| t.id == id) else {
             return;

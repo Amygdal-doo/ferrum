@@ -2,7 +2,9 @@
 
 use crate::error::map_sqlx_error;
 use ferrumdata_db_driver_api::DbResult;
-use ferrumdata_domain::{ColumnInfo, IndexInfo, TableDetails, TableInfo, TableKind, TableRef};
+use ferrumdata_domain::{
+    ColumnInfo, ForeignKeyInfo, IndexInfo, TableDetails, TableInfo, TableKind, TableRef,
+};
 use sqlx::{Row, SqlitePool};
 
 /// One row per (object, primary-key column); objects without a key appear once
@@ -57,6 +59,13 @@ SELECT l.name AS index_name, l."unique" AS is_unique, l.origin AS origin, i.name
 FROM pragma_index_list(?1) l
 LEFT JOIN pragma_index_info(l.name) i
 ORDER BY l.name, i.seqno
+"#;
+
+/// `"to"` is NULL when the key references the parent's primary key implicitly.
+const FOREIGN_KEYS: &str = r#"
+SELECT id, "table" AS ref_table, "from" AS col, "to" AS ref_col, on_update, on_delete
+FROM pragma_foreign_key_list(?1)
+ORDER BY id, seq
 "#;
 
 /// Columns and indexes. A rowid alias (`INTEGER PRIMARY KEY`) has no index
@@ -126,5 +135,67 @@ pub async fn describe_table(pool: &SqlitePool, table: &TableRef) -> DbResult<Tab
         });
     }
     indexes.sort_by(|a, b| b.primary.cmp(&a.primary).then_with(|| a.name.cmp(&b.name)));
-    Ok(TableDetails { columns, indexes })
+    let foreign_keys = foreign_keys(pool, table).await?;
+    Ok(TableDetails {
+        columns,
+        indexes,
+        foreign_keys,
+    })
+}
+
+async fn foreign_keys(pool: &SqlitePool, table: &TableRef) -> DbResult<Vec<ForeignKeyInfo>> {
+    let map = |e: sqlx::Error| map_sqlx_error(&e);
+    let mut out: Vec<(i64, ForeignKeyInfo)> = Vec::new();
+    let mut implicit: Vec<usize> = Vec::new();
+    for r in sqlx::query(FOREIGN_KEYS)
+        .bind(&table.name)
+        .fetch_all(pool)
+        .await
+        .map_err(map)?
+    {
+        let id: i64 = r.try_get("id").map_err(map)?;
+        let col: String = r.try_get("col").map_err(map)?;
+        let ref_col: Option<String> = r.try_get("ref_col").map_err(map)?;
+        if let Some((_, fk)) = out.last_mut().filter(|(i, _)| *i == id) {
+            fk.columns.push(col);
+            fk.ref_columns.extend(ref_col);
+            continue;
+        }
+        if ref_col.is_none() {
+            implicit.push(out.len());
+        }
+        out.push((
+            id,
+            ForeignKeyInfo {
+                name: String::new(),
+                columns: vec![col],
+                ref_table: TableRef {
+                    schema: None,
+                    name: r.try_get("ref_table").map_err(map)?,
+                },
+                ref_columns: ref_col.into_iter().collect(),
+                on_delete: r.try_get("on_delete").map_err(map)?,
+                on_update: r.try_get("on_update").map_err(map)?,
+            },
+        ));
+    }
+    // `REFERENCES parent` without columns means the parent's primary key.
+    for index in implicit {
+        let parent = out[index].1.ref_table.clone();
+        let mut keyed: Vec<(i64, String)> = Vec::new();
+        for r in sqlx::query(COLUMNS)
+            .bind(&parent.name)
+            .fetch_all(pool)
+            .await
+            .map_err(map)?
+        {
+            let pk: i64 = r.try_get("pk").map_err(map)?;
+            if pk > 0 {
+                keyed.push((pk, r.try_get("name").map_err(map)?));
+            }
+        }
+        keyed.sort();
+        out[index].1.ref_columns = keyed.into_iter().map(|(_, c)| c).collect();
+    }
+    Ok(out.into_iter().map(|(_, fk)| fk).collect())
 }

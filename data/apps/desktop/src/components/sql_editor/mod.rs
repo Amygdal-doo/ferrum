@@ -46,6 +46,9 @@ impl FerrumData {
                     .when(tab.table.is_some(), |this| {
                         this.child(div().text_color(colors.text_muted).child("▦"))
                     })
+                    .when(tab.tool.is_some(), |this| {
+                        this.child(div().text_color(colors.text_muted).child("◫"))
+                    })
                     .when(tab.key.is_some(), |this| {
                         this.child(div().text_color(colors.text_muted).child("⚷"))
                     })

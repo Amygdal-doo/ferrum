@@ -3,8 +3,8 @@
 use crate::commands::keys::KeyInputs;
 use crate::components::connection::{ConnectionForm, ConnectionFormEvent};
 use crate::components::sql_editor::{CompletionPopup, apply_highlights};
-use crate::state::{AppState, Dialog};
-use ferrum_ui::gpui::{Axis, MouseDownEvent, UniformListScrollHandle};
+use crate::state::{AppState, Dialog, ToolTab};
+use ferrum_ui::gpui::{Axis, MouseDownEvent, Pixels, UniformListScrollHandle};
 use ferrum_ui::prelude::*;
 use ferrumdata_application::AppServices;
 use ferrumdata_domain::{DatabaseEngine, EditorTabId, ProfileId};
@@ -63,6 +63,8 @@ pub struct FerrumData {
     pub(crate) completion: Option<CompletionPopup>,
     /// Set while a completion is inserted, so the edit does not reopen the list.
     pub(crate) accepting_completion: bool,
+    /// Canvas bounds of the ER diagram, as last painted (pan / zoom maths).
+    pub(crate) diagram_bounds: std::rc::Rc<std::cell::Cell<ferrum_ui::gpui::Bounds<Pixels>>>,
     /// Inline editor of a table tab's cell (row editing).
     pub(crate) cell_editor: Option<crate::commands::edit::CellEditor>,
     notice_task: Option<Task<()>>,
@@ -110,6 +112,7 @@ impl FerrumData {
             completion: None,
             accepting_completion: false,
             cell_editor: None,
+            diagram_bounds: std::rc::Rc::default(),
             notice_task: None,
             _autosave: Task::ready(()),
             _subscriptions: vec![filter_changed, history_changed],
@@ -311,6 +314,10 @@ impl FerrumData {
         let sidebar_open = !self.state.sidebar_hidden;
         let table_tab = self.state.active_tab().is_some_and(|t| t.table.is_some());
         let key_tab = self.state.active_tab().is_some_and(|t| t.key.is_some());
+        let tool_tab = self
+            .state
+            .active_tab()
+            .and_then(|t| t.tool.map(|tool| (t.id, tool)));
         let results_active = self.state.results_active;
         let use_editor = cx.listener(|this, _: &MouseDownEvent, _, cx| {
             if this.state.results_active {
@@ -318,9 +325,13 @@ impl FerrumData {
                 cx.notify();
             }
         });
-        let main = if table_tab || key_tab {
-            // Tabs stay in the header; the table/key view replaces editor + results.
-            let view = if key_tab {
+        let main = if table_tab || key_tab || tool_tab.is_some() {
+            // Tabs stay in the header; the table/key/tool view replaces editor + results.
+            let view = if let Some((tab_id, tool)) = tool_tab {
+                match tool {
+                    ToolTab::Diagram => self.render_diagram_view(tab_id, cx),
+                }
+            } else if key_tab {
                 self.render_key_view(window, cx)
             } else {
                 self.render_table_view(window, cx)

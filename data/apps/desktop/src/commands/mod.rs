@@ -8,6 +8,7 @@ pub mod history;
 pub mod keys;
 pub mod query;
 pub mod schema;
+pub mod tools;
 pub mod workspace;
 
 use ferrumdata_application::AppServices;

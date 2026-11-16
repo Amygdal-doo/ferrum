@@ -446,3 +446,52 @@ async fn read_only_profile_refuses_scripts() {
         .expect_err("read-only");
     assert_eq!(err.kind, DbErrorKind::Query);
 }
+
+#[tokio::test]
+async fn describes_foreign_keys_including_implicit_parent_keys() {
+    let (_dir, path) = new_db();
+    let conn = connect(&path, false).await;
+    ok(
+        &conn,
+        "CREATE TABLE org (id INTEGER PRIMARY KEY, code TEXT UNIQUE)",
+    )
+    .await;
+    ok(
+        &conn,
+        "CREATE TABLE member (id INTEGER PRIMARY KEY, org_id INTEGER REFERENCES org ON DELETE CASCADE, \
+         org_code TEXT, FOREIGN KEY (org_code) REFERENCES org(code))",
+    )
+    .await;
+    let details = conn
+        .describe_table(&TableRef {
+            schema: None,
+            name: "member".into(),
+        })
+        .await
+        .expect("describe");
+    let fks: Vec<(Vec<String>, String, Vec<String>, String)> = details
+        .foreign_keys
+        .iter()
+        .map(|f| {
+            (
+                f.columns.clone(),
+                f.ref_table.name.clone(),
+                f.ref_columns.clone(),
+                f.on_delete.clone(),
+            )
+        })
+        .collect();
+    assert_eq!(fks.len(), 2, "{fks:?}");
+    assert!(fks.contains(&(
+        vec!["org_id".into()],
+        "org".into(),
+        vec!["id".into()],
+        "CASCADE".into()
+    )));
+    assert!(fks.contains(&(
+        vec!["org_code".into()],
+        "org".into(),
+        vec!["code".into()],
+        "NO ACTION".into()
+    )));
+}

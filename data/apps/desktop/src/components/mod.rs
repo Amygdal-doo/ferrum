@@ -1,4 +1,5 @@
 pub mod connection;
+pub mod diagram;
 pub mod dialogs;
 pub mod explorer;
 pub mod history;

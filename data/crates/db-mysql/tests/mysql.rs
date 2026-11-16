@@ -481,3 +481,42 @@ async fn scripts_are_atomic_and_literals_round_trip() {
         .expect("drop");
     conn.close().await;
 }
+
+#[tokio::test]
+async fn describes_composite_foreign_keys() {
+    if !enabled() {
+        return;
+    }
+    let conn = connect_with(false).await;
+    let parent = unique("fkp");
+    let child = unique("fkc");
+    ok(
+        &conn,
+        &format!("create table {parent} (a int, b int, primary key (a, b))"),
+    )
+    .await;
+    ok(
+        &conn,
+        &format!(
+            "create table {child} (id int primary key, x int, y int, \
+             constraint {child}_fk foreign key (x, y) references {parent} (a, b) on delete cascade)"
+        ),
+    )
+    .await;
+    let details = conn
+        .describe_table(&TableRef {
+            schema: None,
+            name: child.clone(),
+        })
+        .await
+        .expect("describe");
+    let fk = &details.foreign_keys[0];
+    assert_eq!(fk.name, format!("{child}_fk"));
+    assert_eq!(fk.columns, vec!["x", "y"]);
+    assert_eq!(fk.ref_table.name, parent);
+    assert_eq!(fk.ref_columns, vec!["a", "b"]);
+    assert_eq!(fk.on_delete, "CASCADE");
+    ok(&conn, &format!("drop table {child}")).await;
+    ok(&conn, &format!("drop table {parent}")).await;
+    conn.close().await;
+}

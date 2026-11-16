@@ -4,9 +4,11 @@
 
 mod keys;
 mod run;
+mod tools;
 
 pub use keys::{KeyBrowser, KeyViewLoad};
 pub use run::TabRun;
+pub use tools::{DiagramView, SnapshotLoad, ToolTab};
 
 use ferrumdata_domain::{
     AppSettings, ConnectionProfile, EditorTabId, EditorTabState, HistoryEntry, ProfileId,
@@ -49,6 +51,8 @@ pub struct EditorTab {
     pub table: Option<TableRef>,
     /// Set for key tabs (Redis value viewer). Not restored after a restart.
     pub key: Option<String>,
+    /// Set for tool tabs (ER diagram …). Not restored after a restart.
+    pub tool: Option<ToolTab>,
 }
 
 impl EditorTab {
@@ -62,6 +66,7 @@ impl EditorTab {
             unsaved: false,
             table: None,
             key: None,
+            tool: None,
         }
     }
 
@@ -88,6 +93,7 @@ impl From<EditorTabState> for EditorTab {
             unsaved: false,
             table: s.table,
             key: None,
+            tool: None,
         }
     }
 }
@@ -166,6 +172,8 @@ pub struct AppState {
     pub key_browsers: HashMap<ProfileId, KeyBrowser>,
     /// Value of the key shown in each key tab.
     pub key_views: HashMap<EditorTabId, KeyViewLoad>,
+    /// ER diagram per diagram tab.
+    pub diagrams: HashMap<EditorTabId, DiagramView>,
     /// The sidebar is hidden (⌘B).
     pub sidebar_hidden: bool,
     /// The results card was used last (it is drawn lighter), else the editor card.

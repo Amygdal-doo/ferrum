@@ -78,6 +78,19 @@ pub struct IndexInfo {
     pub primary: bool,
 }
 
+/// A foreign key: `columns` of this table reference `ref_columns` of `ref_table`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ForeignKeyInfo {
+    /// Constraint name; SQLite has none (`""`).
+    pub name: String,
+    pub columns: Vec<String>,
+    pub ref_table: TableRef,
+    pub ref_columns: Vec<String>,
+    /// `ON DELETE` action as the engine reports it (`CASCADE`, `NO ACTION`…).
+    pub on_delete: String,
+    pub on_update: String,
+}
+
 /// Structure of one table for the explorer tree (SQL engines).
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct TableDetails {
@@ -85,6 +98,32 @@ pub struct TableDetails {
     pub columns: Vec<ColumnInfo>,
     /// Primary key first, then by name.
     pub indexes: Vec<IndexInfo>,
+    /// Ordered by name (SQLite: by declaration).
+    #[serde(default)]
+    pub foreign_keys: Vec<ForeignKeyInfo>,
+}
+
+/// One table with its structure.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TableSchema {
+    pub info: TableInfo,
+    pub details: TableDetails,
+}
+
+/// Every table and view of a connection with columns, indexes and foreign
+/// keys, as listed by the explorer (ER diagram, schema compare, dumps).
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct SchemaSnapshot {
+    pub tables: Vec<TableSchema>,
+    /// Tables left out past the size limit.
+    pub omitted: usize,
+}
+
+impl SchemaSnapshot {
+    #[must_use]
+    pub fn table(&self, table: &TableRef) -> Option<&TableSchema> {
+        self.tables.iter().find(|t| &t.info.table == table)
+    }
 }
 
 impl ColumnInfo {
