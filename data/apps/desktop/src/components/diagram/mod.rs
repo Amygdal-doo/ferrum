@@ -33,6 +33,15 @@ impl FerrumData {
         else {
             return div().into_any_element();
         };
+        let size = self.diagram_bounds.get().size;
+        if let Some(view) = self.state.diagrams.get_mut(&tab_id)
+            && view.fit_pending
+            && view.layout.is_some()
+            && size.width > px(0.)
+        {
+            view.fit(f32::from(size.width), f32::from(size.height));
+            view.fit_pending = false;
+        }
         let Some(view) = self.diagram(tab_id).cloned() else {
             return div().into_any_element();
         };
@@ -194,22 +203,14 @@ impl FerrumData {
         let edges_layout = layout.clone();
         let store_bounds = self.diagram_bounds.clone();
         let fit = view.fit_pending;
-        let this = cx.entity().downgrade();
         let edges = canvas(
-            move |bounds, _, cx| {
+            move |bounds, window, _| {
+                let resized = store_bounds.get().size != bounds.size;
                 store_bounds.set(bounds);
-                if fit {
-                    // The canvas size is known only now: fit on the next frame.
-                    let (w, h) = (f32::from(bounds.size.width), f32::from(bounds.size.height));
-                    if let Err(e) = this.update(cx, |this, cx| {
-                        if let Some(view) = this.state.diagrams.get_mut(&tab_id) {
-                            view.fit(w, h);
-                            view.fit_pending = false;
-                            cx.notify();
-                        }
-                    }) {
-                        tracing::debug!(error = %e, "diagram dropped");
-                    }
+                // The canvas size is known only after layout: render again to
+                // fit (see `render_diagram_view`).
+                if fit && resized && bounds.size.width > px(0.) {
+                    window.refresh();
                 }
             },
             move |bounds, (), window, _| {
