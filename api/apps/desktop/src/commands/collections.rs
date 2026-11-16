@@ -15,7 +15,7 @@ impl FerrumApi {
         let svc = self.services.clone();
         self.io(
             cx,
-            async move { svc.store.save_collection(&c).await },
+            async move { svc.save_collection(&c).await },
             Self::report("Could not save collection"),
         );
     }

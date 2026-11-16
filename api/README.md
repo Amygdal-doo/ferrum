@@ -18,6 +18,8 @@ the Ferrum monorepo — sibling of [FerrumData](../data), [FerrumGIT](../git) an
 | Request execution: GET/POST/PUT/PATCH/DELETE/HEAD/OPTIONS over reqwest + rustls on a dedicated Tokio runtime | ✅ integration-tested against a local mock server |
 | Bodies: none, raw (JSON/Text/XML/HTML, default Content-Type), x-www-form-urlencoded, multipart form-data (text + file), binary file | ✅ integration-tested |
 | Auth: none, Basic, Bearer, API Key (header or query), inherited from folder/collection (tab's unsaved auth respected) | ✅ tested (http + application) |
+| Auth: **OAuth 2.0** — authorization code with PKCE (S256) through a loopback redirect `http://127.0.0.1:<port>/callback` (any free port, or a fixed one), client credentials, refresh tokens; client auth in the body or as Basic; header prefix. **Get new access token** opens the default browser; tokens are cached per auth and **per environment** (memory + OS keychain) and fetched / refreshed when a request needs one. **OAuth 1.0a** (HMAC-SHA1, query + form-body parameters signed, realm). **Digest** (RFC 7616 / 2617: MD5, MD5-sess, SHA-256, qop=auth; the 401 challenge is answered once with a fresh body). **AWS Signature v4** (region, service, session token; payload hashed, `UNSIGNED-PAYLOAD` for streamed multipart; S3 single-encodes the path). A user `Authorization` header still wins. Postman v2.1 import / export of all four; cURL code uses `--digest` / `--aws-sigv4` | ✅ published test vectors (Twitter OAuth 1, AWS SigV4 suite, RFC 2617 / 7616, RFC 7636 PKCE); signatures recomputed against a local server; OAuth 2 end to end against a local axum authorization server (client credentials, per-environment cache, authorization code + PKCE via the loopback redirect, refresh, forget) |
+| Auth secrets (OAuth client / consumer / token secrets, Digest password, AWS secret key and session token) and OAuth 2 tokens live in the **OS keychain** (`keyring`, service `dev.ferrum.api.secret`, like FerrumData / FerrumGIT / FerrumChat): collections, tabs, history, Postman exports and `.ferrum/api` repo files hold only a `secret_ref`. Written by the autosave loop as you type (typed edits replace, loaded-but-empty auths only merge, so nothing is wiped by a request reopened from history) | ✅ serde never writes them (domain test), store round trip / merge / replace / per-environment tokens tested with an in-memory store; keychain itself not exercised by tests |
 | Send / cancel (CancellationToken), timeout, follow redirects, verify TLS | ✅ integration-tested (cancel returns in ~1 s; redirect on/off; loop → error) |
 | `{{variable}}` substitution in URL, params, headers, body and auth; globals < collection < environment layering; unresolved detection | ✅ tested |
 | Response data: status, time, size, headers, cookies (Set-Cookie parsed), full body bytes | ✅ tested |
@@ -48,7 +50,11 @@ the Ferrum monorepo — sibling of [FerrumData](../data), [FerrumGIT](../git) an
 | UI (GPUI): request builder with two-way URL ↔ params sync, header/param enable toggles, body/auth/settings editors, unresolved-variable highlighting, response Pretty/Raw/Preview (images inline; HTML opens in the default browser), headers/cookies tables, copy + save to file, sidebar (Collections/Environments/History) with context menus, import + code dialogs, resizable panes | ⚠️ builds, lints clean, launches; not yet clicked through |
 
 ## Not built yet
-OAuth 1/2, Digest, AWS and other auth types (imported as "Inherit" with a note); pre-request /
+Auth gaps: Basic / Bearer / API Key values are still stored with the request (SQLite, exports), not in
+the keychain; OAuth 2 implicit / password / device grants, token in the query string, and OAuth 1
+RSA-SHA1 / PLAINTEXT are not supported (Postman imports note it); Digest `auth-int`; duplicated
+requests / collections share one keychain entry; Hawk, NTLM, Akamai and other auth types (imported
+as "Inherit" with a note). Pre-request /
 test scripts (the runner's pass/fail is 2xx only); runner options (iterations, delay, data
 files, run report export); cookie jar gaps: cookies set on intermediate redirect responses are not captured (only the
 final response's), cookies are chosen for the request URL before redirects, no public-suffix
@@ -56,7 +62,7 @@ list, session cookies persist until cleared, no per-request "don't use the jar" 
 per workspace (not per collection), and cookies are not editable in the dialog; syntax
 colouring for XML/HTML bodies; regex / whole-word search; proxy and client-certificate
 settings; drag-and-drop reordering / moving items between folders; keeping text per body mode when switching (switching starts the new mode empty); response
-bodies over 400 KB are truncated for display (copy/save use the full body); secrets stored in
+bodies over 400 KB are truncated for display (copy/save use the full body); secret *variables* in
 the OS keychain (they live in the local SQLite file, never in logs); packaging and signing;
 a light theme (the GPUI shell ships the dark "One Dark" base theme only; the stored
 `theme` setting is kept but not applied); soft-wrap in the response body view (the shared

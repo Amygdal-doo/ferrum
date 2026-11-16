@@ -7,9 +7,11 @@
 mod cookies;
 mod load;
 mod mock;
+mod oauth2;
 mod project_files;
 mod protocols;
 mod runner;
+pub mod secrets;
 mod send;
 mod transfer;
 
@@ -24,6 +26,7 @@ pub use ferrumapi_server as server;
 pub use ferrumapi_server::{MockServer, ServerError, WebhookInspector};
 pub use load::{LoadEnd, LoadEvent, load_target_warning, run_load};
 pub use mock::plan_mock_routes;
+pub use oauth2::{OAuthOpener, pkce_challenge};
 pub use project_files::{file_name as project_file_name, project_api_dir};
 pub use protocols::{WsSession, concrete};
 pub use runner::{RunEvent, RunItem, RunOutcome, plan_run, run_sequence};
@@ -78,12 +81,26 @@ pub struct AppServices {
     pub http: HttpClient,
     cookies: cookies::SharedJar,
     grpc_pools: protocols::GrpcPools,
+    /// Auth secrets and OAuth 2 tokens (the OS keychain in the app).
+    secrets: Arc<dyn secrets::SecretStore>,
+    secrets_written: secrets::Written,
+    /// OAuth 2 tokens by keychain account (see `secrets::token_account`).
+    tokens: Arc<std::sync::Mutex<std::collections::HashMap<String, domain::OAuth2Token>>>,
 }
 
 impl AppServices {
     /// Starts the runtime and opens local state at `data_dir/ferrumapi.db`.
-    /// Blocks the caller briefly; call before the UI event loop starts.
+    /// Secrets go to the OS keychain. Blocks the caller briefly; call before
+    /// the UI event loop starts.
     pub fn start(data_dir: &Path) -> Result<Self, AppError> {
+        Self::start_with_secrets(data_dir, secrets::default_store())
+    }
+
+    /// [`AppServices::start`] with another secret store (tests use memory).
+    pub fn start_with_secrets(
+        data_dir: &Path,
+        secrets: Arc<dyn secrets::SecretStore>,
+    ) -> Result<Self, AppError> {
         std::fs::create_dir_all(data_dir)?;
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
@@ -97,6 +114,9 @@ impl AppServices {
             http: HttpClient::new(),
             cookies: cookies::SharedJar::default(),
             grpc_pools: protocols::GrpcPools::default(),
+            secrets,
+            secrets_written: secrets::Written::default(),
+            tokens: Arc::default(),
         })
     }
 

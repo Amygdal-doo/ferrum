@@ -117,6 +117,7 @@ fn prepared(url: &str, base: &str) -> Prepared {
     Prepared {
         request: HttpRequest::new(HttpMethod::Get, url),
         variables,
+        environment: None,
     }
 }
 

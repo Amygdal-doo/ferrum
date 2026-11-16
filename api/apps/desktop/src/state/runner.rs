@@ -137,6 +137,7 @@ mod tests {
             prepared: Prepared {
                 request: HttpRequest::default(),
                 variables: VariableSet::new(),
+                environment: None,
             },
         }
     }

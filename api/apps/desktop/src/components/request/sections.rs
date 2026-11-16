@@ -118,6 +118,7 @@ impl FerrumApi {
                 )
             }
             RequestSection::Auth => {
+                self.hydrate_tab_auth(id, cx);
                 let target: AuthTarget = Rc::new(move |this, f| {
                     this.state.edit_request(id, |r| f(&mut r.auth));
                 });
@@ -129,6 +130,7 @@ impl FerrumApi {
                         inherited,
                         request_fields: true,
                         target,
+                        variables: vars.clone(),
                     },
                     window,
                     cx,

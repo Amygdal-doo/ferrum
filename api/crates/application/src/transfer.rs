@@ -20,7 +20,7 @@ impl AppServices {
     pub async fn import_postman_file(&self, path: PathBuf) -> Result<Collection, TransferError> {
         let json = tokio::fs::read_to_string(&path).await?;
         let collection = postman::import_collection(&json)?;
-        self.store.save_collection(&collection).await?;
+        self.save_collection(&collection).await?;
         Ok(collection)
     }
 

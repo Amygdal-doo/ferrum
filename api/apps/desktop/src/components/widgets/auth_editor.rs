@@ -1,15 +1,18 @@
-//! Auth type select and fields (requests and collections).
+//! Auth type select and fields (requests and collections). The OAuth /
+//! Digest / AWS fields are in `auth_signing`.
 
 use super::form_row;
 use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change, on_request_edit};
 use crate::components::{hint, select};
 use ferrum_ui::components::{Label, LabelCommon as _, LabelSize, h_flex, v_flex};
-use ferrumapi_domain::{ApiKeyLocation, Auth};
+use ferrumapi_domain::{ApiKeyLocation, Auth, VariableSet};
 use gpui::{AnyElement, Context, SharedString, Window, prelude::*};
 use std::rc::Rc;
 
-const KINDS: [&str; 5] = ["inherit", "none", "basic", "bearer", "apikey"];
+const KINDS: [&str; 9] = [
+    "inherit", "none", "basic", "bearer", "apikey", "oauth2", "oauth1", "digest", "awsv4",
+];
 
 fn kind_of(a: &Auth) -> &'static str {
     match a {
@@ -18,9 +21,14 @@ fn kind_of(a: &Auth) -> &'static str {
         Auth::Basic { .. } => KINDS[2],
         Auth::Bearer { .. } => KINDS[3],
         Auth::ApiKey { .. } => KINDS[4],
+        Auth::OAuth2(_) => KINDS[5],
+        Auth::OAuth1(_) => KINDS[6],
+        Auth::Digest(_) => KINDS[7],
+        Auth::AwsSigV4(_) => KINDS[8],
     }
 }
 
+/// A new auth of `kind`; the keychain-backed types get a fresh secret ref.
 fn blank(kind: &str) -> Auth {
     match kind {
         "inherit" => Auth::Inherit,
@@ -36,6 +44,10 @@ fn blank(kind: &str) -> Auth {
             value: String::new(),
             location: ApiKeyLocation::Header,
         },
+        "oauth2" => Auth::OAuth2(Box::default()),
+        "oauth1" => Auth::OAuth1(Box::default()),
+        "digest" => Auth::Digest(Box::default()),
+        "awsv4" => Auth::AwsSigV4(Box::default()),
         _ => Auth::None,
     }
 }
@@ -55,6 +67,86 @@ pub struct AuthView {
     /// Request auth fields send on Enter; dialog fields do not.
     pub request_fields: bool,
     pub target: AuthTarget,
+    /// Variables visible where the auth is used (OAuth 2 token requests).
+    pub variables: VariableSet,
+}
+
+/// Builds the text and secret fields of one auth.
+#[derive(Clone)]
+pub(super) struct AuthFields {
+    scope: String,
+    kind: &'static str,
+    request_fields: bool,
+    pub(super) target: AuthTarget,
+}
+
+impl AuthFields {
+    fn spec(&self, name: &str) -> String {
+        format!("{}:{}:{name}", self.scope, self.kind)
+    }
+
+    /// A text field writing into the current auth via `set`.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn text(
+        &self,
+        this: &mut FerrumApi,
+        name: &str,
+        value: &str,
+        placeholder: &'static str,
+        set: fn(&mut Auth, String),
+        window: &mut Window,
+        cx: &mut Context<FerrumApi>,
+    ) -> AnyElement {
+        let target = self.target.clone();
+        let apply = move |this: &mut FerrumApi, text: String, _: &mut Context<FerrumApi>| {
+            target(this, &mut |a| set(a, text.clone()))
+        };
+        let spec = FieldSpec::new(self.spec(name))
+            .value(value)
+            .placeholder(placeholder)
+            .mono();
+        if self.request_fields {
+            this.field(spec, on_request_edit(apply), window, cx)
+                .into_any_element()
+        } else {
+            this.field(spec, on_change(apply), window, cx)
+                .into_any_element()
+        }
+    }
+
+    /// A masked field. Edits of keychain-backed fields are queued for the
+    /// keychain (written by the autosave loop, never to disk).
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn secret(
+        &self,
+        this: &mut FerrumApi,
+        name: &str,
+        value: &str,
+        placeholder: &'static str,
+        set: fn(&mut Auth, String),
+        window: &mut Window,
+        cx: &mut Context<FerrumApi>,
+    ) -> AnyElement {
+        let target = self.target.clone();
+        let apply = move |this: &mut FerrumApi, text: String, _: &mut Context<FerrumApi>| {
+            let mut edited = None;
+            target(this, &mut |a| {
+                set(a, text.clone());
+                edited = Some(a.clone());
+            });
+            if let Some(auth) = edited
+                && let Some(account) = auth.secret_ref()
+            {
+                this.state.secret_edits.insert(account.to_owned(), auth);
+            }
+        };
+        let key = self.spec(name);
+        if self.request_fields {
+            this.render_secret_input(key, value, placeholder, on_request_edit(apply), window, cx)
+        } else {
+            this.render_secret_input(key, value, placeholder, on_change(apply), window, cx)
+        }
+    }
 }
 
 impl FerrumApi {
@@ -71,6 +163,7 @@ impl FerrumApi {
             inherited,
             request_fields,
             target,
+            variables,
         } = view;
         let kind = kind_of(&auth);
         let options: Vec<(SharedString, &'static str)> = KINDS
@@ -90,55 +183,11 @@ impl FerrumApi {
                 cx,
             )
         };
-
-        // Builds a text field that writes into the current auth via `set`.
-        let text_field = |this: &mut FerrumApi,
-                          name: &str,
-                          value: &str,
-                          placeholder: &'static str,
-                          set: fn(&mut Auth, String),
-                          window: &mut Window,
-                          cx: &mut Context<FerrumApi>| {
-            let target = target.clone();
-            let apply = move |this: &mut FerrumApi, text: String, _: &mut Context<FerrumApi>| {
-                target(this, &mut |a| set(a, text.clone()))
-            };
-            let spec = FieldSpec::new(format!("{scope}:{kind}:{name}"))
-                .value(value)
-                .placeholder(placeholder)
-                .mono();
-            if request_fields {
-                this.field(spec, on_request_edit(apply), window, cx)
-                    .into_any_element()
-            } else {
-                this.field(spec, on_change(apply), window, cx)
-                    .into_any_element()
-            }
-        };
-        let secret_field = |this: &mut FerrumApi,
-                            name: &str,
-                            value: &str,
-                            placeholder: &'static str,
-                            set: fn(&mut Auth, String),
-                            window: &mut Window,
-                            cx: &mut Context<FerrumApi>| {
-            let target = target.clone();
-            let apply = move |this: &mut FerrumApi, text: String, _: &mut Context<FerrumApi>| {
-                target(this, &mut |a| set(a, text.clone()))
-            };
-            let key = format!("{scope}:{kind}:{name}");
-            if request_fields {
-                this.render_secret_input(
-                    key,
-                    value,
-                    placeholder,
-                    on_request_edit(apply),
-                    window,
-                    cx,
-                )
-            } else {
-                this.render_secret_input(key, value, placeholder, on_change(apply), window, cx)
-            }
+        let f = AuthFields {
+            scope: scope.clone(),
+            kind,
+            request_fields,
+            target: target.clone(),
         };
 
         let fields: Vec<AnyElement> = match &auth {
@@ -154,7 +203,7 @@ impl FerrumApi {
             }],
             Auth::None => vec![hint("No authorization header is sent.").into_any_element()],
             Auth::Basic { username, password } => {
-                let user = text_field(
+                let user = f.text(
                     self,
                     "username",
                     username,
@@ -167,7 +216,7 @@ impl FerrumApi {
                     window,
                     cx,
                 );
-                let pass = secret_field(
+                let pass = f.secret(
                     self,
                     "password",
                     password,
@@ -186,7 +235,7 @@ impl FerrumApi {
                 ]
             }
             Auth::Bearer { token } => {
-                let token = secret_field(
+                let token = f.secret(
                     self,
                     "token",
                     token,
@@ -206,7 +255,7 @@ impl FerrumApi {
                 value,
                 location,
             } => {
-                let key_input = text_field(
+                let key_input = f.text(
                     self,
                     "key",
                     key,
@@ -219,7 +268,7 @@ impl FerrumApi {
                     window,
                     cx,
                 );
-                let value_input = secret_field(
+                let value_input = f.secret(
                     self,
                     "value",
                     value,
@@ -260,6 +309,9 @@ impl FerrumApi {
                     form_row("Value", value_input).into_any_element(),
                     form_row("Add to", location_select).into_any_element(),
                 ]
+            }
+            Auth::OAuth2(_) | Auth::OAuth1(_) | Auth::Digest(_) | Auth::AwsSigV4(_) => {
+                self.render_signing_fields(&auth, &f, &scope, variables, window, cx)
             }
         };
 

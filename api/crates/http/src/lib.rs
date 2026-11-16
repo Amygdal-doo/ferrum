@@ -10,6 +10,7 @@ mod client;
 pub mod cookies;
 mod errors;
 mod response;
+pub mod signing;
 mod substitute;
 pub mod tls;
 pub mod ws;

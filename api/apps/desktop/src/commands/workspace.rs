@@ -19,10 +19,20 @@ impl FerrumApi {
             let svc = services.clone();
             let loaded = background(&services, async move {
                 let s = &svc.store;
+                let mut collections = s.list_collections().await;
+                let mut workspace = s.load_workspace().await;
+                // Auth secrets come from the keychain, not the database.
+                if let Ok(c) = &mut collections {
+                    svc.hydrate_collections(c).await;
+                }
+                if let Ok(w) = &mut workspace {
+                    let auths = w.tabs.iter_mut().map(|t| &mut t.request.auth).collect();
+                    svc.hydrate_secrets(auths).await;
+                }
                 (
                     s.load_settings().await,
-                    s.load_workspace().await,
-                    s.list_collections().await,
+                    workspace,
+                    collections,
                     s.list_environments().await,
                     s.load_globals().await,
                 )
@@ -85,12 +95,14 @@ impl FerrumApi {
             let mut saved_rev = 0u64;
             loop {
                 cx.background_executor().timer(AUTOSAVE_INTERVAL).await;
-                let Ok(pending) = this.read_with(cx, |this, _| {
+                let Ok(pending) = this.update(cx, |this, _| {
+                    let edits: Vec<_> = this.state.secret_edits.drain().map(|(_, a)| a).collect();
                     let s = &this.state;
-                    (s.loaded && s.ws_rev != saved_rev).then(|| {
+                    (s.loaded && (s.ws_rev != saved_rev || !edits.is_empty())).then(|| {
                         (
                             s.ws_rev,
                             this.services.clone(),
+                            edits,
                             WorkspaceState {
                                 tabs: s.tabs.clone(),
                                 active_tab: s.active_tab,
@@ -102,14 +114,24 @@ impl FerrumApi {
                 }) else {
                     return;
                 };
-                let Some((rev, services, ws)) = pending else {
+                let Some((rev, services, edits, ws)) = pending else {
                     continue;
                 };
                 let svc = services.clone();
-                match run(
-                    &services,
-                    async move { svc.store.save_workspace(&ws).await },
-                )
+                match run(&services, async move {
+                    // Secrets to the keychain: what was typed replaces, the
+                    // tabs' (possibly unloaded) secrets only merge.
+                    let tabs: Vec<_> = ws.tabs.iter().map(|t| t.request.auth.clone()).collect();
+                    for result in [
+                        svc.replace_secrets(edits).await,
+                        svc.stash_secrets(tabs).await,
+                    ] {
+                        if let Err(e) = result {
+                            tracing::warn!(error = %e, "could not save auth secrets");
+                        }
+                    }
+                    svc.store.save_workspace(&ws).await
+                })
                 .await
                 {
                     Ok(()) => saved_rev = rev,

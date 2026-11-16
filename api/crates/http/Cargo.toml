@@ -27,6 +27,13 @@ tokio-tungstenite = { workspace = true, features = ["connect", "__rustls-tls"] }
 rustls = { workspace = true, features = ["aws-lc-rs", "std", "tls12"] }
 rustls-platform-verifier.workspace = true
 serde_json.workspace = true
+# Auth signing: OAuth 1 (HMAC-SHA1), AWS SigV4 (HMAC-SHA256), Digest (MD5 / SHA-256)
+hmac.workspace = true
+sha1.workspace = true
+sha2.workspace = true
+md-5.workspace = true
+chrono.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util", "fs"] }

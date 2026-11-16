@@ -56,6 +56,9 @@ pub fn generate(target: CodeTarget, request: &HttpRequest) -> String {
     }
 }
 
+/// `Authorization` value standing in for a per-request Digest / AWS signature.
+const SIGNED_PLACEHOLDER: &str = "<computed per request: Digest / AWS Signature v4>";
+
 /// Target-independent view: enabled rows only, auth folded into headers/URL
 /// except Basic, which each target renders idiomatically.
 struct Prepared<'a> {
@@ -63,6 +66,9 @@ struct Prepared<'a> {
     url: String,
     headers: Vec<(String, String)>,
     basic: Option<(&'a str, &'a str)>,
+    /// Digest / AWS: cURL signs these itself (`--digest`, `--aws-sigv4`);
+    /// other targets get a placeholder `Authorization` header.
+    signing: Option<&'a Auth>,
     body: &'a RequestBody,
     settings: RequestSettings,
 }
@@ -77,6 +83,7 @@ impl<'a> Prepared<'a> {
             .map(|h| (h.key.clone(), h.value.clone()))
             .collect();
         let mut basic = None;
+        let mut signing = None;
         match &r.auth {
             Auth::Inherit | Auth::None => {}
             Auth::Basic { username, password } => {
@@ -98,12 +105,27 @@ impl<'a> Prepared<'a> {
                     url = crate::curl::body::append_query(&url, &pair);
                 }
             },
+            Auth::OAuth2(a) => headers.push((
+                "Authorization".into(),
+                format!("{} <access token>", a.header_prefix.trim())
+                    .trim_start()
+                    .to_owned(),
+            )),
+            Auth::OAuth1(_) => headers.push((
+                "Authorization".into(),
+                "OAuth <HMAC-SHA1 signature, computed per request>".into(),
+            )),
+            Auth::Digest(_) | Auth::AwsSigV4(_) => {
+                signing = Some(&r.auth);
+                headers.push(("Authorization".into(), SIGNED_PLACEHOLDER.into()));
+            }
         }
         Self {
             method: r.method,
             url,
             headers,
             basic,
+            signing,
             body: &r.body,
             settings: r.settings,
         }

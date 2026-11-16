@@ -51,6 +51,13 @@ pub struct AppState {
     pub collection_filter: String,
     /// Field keys of secret inputs currently shown in clear text.
     pub revealed: HashSet<String>,
+    /// Auth secrets typed since the last autosave, by keychain account;
+    /// the autosave loop writes them to the keychain (never to disk).
+    pub secret_edits: HashMap<String, ferrumapi_domain::Auth>,
+    /// Keychain accounts already loaded into a tab (tried once each).
+    pub hydrated: HashSet<String>,
+    /// Last OAuth 2 token message per auth (keychain account).
+    pub oauth_status: HashMap<String, String>,
     pub sidebar_view: SidebarView,
     pub section: RequestSection,
     pub response_view: ResponseView,
@@ -97,6 +104,9 @@ impl AppState {
             renaming_tab: None,
             collection_filter: String::new(),
             revealed: HashSet::new(),
+            secret_edits: HashMap::new(),
+            oauth_status: HashMap::new(),
+            hydrated: HashSet::new(),
             sidebar_view: SidebarView::Collections,
             section: RequestSection::Params,
             response_view: ResponseView::Body,

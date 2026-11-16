@@ -58,6 +58,11 @@ pub fn substitute(request: &HttpRequest, vars: &VariableSet) -> HttpRequest {
             value: r(value),
             location: *location,
         },
+        other => {
+            let mut a = other.clone();
+            a.map_texts(&mut |t| *t = r(t));
+            a
+        }
     };
     HttpRequest {
         kind: request.kind,
@@ -111,6 +116,7 @@ pub fn unresolved_variables(request: &HttpRequest, vars: &VariableSet) -> Vec<St
         Auth::Basic { username, password } => texts.extend([username.as_str(), password]),
         Auth::Bearer { token } => texts.push(token),
         Auth::ApiKey { key, value, .. } => texts.extend([key.as_str(), value]),
+        other => texts.extend(other.texts()),
     }
     let mut out: Vec<String> = Vec::new();
     for name in texts.into_iter().flat_map(|t| vars.unresolved(t)) {

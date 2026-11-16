@@ -4,8 +4,10 @@ use crate::body::PreparedBody;
 use crate::build::prepare;
 use crate::errors::{kind, map_reqwest};
 use crate::response::read_response;
+use crate::signing;
 use crate::substitute::substitute;
-use ferrumapi_domain::{ExecError, HttpRequest, HttpResponse, RequestSettings, VariableSet};
+use ferrumapi_domain::{Auth, ExecError, HttpRequest, HttpResponse, RequestSettings, VariableSet};
+use reqwest::header::{AUTHORIZATION, HeaderValue};
 use reqwest::{Method, redirect};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
@@ -70,25 +72,27 @@ impl HttpClient {
     }
 
     async fn run(&self, request: &HttpRequest) -> Result<HttpResponse, ExecError> {
-        let prepared = prepare(request).await?;
         let client = self.client_for(request.settings)?;
-        let method = Method::from_bytes(request.method.as_str().as_bytes())
-            .map_err(|_| ExecError::InvalidRequest("invalid method".into()))?;
-        let mut builder = client.request(method, prepared.url);
-        builder = match prepared.body {
-            PreparedBody::Empty => builder,
-            PreparedBody::Bytes { data, .. } => builder.body(data),
-            PreparedBody::Multipart(form) => builder.multipart(form),
-        };
-        // `headers` replaces per name, so user values override defaults
-        // (User-Agent, multipart Content-Type with boundary).
-        builder = builder.headers(prepared.headers);
         let timeout_ms = request.settings.timeout_ms;
         let started = Instant::now();
-        let resp = builder
-            .send()
+        let req = build_request(&client, request, None).await?;
+        let (method, url) = (req.method().as_str().to_owned(), req.url().clone());
+        let mut resp = client
+            .execute(req)
             .await
             .map_err(|e| map_reqwest(e, timeout_ms))?;
+        // Digest: answer the server's challenge once, with a fresh body.
+        if let Auth::Digest(cfg) = &request.auth
+            && resp.status() == reqwest::StatusCode::UNAUTHORIZED
+            && let Some(answer) =
+                signing::digest_answer(&cfg.username, &cfg.password, &method, &url, &resp)
+        {
+            let req = build_request(&client, request, Some(answer)).await?;
+            resp = client
+                .execute(req)
+                .await
+                .map_err(|e| map_reqwest(e, timeout_ms))?;
+        }
         read_response(resp, started)
             .await
             .map_err(|e| map_reqwest(e, timeout_ms))
@@ -106,6 +110,41 @@ impl HttpClient {
         }
         Ok(client)
     }
+}
+
+/// Builds the outgoing request and signs it (OAuth 1, AWS). `authorization`
+/// is a precomputed header (a Digest answer) that a user header still beats.
+async fn build_request(
+    client: &reqwest::Client,
+    request: &HttpRequest,
+    authorization: Option<String>,
+) -> Result<reqwest::Request, ExecError> {
+    let prepared = prepare(request).await?;
+    let method = Method::from_bytes(request.method.as_str().as_bytes())
+        .map_err(|_| ExecError::InvalidRequest("invalid method".into()))?;
+    let mut builder = client.request(method, prepared.url);
+    builder = match prepared.body {
+        PreparedBody::Empty => builder,
+        PreparedBody::Bytes { data, .. } => builder.body(data),
+        PreparedBody::Multipart(form) => builder.multipart(form),
+    };
+    // `headers` replaces per name, so user values override defaults
+    // (User-Agent, multipart Content-Type with boundary).
+    builder = builder.headers(prepared.headers);
+    let mut req = builder
+        .build()
+        .map_err(|e| ExecError::InvalidRequest(e.without_url().to_string()))?;
+    if let Some(value) = authorization
+        && !req.headers().contains_key(AUTHORIZATION)
+    {
+        let mut value = HeaderValue::from_str(&value).map_err(|_| {
+            ExecError::InvalidRequest("auth value contains invalid characters".into())
+        })?;
+        value.set_sensitive(true);
+        req.headers_mut().insert(AUTHORIZATION, value);
+    }
+    signing::sign(&request.auth, &mut req)?;
+    Ok(req)
 }
 
 /// rustls is the only TLS backend compiled in; no cookie store (the

@@ -184,7 +184,7 @@ fn imports_auth_types_and_notes_unsupported() {
     let script = req(&c, "Script body");
     assert_eq!(script.request.auth, Auth::Inherit);
     assert!(
-        script.description.contains("oauth2"),
+        script.description.contains("hawk"),
         "{}",
         script.description
     );

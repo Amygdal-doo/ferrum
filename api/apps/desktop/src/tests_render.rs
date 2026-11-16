@@ -26,7 +26,9 @@ fn app_window(
         ferrum_ui::init_for_tests(cx);
     });
     let dir = std::env::temp_dir().join(format!("ferrumapi-ui-{}", uuid::Uuid::new_v4()));
-    let services = AppServices::start(&dir).expect("services");
+    // Auth secrets in memory, never the real keychain.
+    let secrets = std::sync::Arc::new(ferrumapi_application::secrets::MemoryStore::default());
+    let services = AppServices::start_with_secrets(&dir, secrets).expect("services");
     // The GPUI test scheduler must not be woken from the services runtime's
     // threads, so the view is built without loading local data.
     let (app, cx) = cx.add_window_view(move |window, cx| {
@@ -209,5 +211,45 @@ fn every_kind_and_section_renders(cx: &mut TestAppContext) {
         });
     });
     assert!(app.read_with(cx, |a, _| a.state.dialog.is_some()));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[gpui::test]
+fn signing_auth_types_render_their_fields(cx: &mut TestAppContext) {
+    use ferrumapi_domain::{Auth, OAuth2Auth, OAuth2Grant};
+    let (app, cx, dir) = app_window(cx);
+    let cases = [
+        (Auth::OAuth2(Box::default()), "oauth2", "auth_url"),
+        (
+            Auth::OAuth2(Box::new(OAuth2Auth {
+                grant: OAuth2Grant::ClientCredentials,
+                ..OAuth2Auth::default()
+            })),
+            "oauth2",
+            "token_url",
+        ),
+        (Auth::OAuth1(Box::default()), "oauth1", "consumer_secret"),
+        (Auth::Digest(Box::default()), "digest", "password"),
+        (Auth::AwsSigV4(Box::default()), "awsv4", "secret_access_key"),
+    ];
+    for (mut auth, kind, field) in cases {
+        // A loaded secret, so no keychain read is started.
+        let first = auth.secret_fields()[0].0;
+        auth.set_secret_field(first, "s".into());
+        let request = HttpRequest {
+            auth,
+            ..HttpRequest::default()
+        };
+        let tab = RequestTab::new(kind, request);
+        let id = tab.id;
+        render(&app, cx, |app| {
+            app.push_tab(tab);
+            app.state.section = RequestSection::Auth;
+        });
+        assert!(
+            has_field(&app, cx, format!("auth:{id}:{kind}:{field}")),
+            "{kind} {field}"
+        );
+    }
     let _ = std::fs::remove_dir_all(dir);
 }
