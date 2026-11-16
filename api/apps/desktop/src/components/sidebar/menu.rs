@@ -11,6 +11,8 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuAction {
     Open,
+    /// A request's cURL command (variables and inherited auth resolved).
+    CopyCurl,
     Run,
     MockServer,
     AddRequest,
@@ -29,6 +31,7 @@ impl MenuAction {
     pub const fn label(self) -> &'static str {
         match self {
             Self::Open => "Open in tab",
+            Self::CopyCurl => "Copy as cURL",
             Self::Run => "Run…",
             Self::MockServer => "Mock server…",
             Self::AddRequest => "Add request…",

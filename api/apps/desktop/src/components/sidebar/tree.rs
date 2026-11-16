@@ -8,6 +8,7 @@ use ferrum_ui::components::{
     Color, Icon, IconName, IconSize, Label, LabelCommon as _, LabelSize, Tooltip,
     VisibleOnHover as _, h_flex,
 };
+use ferrumapi_application::interop::codegen::CodeTarget;
 use ferrumapi_domain::{
     Collection, CollectionId, HttpMethod, Item, ItemId, RequestKind, RequestOrigin,
 };
@@ -145,6 +146,7 @@ impl FerrumApi {
                         badge: Some((r.request.kind, r.request.method)),
                         actions: vec![
                             MenuAction::Open,
+                            MenuAction::CopyCurl,
                             MenuAction::Rename,
                             MenuAction::Duplicate,
                             MenuAction::Delete,
@@ -157,6 +159,37 @@ impl FerrumApi {
                 rows.push(row);
             }
         }
+    }
+
+    /// Copies a saved request as a cURL command.
+    fn copy_saved_as_curl(
+        &mut self,
+        cid: CollectionId,
+        item: Option<ItemId>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(id) = item else { return };
+        let Some(saved) = self
+            .state
+            .collection(cid)
+            .and_then(|c| c.find_request(id))
+            .cloned()
+        else {
+            return;
+        };
+        let origin = RequestOrigin {
+            collection: cid,
+            item: id,
+        };
+        let prepared = ferrumapi_application::prepare(
+            &saved.request,
+            Some(origin),
+            &self.state.collections,
+            &self.state.globals,
+            self.state.active_environment(),
+        );
+        let curl = ferrumapi_application::code_snippet(CodeTarget::Curl, &prepared);
+        self.copy_text(curl, cx);
     }
 
     /// Folders toggle; requests open in a tab.
@@ -206,6 +239,7 @@ impl FerrumApi {
                     action.label(),
                     move |this: &mut FerrumApi, _, cx| match action {
                         MenuAction::Open => this.open_tree_row(uid, cid, item, folder),
+                        MenuAction::CopyCurl => this.copy_saved_as_curl(cid, item, cx),
                         MenuAction::Run => this.start_run(cid, item, cx),
                         MenuAction::MockServer => this.open_mock_server(cid, cx),
                         MenuAction::AddRequest => {
