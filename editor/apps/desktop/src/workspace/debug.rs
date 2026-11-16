@@ -69,6 +69,7 @@ pub(super) fn register(r: &mut CommandRegistry) {
             .and_then(|p| p.extension().map(|e| e.to_string_lossy().to_lowercase()));
         let adapter = match adapter.as_deref() {
             Some("go") => Some(AdapterKind::Delve),
+            Some("py") => Some(AdapterKind::Debugpy),
             Some("js" | "mjs" | "cjs" | "ts" | "mts" | "tsx" | "jsx") => Some(AdapterKind::JsDebug),
             _ if w
                 .root

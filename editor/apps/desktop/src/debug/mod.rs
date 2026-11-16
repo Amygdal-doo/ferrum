@@ -950,6 +950,12 @@ impl Debugger {
         if self.installing {
             return;
         }
+        if adapter == AdapterKind::Debugpy {
+            cx.emit(DebuggerEvent::Notice(
+                "Install debugpy into the project's Python: pip install debugpy".into(),
+            ));
+            return;
+        }
         if !matches!(adapter, AdapterKind::Delve | AdapterKind::JsDebug) {
             cx.emit(DebuggerEvent::Notice(format!(
                 "{} comes with Xcode's Command Line Tools / LLVM; install those",

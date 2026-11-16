@@ -7,6 +7,7 @@
 //! | `codelldb` | CodeLLDB (TCP) | PATH, the VS Code extension |
 //! | `go` | `dlv dap` (TCP) | PATH, `servers/dlv` (installed with `go install`) |
 //! | `node`, `pwa-node`, `node-terminal` | js-debug's `dapDebugServer.js` under Node (TCP) | `servers/js-debug` (installed from its GitHub release) |
+//! | `python`, `debugpy` | `python -m debugpy.adapter` (stdio) | the project's `.venv` / `venv` Python, else `python3` on PATH, when it can import `debugpy` |
 
 use std::path::{Path, PathBuf};
 
@@ -21,6 +22,7 @@ pub enum AdapterKind {
     CodeLldb,
     Delve,
     JsDebug,
+    Debugpy,
 }
 
 impl AdapterKind {
@@ -30,6 +32,7 @@ impl AdapterKind {
             "codelldb" => AdapterKind::CodeLldb,
             "go" => AdapterKind::Delve,
             "node" | "pwa-node" | "node-terminal" => AdapterKind::JsDebug,
+            "python" | "debugpy" => AdapterKind::Debugpy,
             _ => return None,
         })
     }
@@ -40,6 +43,7 @@ impl AdapterKind {
             AdapterKind::CodeLldb => "CodeLLDB",
             AdapterKind::Delve => "dlv dap",
             AdapterKind::JsDebug => "js-debug",
+            AdapterKind::Debugpy => "debugpy",
         }
     }
 
@@ -50,6 +54,7 @@ impl AdapterKind {
             AdapterKind::CodeLldb => "lldb",
             AdapterKind::Delve => "go",
             AdapterKind::JsDebug => "pwa-node",
+            AdapterKind::Debugpy => "debugpy",
         }
     }
 }
@@ -126,6 +131,35 @@ pub fn find_codelldb(path_env: &str) -> Option<PathBuf> {
         .collect();
     found.sort();
     found.pop()
+}
+
+/// A Python that can run debugpy: the project's virtual environment
+/// (`.venv`, `venv`), else `python3` / `python` on PATH.
+pub fn find_debugpy_python(project: &Path, path_env: &str) -> Option<PathBuf> {
+    let bin = if cfg!(windows) { "Scripts" } else { "bin" };
+    let exe = if cfg!(windows) {
+        "python.exe"
+    } else {
+        "python"
+    };
+    [".venv", "venv"]
+        .iter()
+        .map(|venv| project.join(venv).join(bin).join(exe))
+        .filter(|p| p.is_file())
+        .chain(
+            ["python3", "python"]
+                .iter()
+                .filter_map(|name| find_program(name, path_env)),
+        )
+        .find(|python| {
+            std::process::Command::new(python)
+                .args(["-c", "import debugpy"])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .is_ok_and(|s| s.success())
+        })
 }
 
 /// The adapter for a configuration, ready to start: `debugAdapterPath`
@@ -242,6 +276,22 @@ pub fn adapter_command(
                 installable: true,
             }),
         },
+        AdapterKind::Debugpy => match find_debugpy_python(cwd, path_env) {
+            Some(python) => Ok((
+                wanted,
+                command(
+                    "debugpy",
+                    python,
+                    vec!["-m".into(), "debugpy.adapter".into()],
+                    Transport::Stdio,
+                ),
+            )),
+            None => Err(Missing {
+                adapter: wanted,
+                hint: "install debugpy into the project's Python (pip install debugpy)".into(),
+                installable: false,
+            }),
+        },
         AdapterKind::JsDebug => {
             let server = servers.map(js_debug_server).filter(|p| p.is_file());
             let node = find_program("node", path_env);
@@ -298,6 +348,13 @@ pub fn launch_arguments(adapter: AdapterKind, raw: &Value) -> Value {
                 args["console"] = json!("internalConsole");
             }
         }
+        AdapterKind::Debugpy => {
+            args["type"] = json!("debugpy");
+            // Output in the debug console, not a terminal tab.
+            if args["console"].is_null() {
+                args["console"] = json!("internalConsole");
+            }
+        }
         AdapterKind::CodeLldb | AdapterKind::Delve => {}
     }
     args
@@ -315,7 +372,8 @@ mod tests {
             Some(AdapterKind::JsDebug)
         );
         assert_eq!(AdapterKind::for_type("go"), Some(AdapterKind::Delve));
-        assert_eq!(AdapterKind::for_type("python"), None);
+        assert_eq!(AdapterKind::for_type("python"), Some(AdapterKind::Debugpy));
+        assert_eq!(AdapterKind::for_type("cppdbg"), None);
     }
 
     #[test]
@@ -363,5 +421,36 @@ mod tests {
         );
         assert_eq!(node["type"], "pwa-node");
         assert_eq!(node["console"], "internalConsole");
+        let python = launch_arguments(
+            AdapterKind::Debugpy,
+            &json!({"type": "python", "program": "a.py"}),
+        );
+        assert_eq!(python["type"], "debugpy");
+        assert_eq!(python["console"], "internalConsole");
+    }
+
+    #[test]
+    fn debugpy_needs_a_python_that_imports_it() {
+        let empty = tempfile::tempdir().expect("tempdir");
+        let path = empty.path().to_string_lossy().to_string();
+        let missing = adapter_command("python", &path, None, empty.path()).expect_err("none");
+        assert!(!missing.installable && missing.hint.contains("pip install debugpy"));
+        // A project virtualenv whose python can import debugpy wins.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let bin = empty.path().join(".venv/bin");
+            std::fs::create_dir_all(&bin).expect("mkdir");
+            let python = bin.join("python");
+            std::fs::write(&python, "#!/bin/sh\nexit 0\n").expect("write");
+            std::fs::set_permissions(&python, std::fs::Permissions::from_mode(0o755))
+                .expect("chmod");
+            let (kind, command) =
+                adapter_command("debugpy", &path, None, empty.path()).expect("venv");
+            assert_eq!(kind, AdapterKind::Debugpy);
+            assert_eq!(command.program, python);
+            assert_eq!(command.args, ["-m", "debugpy.adapter"]);
+            assert_eq!(command.transport, Transport::Stdio);
+        }
     }
 }

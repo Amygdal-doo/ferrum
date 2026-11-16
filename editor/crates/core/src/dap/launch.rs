@@ -2,7 +2,7 @@
 //! substituted) for the types we can debug, and sensible defaults when
 //! there is none: the Rust binary or tests (built with cargo first), the
 //! current Go package or its tests, the current JS/TS file or a
-//! package.json script.
+//! package.json script, the current Python file.
 
 use std::path::{Path, PathBuf};
 
@@ -17,6 +17,8 @@ pub const SUPPORTED_TYPES: &[&str] = &[
     "node",
     "pwa-node",
     "node-terminal",
+    "python",
+    "debugpy",
 ];
 
 #[derive(Debug, Clone, PartialEq)]
@@ -217,8 +219,22 @@ pub fn default_configs(vars: &Variables) -> Vec<LaunchConfig> {
             ));
         }
     }
+    let mut python = Vec::new();
+    if let Some(file) = file.filter(|_| ext == "py") {
+        python.push(config(
+            &format!(
+                "Python: {}",
+                file.file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_default()
+            ),
+            "debugpy",
+            json!({"program": file.to_string_lossy(), "cwd": cwd, "justMyCode": true}),
+        ));
+    }
     let mut out = Vec::new();
     match ext.as_str() {
+        "py" => out.append(&mut python),
         "go" => out.append(&mut go),
         "js" | "mjs" | "cjs" | "ts" | "mts" | "tsx" | "jsx" => out.append(&mut js),
         _ => out.append(&mut rust),
@@ -334,7 +350,7 @@ mod tests {
               // comments are fine
               "configurations": [
                 {"name": "Run", "type": "lldb", "request": "launch", "program": "${workspaceFolder}/target/debug/app",},
-                {"name": "Py", "type": "python", "request": "launch"},
+                {"name": "Java", "type": "java", "request": "launch"},
                 {"name": "Attach", "type": "go", "request": "attach", "processId": 42},
               ],
             }"#,
@@ -378,6 +394,10 @@ mod tests {
             js.iter()
                 .any(|c| c.name == "npm run dev" && c.raw["runtimeArgs"][1] == "dev")
         );
+        let py = default_configs(&vars(root, Some("tools/gen.py")));
+        assert_eq!(py[0].name, "Python: gen.py");
+        assert_eq!(py[0].kind, "debugpy");
+        assert_eq!(py[0].raw["justMyCode"], true);
         let go_pkg = default_configs(&vars(root, Some("cmd/x/main.go")));
         assert_eq!(
             go_pkg[0].raw["program"],
