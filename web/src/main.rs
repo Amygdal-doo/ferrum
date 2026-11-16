@@ -36,7 +36,8 @@ async fn main() -> std::io::Result<()> {
     } else {
         tracing::info!("DATABASE_URL unset: usage pings are accepted but not stored");
     }
-    let service = router(state).into_make_service();
+    // Peer addresses feed X-Forwarded-For on the accounts proxy.
+    let service = router(state).into_make_service_with_connect_info::<std::net::SocketAddr>();
     axum::serve(listener, service)
         .with_graceful_shutdown(shutdown_signal())
         .await?;

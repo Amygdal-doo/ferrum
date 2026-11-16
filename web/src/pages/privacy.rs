@@ -11,12 +11,14 @@ pub const PATH: &str = "/privacy";
 pub const UPDATED: &str = "2026-11-16";
 /// Anchor of the usage-count section (the launcher links to it).
 pub const USAGE_COUNTS_ID: &str = "usage-counts";
+/// Anchor of the accounts section (the sign-in pages link to it).
+pub const ACCOUNTS_ID: &str = "accounts";
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Privacy policy for this website"),
-        "What the Ferrum website stores (no cookies, no accounts), the launcher's anonymous \
-         daily install count and how to turn it off, and the services involved.",
+        "What the Ferrum website stores, what a Ferrum account keeps, the launcher's \
+         anonymous daily install count and how to turn it off, and the services involved.",
         PATH,
         "page-privacy",
     )
@@ -44,9 +46,9 @@ pub fn render(site_url: &str) -> Markup {
                         }
                         h2 { "What we store" }
                         p {
-                            "Nothing about you. There are no accounts, no forms and no mailing \
-                             list. Like any web server, this one logs each request's method and \
-                             path, without query strings."
+                            "Nothing about you unless you sign in. There is no mailing list. \
+                             Like any web server, this one logs each request's method and path, \
+                             without query strings."
                         }
                         h2 { "Services involved" }
                         ul class="post__list" {
@@ -57,10 +59,46 @@ pub fn render(site_url: &str) -> Markup {
                             }
                             li {
                                 strong { "GitHub" } " hosts the downloads. Download links and the \
-                                 launcher fetch releases from GitHub."
+                                 launcher fetch releases from GitHub. It also confirms who you \
+                                 are when you sign in, and serves your profile picture on your \
+                                 account page."
                             }
                         }
-                        p { "This site sets no cookies and runs no analytics. The light or dark theme you pick is kept in your browser's local storage." }
+                        p {
+                            "This site runs no analytics and sets no cookies unless you sign in. \
+                             The light or dark theme you pick is kept in your browser's local \
+                             storage."
+                        }
+                        h2 id=(ACCOUNTS_ID) { "Ferrum accounts" }
+                        p {
+                            "An account is optional; every Ferrum app works without one. You \
+                             sign in with GitHub. There are no passwords: GitHub confirms who \
+                             you are, and Ferrum never sees your GitHub password or your \
+                             repositories. An account keeps:"
+                        }
+                        ul class="post__list" {
+                            li {
+                                strong { "From GitHub" } ": your GitHub user ID and username, \
+                                 your name, your primary verified e-mail address and the address \
+                                 of your profile picture. They are refreshed each time you sign in."
+                            }
+                            li { strong { "Your Ferrum username" } ", which you can change." }
+                            li {
+                                strong { "Sessions" } ": one for each signed-in browser and each \
+                                 Ferrum app on each computer, with the app, the computer's name \
+                                 as the app reports it, and when it signed in and was last used. \
+                                 Sign-in tokens are stored only as one-way hashes."
+                            }
+                        }
+                        p {
+                            "Signing in sets one cookie, " code { "ferrum_session" } ", that keeps \
+                             this browser signed in, plus a short-lived one while GitHub \
+                             confirms the sign-in. A session ends when you sign out, when you \
+                             revoke it on your account's sessions page, or after 90 days \
+                             without use. Accounts are never linked to the usage counts below. \
+                             To delete your account and everything it keeps, ask us at the \
+                             contact below."
+                        }
                         h2 id=(USAGE_COUNTS_ID) { "Usage counts from FerrumLauncher" }
                         p {
                             "To know how many people use Ferrum, FerrumLauncher sends one small \
@@ -127,7 +165,7 @@ mod tests {
         let html = render("https://example.test").into_string();
         assert_eq!(html.matches("<h1").count(), 1);
         assert!(html.contains("Railway"));
-        assert!(html.contains("no cookies"));
+        assert!(html.contains("sets no cookies unless you sign in"));
         for gone in ["Resend", "unsubscribe", "your email address"] {
             assert!(!html.contains(gone), "{gone}");
         }
@@ -144,6 +182,25 @@ mod tests {
             "DO_NOT_TRACK=1",
             "Share anonymous usage counts",
             r#"href="/stats""#,
+        ] {
+            assert!(html.contains(text), "{text}");
+        }
+    }
+
+    #[test]
+    fn explains_what_accounts_keep() {
+        let html = render("https://example.test").into_string();
+        assert!(html.contains(r#"id="accounts""#));
+        for text in [
+            "GitHub user ID",
+            "primary verified e-mail",
+            "profile picture",
+            "Sessions",
+            "no passwords",
+            "ferrum_session",
+            "90 days",
+            "never linked to the usage counts",
+            "delete your account",
         ] {
             assert!(html.contains(text), "{text}");
         }

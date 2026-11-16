@@ -86,8 +86,9 @@ Page-level CSS: `pages.css` (home, `/apps`, product pages, about, 404, download)
      sequence): native, the launcher, agents, the project bar, local, open source,
      questions.
   6. The closing download: the headline again, Download, the install command.
-- The header has the GitHub mark (with its name from 1100px) next to Download. Under
-  480px the mark moves into the menu as "Source on GitHub".
+- The header has the GitHub mark (with its name from 1100px) and a quiet "Sign in" text
+  link next to Download. Sign in moves into the menu under 600px, the mark
+  under 480px ("Source on GitHub").
 - The footer: brand, tagline and licence line, then Product, Learn and Community
   (GitHub links only).
 - `/apps` (`pages/apps.rs`) is the one list of every app, in two groups (Apps, Tools)

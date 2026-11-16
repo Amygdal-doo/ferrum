@@ -11,6 +11,8 @@ use crate::{products, site, updates};
 const APPS_HREF: &str = crate::pages::apps::PATH;
 const FEATURES_HREF: &str = crate::pages::features::PATH;
 const DOCS_HREF: &str = crate::pages::docs::PATH;
+/// Served by the accounts service through `routes::accounts_proxy`.
+const SIGN_IN_HREF: &str = "/login";
 
 fn nav_link(href: &str, label: &str, active: bool) -> Markup {
     html! {
@@ -50,6 +52,7 @@ pub fn render(current_path: &str) -> Markup {
                         (icons::sun())
                         (icons::moon())
                     }
+                    a class="nav-signin" href=(SIGN_IN_HREF) { "Sign in" }
                     a class="nav-download" href=(site::DOWNLOAD_PATH)
                         aria-current=[on_download.then_some("page")] { "Download" }
                     button class="icon-btn nav-toggle" type="button" data-nav-toggle
@@ -72,6 +75,10 @@ pub fn render(current_path: &str) -> Markup {
                             a class="nav-link" href=(site::SOURCE_REPO_URL) rel="noopener" {
                                 "Source on GitHub"
                             }
+                        }
+                        // Narrow screens move Sign in into the menu too.
+                        li class="nav-list__signin" {
+                            a class="nav-link" href=(SIGN_IN_HREF) { "Sign in" }
                         }
                     }
                 }
@@ -118,6 +125,13 @@ mod tests {
         let html = render("/").into_string();
         assert!(html.contains(r#"href="https://github.com/Amygdal-doo/ferrum""#));
         assert!(html.contains("icon--github"));
+    }
+
+    #[test]
+    fn has_a_sign_in_link_in_the_header_and_the_menu() {
+        let html = render("/").into_string();
+        assert!(html.contains(r#"<a class="nav-signin" href="/login">Sign in</a>"#));
+        assert!(html.contains(r#"<li class="nav-list__signin">"#));
     }
 
     #[test]

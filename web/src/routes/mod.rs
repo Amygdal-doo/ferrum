@@ -1,5 +1,6 @@
 //! Router assembly. Page handlers are thin: they call `pages::*::render`.
 
+pub mod accounts_proxy;
 pub mod assets;
 pub mod health;
 pub mod middleware;
@@ -14,7 +15,7 @@ use axum::{
     extract::{DefaultBodyLimit, Path, State},
     http::{StatusCode, header},
     response::{IntoResponse, Redirect, Response},
-    routing::{get, post},
+    routing::{any, get, post},
 };
 use maud::Markup;
 
@@ -28,6 +29,8 @@ pub struct AppState {
     /// Anonymous usage counts (`/api/ping`, `/stats`); stores nothing
     /// without `DATABASE_URL`.
     pub usage: Arc<Usage>,
+    /// Client for the accounts service behind `ACCOUNTS_URL`.
+    pub accounts_client: reqwest::Client,
 }
 
 impl AppState {
@@ -37,6 +40,7 @@ impl AppState {
             config: Arc::new(config),
             releases: Arc::new(releases),
             usage: Arc::new(usage),
+            accounts_client: accounts_proxy::client(),
         }
     }
 
@@ -139,6 +143,15 @@ pub fn router(state: AppState) -> Router {
             ping::PATH,
             post(ping::ping).layer(DefaultBodyLimit::max(crate::usage::MAX_BODY_BYTES)),
         )
+        // Accounts live in a separate service; see `accounts_proxy`.
+        .route("/login", any(accounts_proxy::proxy))
+        .route("/signup", any(accounts_proxy::proxy))
+        .route("/logout", any(accounts_proxy::proxy))
+        .route("/account", any(accounts_proxy::proxy))
+        .route("/account/{*rest}", any(accounts_proxy::proxy))
+        .route("/auth/{*rest}", any(accounts_proxy::proxy))
+        .route("/oauth/{*rest}", any(accounts_proxy::proxy))
+        .route("/api/v1/{*rest}", any(accounts_proxy::proxy))
         .route("/healthz", get(health::healthz))
         .route("/robots.txt", get(seo::robots))
         .route(

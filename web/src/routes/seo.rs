@@ -24,7 +24,7 @@ fn entry(path: &str, lastmod: &str) -> Entry {
 
 pub async fn robots(State(s): State<AppState>) -> impl IntoResponse {
     let body = format!(
-        "User-agent: *\nAllow: /\n# Redirects to a GitHub download.\nDisallow: {}\nSitemap: {}/sitemap.xml\n",
+        "User-agent: *\nAllow: /\n# Redirects to a GitHub download.\nDisallow: {}\n# Sign-in and account pages.\nDisallow: /account\nDisallow: /auth/\nDisallow: /oauth/\nSitemap: {}/sitemap.xml\n",
         site::MACOS_DOWNLOAD_PATH,
         s.site_url()
     );

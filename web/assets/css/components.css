@@ -139,7 +139,18 @@
   background: var(--accent); color: var(--accent-text); font-weight: 600; text-decoration: none;
 }
 .nav-download:hover { background: var(--accent-hover); color: var(--accent-text); }
-.nav-list__github { display: none; }
+/* Sign in: a quiet text link next to Download; in the menu on narrow screens. */
+.nav-signin {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 0 var(--sp-2);
+  color: var(--text-muted); font-weight: 500; text-decoration: none; white-space: nowrap;
+}
+.nav-signin:hover { color: var(--text); }
+.nav-list__github, .nav-list__signin { display: none; }
+/* Below 600px the header row has no room for it next to the icons and Download. */
+@media (max-width: 599px) {
+  html.js .site-header__actions .nav-signin { display: none; }
+  html.js .nav-list__signin { display: block; }
+}
 @media (max-width: 479px) {
   .site-header__actions { gap: var(--sp-1); }
   html.js .site-header__actions .github-link { display: none; }

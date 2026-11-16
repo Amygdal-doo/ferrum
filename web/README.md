@@ -35,6 +35,7 @@ and reload without recompiling. Release builds embed the files.
 | `RAILWAY_PUBLIC_DOMAIN` | (set by Railway)         | Fallback when `SITE_URL` is unset: becomes `https://$RAILWAY_PUBLIC_DOMAIN`. |
 | `RUST_LOG`              | `info`                   | `tracing` env filter, e.g. `info,tower_http=debug`. |
 | `DATABASE_URL`          | unset                    | Postgres for the launcher's anonymous usage counts (`/api/ping`, `/stats`). Unset: pings get `204` and are dropped, `/stats` shows an empty state. Migrations in `migrations/` run at startup (in the background). |
+| `ACCOUNTS_URL`          | unset                    | Base URL of the accounts service the account paths are proxied to, e.g. `http://ferrum-cloud.railway.internal:8080` (Railway private network). Unset: sign-in shows "coming soon". |
 
 If neither `SITE_URL` nor `RAILWAY_PUBLIC_DOMAIN` is set, the site URL is
 `http://localhost:$PORT`.
@@ -59,6 +60,7 @@ There is no mailing list: news goes on `/updates` and its Atom feed.
 | `/updates/feed.xml` | Atom feed of every post, full HTML content with absolute links. Linked from every page's `<head>` |
 | `/healthz` | `200 ok`, `text/plain`, `no-store`, used by the Railway health check |
 | `POST /api/ping` | FerrumLauncher's anonymous daily count (`src/usage.rs`, `routes/ping.rs`). JSON `{install_id, launcher_version, os, arch, apps: [{id, version}]}`, at most 8 KiB and 64 apps; `os` is `macos`/`linux`/`windows`, `arch` `aarch64`/`x86_64`, unknown app ids are dropped. One row per install per UTC day (`ON CONFLICT DO NOTHING`), no IP or user agent stored. `204` stored or no database, `400` invalid, `413` too large, `503` database error. `no-store` |
+| `/login`, `/signup`, `/logout`, `/auth/*`, `/oauth/*`, `/account`, `/account/*`, `/api/v1/*` | Reverse-proxied to the accounts service at `ACCOUNTS_URL` (`routes/accounts_proxy.rs`; the service is closed source and lives outside this repo). Method, path and query, body (at most 64 KiB) and headers go up with `X-Forwarded-For/-Proto/-Host`; status, headers (every `Set-Cookie`, `Location`) and body (at most 2 MiB) come back; redirects are not followed; 20 s timeout; `502` when it can't be reached. Always `no-store`. Without `ACCOUNTS_URL`: `/login` and `/signup` say sign-in is coming soon, the rest are the HTML 404. Not in the sitemap; `/account`, `/auth/` and `/oauth/` are disallowed in robots.txt |
 | `/stats` | Active installs today / 7 / 30 days, OS and CPU split, installs per app (aggregates cached 5 min), and GitHub download totals from the cached releases list. Empty state without `DATABASE_URL` |
 | `/robots.txt`, `/sitemap.xml` | The sitemap lists every page with a `lastmod`: `site::CONTENT_UPDATED` for static copy, post dates for posts, and the newest cached release for `/changelog` |
 | `/assets/*` | Embedded files. URLs from `assets::url()` carry `?v=<sha256 prefix>` and are served `immutable` for one year. Every asset has a strong ETag (`304` on `If-None-Match`) |

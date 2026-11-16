@@ -16,6 +16,11 @@ pub struct Config {
     /// Postgres for the anonymous usage counts (`POST /api/ping`, `/stats`).
     /// `None` stores nothing (local dev, tests).
     pub database_url: Option<String>,
+    /// The accounts service that `/login`, `/account`, `/api/v1/…` and the
+    /// other account paths are proxied to (`routes::accounts_proxy`), without
+    /// trailing slash. `None`: those paths are 404 and `/login` says sign-in
+    /// is coming soon.
+    pub accounts_url: Option<String>,
 }
 
 /// Look up a variable, treating empty / whitespace-only values as unset.
@@ -37,6 +42,9 @@ impl Config {
     /// - `SITE_URL`: public base URL; else `https://$RAILWAY_PUBLIC_DOMAIN`;
     ///   else `http://localhost:$PORT`. A trailing `/` is stripped.
     /// - `DATABASE_URL`: Postgres connection string; unset or empty means none.
+    /// - `ACCOUNTS_URL`: base URL of the accounts service, e.g.
+    ///   `http://ferrum-cloud.railway.internal:8080`; only `http(s)://` URLs
+    ///   count. A trailing `/` is stripped.
     pub fn from_vars(get: impl Fn(&str) -> Option<String>) -> Self {
         let port = non_empty(&get, "PORT")
             .and_then(|p| p.parse().ok())
@@ -48,6 +56,9 @@ impl Config {
             port,
             site_url: site_url.trim_end_matches('/').to_owned(),
             database_url: non_empty(&get, "DATABASE_URL"),
+            accounts_url: non_empty(&get, "ACCOUNTS_URL")
+                .filter(|u| u.starts_with("http://") || u.starts_with("https://"))
+                .map(|u| u.trim_end_matches('/').to_owned()),
         }
     }
 
@@ -124,5 +135,21 @@ mod tests {
             ("RAILWAY_PUBLIC_DOMAIN", "x.up.railway.app"),
         ]);
         assert_eq!(c.site_url, "https://x.up.railway.app");
+    }
+
+    #[test]
+    fn reads_accounts_url() {
+        assert_eq!(cfg(&[]).accounts_url, None);
+        assert_eq!(cfg(&[("ACCOUNTS_URL", " ")]).accounts_url, None);
+        assert_eq!(
+            cfg(&[("ACCOUNTS_URL", "ferrum-cloud:8080")]).accounts_url,
+            None
+        );
+        assert_eq!(
+            cfg(&[("ACCOUNTS_URL", "http://ferrum-cloud.railway.internal:8080/")])
+                .accounts_url
+                .as_deref(),
+            Some("http://ferrum-cloud.railway.internal:8080")
+        );
     }
 }
