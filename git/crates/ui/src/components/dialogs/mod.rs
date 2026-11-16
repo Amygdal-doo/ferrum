@@ -5,6 +5,7 @@ mod clone;
 mod pickers;
 mod profiles;
 mod pulls;
+pub(crate) mod rebase;
 mod repo_settings;
 
 use crate::app::GitView;
@@ -52,6 +53,7 @@ pub enum DialogState {
     CreatePr(pulls::CreatePrForm),
     PrReview(pulls::ReviewForm),
     PrMerge(pulls::MergeForm),
+    Rebase(rebase::RebaseForm),
 }
 
 fn short(rev: &str) -> &str {
@@ -292,6 +294,15 @@ impl GitView {
                     self.merge_pull_request(number, method, cx);
                 }
             }
+            DialogState::Rebase(_) => {
+                let op = match &mut self.dialog {
+                    Some(DialogState::Rebase(f)) => rebase::submit(f, cx),
+                    _ => None,
+                };
+                if let Some(op) = op {
+                    self.run_and_close(op, window, cx);
+                }
+            }
             DialogState::RepoSettings(_) | DialogState::Profiles(_) => {}
         }
     }
@@ -450,6 +461,7 @@ pub fn render(
         DialogState::CreatePr(form) => pulls::render_create(app, form, cx),
         DialogState::PrReview(form) => pulls::render_review(form, cx),
         DialogState::PrMerge(form) => pulls::render_merge(form, cx),
+        DialogState::Rebase(_) => rebase::render(app, cx),
     };
     Some(element)
 }

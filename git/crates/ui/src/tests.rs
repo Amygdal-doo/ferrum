@@ -15,6 +15,8 @@ use std::time::Duration;
 
 /// The stand-alone app's file editor.
 mod editor;
+/// The interactive rebase dialog.
+mod rebase;
 
 /// A host app's pane: the view plus the events it received.
 pub(crate) struct Host {

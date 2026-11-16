@@ -42,6 +42,7 @@ or a specific private key). Each repository is assigned one profile (toolbar →
 | Branches: create (from anything), checkout, checkout remote (tracking), rename, delete, delete on remote, merge, rebase | ✅ tested |
 | Commits: checkout detached, cherry-pick, revert (merge commits use `-m 1`), reset soft/mixed/hard, create branch/tag here, copy SHA | ✅ tested |
 | Merge/rebase/cherry-pick/revert in progress: banner, take ours/theirs, mark resolved, continue, abort | ✅ tested |
+| **Interactive rebase**: commit menu → *Interactive rebase onto this commit…*; reorder by drag or ⌥↑/⌥↓, pick / reword / edit / squash / fixup / drop per commit (buttons or P R E S F D), preview of the resulting history, then git's own `rebase -i` runs with the generated todo list (rewording is a `pick` plus an `exec git commit --amend`, so no editor opens); stops on conflicts and `edit` lines with step progress in the banner, **Skip** next to continue / abort | ✅ git layer tested end to end (reorder, squash, fixup, drop, reword, edit stop, conflict skip / abort, stale plans, merges refused); dialog keyboard flow tested headless; drag not clicked through |
 | Tags: lightweight/annotated, push, delete local/remote | ✅ tested |
 | Stash: save (message, include untracked), apply, pop, drop, view stash diff | ✅ tested |
 | Remotes: fetch (all / one, prune), pull (ff-only / merge / rebase), push (auto-sets upstream; force-with-lease), add/remove remote | ✅ tested against local bare remote |
@@ -57,7 +58,7 @@ or a specific private key). Each repository is assigned one profile (toolbar →
 
 ## Not built yet
 Redo, and undo beyond the last commit / amend / checkout (merges, rebases, cherry-picks, resets);
-interactive rebase, submodules, LFS, worktrees, GPG/SSH commit signing UI (signing configured in
+interactive rebase of merge commits (`--rebase-merges`) or of the root commit, submodules, LFS, worktrees, GPG/SSH commit signing UI (signing configured in
 git config still works), issue integrations; for pull requests: inline (per-line) review comments
 and replying to threads, editing / closing PRs, creating PRs whose head is in a fork, pagination
 beyond the first 50 PRs and 100 commits / comments / checks, GitHub team review requests in the

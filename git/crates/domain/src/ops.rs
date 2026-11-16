@@ -3,6 +3,7 @@
 //! identity and SSH.
 
 use crate::commit::Oid;
+use crate::rebase::RebasePlan;
 use crate::undo::Undo;
 use serde::{Deserialize, Serialize};
 
@@ -101,6 +102,9 @@ pub enum RepoOp {
     Rebase {
         onto: String,
     },
+    /// Rewrites `base..HEAD` as planned (git's own `rebase -i` with a
+    /// generated todo list).
+    InteractiveRebase(RebasePlan),
     // Commits
     CherryPick(Oid),
     Revert(Oid),
@@ -110,6 +114,8 @@ pub enum RepoOp {
     },
     // Multi-step operations
     Continue,
+    /// Skips the commit a rebase / cherry-pick / revert stopped at.
+    Skip,
     Abort,
     TakeOurs(Vec<String>),
     TakeTheirs(Vec<String>),
@@ -191,10 +197,12 @@ impl RepoOp {
             Self::SetUpstream { upstream, .. } => format!("Tracking {upstream}"),
             Self::Merge { branch, .. } => format!("Merging {branch}"),
             Self::Rebase { onto } => format!("Rebasing onto {onto}"),
+            Self::InteractiveRebase(plan) => format!("Rebasing onto {}", plan.base.short()),
             Self::CherryPick(o) => format!("Cherry-picking {}", o.short()),
             Self::Revert(o) => format!("Reverting {}", o.short()),
             Self::Reset { target, .. } => format!("Resetting to {}", short_target(target)),
             Self::Continue => "Continuing".into(),
+            Self::Skip => "Skipping commit".into(),
             Self::Abort => "Aborting".into(),
             Self::TakeOurs(_) => "Taking ours".into(),
             Self::TakeTheirs(_) => "Taking theirs".into(),

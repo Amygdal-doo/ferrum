@@ -2,8 +2,8 @@
 
 use crate::{AppError, AppResult, AppServices};
 use ferrumgit_domain::{
-    Blame, CommitDetails, DiffSource, FileCommit, FileDiff, Oid, Profile, ProfileId, RepoEntry,
-    RepoOp, Stash,
+    Blame, CommitDetails, DiffSource, FileCommit, FileDiff, Oid, Profile, ProfileId, RebaseStep,
+    RepoEntry, RepoOp, Stash,
 };
 use ferrumgit_git::{CancellationToken, NetEnv, OpContext, Snapshot};
 use ferrumgit_graph::{GraphRow, layout};
@@ -100,6 +100,11 @@ impl AppServices {
         limit: usize,
     ) -> AppResult<Vec<String>> {
         Ok(self.repo(path).await?.grep_messages(text, limit).await?)
+    }
+
+    /// The commits an interactive rebase onto `base` would rewrite, oldest first.
+    pub async fn rebase_steps(&self, path: &str, base: &Oid) -> AppResult<Vec<RebaseStep>> {
+        Ok(self.repo(path).await?.rebase_steps(base.as_str()).await?)
     }
 
     pub async fn head_message(&self, path: &str) -> AppResult<String> {

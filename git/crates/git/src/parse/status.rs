@@ -88,7 +88,7 @@ pub fn parse_status(raw: &[u8]) -> WorkingStatus {
     WorkingStatus {
         branch,
         files,
-        operation: None,
+        ..WorkingStatus::default()
     }
 }
 

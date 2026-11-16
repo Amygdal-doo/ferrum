@@ -81,6 +81,7 @@ impl Repo {
             .await?;
         let mut s = parse::parse_status(&out.stdout);
         s.operation = self.operation();
+        s.rebase = self.rebase_progress();
         Ok(s)
     }
 

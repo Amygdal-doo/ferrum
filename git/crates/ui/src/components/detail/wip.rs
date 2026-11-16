@@ -5,11 +5,11 @@ use crate::app::GitView;
 use crate::components::widgets::{ghost_button, primary_button, small_button};
 use crate::state::Dialog;
 use ferrum_ui::components::{
-    Checkbox, Clickable, Color, Disableable, FixedWidth, Label, LabelCommon, LabelSize,
-    ToggleState, Tooltip, h_flex, v_flex,
+    ButtonCommon, Checkbox, Clickable, Color, Disableable, FixedWidth, Label, LabelCommon,
+    LabelSize, ToggleState, Tooltip, h_flex, v_flex,
 };
 use ferrum_ui::theme::ActiveTheme;
-use ferrumgit_domain::{DiffSource, FileStatus, RepoId, RepoOp};
+use ferrumgit_domain::{DiffSource, FileStatus, RepoId, RepoOp, RepoOperation};
 use gpui::{AnyElement, Context, ElementId, Window, div, prelude::*, px};
 
 const STAGE: RowAction = RowAction {
@@ -243,15 +243,28 @@ pub fn wip_panel(
     body.push(v_flex().p_1().children(rows).into_any_element());
 
     let banner = status.operation.map(|op| {
+        let progress = status.rebase.as_ref().map_or_else(String::new, |p| {
+            let step = if p.total > 0 {
+                format!(" (step {} of {})", p.step.min(p.total), p.total)
+            } else {
+                String::new()
+            };
+            match (&p.current, p.editing) {
+                (Some(line), true) => format!("{step}, stopped to edit “{}”", short_todo(line)),
+                (Some(line), false) => format!("{step} at “{}”", short_todo(line)),
+                (None, _) => step,
+            }
+        });
         let text = if conflicted.is_empty() {
-            format!("{} in progress — ready to continue", op.label())
+            format!("{} in progress{progress} — ready to continue", op.label())
         } else {
             format!(
-                "{} in progress — resolve {} conflict(s)",
+                "{} in progress{progress} — resolve {} conflict(s)",
                 op.label(),
                 conflicted.len()
             )
         };
+        let can_skip = op != RepoOperation::Merge;
         h_flex()
             .flex_none()
             .gap_2()
@@ -267,6 +280,14 @@ pub fn wip_panel(
                         .color(Color::Warning),
                 ),
             )
+            .when(can_skip, |d| {
+                d.child(
+                    small_button("op-skip", "Skip")
+                        .disabled(busy)
+                        .tooltip(Tooltip::text("Leave out the commit it stopped at"))
+                        .on_click(cx.listener(move |app, _, _, cx| app.op(id, RepoOp::Skip, cx))),
+                )
+            })
             .child(
                 small_button("op-abort", "Abort")
                     .disabled(busy)
@@ -293,6 +314,18 @@ pub fn wip_panel(
         )
         .child(commit_box(app, id, staged.len(), cx))
         .into_any_element()
+}
+
+/// `pick 1a2b3c4d… Subject` → `1a2b3c4 Subject` for the banner.
+fn short_todo(line: &str) -> String {
+    let mut parts = line.splitn(3, ' ');
+    let (_, oid, rest) = (parts.next(), parts.next(), parts.next());
+    match oid {
+        Some(o) => format!("{} {}", o.get(..7).unwrap_or(o), rest.unwrap_or_default())
+            .trim_end()
+            .to_owned(),
+        None => line.to_owned(),
+    }
 }
 
 fn commit_box(app: &GitView, id: RepoId, staged: usize, cx: &mut Context<GitView>) -> AnyElement {

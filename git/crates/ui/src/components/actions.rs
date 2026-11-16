@@ -27,6 +27,8 @@ pub enum Action {
     DeleteRemoteTag(String),
     TagAt(String),
     CherryPick(Oid),
+    /// Rewrite the commits after this one (`rebase -i`).
+    InteractiveRebase(Oid),
     Revert(Oid),
     Reset(Oid),
     StashApply(usize),
@@ -62,6 +64,7 @@ impl Action {
             Self::DeleteRemoteTag(_) => MenuItem::new("Delete tag from origin…").danger(),
             Self::TagAt(_) => MenuItem::new("Create tag here…"),
             Self::CherryPick(_) => MenuItem::new("Cherry-pick onto current branch").sep(),
+            Self::InteractiveRebase(_) => MenuItem::new("Interactive rebase onto this commit…"),
             Self::Revert(_) => MenuItem::new("Revert commit…"),
             Self::Reset(_) => MenuItem::new("Reset current branch to here…").danger(),
             Self::StashApply(_) => MenuItem::new("Apply stash"),
@@ -138,6 +141,7 @@ pub fn for_commit(oid: &Oid) -> Vec<Action> {
         Action::BranchFrom(oid.0.clone()),
         Action::TagAt(oid.0.clone()),
         Action::CherryPick(oid.clone()),
+        Action::InteractiveRebase(oid.clone()),
         Action::Revert(oid.clone()),
         Action::Reset(oid.clone()),
         Action::Copy(oid.0.clone()),
@@ -272,6 +276,9 @@ impl GitView {
                 initial: String::new(),
             },
             Action::CherryPick(oid) => return self.op(id, RepoOp::CherryPick(oid), cx),
+            Action::InteractiveRebase(oid) => {
+                return self.open_interactive_rebase(oid, window, cx);
+            }
             Action::Revert(oid) => Dialog::Confirm {
                 title: "Revert commit?".into(),
                 body: format!("Creates a new commit that undoes {}.", oid.short()),
