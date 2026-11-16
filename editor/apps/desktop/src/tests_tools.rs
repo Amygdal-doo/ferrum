@@ -314,3 +314,41 @@ fn a_notification_from_another_projects_chat_switches_to_that_project(cx: &mut T
         assert!(w.tool_open(ToolKind::Agent));
     });
 }
+
+/// The IDE embeds the same chat as FerrumEngineer: in a laptop-sized
+/// window, with Git above it and the terminal below, the Agent pane shows
+/// the mode, approval and model pickers.
+#[gpui::test]
+fn the_agent_pane_shows_the_model_and_approval_pickers(cx: &mut TestAppContext) {
+    let env = setup(cx);
+    let (workspace, cx) = open_workspace(&env.root(), cx);
+    cx.simulate_resize(gpui::size(gpui::px(1280.), gpui::px(720.)));
+    click_top_bar("top-bar-terminal", cx);
+    click_top_bar("top-bar-git", cx);
+    click_top_bar("top-bar-agent", cx);
+    let chat = workspace.read_with(cx, |w, _| w.tools().chat.clone().expect("chat"));
+    for _ in 0..400 {
+        cx.run_until_parked();
+        if chat.read_with(cx, |c, _| c.session().is_some()) {
+            break;
+        }
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(
+        chat.read_with(cx, |c, _| c.session().is_some()),
+        "the session opened"
+    );
+    cx.run_until_parked();
+    let pane = cx.debug_bounds("tool-pane-agent").expect("the Agent pane");
+    for picker in ["chat-mode", "chat-approval", "chat-agent"] {
+        let bounds = cx
+            .debug_bounds(picker)
+            .unwrap_or_else(|| panic!("{picker} drawn"));
+        assert!(
+            pane.contains(&bounds.center()),
+            "{picker} at {bounds:?} is inside the pane {pane:?}"
+        );
+    }
+}

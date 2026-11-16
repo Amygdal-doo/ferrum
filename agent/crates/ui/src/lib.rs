@@ -28,6 +28,7 @@ mod actions;
 mod attach;
 mod changes;
 mod composer;
+mod custom_form;
 mod footer;
 mod header;
 mod host;
@@ -43,6 +44,8 @@ mod view;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_models;
 
 pub use actions::*;
 pub use ferrumagent_core as core;

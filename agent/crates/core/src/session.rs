@@ -24,11 +24,13 @@ use crate::agent::{NativeAgent, TurnSink};
 use crate::changeset::{ChangeSet, CheckpointInfo};
 use crate::context::{self, Mention};
 use crate::mcp::{McpClient, McpConfig};
+use crate::models::ModelStore;
 use crate::modes::Mode;
 use crate::permissions::{Approval, Decision, PermissionBroker, PermissionRequest, Permissions};
+use crate::provider::ping::Pong;
 use crate::provider::{self, Message, ModelInfo, Provider, StopReason};
 use crate::review::FileChange;
-use crate::secrets::{self, ApiKey, KeySource, SecretStore};
+use crate::secrets::{self, KeySource, SecretStore};
 use crate::settings::AgentSettings;
 use crate::store::{ThreadStore, ThreadSummary};
 use crate::thread::{Attachment, Thread, ThreadEvent, title_from};
@@ -66,6 +68,12 @@ impl AgentChoice {
     pub fn is_acp(&self) -> bool {
         matches!(self, AgentChoice::Acp { .. })
     }
+
+    /// The FerrumAI placeholder: listed, never chosen or sent to.
+    pub fn is_coming_soon(&self) -> bool {
+        matches!(self, AgentChoice::Native { provider, .. }
+            if crate::custom_models::is_ferrum_ai(provider))
+    }
 }
 
 /// A row of the agent/model selector.
@@ -75,6 +83,10 @@ pub struct AgentOption {
     pub label: String,
     /// "Anthropic", "OpenAI", "External agents"…
     pub group: String,
+    /// False for a placeholder that can't be chosen (FerrumAI).
+    pub enabled: bool,
+    /// Shown beside the label ("Coming soon").
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -479,6 +491,13 @@ impl ChatSession {
 
     /// Switches the agent (refused while a turn runs).
     pub fn set_agent(&self, choice: AgentChoice) {
+        if choice.is_coming_soon() {
+            self.inner.notice(format!(
+                "{} is coming soon.",
+                crate::custom_models::FERRUM_AI_LABEL
+            ));
+            return;
+        }
         if self.is_busy() {
             self.inner
                 .notice("Stop the running turn before switching agents.".into());
@@ -674,8 +693,21 @@ impl ChatSession {
 
     // Agents, models, settings, keys
 
+    /// The settings, with the providers as last saved by any app.
     pub fn settings(&self) -> AgentSettings {
+        self.inner.refresh_settings();
         lock(&self.inner.settings).clone()
+    }
+
+    /// Providers, models and keys, sharing this session's settings.
+    pub fn models(&self) -> ModelStore {
+        ModelStore::new(
+            self.inner.home.clone(),
+            self.inner.secrets.clone(),
+            self.inner.settings.clone(),
+            self.inner.provider_override.clone(),
+            self.inner.acp_agents.clone(),
+        )
     }
 
     /// Saves provider settings; the approval level is kept as it is (see
@@ -709,60 +741,20 @@ impl ChatSession {
         &self.inner.acp_agents
     }
 
-    /// Built-in providers' configured models, then external agents.
+    /// FerrumAI (disabled), built-in providers' configured models, then
+    /// external agents.
     pub fn agent_options(&self) -> Vec<AgentOption> {
-        let settings = self.settings();
-        let mut out = Vec::new();
-        for provider in settings.providers.iter().filter(|p| p.enabled) {
-            for model in &provider.models {
-                out.push(AgentOption {
-                    choice: AgentChoice::Native {
-                        provider: provider.id.clone(),
-                        model: model.clone(),
-                    },
-                    label: model.clone(),
-                    group: provider.name.clone(),
-                });
-            }
-        }
-        for agent in &self.inner.acp_agents {
-            out.push(AgentOption {
-                choice: AgentChoice::Acp {
-                    agent: agent.id.clone(),
-                },
-                label: agent.name.clone(),
-                group: "External agents (ACP)".into(),
-            });
-        }
-        out
+        crate::models::agent_options(&self.settings(), &self.inner.acp_agents)
     }
 
     /// Where a provider's key comes from, and its hint. Blocking.
     pub fn key_status(&self, provider_id: &str) -> Option<(KeySource, String)> {
-        let settings = self.settings();
-        let provider = settings.provider(provider_id)?;
-        secrets::resolve(
-            self.inner.secrets.as_ref(),
-            &provider.id,
-            provider.env_key.as_deref(),
-        )
-        .map(|(key, source)| (source, key.hint()))
+        self.models().key_status(provider_id)
     }
 
     /// Stores a key in the keychain (empty: removes it). Blocking.
     pub fn set_api_key(&self, provider_id: &str, key: &str) -> Result<(), String> {
-        let key = key.trim();
-        if key.is_empty() {
-            return self
-                .inner
-                .secrets
-                .delete(provider_id)
-                .map_err(|e| e.to_string());
-        }
-        self.inner
-            .secrets
-            .set(provider_id, &ApiKey::new(key))
-            .map_err(|e| e.to_string())
+        self.models().set_api_key(provider_id, key)
     }
 
     /// The models a provider reports (merged with the configured ones by
@@ -771,13 +763,16 @@ impl ChatSession {
         &self,
         provider_id: &str,
     ) -> impl std::future::Future<Output = Result<Vec<ModelInfo>, String>> + Send + 'static {
-        let inner = self.inner.clone();
-        let provider_id = provider_id.to_string();
-        let task = self.inner.runtime.spawn(async move {
-            let provider = inner.provider(&provider_id)?;
-            provider.list_models().await.map_err(|e| e.to_string())
-        });
-        async move { task.await.unwrap_or_else(|e| Err(e.to_string())) }
+        self.models().fetch_models(provider_id)
+    }
+
+    /// Sends a model a tiny request: its latency, or what is wrong.
+    pub fn ping(
+        &self,
+        provider_id: &str,
+        model: &str,
+    ) -> impl std::future::Future<Output = Result<Pong, String>> + Send + 'static {
+        self.models().ping(provider_id, model)
     }
 }
 
@@ -831,10 +826,29 @@ impl Inner {
         });
     }
 
+    /// Takes over the providers and default agent another app (or this
+    /// one's settings sheet) saved; the approval level stays this
+    /// session's.
+    fn refresh_settings(&self) {
+        let Some(saved) = AgentSettings::read(&crate::paths::settings_file(&self.home)) else {
+            return;
+        };
+        let mut settings = lock(&self.settings);
+        settings.providers = saved.providers;
+        settings.default_agent = saved.default_agent;
+    }
+
     fn provider(&self, provider_id: &str) -> Result<Arc<dyn Provider>, String> {
+        if crate::custom_models::is_ferrum_ai(provider_id) {
+            return Err(format!(
+                "{} is coming soon.",
+                crate::custom_models::FERRUM_AI_LABEL
+            ));
+        }
         if let Some(provider) = &self.provider_override {
             return Ok(provider.clone());
         }
+        self.refresh_settings();
         let settings = lock(&self.settings).clone();
         let provider = settings
             .provider(provider_id)

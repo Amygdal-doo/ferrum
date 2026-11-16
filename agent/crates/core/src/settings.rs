@@ -1,6 +1,7 @@
 //! Provider and model settings (`~/.ferrum/agent/settings.json`). Keys are
 //! not here: see [`crate::secrets`].
 
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -39,6 +40,13 @@ pub struct ProviderSettings {
     /// Max output tokens per request.
     #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
+    /// Added by the user in "Models and API keys" (see
+    /// [`crate::custom_models`]): can be removed again.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub custom: bool,
+    /// Display names of models, shown in the selector instead of the id.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub labels: BTreeMap<String, String>,
 }
 
 fn yes() -> bool {
@@ -64,6 +72,8 @@ impl ProviderSettings {
             default_model: ANTHROPIC_MODELS[0].into(),
             enabled: true,
             max_tokens: default_max_tokens(),
+            custom: false,
+            labels: BTreeMap::new(),
         }
     }
 
@@ -78,6 +88,8 @@ impl ProviderSettings {
             default_model: "gpt-5".into(),
             enabled: true,
             max_tokens: default_max_tokens(),
+            custom: false,
+            labels: BTreeMap::new(),
         }
     }
 
@@ -92,11 +104,21 @@ impl ProviderSettings {
             default_model: "qwen2.5-coder".into(),
             enabled: true,
             max_tokens: 8_192,
+            custom: false,
+            labels: BTreeMap::new(),
         }
     }
 
     pub fn needs_key(&self) -> bool {
         self.kind != ProviderKind::Ollama
+    }
+
+    /// What the selector shows for `model`: its display name, else the id.
+    pub fn label(&self, model: &str) -> String {
+        self.labels
+            .get(model)
+            .cloned()
+            .unwrap_or_else(|| model.to_string())
     }
 }
 
@@ -132,6 +154,13 @@ impl AgentSettings {
             .ok()
             .and_then(|text| serde_json::from_str(&text).ok())
             .unwrap_or_default()
+    }
+
+    /// The saved settings, or `None` when the file is missing or
+    /// unreadable (callers keep what they have).
+    pub fn read(file: &Path) -> Option<Self> {
+        let text = std::fs::read_to_string(file).ok()?;
+        serde_json::from_str(&text).ok()
     }
 
     pub fn save(&self, file: &Path) -> std::io::Result<()> {

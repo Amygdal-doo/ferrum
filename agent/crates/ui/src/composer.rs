@@ -151,22 +151,24 @@ impl ChatView {
 
     /// The logo of the chosen model's maker or ACP agent, if it has one.
     fn agent_logo(&self) -> Option<ferrum_ui::AgentLogo> {
-        crate::threads::agent_logo(&self.thread.agent)
+        crate::threads::agent_logo(&self.shown_agent())
     }
 
     fn agent_label(&self) -> String {
-        match AgentChoice::parse(&self.thread.agent) {
+        let shown = self.shown_agent();
+        if let Some((key, label)) = &self.agent_name
+            && *key == shown
+        {
+            return label.clone();
+        }
+        match AgentChoice::parse(&shown) {
             Some(AgentChoice::Native { model, .. }) => model,
             Some(AgentChoice::Acp { agent }) => self
-                .session
-                .as_ref()
-                .and_then(|s| {
-                    s.acp_agents()
-                        .iter()
-                        .find(|a| a.id == agent)
-                        .map(|a| a.name.clone())
-                })
-                .unwrap_or(agent),
+                .models
+                .acp_agents()
+                .iter()
+                .find(|a| a.id == agent)
+                .map_or(agent, |a| a.name.clone()),
             None => "Choose a model".into(),
         }
     }
@@ -331,30 +333,34 @@ impl ChatView {
                                 .on_click(cx.listener(|this, _, _, cx| this.pick_paths(true, cx))),
                             )
                             .child(
-                                PopoverMenu::new("chat-mode")
-                                    .trigger(
-                                        small_button(
-                                            "chat-mode-button",
-                                            mode.label(),
-                                            mode_icon(mode),
+                                div().debug_selector(|| "chat-mode".into()).child(
+                                    PopoverMenu::new("chat-mode")
+                                        .trigger(
+                                            small_button(
+                                                "chat-mode-button",
+                                                mode.label(),
+                                                mode_icon(mode),
+                                            )
+                                            .tooltip(Tooltip::text("Mode (⇧Tab cycles)")),
                                         )
-                                        .tooltip(Tooltip::text("Mode (⇧Tab cycles)")),
-                                    )
-                                    .anchor(Anchor::BottomLeft)
-                                    .menu(self.mode_menu(cx)),
+                                        .anchor(Anchor::BottomLeft)
+                                        .menu(self.mode_menu(cx)),
+                                ),
                             )
                             .child(
-                                PopoverMenu::new("chat-approval")
-                                    .trigger(
-                                        small_button(
-                                            "chat-approval-button",
-                                            approval.label(),
-                                            approval_icon(approval),
+                                div().debug_selector(|| "chat-approval".into()).child(
+                                    PopoverMenu::new("chat-approval")
+                                        .trigger(
+                                            small_button(
+                                                "chat-approval-button",
+                                                approval.label(),
+                                                approval_icon(approval),
+                                            )
+                                            .tooltip(Tooltip::text(approval.description())),
                                         )
-                                        .tooltip(Tooltip::text(approval.description())),
-                                    )
-                                    .anchor(Anchor::BottomLeft)
-                                    .menu(self.approval_menu(cx)),
+                                        .anchor(Anchor::BottomLeft)
+                                        .menu(self.approval_menu(cx)),
+                                ),
                             ),
                     )
                     .child(
@@ -362,14 +368,16 @@ impl ChatView {
                             .ml_auto()
                             .gap_0p5()
                             .child(
-                                PopoverMenu::new("chat-agent")
-                                    .trigger(
-                                        ContentButton::new("chat-agent-button", agent)
-                                            .style(ButtonStyle::Subtle)
-                                            .tooltip(Tooltip::text("Model or agent")),
-                                    )
-                                    .anchor(Anchor::BottomRight)
-                                    .menu(self.agent_menu(cx)),
+                                div().debug_selector(|| "chat-agent".into()).child(
+                                    PopoverMenu::new("chat-agent")
+                                        .trigger(
+                                            ContentButton::new("chat-agent-button", agent)
+                                                .style(ButtonStyle::Subtle)
+                                                .tooltip(Tooltip::text("Model or agent")),
+                                        )
+                                        .anchor(Anchor::BottomRight)
+                                        .menu(self.agent_menu(cx)),
+                                ),
                             )
                             .child(
                                 ContentButton::new("chat-mic", mic_glyph(colors.text_muted))

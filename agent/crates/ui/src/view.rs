@@ -6,8 +6,9 @@ use std::path::{Path, PathBuf};
 use ferrum_ui::prelude::*;
 use ferrum_ui::{Notice, TextInput, TextInputEvent, render_notice};
 use ferrumagent_core::context::{Mention, Suggestion};
+use ferrumagent_core::models::ModelStore;
 use ferrumagent_core::modes::Mode;
-use ferrumagent_core::permissions::{Decision, PermissionRequest};
+use ferrumagent_core::permissions::{Approval, Decision, PermissionRequest};
 use ferrumagent_core::review::FileChange;
 use ferrumagent_core::session::{
     AgentChoice, ChatSession, McpServerStatus, SessionConfig, SessionEvent,
@@ -141,6 +142,14 @@ pub struct ChatView {
     pub(crate) all_changed_files: bool,
     /// The composer's placeholder as last set (empty thread or not).
     pub(crate) placeholder_empty: Option<bool>,
+    /// Providers, models and keys before the session opens (then the
+    /// session's: see [`Self::models`]).
+    pub(crate) models: ModelStore,
+    /// A model or approval level chosen before the session opened.
+    pub(crate) pending_agent: Option<AgentChoice>,
+    pub(crate) pending_approval: Option<Approval>,
+    /// The display name of the agent last chosen in the menu (key, name).
+    pub(crate) agent_name: Option<(String, String)>,
     pub(crate) tasks: Vec<Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
@@ -215,6 +224,7 @@ impl ChatView {
         if let Some(mode) = options.mode {
             config.mode = mode;
         }
+        let models = ModelStore::from_config(&config);
         let mut thread = Thread::new(project.clone(), "", config.mode);
         thread.title = "Starting…".into();
         let activation = cx.observe_window_activation(window, |this, window, cx| {
@@ -269,6 +279,10 @@ impl ChatView {
             send_after_switch: None,
             all_changed_files: false,
             placeholder_empty: Some(true),
+            models,
+            pending_agent: None,
+            pending_approval: None,
+            agent_name: None,
             tasks: Vec::new(),
             _subscriptions: vec![subscription, activation],
         };
@@ -456,8 +470,12 @@ impl ChatView {
         if text.trim().is_empty() && self.mentions.is_empty() {
             return;
         }
-        let Some(session) = &self.session else {
+        if self.session.is_none() {
             self.show_notice(Notice::error("The chat is still starting."), cx);
+            return;
+        }
+        self.apply_pending(cx);
+        let Some(session) = &self.session else {
             return;
         };
         session.send(&text, std::mem::take(&mut self.mentions));
@@ -574,11 +592,20 @@ impl ChatView {
         cx.notify();
     }
 
+    /// Chooses the model or agent; before the session opens the choice
+    /// waits for it (see [`Self::apply_pending`]).
     pub(crate) fn set_agent(&mut self, choice: AgentChoice, cx: &mut Context<Self>) {
-        if let Some(session) = &self.session {
-            session.set_agent(choice.clone());
-            self.thread.agent = choice.key();
+        if choice.is_coming_soon() {
+            return;
         }
+        match &self.session {
+            Some(session) => {
+                session.set_agent(choice.clone());
+                self.pending_agent = None;
+            }
+            None => self.pending_agent = Some(choice.clone()),
+        }
+        self.thread.agent = choice.key();
         cx.notify();
     }
 
