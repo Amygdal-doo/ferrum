@@ -9,6 +9,7 @@ mod ci;
 mod commands;
 mod debug;
 mod dialogs;
+mod edit_preview;
 mod files;
 mod git;
 mod logs;
@@ -538,6 +539,11 @@ impl Workspace {
 
     pub fn has_dialog(&self) -> bool {
         self.dialog.is_some()
+    }
+
+    /// Whether a rename preview is open.
+    pub fn edit_preview_open(&self) -> bool {
+        matches!(self.dialog, Some(Dialog::EditPreview(_)))
     }
 
     pub fn project_find(&self) -> &Entity<ProjectFind> {

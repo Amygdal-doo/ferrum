@@ -1,6 +1,6 @@
 //! End to end with a scripted language server (a small Python program):
 //! problems, completion while typing, hover, go to definition and back,
-//! the problems list, rename across files, find all references, code
+//! the problems list, rename across files (with its preview), find all references, code
 //! actions (edits and commands that make the server apply an edit),
 //! formatting (command and on save) and signature help.
 
@@ -595,6 +595,24 @@ fn rename_references_code_actions_and_formatting(cx: &mut TestAppContext) {
         editor.read_with(cx, |e, _| e.rename_open())
     });
     cx.simulate_input("assist");
+    cx.simulate_keystrokes("enter");
+    // The preview lists both files; nothing changes until Enter applies.
+    wait_until(cx, "rename preview", |cx| {
+        workspace.read_with(cx, |w, _| w.edit_preview_open())
+    });
+    assert_eq!(line(&editor, 0, cx), "fn helper(a: i32, b: i32) {}");
+    cx.simulate_keystrokes("escape");
+    assert!(!workspace.read_with(cx, |w, _| w.edit_preview_open()));
+    assert_eq!(line(&editor, 0, cx), "fn helper(a: i32, b: i32) {}");
+    cx.simulate_keystrokes("f2");
+    wait_until(cx, "rename input again", |cx| {
+        editor.read_with(cx, |e, _| e.rename_open())
+    });
+    cx.simulate_input("assist");
+    cx.simulate_keystrokes("enter");
+    wait_until(cx, "rename preview again", |cx| {
+        workspace.read_with(cx, |w, _| w.edit_preview_open())
+    });
     cx.simulate_keystrokes("enter");
     wait_until(cx, "rename", |cx| {
         line(&editor, 0, cx).starts_with("fn assist(")

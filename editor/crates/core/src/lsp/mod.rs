@@ -9,6 +9,7 @@ pub mod edit;
 pub mod features;
 pub mod install;
 pub mod position;
+pub mod preview;
 pub mod servers;
 pub mod transport;
 pub mod types;

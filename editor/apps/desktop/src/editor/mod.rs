@@ -66,6 +66,13 @@ pub enum EditorEvent {
         label: String,
         command: Option<ferrumeditor_core::lsp::features::LspCommand>,
     },
+    /// Show what a workspace edit (rename) changes, file by file, and
+    /// apply it only when the user accepts.
+    PreviewEdit {
+        edit: ferrumeditor_core::lsp::WorkspaceEdit,
+        encoding: ferrumeditor_core::lsp::PositionEncoding,
+        label: String,
+    },
     /// Find all references found these places.
     References {
         locations: Vec<ferrumeditor_core::lsp::Location>,

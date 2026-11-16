@@ -181,6 +181,7 @@ impl Workspace {
                     EditorEvent::Navigate { .. }
                         | EditorEvent::Notice(_)
                         | EditorEvent::ApplyEdit { .. }
+                        | EditorEvent::PreviewEdit { .. }
                         | EditorEvent::References { .. }
                         | EditorEvent::CodeActions(_)
                 ) {

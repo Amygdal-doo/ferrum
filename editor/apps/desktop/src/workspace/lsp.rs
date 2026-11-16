@@ -73,6 +73,11 @@ impl Workspace {
                 label,
                 command,
             } => self.apply_editor_edit(editor, edit, *encoding, label, command.as_ref(), cx),
+            EditorEvent::PreviewEdit {
+                edit,
+                encoding,
+                label,
+            } => self.preview_edit(editor, edit, *encoding, label, window, cx),
             EditorEvent::References {
                 locations,
                 encoding,

@@ -1,5 +1,6 @@
-//! Modal dialogs (new file / folder, rename, about) and the tree view's
-//! file operations, including Move to Trash.
+//! Modal dialogs (new file / folder, rename, about; the rename preview is
+//! in `edit_preview`) and the tree view's file operations, including Move
+//! to Trash.
 
 use std::path::{Path, PathBuf};
 
@@ -25,6 +26,8 @@ pub enum Dialog {
         _subscription: Subscription,
     },
     About,
+    /// A rename's changes, waiting for Apply / Cancel.
+    EditPreview(Box<super::edit_preview::EditPreview>),
 }
 
 impl Workspace {
@@ -230,6 +233,7 @@ impl Workspace {
                         .into_any_element(),
                 )
             }
+            Dialog::EditPreview(preview) => Some(self.render_edit_preview(preview, cx)),
             Dialog::About => Some(
                 Modal::new("FerrumIDE")
                     .on_dismiss(dismiss)

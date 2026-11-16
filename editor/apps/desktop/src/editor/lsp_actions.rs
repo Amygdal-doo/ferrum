@@ -1,5 +1,5 @@
 //! Language server editing features: rename (F2, with an inline input
-//! over the symbol), find all references, code actions, formatting (the
+//! over the symbol, then a preview of the edit), find all references, code actions, formatting (the
 //! command and format on save) and signature help while typing a call.
 //! Multi-file results (workspace edits, reference lists, action choices)
 //! go to the workspace as [`EditorEvent`]s.
@@ -247,11 +247,10 @@ impl EditorView {
                     if edit.is_empty() {
                         this.notice("Nothing to rename", cx);
                     } else {
-                        cx.emit(EditorEvent::ApplyEdit {
+                        cx.emit(EditorEvent::PreviewEdit {
                             edit,
                             encoding,
                             label: format!("Renamed to `{new_name}`"),
-                            command: None,
                         });
                     }
                 }
