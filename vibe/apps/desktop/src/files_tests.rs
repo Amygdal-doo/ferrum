@@ -147,6 +147,33 @@ fn enter_opens_the_selected_file_in_the_editor(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn images_open_in_the_editor_like_any_file(cx: &mut TestAppContext) {
+    // FerrumIDE shows them in its image viewer; nothing here filters them.
+    let fx = Fixture::new();
+    let root = project(&fx);
+    let png = root.join("icon.png");
+    std::fs::write(&png, b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR").expect("write");
+    let (app, cx) = fx.open(cx, Some(root.clone()));
+    let tree = files(&app, cx);
+    tree.update(cx, |f, cx| f.open(&png, false, cx));
+    let chat = read(&app, cx, |a| a.chat()).expect("chat");
+    chat.update(cx, |_, cx| {
+        cx.emit(ChatEvent::OpenFile {
+            path: png.clone(),
+            line: None,
+        });
+    });
+    draw(cx);
+    assert_eq!(
+        *fx.opened.borrow(),
+        [
+            (Some(root.clone()), png.clone(), None),
+            (Some(root.clone()), png, None)
+        ]
+    );
+}
+
+#[gpui::test]
 fn files_dragged_from_the_tree_become_chat_context(cx: &mut TestAppContext) {
     let fx = Fixture::new();
     let root = project(&fx);

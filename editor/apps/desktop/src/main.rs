@@ -7,6 +7,7 @@ mod ci;
 mod debug;
 mod editor;
 mod file_icons;
+mod file_viewer;
 mod find_bar;
 mod logs;
 mod lsp_store;
@@ -33,6 +34,8 @@ mod tests_lsp;
 mod tests_themes;
 #[cfg(test)]
 mod tests_tools;
+#[cfg(test)]
+mod tests_viewer;
 
 use ferrum_ui::AppConfig;
 use ferrumeditor_core::cli::{self, CliAction};

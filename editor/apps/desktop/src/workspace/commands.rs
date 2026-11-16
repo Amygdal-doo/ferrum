@@ -263,10 +263,7 @@ impl Workspace {
     }
 
     fn reveal_active_file(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (Some(tree), Some(editor)) = (self.tree.clone(), self.active_editor()) else {
-            return;
-        };
-        let Some(path) = editor.read(cx).path.clone() else {
+        let (Some(tree), Some(path)) = (self.tree.clone(), self.active_path(cx)) else {
             return;
         };
         self.tree_visible = true;
@@ -279,9 +276,9 @@ impl Workspace {
         cx.notify();
     }
 
-    /// Marks the active editor's file in the tree.
+    /// Marks the active editor's (or viewer's) file in the tree.
     pub(super) fn sync_tree_selection(&mut self, cx: &mut Context<Self>) {
-        let path = self.active_editor().and_then(|e| e.read(cx).path.clone());
+        let path = self.active_path(cx);
         if let Some(tree) = self.tree.clone() {
             tree.update(cx, |tree, cx| tree.set_active_file(path, cx));
         }

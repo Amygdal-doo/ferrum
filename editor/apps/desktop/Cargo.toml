@@ -41,6 +41,8 @@ ferrumlogs-core.workspace = true
 # Headless GPUI test harness (TestAppContext); no window is shown.
 gpui = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
+# Tiny PNG / JPEG files for the image viewer tests.
+image = { workspace = true, features = ["png", "jpeg"] }
 async-trait.workspace = true
 # Tokens for the CI tests' fake forge.
 ferrumgit-domain.workspace = true

@@ -207,7 +207,30 @@ impl Workspace {
         self.panes
             .get(self.active_pane)?
             .active_item()
-            .map(|item| item.editor())
+            .and_then(|item| item.editor())
+    }
+
+    /// The file shown by the active pane's active editor or viewer.
+    pub fn active_path(&self, cx: &App) -> Option<std::path::PathBuf> {
+        self.panes
+            .get(self.active_pane)?
+            .active_item()
+            .and_then(|item| item.path(cx))
+    }
+
+    /// Every open image / binary-file viewer.
+    pub fn all_viewers(&self) -> Vec<Entity<crate::file_viewer::FileViewer>> {
+        let mut out: Vec<Entity<crate::file_viewer::FileViewer>> = Vec::new();
+        for pane in &self.panes {
+            for item in &pane.items {
+                if let PaneItem::Viewer(viewer) = item
+                    && !out.contains(viewer)
+                {
+                    out.push(viewer.clone());
+                }
+            }
+        }
+        out
     }
 
     /// Every open editor, across panes, without duplicates.
@@ -535,5 +558,23 @@ impl Workspace {
 
     pub fn debugger(&self) -> &Entity<crate::debug::Debugger> {
         &self.debugger
+    }
+
+    pub fn notice_message(&self) -> Option<SharedString> {
+        self.notice.as_ref().map(|n| n.message.clone())
+    }
+
+    /// The active pane's active item, if it is a viewer.
+    pub fn active_viewer(&self) -> Option<Entity<crate::file_viewer::FileViewer>> {
+        match self.panes.get(self.active_pane)?.active_item()? {
+            PaneItem::Viewer(viewer) => Some(viewer.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn active_pane_tab_count(&self) -> usize {
+        self.panes
+            .get(self.active_pane)
+            .map_or(0, |p| p.items.len())
     }
 }

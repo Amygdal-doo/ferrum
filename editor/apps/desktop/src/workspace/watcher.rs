@@ -1,5 +1,5 @@
-//! File watching: the project folder (tree refresh, reload changed files,
-//! git branch) and `~/.ferrum/editor/` plus its `themes/` and
+//! File watching: the project folder (tree refresh, reload changed files
+//! and images, git branch) and `~/.ferrum/editor/` plus its `themes/` and
 //! `icon-themes/` folders (settings and themes applied live). Events
 //! from `notify` are collected on a channel and drained on a timer.
 
@@ -76,7 +76,12 @@ impl Workspace {
         });
     }
 
-    fn on_fs_changes(&mut self, paths: Vec<PathBuf>, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn on_fs_changes(
+        &mut self,
+        paths: Vec<PathBuf>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let settings_changed = cx.global::<Settings>().files.as_ref().is_some_and(|files| {
             paths
                 .iter()
@@ -114,6 +119,12 @@ impl Workspace {
             .any(|e| e.read(cx).path.as_ref().is_some_and(|p| paths.contains(p)));
         if open_changed {
             self.check_disk_changes(window, cx);
+        }
+        // Viewers have no edits to lose: they just re-read the file.
+        for viewer in self.all_viewers() {
+            if paths.contains(&viewer.read(cx).path) {
+                viewer.update(cx, |viewer, cx| viewer.reload(cx));
+            }
         }
         cx.notify();
     }

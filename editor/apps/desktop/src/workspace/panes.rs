@@ -7,6 +7,7 @@ use ferrumeditor_core::session::SplitAxis;
 
 use super::Workspace;
 use crate::editor::{EditorEvent, EditorView};
+use crate::file_viewer::{FileViewer, FileViewerEvent};
 use crate::markdown_preview::MarkdownPreview;
 
 #[derive(Clone)]
@@ -14,14 +15,27 @@ pub enum PaneItem {
     Editor(Entity<EditorView>),
     /// A Markdown preview and the editor it renders.
     Preview(Entity<MarkdownPreview>, Entity<EditorView>),
+    /// An image, or another file that is not text.
+    Viewer(Entity<FileViewer>),
 }
 
 impl PaneItem {
-    /// The editor this item shows (a preview's source editor).
-    pub fn editor(&self) -> Entity<EditorView> {
+    /// The editor this item shows (a preview's source editor); viewers
+    /// have none.
+    pub fn editor(&self) -> Option<Entity<EditorView>> {
         match self {
-            PaneItem::Editor(editor) => editor.clone(),
-            PaneItem::Preview(_, source) => source.clone(),
+            PaneItem::Editor(editor) => Some(editor.clone()),
+            PaneItem::Preview(_, source) => Some(source.clone()),
+            PaneItem::Viewer(_) => None,
+        }
+    }
+
+    /// The file an editor or viewer shows.
+    pub fn path(&self, cx: &App) -> Option<std::path::PathBuf> {
+        match self {
+            PaneItem::Editor(editor) => editor.read(cx).path.clone(),
+            PaneItem::Preview(..) => None,
+            PaneItem::Viewer(viewer) => Some(viewer.read(cx).path.clone()),
         }
     }
 
@@ -29,6 +43,7 @@ impl PaneItem {
         match self {
             PaneItem::Editor(e) => e.entity_id(),
             PaneItem::Preview(p, _) => p.entity_id(),
+            PaneItem::Viewer(v) => v.entity_id(),
         }
     }
 }
@@ -134,9 +149,13 @@ impl Workspace {
             let at = (pane.active + 1).min(pane.items.len());
             pane.items.insert(at, item.clone());
             pane.active = at;
-            if let PaneItem::Editor(editor) = &item {
-                self.watch_editor(editor, window, cx);
-                self.sync_debug_marks_for(editor, cx);
+            match &item {
+                PaneItem::Editor(editor) => {
+                    self.watch_editor(editor, window, cx);
+                    self.sync_debug_marks_for(editor, cx);
+                }
+                PaneItem::Viewer(viewer) => self.watch_viewer(viewer, window, cx),
+                PaneItem::Preview(..) => {}
             }
         }
         self.focus_active(window, cx);
@@ -191,6 +210,24 @@ impl Workspace {
         self._subscriptions.push(subscription);
     }
 
+    fn watch_viewer(
+        &mut self,
+        viewer: &Entity<FileViewer>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let subscription = cx.subscribe_in(
+            viewer,
+            window,
+            |this: &mut Self, _, event: &FileViewerEvent, window, cx| match event {
+                FileViewerEvent::OpenAsText(path) => {
+                    this.open_text_file(path, window, cx);
+                }
+            },
+        );
+        self._subscriptions.push(subscription);
+    }
+
     pub(super) fn focus_active(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         match self
             .panes
@@ -200,6 +237,7 @@ impl Workspace {
         {
             Some(PaneItem::Editor(editor)) => editor.update(cx, |e, cx| e.focus(window, cx)),
             Some(PaneItem::Preview(preview, _)) => window.focus(&preview.focus_handle(cx), cx),
+            Some(PaneItem::Viewer(viewer)) => window.focus(&viewer.focus_handle(cx), cx),
             None => window.focus(&self.focus_handle, cx),
         }
         self.sync_tree_selection(cx);
@@ -246,9 +284,7 @@ impl Workspace {
             return;
         }
         let removed = p.items.remove(index);
-        if let PaneItem::Editor(editor) = &removed
-            && let Some(path) = editor.read(cx).path.clone()
-        {
+        if let Some(path) = removed.path(cx) {
             self.closed_tabs.push(path);
         }
         let p = &mut self.panes[pane];
@@ -278,9 +314,10 @@ impl Workspace {
         self.next_pane_id += 1;
         let current = self.panes[self.active_pane].id;
         let mut pane = Pane::new(id);
-        if let Some(PaneItem::Editor(editor)) = self.panes[self.active_pane].active_item().cloned()
+        if let Some(item @ (PaneItem::Editor(_) | PaneItem::Viewer(_))) =
+            self.panes[self.active_pane].active_item().cloned()
         {
-            pane.items.push(PaneItem::Editor(editor));
+            pane.items.push(item);
         }
         self.panes.push(pane);
         if !self.layout.split(current, id, axis) {
@@ -372,6 +409,10 @@ impl Workspace {
                         (editor.title(), editor.is_dirty(), editor.path.clone())
                     }
                     PaneItem::Preview(preview, _) => (preview.read(cx).title(cx), false, None),
+                    PaneItem::Viewer(viewer) => {
+                        let viewer = viewer.read(cx);
+                        (viewer.title(), false, Some(viewer.path.clone()))
+                    }
                 };
                 let icon = path.and_then(|path| {
                     crate::file_icons::icon_element(
@@ -453,6 +494,7 @@ impl Workspace {
         let content = match pane.active_item() {
             Some(PaneItem::Editor(editor)) => editor.clone().into_any_element(),
             Some(PaneItem::Preview(preview, _)) => preview.clone().into_any_element(),
+            Some(PaneItem::Viewer(viewer)) => viewer.clone().into_any_element(),
             None => empty_state(
                 "No open files",
                 "⌘P to find a file · ⌘⇧P for commands · ⌘N for a new file",

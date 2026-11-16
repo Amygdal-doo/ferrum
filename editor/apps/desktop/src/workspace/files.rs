@@ -6,10 +6,12 @@ use std::path::{Path, PathBuf};
 use ferrum_ui::prelude::*;
 use ferrumeditor_core::cli::OpenTarget;
 use ferrumeditor_core::files::{self, LoadError};
+use ferrumeditor_core::images::ImageFormat;
 use gpui::{PathPromptOptions, PromptLevel};
 
 use super::{PaneItem, Workspace};
 use crate::editor::EditorView;
+use crate::file_viewer::FileViewer;
 use crate::tree_view::TreeView;
 
 /// Runs after a successful save (e.g. closing the tab).
@@ -83,8 +85,25 @@ impl Workspace {
     }
 
     /// Opens `path` (or activates its tab). A missing file opens as an empty
-    /// buffer that will be created on save.
+    /// buffer that will be created on save. Images open in an image viewer
+    /// and other binary files in a viewer offering other apps; both return
+    /// `None`, as do files that fail to load.
     pub fn open_file(
+        &mut self,
+        path: &Path,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<Entity<EditorView>> {
+        let path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        if path.is_file() && ImageFormat::from_path(&path).is_some() {
+            self.open_viewer(path, window, cx);
+            return None;
+        }
+        self.open_text_file(&path, window, cx)
+    }
+
+    /// Opens `path` in a text editor, even an image (SVG "Open as Text").
+    pub fn open_text_file(
         &mut self,
         path: &Path,
         window: &mut Window,
@@ -109,12 +128,12 @@ impl Workspace {
         let editor = if path.exists() {
             match files::load(&path) {
                 Ok(file) => cx.new(|cx| EditorView::from_file(file, path.clone(), window, cx)),
+                Err(LoadError::Binary) => {
+                    self.open_viewer(path, window, cx);
+                    return None;
+                }
                 Err(error) => {
-                    let message = match error {
-                        LoadError::Binary => "is a binary file".to_string(),
-                        other => other.to_string(),
-                    };
-                    self.error(format!("Can't open {}: {message}", path.display()), cx);
+                    self.error(format!("Can't open {}: {error}", path.display()), cx);
                     return None;
                 }
             }
@@ -123,6 +142,26 @@ impl Workspace {
         };
         self.add_item(PaneItem::Editor(editor.clone()), window, cx);
         Some(editor)
+    }
+
+    /// Shows `path` (canonical) in a viewer, reusing its tab if it is open.
+    fn open_viewer(&mut self, path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+        for (p, pane) in self.panes.iter().enumerate() {
+            for (i, item) in pane.items.iter().enumerate() {
+                if let PaneItem::Viewer(viewer) = item
+                    && viewer.read(cx).path == path
+                {
+                    if p == self.active_pane {
+                        self.activate_item(p, i, window, cx);
+                    } else {
+                        self.add_item(PaneItem::Viewer(viewer.clone()), window, cx);
+                    }
+                    return;
+                }
+            }
+        }
+        let viewer = cx.new(|cx| FileViewer::new(path, cx));
+        self.add_item(PaneItem::Viewer(viewer), window, cx);
     }
 
     /// Opens a file and moves the caret to 0-based `line` / `column`.

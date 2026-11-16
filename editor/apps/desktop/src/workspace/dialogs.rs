@@ -9,7 +9,7 @@ use ferrum_ui::{Modal, TextInput, TextInputEvent};
 use ferrumeditor_core::file_tree::{create_dir, create_file, rename};
 use gpui::PromptLevel;
 
-use super::{PaneItem, Workspace};
+use super::Workspace;
 use crate::tree_view::TreeEvent;
 
 pub enum DialogKind {
@@ -186,7 +186,7 @@ impl Workspace {
                         .items
                         .iter()
                         .enumerate()
-                        .filter(|(_, item)| matches!(item, PaneItem::Editor(e) if e.read(cx).path.as_deref().is_some_and(|f| f.starts_with(&path))))
+                        .filter(|(_, item)| item.path(cx).is_some_and(|f| f.starts_with(&path)))
                         .map(|(i, _)| i)
                         .collect();
                     for i in doomed.into_iter().rev() {

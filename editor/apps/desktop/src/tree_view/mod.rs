@@ -260,4 +260,8 @@ impl TreeView {
     pub fn toggle_path(&mut self, path: &Path, cx: &mut Context<Self>) {
         self.activate(path.to_path_buf(), cx);
     }
+
+    pub fn active_file(&self) -> Option<&Path> {
+        self.active_file.as_deref()
+    }
 }

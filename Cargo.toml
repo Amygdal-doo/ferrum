@@ -48,6 +48,8 @@ publish = false
 [workspace.dependencies]
 # Shared
 resvg = { version = "0.46", default-features = false }
+# Already built for GPUI; FerrumIDE's image viewer checks images with it.
+image = { version = "0.25", default-features = false }
 ferrum-ui = { path = "shared/ui" }
 ferrum-account = { path = "shared/account" }
 ferrum-account-ui = { path = "shared/account-ui" }

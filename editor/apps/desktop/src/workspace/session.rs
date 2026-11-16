@@ -152,23 +152,33 @@ fn pane_session(pane: &Pane, cx: &App) -> PaneSession {
     let mut tabs = Vec::new();
     let mut active = 0;
     for (i, item) in pane.items.iter().enumerate() {
-        let PaneItem::Editor(editor) = item else {
-            continue;
-        };
-        let editor = editor.read(cx);
-        let Some(path) = editor.path.clone() else {
-            continue;
+        let tab = match item {
+            PaneItem::Editor(editor) => {
+                let editor = editor.read(cx);
+                let Some(path) = editor.path.clone() else {
+                    continue;
+                };
+                let point = editor.cursor_point();
+                TabSession {
+                    path,
+                    line: point.row,
+                    column: point.col,
+                    scroll_line: editor.scroll_line(),
+                }
+            }
+            // Images reopen in a viewer.
+            PaneItem::Viewer(viewer) => TabSession {
+                path: viewer.read(cx).path.clone(),
+                line: 0,
+                column: 0,
+                scroll_line: 0,
+            },
+            PaneItem::Preview(..) => continue,
         };
         if i == pane.active {
             active = tabs.len();
         }
-        let point = editor.cursor_point();
-        tabs.push(TabSession {
-            path,
-            line: point.row,
-            column: point.col,
-            scroll_line: editor.scroll_line(),
-        });
+        tabs.push(tab);
     }
     PaneSession { tabs, active }
 }
