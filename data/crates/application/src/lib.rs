@@ -5,6 +5,7 @@
 //! UI code calls [`AppServices::spawn`] and awaits the returned handle.
 
 pub mod browse;
+pub mod compare;
 mod connections;
 pub mod ddl;
 pub mod dump;

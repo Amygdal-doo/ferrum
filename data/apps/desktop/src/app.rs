@@ -331,6 +331,7 @@ impl FerrumData {
                 match tool {
                     ToolTab::Diagram => self.render_diagram_view(tab_id, cx),
                     ToolTab::Dump => self.render_dump_view(tab_id, cx),
+                    ToolTab::Compare => self.render_compare_view(tab_id, window, cx),
                     ToolTab::Import => self.render_import_view(tab_id, window, cx),
                 }
             } else if key_tab {

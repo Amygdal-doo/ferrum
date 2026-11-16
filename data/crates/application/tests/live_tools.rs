@@ -353,3 +353,72 @@ async fn mysql_dump_round_trips() {
     assert!(details.indexes.iter().any(|i| i.unique && !i.primary));
     script(&connections, id, &format!("DROP TABLE {c}, {p}")).await;
 }
+
+/// The tables of `schema`, relabelled as living in `as_schema`.
+async fn schema_tables(
+    connections: &ConnectionService,
+    id: ferrumdata_domain::ProfileId,
+    schema: &str,
+    as_schema: &str,
+) -> ferrumdata_domain::SchemaSnapshot {
+    let mut snapshot = connections.describe_schema(id).await.expect("snapshot");
+    snapshot
+        .tables
+        .retain(|t| t.info.table.schema.as_deref() == Some(schema));
+    for t in &mut snapshot.tables {
+        t.info.table.schema = Some(as_schema.to_owned());
+        for fk in &mut t.details.foreign_keys {
+            fk.ref_table.schema = Some(as_schema.to_owned());
+        }
+    }
+    snapshot
+}
+
+#[tokio::test]
+async fn postgres_compare_migration_makes_the_target_match() {
+    use ferrumdata_application::compare::{diff, migration};
+    let Some((_, connections, id)) = services(DatabaseEngine::Postgres, "PG", "54329").await else {
+        return;
+    };
+    let suffix = ferrumdata_domain::ExecutionId::new().0.simple().to_string();
+    let (src, dst) = (format!("cs_{suffix}"), format!("ct_{suffix}"));
+    script(
+        &connections,
+        id,
+        &format!(
+            "CREATE SCHEMA {src};
+             CREATE TABLE {src}.team (id serial PRIMARY KEY, name varchar(80) NOT NULL);
+             CREATE TABLE {src}.person (id int PRIMARY KEY, name text NOT NULL DEFAULT 'n/a',
+               age bigint, team_id int CONSTRAINT person_team REFERENCES {src}.team ON DELETE SET NULL);
+             CREATE UNIQUE INDEX person_name ON {src}.person (lower(name));
+             CREATE SCHEMA {dst};
+             CREATE TABLE {dst}.person (id int PRIMARY KEY, name text, age int, legacy text);
+             CREATE INDEX person_legacy ON {dst}.person (legacy);
+             CREATE TABLE {dst}.old_stuff (id int PRIMARY KEY);
+             INSERT INTO {dst}.person VALUES (1, 'ann', 41, 'x');"
+        ),
+    )
+    .await;
+    let engine = DatabaseEngine::Postgres;
+    let source = schema_tables(&connections, id, &src, &dst).await;
+    let target = schema_tables(&connections, id, &dst, &dst).await;
+    let changes = diff(engine, &source, &target);
+    assert_eq!(changes.tables.len(), 3, "{changes:?}");
+    let sql = migration(engine, &changes, &source, &target);
+    connections
+        .execute_script(
+            id,
+            vec![ferrumdata_application::ScriptStatement::new(sql.clone())],
+        )
+        .await
+        .unwrap_or_else(|e| panic!("{e}\n{sql}"));
+    let after = schema_tables(&connections, id, &dst, &dst).await;
+    let left = diff(engine, &source, &after);
+    assert!(left.is_empty(), "{left:?}\n{sql}");
+    script(
+        &connections,
+        id,
+        &format!("DROP SCHEMA {src} CASCADE; DROP SCHEMA {dst} CASCADE"),
+    )
+    .await;
+}

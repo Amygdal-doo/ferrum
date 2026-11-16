@@ -1,6 +1,7 @@
 //! UI commands. Each one hands I/O to the services runtime via
 //! `AppServices::spawn` and only touches view state from the UI thread.
 
+pub mod compare;
 pub mod connection;
 pub mod edit;
 pub mod explain;

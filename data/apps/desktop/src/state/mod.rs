@@ -8,7 +8,10 @@ mod tools;
 
 pub use keys::{KeyBrowser, KeyViewLoad};
 pub use run::TabRun;
-pub use tools::{DiagramView, DumpView, ImportView, PlanLoad, SnapshotLoad, TaskStatus, ToolTab};
+pub use tools::{
+    CompareLoad, CompareView, DiagramView, DumpView, ImportView, PlanLoad, SnapshotLoad,
+    TaskStatus, ToolTab,
+};
 
 use ferrumdata_domain::{
     AppSettings, ConnectionProfile, EditorTabId, EditorTabState, HistoryEntry, ProfileId,
@@ -182,6 +185,8 @@ pub struct AppState {
     pub key_views: HashMap<EditorTabId, KeyViewLoad>,
     /// EXPLAIN result per tab.
     pub plans: HashMap<EditorTabId, PlanLoad>,
+    /// Schema compare tabs.
+    pub compares: HashMap<EditorTabId, CompareView>,
     /// SQL dump tabs.
     pub dumps: HashMap<EditorTabId, DumpView>,
     /// CSV import tabs.

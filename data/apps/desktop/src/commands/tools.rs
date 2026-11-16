@@ -99,6 +99,7 @@ impl FerrumData {
     pub(crate) fn forget_tool(&mut self, tab_id: EditorTabId) {
         self.state.diagrams.remove(&tab_id);
         self.state.dumps.remove(&tab_id);
+        self.state.compares.remove(&tab_id);
         self.state.imports.remove(&tab_id);
     }
 

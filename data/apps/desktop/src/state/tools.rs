@@ -1,10 +1,11 @@
 //! State of the tool tabs (ER diagram and the other schema tools). Tool
 //! tabs are not restored after a restart.
 
+use ferrumdata_application::compare::SchemaDiff;
 use ferrumdata_application::er::ErLayout;
 use ferrumdata_application::explain::Plan;
 use ferrumdata_application::import::{CsvData, ImportPlan};
-use ferrumdata_domain::{SchemaSnapshot, TableRef};
+use ferrumdata_domain::{ProfileId, SchemaSnapshot, TableRef};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -17,6 +18,28 @@ pub enum ToolTab {
     Dump,
     /// CSV import into one table (see [`ImportView::table`]).
     Import,
+    /// Schema compare of the tab's connection (source) with another.
+    Compare,
+}
+
+/// Outcome of a schema compare.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum CompareLoad {
+    #[default]
+    Idle,
+    Loading,
+    Loaded {
+        diff: SchemaDiff,
+        script: String,
+    },
+    Failed(String),
+}
+
+/// Schema compare tab: the target connection and the result.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct CompareView {
+    pub target: Option<ProfileId>,
+    pub load: CompareLoad,
 }
 
 /// A long-running tool action (dump, import).

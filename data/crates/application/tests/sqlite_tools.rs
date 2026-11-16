@@ -379,3 +379,57 @@ async fn csv_import_maps_columns_and_is_all_or_nothing() {
         CellValue::Signed(2)
     );
 }
+
+#[tokio::test]
+async fn schema_compare_migration_makes_the_target_match() {
+    use ferrumdata_application::compare::{diff, migration};
+    let source = fixture(&[
+        "CREATE TABLE team (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+        "CREATE TABLE person (id INTEGER PRIMARY KEY, name TEXT NOT NULL, \
+         team_id INTEGER REFERENCES team(id), email TEXT)",
+        "CREATE UNIQUE INDEX person_email ON person(email)",
+    ])
+    .await;
+    let target = fixture(&[
+        "CREATE TABLE person (id INTEGER PRIMARY KEY, name TEXT, legacy TEXT)",
+        "CREATE INDEX person_legacy ON person(legacy)",
+        "CREATE TABLE old_stuff (id INTEGER PRIMARY KEY)",
+        "INSERT INTO person (id, name, legacy) VALUES (1, 'ann', 'x')",
+    ])
+    .await;
+    let engine = DatabaseEngine::Sqlite;
+    let s = source
+        .connections
+        .describe_schema(source.id)
+        .await
+        .expect("source");
+    let t = target
+        .connections
+        .describe_schema(target.id)
+        .await
+        .expect("target");
+    let changes = diff(engine, &s, &t);
+    assert_eq!(changes.tables.len(), 3, "{changes:?}");
+    let script = migration(engine, &changes, &s, &t);
+    target
+        .connections
+        .execute_script(
+            target.id,
+            vec![ferrumdata_application::ScriptStatement::new(script.clone())],
+        )
+        .await
+        .unwrap_or_else(|e| panic!("{e}\n{script}"));
+
+    let after = target
+        .connections
+        .describe_schema(target.id)
+        .await
+        .expect("after");
+    let left = diff(engine, &s, &after);
+    assert!(left.is_empty(), "{left:?}\n{script}");
+    // Rows survive the rebuild in the shared columns.
+    assert_eq!(
+        target.rows("SELECT id, name, email FROM person").await,
+        vec![vec![CellValue::Signed(1), text("ann"), CellValue::Null]]
+    );
+}

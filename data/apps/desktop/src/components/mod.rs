@@ -1,3 +1,4 @@
+pub mod compare;
 pub mod connection;
 pub mod diagram;
 pub mod dialogs;
