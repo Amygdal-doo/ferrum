@@ -32,6 +32,8 @@ mod tests_debug;
 #[cfg(test)]
 mod tests_debug_lldb;
 #[cfg(test)]
+mod tests_drop;
+#[cfg(test)]
 mod tests_inline;
 #[cfg(test)]
 mod tests_logs;

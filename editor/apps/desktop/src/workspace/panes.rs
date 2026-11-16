@@ -504,6 +504,15 @@ impl Workspace {
         };
         v_flex()
             .size_full()
+            // Files dragged in from Finder open in this pane.
+            .drag_over::<gpui::ExternalPaths>(|style, _, _, cx| {
+                super::drop::drop_highlight(style, cx)
+            })
+            .on_drop(
+                cx.listener(move |this, paths: &gpui::ExternalPaths, window, cx| {
+                    this.open_dropped(paths, Some(index), window, cx)
+                }),
+            )
             .on_mouse_down(
                 gpui::MouseButton::Left,
                 cx.listener(move |this, _, _, cx| {

@@ -9,6 +9,7 @@ mod ci;
 mod commands;
 mod debug;
 mod dialogs;
+mod drop;
 mod edit_preview;
 mod files;
 mod git;
@@ -461,6 +462,12 @@ impl Render for Workspace {
                     .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
             }))
             .on_drag_move(cx.listener(Self::on_drag_splitter))
+            // Files dropped outside the panes (tree, tool panes): the active pane.
+            .on_drop(
+                cx.listener(|this, paths: &gpui::ExternalPaths, window, cx| {
+                    this.open_dropped(paths, None, window, cx)
+                }),
+            )
             .child(
                 h_flex()
                     .flex_1()
@@ -583,6 +590,11 @@ impl Workspace {
             PaneItem::Viewer(viewer) => Some(viewer.clone()),
             _ => None,
         }
+    }
+
+    /// Index of the active pane (in split order) and how many there are.
+    pub fn pane_position(&self) -> (usize, usize) {
+        (self.active_pane, self.panes.len())
     }
 
     pub fn active_pane_tab_count(&self) -> usize {
