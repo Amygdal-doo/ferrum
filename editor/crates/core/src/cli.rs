@@ -12,6 +12,10 @@ Paths may be files or folders. A folder opens in the tree view; files open
 in tabs, optionally at a 1-based line and column (e.g. src/main.rs:42:7).
 With no paths, the last session is restored.
 
+While FerrumIDE runs, the paths open in it instead of a new process: in
+the window whose project contains them, else in a new window
+(FERRUM_EDITOR_NEW_INSTANCE=1 starts a separate process).
+
 Options:
   -h, --help       Show this help
   -v, --version    Show the version

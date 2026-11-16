@@ -158,6 +158,7 @@ pub fn set_menus(cx: &mut App) {
         ]),
         Menu::new("File").items([
             item("New File", "application:new-file"),
+            item("New Window", "application:new-window"),
             item("Open File…", "application:open-file"),
             item("Open Folder…", "application:open-folder"),
             MenuItem::separator(),

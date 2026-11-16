@@ -33,7 +33,7 @@ pub mod theme;
 pub mod window_chrome;
 
 pub use agent_logo::{AgentLogo, agent_logo, agent_logo_or_tile, terminal_tile};
-pub use app::{AppConfig, Quit, init_for_tests, run};
+pub use app::{AppConfig, Quit, init_for_tests, open_app_window, run};
 pub use app_info::{
     AppInfo, KeyHint, Migration, NotificationEvent, Permission, PermissionKind, app_info,
 };

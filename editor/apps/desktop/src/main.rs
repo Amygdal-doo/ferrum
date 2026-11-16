@@ -9,6 +9,7 @@ mod editor;
 mod file_icons;
 mod file_viewer;
 mod find_bar;
+mod instance;
 mod logs;
 mod lsp_store;
 mod markdown_preview;
@@ -19,6 +20,7 @@ mod settings;
 mod settings_page;
 mod theme_apply;
 mod tree_view;
+mod windows;
 mod workspace;
 
 #[cfg(test)]
@@ -39,14 +41,16 @@ mod tests_tools;
 mod tests_view;
 #[cfg(test)]
 mod tests_viewer;
+#[cfg(test)]
+mod tests_windows;
 
 use ferrum_ui::AppConfig;
 use ferrumeditor_core::cli::{self, CliAction};
 use ferrumeditor_core::paths::UserFiles;
+use futures::StreamExt as _;
 use gpui::AppContext as _;
 
 use settings::Settings;
-use workspace::Workspace;
 
 /// Key bindings of the embedded Git, Term and Agent panes.
 pub fn init_tools(cx: &mut gpui::App) {
@@ -79,11 +83,34 @@ fn main() {
         }
         CliAction::Run(targets) => targets,
     };
+    // One process: a running FerrumIDE opens the paths (in the window of
+    // their project, or a new one) and this call ends here.
+    let single = std::env::var_os(instance::NEW_INSTANCE_ENV).is_none_or(|v| v.is_empty());
+    let socket = instance::socket_path().filter(|_| single);
+    if let Some(socket) = &socket
+        && instance::forward(socket, &targets)
+    {
+        return;
+    }
+    let (requests, mut incoming) = futures::channel::mpsc::unbounded();
+    if let Some(socket) = &socket
+        && let Err(error) = instance::listen(socket, requests.clone())
+    {
+        eprintln!("ferrumeditor: not listening for other launches: {error}");
+    }
+    let from_platform = requests;
     let config = AppConfig::new("FerrumIDE")
         .unified_titlebar()
         .size(1280., 820.)
         .min_size(640., 400.)
-        .app(app_info::app_info());
+        .app(app_info::app_info())
+        // Finder's Open With and drops on the Dock icon.
+        .on_open_urls(move |urls| {
+            let targets = windows::targets_from_urls(&urls);
+            if !targets.is_empty() {
+                from_platform.unbounded_send(targets).ok();
+            }
+        });
     ferrum_ui::run(config, move |window, cx| {
         ferrum_account_ui::init(ferrum_account_ui::AccountApp::Editor, cx);
         // The embedded tools' key bindings (scoped to their panes) must be
@@ -111,29 +138,20 @@ fn main() {
             cx,
         );
         actions::set_menus(cx);
-        let workspace = cx.new(|cx| {
-            let mut workspace = Workspace::new(window, cx);
-            if targets.is_empty() {
-                if restore {
-                    workspace.restore_session(window, cx);
-                }
-            } else {
-                workspace.open_targets(targets, window, cx);
+        // Paths from later launches and from the platform.
+        cx.spawn(async move |cx| {
+            while let Some(targets) = incoming.next().await {
+                cx.update(|cx| windows::route(targets, cx));
             }
-            if let Some(first) = problems.first() {
-                workspace.error(
-                    format!("{first} (+{} more)", problems.len() - 1).replace(" (+0 more)", ""),
-                    cx,
-                );
-            }
-            workspace
-        });
-        let weak = workspace.downgrade();
-        window.on_window_should_close(cx, move |window, cx| {
-            // Quit asks about unsaved changes and saves the session.
-            weak.update(cx, |workspace, cx| workspace.quit(window, cx))
-                .is_err()
-        });
-        workspace
+        })
+        .detach();
+        if let Some(socket) = socket {
+            cx.on_app_quit(move |_| {
+                instance::cleanup(&socket);
+                async {}
+            })
+            .detach();
+        }
+        windows::build_workspace(targets, restore, &problems, window, cx)
     });
 }

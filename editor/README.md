@@ -62,6 +62,7 @@ handling are its own; nothing from Zed's editor stack (`editor`, `language`, `pr
 | Agent pane: FerrumChat (`ferrumagent-ui`) — threads, agent / model picker (its own models, or Claude Code, Codex, Gemini… over ACP), modes, @-mentions, tool cards with permission prompts, change review with accept / reject and checkpoints; ⌥⌘A or the Agent button. *Agents: New Session* still runs a CLI agent from `[[agents]]` in a Term pane tab | ✅ embedding and events headless-tested; the chat itself is tested in `agent/crates/ui` |
 | Debugger (DAP): `lldb-dap` / CodeLLDB (Rust, C), `dlv dap` (Go), js-debug (JS/TS); `.vscode/launch.json` or defaults; gutter / F9 breakpoints (saved per project, verified vs not), current line, F5 / F10 / F11 / ⇧F11 / ⇧F5, call stack, lazy variables, watches, debug console with evaluate, `runInTerminal` in a Term pane tab | ✅ protocol + state machine tested against a scripted adapter; real `lldb-dap` on a C program (ignored test); F9 → stop → F10 → F5 headless-tested; dlv / js-debug not run here |
 | CLI: `ferrumeditor [path[:line[:col]]...]`, `--help`, `--version` | ✅ tested |
+| One process, several windows: while FerrumIDE runs, `ferrumeditor <paths>` hands the paths to it over a local socket (`~/.ferrum/editor/instance.sock`, a stale one is replaced) and exits; Finder's *Open With* and drops on the Dock icon arrive the same way. A folder (with its files) opens in the window whose project contains it, else in a new window; a lone file goes to its project's window, else a window without a folder, else a new one; no paths bring the front window forward. *File → New Window* (⇧⌘N). Closing one of several windows asks about its own unsaved files; quitting asks about every window's. `FERRUM_EDITOR_NEW_INSTANCE=1` starts a separate process | ✅ hand-over unit-tested over a real socket; routing and closing headless-tested with two windows; Finder / Dock opens not tried |
 
 ## Not built yet
 Tool panes: dropping a pane on another always puts it after that pane (no before / beside
@@ -76,7 +77,7 @@ updating installed servers (Language Server: Install reinstalls the latest). The
 recent-projects list is not updated by the headless tests (they never write
 `~/.ferrum/projects.json`).
 Incremental tree-sitter reparsing (every edit reparses the whole file in the background);
-multiple windows; packages/plugins (a `Package` trait and command registry seam exist);
+the session restores only the window that quit last; packages/plugins (a `Package` trait and command registry seam exist);
 cursor blinking; encodings other than UTF-8; editing files
 over 64 MB; a project-wide replace; drag-and-drop of tabs or files; tree view drag-to-move;
 tab overflow menu; per-project settings; Linux/Windows key defaults beyond a mechanical

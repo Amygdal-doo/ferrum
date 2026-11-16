@@ -17,6 +17,7 @@ mod lsp;
 mod lsp_edits;
 mod overlays;
 mod panes;
+mod quit;
 mod session;
 mod status_bar;
 mod tasks;
@@ -119,6 +120,12 @@ impl Workspace {
             cx.observe_window_activation(window, |this, window, cx| {
                 if window.is_window_active() {
                     this.check_disk_changes(window, cx);
+                    // With several windows, servers start for the project
+                    // of the window in front.
+                    if let Some(store) = crate::lsp_store::LspStore::global(cx) {
+                        let project = this.root.clone();
+                        store.update(cx, |store, _| store.set_project(project));
+                    }
                 }
             }),
             cx.subscribe_in(&debugger, window, Self::on_debugger_event),
