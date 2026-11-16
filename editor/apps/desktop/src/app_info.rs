@@ -30,5 +30,6 @@ pub fn app_info() -> AppInfo {
         .event(ferrumagent_ui::NEEDS_YOU)
         .event(ferrumagent_ui::DONE)
         .event(ferrumagent_ui::FAILED)
+        .page(crate::settings_page::EditorPage)
         .page(ferrumterm_ui::TerminalPage::default())
 }

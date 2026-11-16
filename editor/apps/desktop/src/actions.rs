@@ -250,6 +250,7 @@ pub fn set_menus(cx: &mut App) {
             item("Toggle Soft Wrap", "editor:toggle-soft-wrap"),
             item("Toggle Line Numbers", "editor:toggle-line-numbers"),
             item("Toggle Indent Guides", "editor:toggle-indent-guides"),
+            item("Toggle Minimap", "editor:toggle-minimap"),
             MenuItem::separator(),
             item("Fold", "editor:fold"),
             item("Unfold", "editor:unfold"),

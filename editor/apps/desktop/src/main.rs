@@ -16,6 +16,7 @@ mod picker;
 mod project_find;
 mod registry;
 mod settings;
+mod settings_page;
 mod theme_apply;
 mod tree_view;
 mod workspace;

@@ -72,6 +72,8 @@ pub struct LayoutSnapshot {
     pub scroll_x: Pixels,
     pub first_row: usize,
     pub rows: Vec<RowLayout>,
+    /// The minimap strip, when shown.
+    pub minimap: Option<super::minimap::MinimapLayout>,
 }
 
 impl LayoutSnapshot {

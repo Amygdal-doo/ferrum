@@ -195,6 +195,7 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("editor:toggle-soft-wrap", W, &["alt-z"]),
     ("editor:toggle-line-numbers", W, &[]),
     ("editor:toggle-indent-guides", W, &[]),
+    ("editor:toggle-minimap", W, &[]),
     // Editing
     ("editor:undo", E, &["cmd-z"]),
     ("editor:redo", E, &["cmd-shift-z", "cmd-y"]),

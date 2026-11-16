@@ -2,7 +2,7 @@
 //! metadata, scroll state, syntax highlights, git marks and search
 //! matches. Rendering lives in `element`, input in `input`, command
 //! dispatch in `commands`, background work in `background`, find support
-//! in `search`, code folding in `folding`; language server features in `lsp`, `lsp_actions`,
+//! in `search`, code folding in `folding`, the minimap in `minimap`; language server features in `lsp`, `lsp_actions`,
 //! `completion` and `popups`.
 
 mod background;
@@ -15,6 +15,7 @@ mod input;
 mod layout;
 mod lsp;
 mod lsp_actions;
+mod minimap;
 mod popups;
 mod search;
 
@@ -122,6 +123,9 @@ pub struct EditorView {
     pub soft_wrap: bool,
     pub show_line_numbers: bool,
     pub show_indent_guides: bool,
+    pub show_minimap: bool,
+    /// A click in the minimap is being dragged.
+    minimap_drag: bool,
     scroll_y: Pixels,
     scroll_x: Pixels,
     autoscroll: bool,
@@ -201,6 +205,8 @@ impl EditorView {
             soft_wrap: config.soft_wrap_for(language),
             show_line_numbers: config.show_line_numbers,
             show_indent_guides: config.show_indent_guides,
+            show_minimap: config.minimap,
+            minimap_drag: false,
             scroll_y: px(0.),
             scroll_x: px(0.),
             autoscroll: false,
@@ -271,6 +277,7 @@ impl EditorView {
         self.soft_wrap = settings.config.soft_wrap_for(self.state.language);
         self.show_line_numbers = settings.config.show_line_numbers;
         self.show_indent_guides = settings.config.show_indent_guides;
+        self.show_minimap = settings.config.minimap;
         cx.notify();
     }
 

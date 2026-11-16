@@ -29,6 +29,14 @@ impl EditorView {
         let Some(layout) = self.last_layout.clone() else {
             return;
         };
+        if layout
+            .minimap
+            .is_some_and(|m| m.bounds.contains(&event.position))
+        {
+            self.minimap_drag = true;
+            self.minimap_scroll_to(event.position, cx);
+            return;
+        }
         let offset = layout.offset_at(event.position, &self.state, &self.display_map);
         let in_gutter = event.position.x < layout.bounds.left() + layout.gutter_width;
         // The gutter's left lane toggles breakpoints.
@@ -115,6 +123,10 @@ impl EditorView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.minimap_drag && event.dragging() {
+            self.minimap_scroll_to(event.position, cx);
+            return;
+        }
         if self.drag.is_none() || !event.dragging() {
             if event.pressed_button.is_none() {
                 let offset = self.text_offset_under(event.position);
@@ -228,6 +240,7 @@ impl EditorView {
 
     pub(super) fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
         self.drag = None;
+        self.minimap_drag = false;
         self.drag_pointer = None;
         self.drag_scroll = None;
     }
@@ -256,7 +269,10 @@ impl EditorView {
     /// Buffer offset of the character under `position`, if it is over text.
     fn text_offset_under(&self, position: Point<Pixels>) -> Option<usize> {
         let layout = self.last_layout.as_ref()?;
-        if position.x < layout.text_left || !layout.bounds.contains(&position) {
+        if position.x < layout.text_left
+            || !layout.bounds.contains(&position)
+            || layout.minimap.is_some_and(|m| m.bounds.contains(&position))
+        {
             return None;
         }
         let row = layout.display_row_at(position.y);

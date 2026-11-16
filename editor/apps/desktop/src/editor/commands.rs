@@ -145,6 +145,7 @@ impl EditorView {
             "editor:toggle-soft-wrap" => self.soft_wrap = !self.soft_wrap,
             "editor:toggle-line-numbers" => self.show_line_numbers = !self.show_line_numbers,
             "editor:toggle-indent-guides" => self.show_indent_guides = !self.show_indent_guides,
+            "editor:toggle-minimap" => self.show_minimap = !self.show_minimap,
             _ => return false,
         }
         self.marked_range = None;

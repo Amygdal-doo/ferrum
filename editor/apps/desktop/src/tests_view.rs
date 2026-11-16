@@ -1,10 +1,11 @@
 //! Headless tests of the editor's view features: code folding (keys,
-//! gutter state, carets moving in and out of folds).
+//! gutter state, carets moving in and out of folds), the minimap and
+//! Settings › Editor.
 
 use std::path::PathBuf;
 
 use ferrumeditor_core::buffer::Point;
-use gpui::{Entity, TestAppContext, VisualTestContext};
+use gpui::{Entity, Modifiers, TestAppContext, VisualTestContext, point, px};
 
 use crate::editor::EditorView;
 use crate::tests::{init, primary};
@@ -76,4 +77,64 @@ fn folds_follow_edits_and_open_for_the_caret(cx: &mut TestAppContext) {
     });
     cx.run_until_parked();
     assert!(hidden(&editor, cx).is_empty());
+}
+
+#[gpui::test]
+fn minimap_click_scrolls_and_toggles(cx: &mut TestAppContext) {
+    init(cx);
+    let text: String = (0..400).map(|i| format!("let line_{i} = {i};\n")).collect();
+    let (editor, cx) = cx.add_window_view(move |window, cx| {
+        EditorView::new(&text, Some(PathBuf::from("/nowhere/long.rs")), window, cx)
+    });
+    cx.run_until_parked();
+    let (minimap, scroll) = editor
+        .read_with(cx, |e, _| e.minimap_layout())
+        .expect("the minimap is on by default");
+    assert_eq!(scroll, px(0.));
+    // A click near the bottom of the strip scrolls down there.
+    let target = point(minimap.bounds.center().x, minimap.bounds.bottom() - px(4.));
+    cx.simulate_click(target, Modifiers::none());
+    cx.run_until_parked();
+    let (_, scroll) = editor
+        .read_with(cx, |e, _| e.minimap_layout())
+        .expect("minimap");
+    assert!(scroll > px(0.), "{scroll:?}");
+    // The caret did not move: the click only scrolled.
+    assert_eq!(
+        editor.read_with(cx, |e, _| e.cursor_point()),
+        Point::new(0, 0)
+    );
+
+    editor.update_in(cx, |e, window, cx| {
+        e.run_command("editor:toggle-minimap", window, cx);
+    });
+    cx.run_until_parked();
+    assert!(editor.read_with(cx, |e, _| e.minimap_layout()).is_none());
+}
+
+#[gpui::test]
+fn editor_settings_page_writes_config(cx: &mut TestAppContext) {
+    init(cx);
+    let dir = tempfile::tempdir().expect("tempdir");
+    let files = ferrumeditor_core::paths::UserFiles::new(dir.path());
+    std::fs::write(
+        &files.config,
+        ferrumeditor_core::config::DEFAULT_CONFIG_TOML,
+    )
+    .expect("write");
+    cx.update(|cx| {
+        cx.global_mut::<crate::settings::Settings>().files = Some(files.clone());
+        crate::settings_page::set_bool("soft_wrap", true, cx).expect("soft wrap");
+        crate::settings_page::set_bool("minimap", false, cx).expect("minimap");
+        assert!(crate::settings_page::set_bool("nope", true, cx).is_err());
+        let config = &cx.global::<crate::settings::Settings>().config;
+        assert!(config.soft_wrap && !config.minimap);
+    });
+    let written = std::fs::read_to_string(&files.config).expect("read");
+    let (config, warnings) =
+        ferrumeditor_core::config::Config::parse(&written).expect("valid config");
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert!(config.soft_wrap && !config.minimap);
+    // Comments survive.
+    assert!(written.contains("# insert spaces for Tab"));
 }

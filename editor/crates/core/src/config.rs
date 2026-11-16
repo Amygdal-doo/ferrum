@@ -21,6 +21,8 @@ pub struct Config {
     pub soft_wrap: bool,
     pub show_line_numbers: bool,
     pub show_indent_guides: bool,
+    /// A minimap of the file at the right of the text.
+    pub minimap: bool,
     pub highlight_current_line: bool,
     pub auto_close_brackets: bool,
     pub auto_indent: bool,
@@ -141,6 +143,7 @@ impl Default for Config {
             soft_wrap: false,
             show_line_numbers: true,
             show_indent_guides: true,
+            minimap: true,
             highlight_current_line: true,
             auto_close_brackets: true,
             auto_indent: true,
@@ -172,6 +175,7 @@ const KNOWN_KEYS: &[&str] = &[
     "soft_wrap",
     "show_line_numbers",
     "show_indent_guides",
+    "minimap",
     "highlight_current_line",
     "auto_close_brackets",
     "auto_indent",
@@ -313,6 +317,7 @@ soft_tabs = true             # insert spaces for Tab
 soft_wrap = false
 show_line_numbers = true
 show_indent_guides = true
+minimap = true               # a map of the file at the right ("Editor: Toggle Minimap")
 highlight_current_line = true
 auto_close_brackets = true
 auto_indent = true
@@ -360,11 +365,22 @@ auto_install = true
 "#;
 
 /// Sets top-level `key` to the string `value` in a config document,
-/// keeping comments and layout: the first `key = …` line before any table
-/// is rewritten (its trailing comment kept), otherwise the line is added
-/// before the first table.
+/// keeping comments and layout (see [`set_value`]).
 pub fn set_string_value(source: &str, key: &str, value: &str) -> String {
-    let quoted = toml::Value::String(value.to_string()).to_string();
+    set_value(source, key, &toml::Value::String(value.to_string()))
+}
+
+/// Sets top-level `key` to `true` / `false` (see [`set_value`]).
+pub fn set_bool_value(source: &str, key: &str, value: bool) -> String {
+    set_value(source, key, &toml::Value::Boolean(value))
+}
+
+/// Sets top-level `key` to `value` in a config document, keeping comments
+/// and layout: the first `key = …` line before any table is rewritten (its
+/// trailing comment kept), otherwise the line is added before the first
+/// table.
+pub fn set_value(source: &str, key: &str, value: &toml::Value) -> String {
+    let quoted = value.to_string();
     let mut lines: Vec<String> = source.lines().map(str::to_string).collect();
     let first_table = lines
         .iter()
@@ -535,5 +551,9 @@ mod tests {
         assert_eq!(config.icon_theme, "mono");
         assert_eq!(config.languages.len(), 1);
         assert_eq!(set_string_value("", "theme", "x"), "theme = \"x\"\n");
+        let wrapped = set_bool_value(DEFAULT_CONFIG_TOML, "soft_wrap", true);
+        let (config, warnings) = Config::parse(&wrapped).expect("valid");
+        assert!(warnings.is_empty() && config.soft_wrap);
+        assert!(wrapped.contains("minimap = true               # a map of the file"));
     }
 }

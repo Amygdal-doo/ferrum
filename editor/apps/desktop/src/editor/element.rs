@@ -35,18 +35,20 @@ pub struct Frame {
     pub(super) layout: LayoutSnapshot,
     pub(super) gutter: Bounds<Pixels>,
     pub(super) text_area: Bounds<Pixels>,
-    colors: FrameColors,
+    pub(super) colors: FrameColors,
     pub(super) backgrounds: Vec<PaintQuad>,
     pub(super) foreground: Vec<PaintQuad>,
     pub(super) cursors: Vec<PaintQuad>,
     pub(super) numbers: Vec<(ShapedLine, Point<Pixels>)>,
     pub(super) gutter_marks: Vec<PaintQuad>,
+    /// The minimap strip (background, visible part, row blocks).
+    pub(super) minimap: Vec<PaintQuad>,
     scrollbar: Option<PaintQuad>,
 }
 
 #[derive(Clone, Copy)]
-struct FrameColors {
-    editor: Hsla,
+pub(super) struct FrameColors {
+    pub(super) editor: Hsla,
     gutter: Hsla,
 }
 
@@ -172,6 +174,9 @@ impl Element for EditorElement {
                         window.paint_quad(quad);
                     }
                 }
+                for quad in frame.minimap.drain(..) {
+                    window.paint_quad(quad);
+                }
             },
         );
         window.with_content_mask(
@@ -218,8 +223,14 @@ impl EditorView {
             px(14.)
         } + super::folding::FOLD_LANE;
         let text_left = bounds.left() + gutter_width + px(6.);
+        let minimap_width = if self.show_minimap {
+            super::minimap::MINIMAP_WIDTH
+        } else {
+            px(0.)
+        };
         let text_width =
-            (bounds.size.width - gutter_width - px(6.) - SCROLLBAR_WIDTH).max(char_width * 10.);
+            (bounds.size.width - gutter_width - px(6.) - SCROLLBAR_WIDTH - minimap_width)
+                .max(char_width * 10.);
         let wrap = self
             .soft_wrap
             .then(|| ((text_width / char_width).floor() as usize).max(16));
@@ -303,6 +314,7 @@ impl EditorView {
             scroll_x: self.scroll_x,
             first_row,
             rows,
+            minimap: None,
         };
         let mut frame = Frame {
             gutter: Bounds::new(bounds.origin, size(gutter_width, bounds.size.height)),
@@ -320,11 +332,28 @@ impl EditorView {
             cursors: Vec::new(),
             numbers: Vec::new(),
             gutter_marks: Vec::new(),
+            minimap: Vec::new(),
             scrollbar: None,
             layout,
         };
         self.decorate(&mut frame, style, &theme);
         self.gutter(&mut frame, style, &theme, window);
+        if self.show_minimap {
+            let input = super::minimap::MinimapInput {
+                bounds: Bounds::new(
+                    point(
+                        bounds.right() - SCROLLBAR_WIDTH - minimap_width,
+                        bounds.top(),
+                    ),
+                    size(minimap_width, bounds.size.height),
+                ),
+                total_rows,
+                line_height,
+                scroll_y: self.scroll_y,
+                max_scroll,
+            };
+            frame.layout.minimap = Some(self.minimap(input, &mut frame, &theme, text_color));
+        }
         if line_height * total_rows as f32 > viewport && max_scroll > px(0.) {
             let content = line_height * total_rows as f32
                 + if style.scroll_past_end {
