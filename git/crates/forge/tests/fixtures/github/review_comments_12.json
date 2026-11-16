@@ -1,1 +1,6 @@
-[{"id": 20, "user": {"login": "hubot"}, "body": "Use a constant here.", "created_at": "2026-11-02T09:59:00Z", "path": "src/login.rs", "line": null, "original_line": 42}]
+[
+  {"id": 20, "user": {"login": "hubot"}, "body": "Use a constant here.", "created_at": "2026-11-02T09:59:00Z", "path": "src/login.rs", "line": null, "original_line": 42, "side": "RIGHT"},
+  {"id": 23, "user": {"login": "monalisa"}, "body": "Why remove this?", "created_at": "2026-11-03T11:00:00Z", "path": "src/form.rs", "line": 7, "original_line": 7, "side": "LEFT"},
+  {"id": 21, "in_reply_to_id": 20, "user": {"login": "octocat"}, "body": "Done.", "created_at": "2026-11-03T12:00:00Z", "path": "src/login.rs", "line": null, "original_line": 42, "side": "RIGHT"},
+  {"id": 24, "in_reply_to_id": 23, "user": {"login": "octocat"}, "body": "Dead code.", "created_at": "2026-11-03T12:30:00Z", "path": "src/form.rs", "line": 7, "original_line": 7, "side": "LEFT"}
+]

@@ -225,6 +225,13 @@ impl Cmd {
         self
     }
 
+    /// One environment variable for this command only.
+    #[must_use]
+    pub fn env(mut self, key: &str, value: impl Into<String>) -> Self {
+        self.env.push((key.to_owned(), value.into()));
+        self
+    }
+
     #[must_use]
     pub fn cwd(mut self, dir: impl Into<PathBuf>) -> Self {
         self.cwd = Some(dir.into());

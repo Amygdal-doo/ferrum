@@ -1,12 +1,14 @@
 //! Pull / merge requests page: forge info, listing, detail, actions.
 
 use crate::app::GitView;
+use crate::components::review::{DraftTarget, ReviewDraft};
 use crate::state::{Busy, Load, Page, PrTab};
+use ferrum_ui::TextInput;
 use ferrumgit_application::forge::{
     MergeMethod, NewPullRequest, PrFilter, PullRequest, ReviewEvent,
 };
 use ferrumgit_domain::{RepoForge, RepoId};
-use gpui::Context;
+use gpui::{AppContext as _, Context, Window};
 use std::sync::Arc;
 
 /// Opens `url` in the default browser (http(s) only).
@@ -313,6 +315,111 @@ impl GitView {
             },
             cx,
         );
+    }
+
+    /// Opens the comment composer on a diff line or in a thread of the
+    /// selected pull request (replacing any draft elsewhere).
+    pub fn start_review_draft(
+        &mut self,
+        target: DraftTarget,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(id) = self.state.active else { return };
+        let Some(number) = self.state.view(id).prs.selected else {
+            return;
+        };
+        if self
+            .review_draft
+            .as_ref()
+            .is_some_and(|d| d.target == target && d.number == number)
+        {
+            return;
+        }
+        let placeholder = match target {
+            DraftTarget::Line(_) => "Comment on this line (Markdown)",
+            DraftTarget::Reply(_) => "Reply (Markdown)",
+        };
+        let input = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder(placeholder)
+                .multiline(3)
+        });
+        let sub = cx.subscribe(&input, |_, _, _, cx| cx.notify());
+        self.review_subscription = Some(sub);
+        input.update(cx, |input, cx| input.focus(window, cx));
+        self.review_draft = Some(ReviewDraft {
+            repo: id,
+            number,
+            target,
+            input,
+            sending: false,
+        });
+        cx.notify();
+    }
+
+    pub fn cancel_review_draft(&mut self, cx: &mut Context<Self>) {
+        self.review_draft = None;
+        self.review_subscription = None;
+        cx.notify();
+    }
+
+    /// Posts the draft (new thread or reply), then reloads the pull request.
+    pub fn send_review_draft(&mut self, cx: &mut Context<Self>) {
+        let Some(draft) = self.review_draft.as_mut() else {
+            return;
+        };
+        let body = draft.input.read(cx).text().trim().to_owned();
+        if body.is_empty() || draft.sending {
+            return;
+        }
+        let (id, number) = (draft.repo, draft.number);
+        let (Some(entry), Some(detail)) = (
+            self.state.entry(id),
+            self.state.view(id).prs.detail.ready().cloned(),
+        ) else {
+            return;
+        };
+        draft.sending = true;
+        let line = draft.line_comment(body.clone());
+        let thread = match &draft.target {
+            DraftTarget::Reply(t) => Some(t.clone()),
+            DraftTarget::Line(_) => None,
+        };
+        let services = self.services.clone();
+        self.spawn_run(
+            cx,
+            async move {
+                match (line, thread) {
+                    (Some(c), _) => {
+                        services
+                            .comment_pull_request_line(&entry, &detail, &c)
+                            .await
+                    }
+                    (None, Some(t)) => {
+                        services
+                            .reply_pull_request_thread(&entry, number, &t, &body)
+                            .await
+                    }
+                    (None, None) => Ok(()),
+                }
+            },
+            move |app, result, cx| match result {
+                Ok(()) => {
+                    app.review_draft = None;
+                    app.review_subscription = None;
+                    app.notify("Comment posted", false, cx);
+                    app.select_pull_request(id, number, cx);
+                }
+                Err(e) => {
+                    if let Some(d) = app.review_draft.as_mut() {
+                        d.sending = false;
+                    }
+                    app.notify(e, true, cx);
+                }
+            },
+        );
+        cx.notify();
     }
 
     pub fn merge_pull_request(&mut self, number: u64, method: MergeMethod, cx: &mut Context<Self>) {

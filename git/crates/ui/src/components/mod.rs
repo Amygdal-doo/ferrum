@@ -1,5 +1,7 @@
 pub mod actions;
+pub mod bisect;
 pub mod code;
+pub mod conflict;
 pub mod detail;
 pub mod dialogs;
 pub mod diff;
@@ -10,6 +12,7 @@ pub mod highlight;
 pub mod home;
 pub mod icons;
 pub mod menu;
+pub mod review;
 pub mod shell;
 pub mod sidebar;
 pub mod split;

@@ -24,8 +24,9 @@ pub use api::{Api, RateLimits, RateState};
 pub use client::{Forge, PrList, STATUS_LOOKUPS, client};
 pub use error::{ForgeError, ForgeResult, scope_hint};
 pub use model::{
-    Check, CheckState, MergeMethod, NewPullRequest, PrCommit, PrDetail, PrFilter, PrState,
-    PullRequest, ReviewDecision, ReviewEvent, ReviewState, TimelineItem, TimelineKind,
+    Check, CheckState, DiffRefs, DiffSide, MergeMethod, NewLineComment, NewPullRequest, PrCommit,
+    PrDetail, PrFilter, PrState, PullRequest, ReviewDecision, ReviewEvent, ReviewState,
+    ReviewThread, ThreadComment, TimelineItem, TimelineKind,
 };
 pub use remote::{ForgeRepo, resolve};
 pub use transport::{HttpRequest, HttpResponse, Method, ReqwestTransport, Transport};

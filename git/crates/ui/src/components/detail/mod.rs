@@ -9,6 +9,9 @@ mod stashes;
 mod trailers;
 mod wip;
 
+pub(crate) use pull_detail::markdown;
+pub(crate) use pull_list::unix;
+
 use crate::app::GitView;
 use crate::components::diff::diff_pane;
 use crate::components::file_panel::file_panel;
@@ -35,12 +38,15 @@ pub fn middle_column(
         Page::PullRequests => pull_list::pull_list(app, id, cx),
         _ => empty("Loading…"),
     };
+    // Bisecting is shown on every page until reset.
+    let bisect = crate::components::bisect::bisect_banner(app, id, cx);
     // In the window the card behind supplies the background.
     let flat = app.options.compact;
     v_flex()
         .size_full()
         .min_w_0()
         .when(flat, |d| d.bg(cx.theme().colors().editor_background))
+        .children(bisect)
         .child(body)
         .into_any_element()
 }
@@ -56,9 +62,10 @@ pub fn right_column(app: &mut GitView, _: &mut Window, cx: &mut Context<GitView>
         // File history / blame covers the panel on every page until closed.
         _ if let Some(f) = view.file.clone() => file_panel(app, id, f, cx),
         Page::PullRequests => pull_detail::pull_detail(app, id, cx),
-        Page::WorkingCopy => match view.diff {
-            Some(_) => diff_pane(app, cx),
-            None => empty("Select a file to see its changes"),
+        Page::WorkingCopy => match (view.conflict, view.diff) {
+            (Some(c), _) => crate::components::conflict::conflict_pane(app, id, c, cx),
+            (None, Some(_)) => diff_pane(app, cx),
+            (None, None) => empty("Select a file to see its changes"),
         },
         Page::History | Page::Stashes => match view.details.clone() {
             Some(d) => commit::commit_panel(app, id, d, cx),

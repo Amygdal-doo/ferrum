@@ -9,12 +9,15 @@
 //! Network commands take a [`NetEnv`] built from the repository's profile so
 //! each project can push/pull with its own SSH key.
 
+mod bisect;
+mod conflict;
 mod error;
 mod history;
 pub mod parse;
 pub mod patch;
 mod pr;
 mod read;
+mod rebase;
 mod runner;
 mod ssh;
 mod write;
@@ -22,6 +25,7 @@ mod write;
 pub use error::{GitError, GitResult};
 pub use pr::PR_NAMESPACE;
 pub use read::{MAX_PATCH_BYTES, Repo, Snapshot};
+pub use rebase::{MAX_REBASE_STEPS, shell_quote};
 pub use runner::{Cmd, Git, Output};
 pub use ssh::{
     ASKPASS_ENV, ASKPASS_FILE_ENV, NetEnv, askpass_main, expand_home, ssh_command, test_connection,

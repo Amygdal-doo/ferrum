@@ -70,6 +70,7 @@ impl GitView {
                 }
                 app.refresh_project_branch(id, cx);
                 app.refresh_diff(id, cx);
+                app.refresh_conflict(id);
                 app.refresh_editor(id, cx);
                 app.refresh_file_view(id, cx);
                 // New commits may match the active search.
@@ -181,12 +182,24 @@ impl GitView {
                                 v.draft_rev += 1;
                             });
                         }
+                        // A rebase stopped at an `edit` line: show where.
+                        let stopped = summary
+                            .as_deref()
+                            .is_some_and(|s| s.starts_with("Stopped at"));
+                        if stopped {
+                            app.set_page(id, Page::WorkingCopy, cx);
+                        }
                         if op.is_network()
+                            || stopped
                             || matches!(
                                 op,
                                 RepoOp::Commit { .. }
                                     | RepoOp::Merge { .. }
                                     | RepoOp::Rebase { .. }
+                                    | RepoOp::InteractiveRebase(_)
+                                    | RepoOp::BisectStart { .. }
+                                    | RepoOp::BisectMark { .. }
+                                    | RepoOp::BisectReset
                                     | RepoOp::Undo(_)
                             )
                         {
@@ -199,12 +212,38 @@ impl GitView {
                     Err(e) if e == "cancelled" => {
                         app.notify(format!("{} cancelled", op.label()), false, cx);
                     }
-                    Err(e) => app.notify(e, true, cx),
+                    Err(e) => {
+                        // Conflicts stop the operation: the banner and the
+                        // conflicted files are on the working copy page.
+                        if matches!(
+                            op,
+                            RepoOp::InteractiveRebase(_)
+                                | RepoOp::Rebase { .. }
+                                | RepoOp::Merge { .. }
+                                | RepoOp::CherryPick(_)
+                                | RepoOp::Revert(_)
+                                | RepoOp::Continue
+                                | RepoOp::Skip
+                        ) && e.contains("CONFLICT")
+                        {
+                            app.set_page(id, Page::WorkingCopy, cx);
+                        }
+                        app.notify(e, true, cx);
+                    }
                 }
                 app.load(id, cx);
             },
         );
         cx.notify();
+    }
+
+    /// A bisect session is running in the active repository.
+    #[must_use]
+    pub fn bisecting(&self) -> bool {
+        self.state
+            .active
+            .and_then(|id| self.state.view(id).data)
+            .is_some_and(|d| d.snapshot.status.bisect.is_some())
     }
 
     /// Runs `op` in the active repository.
@@ -409,6 +448,7 @@ impl GitView {
         staged: bool,
         cx: &mut Context<Self>,
     ) {
+        self.state.update_view(id, |v| v.conflict = None);
         let source = if staged {
             DiffSource::Staged
         } else if file.worktree == ferrumgit_domain::ChangeKind::Untracked {

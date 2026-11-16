@@ -214,6 +214,82 @@ pub struct TimelineItem {
     pub body: String,
 }
 
+/// Which side of a diff a line comment is on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiffSide {
+    /// The base version (a removed line).
+    Left,
+    /// The head version (an added or unchanged line).
+    Right,
+}
+
+/// One comment of a review thread.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ThreadComment {
+    pub id: String,
+    pub author: String,
+    /// RFC 3339.
+    pub created_at: String,
+    pub body: String,
+}
+
+/// Comments on one line of a file, oldest first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewThread {
+    /// What replies go to: GitHub's first comment id, GitLab's discussion id.
+    pub id: String,
+    pub path: String,
+    /// The line in the current diff; `None` when the thread is outdated
+    /// (the code moved on), so it is not shown inline.
+    pub line: Option<u64>,
+    pub side: DiffSide,
+    pub resolved: bool,
+    pub comments: Vec<ThreadComment>,
+}
+
+impl ReviewThread {
+    /// Whether the thread belongs on a diff line with these numbers.
+    #[must_use]
+    pub fn is_on(&self, path: &str, old_line: Option<u64>, new_line: Option<u64>) -> bool {
+        self.path == path
+            && self.line.is_some()
+            && match self.side {
+                DiffSide::Left => self.line == old_line && new_line.is_none(),
+                DiffSide::Right => self.line == new_line,
+            }
+    }
+}
+
+/// A new comment on a diff line. Removed lines have only `old_line`, added
+/// lines only `new_line`, unchanged lines both.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct NewLineComment {
+    pub path: String,
+    pub old_line: Option<u64>,
+    pub new_line: Option<u64>,
+    pub body: String,
+}
+
+impl NewLineComment {
+    /// The side and line GitHub anchors it to.
+    #[must_use]
+    pub fn anchor(&self) -> Option<(DiffSide, u64)> {
+        match (self.new_line, self.old_line) {
+            (Some(n), _) => Some((DiffSide::Right, n)),
+            (None, Some(o)) => Some((DiffSide::Left, o)),
+            (None, None) => None,
+        }
+    }
+}
+
+/// GitLab's diff version shas, needed to place a new line comment.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DiffRefs {
+    pub base_sha: String,
+    pub start_sha: String,
+    pub head_sha: String,
+}
+
 /// Merge strategies the project allows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MergeMethod {
@@ -244,6 +320,10 @@ pub struct PrDetail {
     /// `None` = the forge is still computing it.
     pub mergeable: Option<bool>,
     pub merge_methods: Vec<MergeMethod>,
+    /// Line comments grouped into threads.
+    pub threads: Vec<ReviewThread>,
+    /// GitLab only: where new line comments are placed.
+    pub diff_refs: Option<DiffRefs>,
 }
 
 /// The verdict of a review the user submits.
@@ -327,6 +407,38 @@ mod tests {
             review_decision(&[r("a", Approved)], 1),
             ReviewDecision::ReviewRequired
         );
+    }
+
+    #[test]
+    fn threads_sit_on_their_side_of_the_diff() {
+        let t = |side, line| ReviewThread {
+            id: "1".into(),
+            path: "a.rs".into(),
+            line,
+            side,
+            resolved: false,
+            comments: Vec::new(),
+        };
+        let right = t(DiffSide::Right, Some(7));
+        assert!(right.is_on("a.rs", Some(5), Some(7)), "unchanged line");
+        assert!(right.is_on("a.rs", None, Some(7)), "added line");
+        assert!(!right.is_on("b.rs", None, Some(7)));
+        let left = t(DiffSide::Left, Some(5));
+        assert!(left.is_on("a.rs", Some(5), None), "removed line");
+        assert!(!left.is_on("a.rs", Some(5), Some(9)));
+        assert!(
+            !t(DiffSide::Right, None).is_on("a.rs", None, None),
+            "outdated"
+        );
+
+        let c = |old, new| NewLineComment {
+            old_line: old,
+            new_line: new,
+            ..NewLineComment::default()
+        };
+        assert_eq!(c(Some(5), Some(7)).anchor(), Some((DiffSide::Right, 7)));
+        assert_eq!(c(Some(5), None).anchor(), Some((DiffSide::Left, 5)));
+        assert_eq!(c(None, None).anchor(), None);
     }
 
     #[test]

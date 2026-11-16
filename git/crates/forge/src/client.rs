@@ -2,7 +2,9 @@
 
 use crate::api::Api;
 use crate::error::ForgeResult;
-use crate::model::{MergeMethod, NewPullRequest, PrDetail, PrFilter, PullRequest, ReviewEvent};
+use crate::model::{
+    MergeMethod, NewLineComment, NewPullRequest, PrDetail, PrFilter, PullRequest, ReviewEvent,
+};
 use crate::remote::ForgeRepo;
 use crate::{github::GitHub, gitlab::GitLab};
 use async_trait::async_trait;
@@ -39,6 +41,12 @@ pub trait Forge: Send + Sync {
 
     async fn review(&self, number: u64, event: ReviewEvent, body: &str) -> ForgeResult<()>;
 
+    /// Starts a thread on a diff line of `pr` (its detail, as loaded).
+    async fn line_comment(&self, pr: &PrDetail, comment: &NewLineComment) -> ForgeResult<()>;
+
+    /// Replies in the review thread `thread` (a [`crate::ReviewThread::id`]).
+    async fn reply(&self, number: u64, thread: &str, body: &str) -> ForgeResult<()>;
+
     /// Merges with `method`, only if the head is still `head_sha`.
     async fn merge(&self, number: u64, method: MergeMethod, head_sha: &str) -> ForgeResult<()>;
 }
@@ -63,6 +71,17 @@ pub(crate) fn check_review_body(event: ReviewEvent, body: &str) -> ForgeResult<(
                 _ => "comment",
             }
         )));
+    }
+    Ok(())
+}
+
+/// A line comment needs text and a line.
+pub(crate) fn check_line_comment(c: &NewLineComment) -> ForgeResult<()> {
+    check_review_body(ReviewEvent::Comment, &c.body)?;
+    if c.path.is_empty() || c.anchor().is_none() {
+        return Err(crate::ForgeError::Invalid(
+            "Choose a line to comment on.".into(),
+        ));
     }
     Ok(())
 }

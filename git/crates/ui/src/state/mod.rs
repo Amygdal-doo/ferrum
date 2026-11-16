@@ -4,8 +4,8 @@
 mod types;
 
 pub use types::{
-    Busy, Dialog, DiffView, FileTab, FileView, Load, Notice, Page, PrTab, PromptKind, RepoView,
-    SearchHits, Selection,
+    Busy, ConflictView, Dialog, DiffView, FileTab, FileView, Load, Notice, Page, PrTab, PromptKind,
+    RepoView, SearchHits, Selection,
 };
 
 use ferrumgit_application::DEFAULT_LOG_LIMIT;

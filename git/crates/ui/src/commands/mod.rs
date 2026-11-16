@@ -2,6 +2,8 @@
 //! services runtime via `AppServices::spawn` and only touches UI state on the
 //! GPUI foreground thread.
 
+pub mod ai;
+pub mod conflicts;
 pub mod history;
 pub mod host;
 pub mod profiles;

@@ -13,8 +13,16 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
+/// AI drafts of the commit message.
+mod ai;
+/// Bisect from the commit menu.
+mod bisect;
+/// The three-way conflict view.
+mod conflicts;
 /// The stand-alone app's file editor.
 mod editor;
+/// The interactive rebase dialog.
+mod rebase;
 
 /// A host app's pane: the view plus the events it received.
 pub(crate) struct Host {

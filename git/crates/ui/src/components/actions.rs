@@ -4,7 +4,7 @@
 use crate::app::GitView;
 use crate::components::menu::MenuItem;
 use crate::state::{Dialog, PromptKind};
-use ferrumgit_domain::{GitRef, Oid, RefKind, RepoOp};
+use ferrumgit_domain::{BisectMark, GitRef, Oid, RefKind, RepoOp};
 use gpui::{Context, Window};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,6 +27,17 @@ pub enum Action {
     DeleteRemoteTag(String),
     TagAt(String),
     CherryPick(Oid),
+    /// Rewrite the commits after this one (`rebase -i`).
+    InteractiveRebase(Oid),
+    /// Start bisecting with this commit good (`true`) or bad, HEAD the other.
+    BisectStart(Oid, bool),
+    BisectMark(BisectMark, Oid),
+    /// The model AI drafts use (`provider/model`).
+    SetAiModel {
+        key: String,
+        label: String,
+        selected: bool,
+    },
     Revert(Oid),
     Reset(Oid),
     StashApply(usize),
@@ -62,11 +73,31 @@ impl Action {
             Self::DeleteRemoteTag(_) => MenuItem::new("Delete tag from origin…").danger(),
             Self::TagAt(_) => MenuItem::new("Create tag here…"),
             Self::CherryPick(_) => MenuItem::new("Cherry-pick onto current branch").sep(),
+            Self::InteractiveRebase(_) => MenuItem::new("Interactive rebase onto this commit…"),
+            Self::BisectStart(_, true) => {
+                MenuItem::new("Bisect: this commit is good, HEAD is bad").sep()
+            }
+            Self::BisectStart(_, false) => MenuItem::new("Bisect: start with this commit bad"),
+            Self::BisectMark(mark, _) => {
+                let item = MenuItem::new(format!("Bisect: mark this commit {}", mark.command()));
+                if *mark == BisectMark::Good {
+                    item.sep()
+                } else {
+                    item
+                }
+            }
             Self::Revert(_) => MenuItem::new("Revert commit…"),
             Self::Reset(_) => MenuItem::new("Reset current branch to here…").danger(),
             Self::StashApply(_) => MenuItem::new("Apply stash"),
             Self::StashPop(_) => MenuItem::new("Pop stash"),
             Self::StashDrop(_) => MenuItem::new("Drop stash…").danger().sep(),
+            Self::SetAiModel {
+                label, selected, ..
+            } => MenuItem::new(if *selected {
+                format!("✓ {label}")
+            } else {
+                label.clone()
+            }),
             Self::FetchRemote(r) => MenuItem::new(format!("Fetch {r}")),
             Self::RemoveRemote(r) => MenuItem::new(format!("Remove remote {r}…")).danger().sep(),
             Self::Copy(_) => MenuItem::new("Copy name").sep(),
@@ -130,18 +161,30 @@ pub fn for_ref(r: &GitRef, refs: &[GitRef]) -> Vec<Action> {
     }
 }
 
-/// Menu for a commit row in the graph.
+/// Menu for a commit row in the graph (bisect entries depend on whether a
+/// bisect session is running).
 #[must_use]
-pub fn for_commit(oid: &Oid) -> Vec<Action> {
-    vec![
+pub fn for_commit(oid: &Oid, bisecting: bool) -> Vec<Action> {
+    let mut items = vec![
         Action::CheckoutCommit(oid.clone()),
         Action::BranchFrom(oid.0.clone()),
         Action::TagAt(oid.0.clone()),
         Action::CherryPick(oid.clone()),
+        Action::InteractiveRebase(oid.clone()),
         Action::Revert(oid.clone()),
         Action::Reset(oid.clone()),
-        Action::Copy(oid.0.clone()),
-    ]
+    ];
+    if bisecting {
+        items.extend(
+            [BisectMark::Good, BisectMark::Bad, BisectMark::Skip]
+                .map(|m| Action::BisectMark(m, oid.clone())),
+        );
+    } else {
+        items.push(Action::BisectStart(oid.clone(), true));
+        items.push(Action::BisectStart(oid.clone(), false));
+    }
+    items.push(Action::Copy(oid.0.clone()));
+    items
 }
 
 fn confirm(title: String, body: String, confirm: &str, op: RepoOp) -> Dialog {
@@ -272,6 +315,25 @@ impl GitView {
                 initial: String::new(),
             },
             Action::CherryPick(oid) => return self.op(id, RepoOp::CherryPick(oid), cx),
+            Action::InteractiveRebase(oid) => {
+                return self.open_interactive_rebase(oid, window, cx);
+            }
+            Action::BisectStart(oid, good) => {
+                let head = self
+                    .state
+                    .view(id)
+                    .data
+                    .and_then(|d| d.snapshot.status.branch.oid.clone());
+                let (bad, good) = if good {
+                    (head, Some(oid))
+                } else {
+                    (Some(oid), None)
+                };
+                return self.op(id, RepoOp::BisectStart { bad, good }, cx);
+            }
+            Action::BisectMark(mark, oid) => {
+                return self.op(id, RepoOp::BisectMark { mark, rev: Some(oid) }, cx);
+            }
             Action::Revert(oid) => Dialog::Confirm {
                 title: "Revert commit?".into(),
                 body: format!("Creates a new commit that undoes {}.", oid.short()),
@@ -294,6 +356,10 @@ impl GitView {
                 "Drop",
                 RepoOp::StashDrop(i),
             ),
+            Action::SetAiModel { key, label, .. } => {
+                self.ai_model = Some(key);
+                return self.notify(format!("Drafts use {label}"), false, cx);
+            }
             Action::FetchRemote(r) => {
                 return self.op(
                     id,

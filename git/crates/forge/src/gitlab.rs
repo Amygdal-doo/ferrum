@@ -5,12 +5,14 @@
 //! (if any) and posts the text as a comment marked as requesting changes.
 
 use crate::api::{Api, encode};
-use crate::client::{Forge, PrList, STATUS_LOOKUPS, check_new, check_review_body};
+use crate::client::{
+    Forge, PrList, STATUS_LOOKUPS, check_line_comment, check_new, check_review_body,
+};
 use crate::error::{ForgeError, ForgeResult};
 use crate::model::{
-    Check, CheckState, MergeMethod, NewPullRequest, PrCommit, PrDetail, PrFilter, PrState,
-    PullRequest, ReviewDecision, ReviewEvent, TimelineItem, TimelineKind, aggregate_checks,
-    sort_by_updated,
+    Check, CheckState, DiffRefs, DiffSide, MergeMethod, NewLineComment, NewPullRequest, PrCommit,
+    PrDetail, PrFilter, PrState, PullRequest, ReviewDecision, ReviewEvent, ReviewThread,
+    ThreadComment, TimelineItem, TimelineKind, aggregate_checks, sort_by_updated,
 };
 use crate::remote::ForgeRepo;
 use crate::transport::Method;
@@ -128,13 +130,15 @@ impl Forge for GitLab {
 
     async fn detail(&self, iid: u64) -> ForgeResult<PrDetail> {
         let mr_path = self.mr(iid);
-        let (mr, commits, notes, approvals, project) = futures::try_join!(
+        let (mr, commits, notes, discussions, approvals, project) = futures::try_join!(
             self.api.get::<Mr>(&mr_path),
             self.api
                 .get::<Vec<CommitItem>>(format!("{mr_path}/commits?per_page=100")),
             self.api.get::<Vec<Note>>(format!(
                 "{mr_path}/notes?sort=asc&order_by=created_at&per_page=100"
             )),
+            self.api
+                .get::<Vec<Discussion>>(format!("{mr_path}/discussions?per_page=100")),
             self.approvals(iid),
             self.api.get::<Project>(self.project()),
         )?;
@@ -161,6 +165,7 @@ impl Forge for GitLab {
         let pipeline = mr.head_pipeline.as_ref().map(|p| pipeline_state(&p.status));
         let review = decision(&mr, &approvals);
         let body = mr.description.clone().unwrap_or_default();
+        let diff_refs = mr.diff_refs.clone();
         let mut pr = PullRequest::from(mr);
         pr.review = review;
         pr.checks = if checks.is_empty() {
@@ -196,6 +201,15 @@ impl Forge for GitLab {
             timeline,
             mergeable,
             merge_methods: project.methods(),
+            threads: discussions
+                .into_iter()
+                .filter_map(Discussion::thread)
+                .collect(),
+            diff_refs: diff_refs.map(|r| DiffRefs {
+                base_sha: r.base_sha,
+                start_sha: r.start_sha,
+                head_sha: r.head_sha,
+            }),
         })
     }
 
@@ -263,6 +277,48 @@ impl Forge for GitLab {
             }
             ReviewEvent::Comment => self.note(iid, body).await,
         }
+    }
+
+    async fn line_comment(&self, pr: &PrDetail, comment: &NewLineComment) -> ForgeResult<()> {
+        check_line_comment(comment)?;
+        let Some(refs) = &pr.diff_refs else {
+            return Err(ForgeError::Invalid(
+                "GitLab did not report the merge request's diff version; reload it and try again."
+                    .into(),
+            ));
+        };
+        let mut position = json!({
+            "position_type": "text",
+            "base_sha": refs.base_sha,
+            "start_sha": refs.start_sha,
+            "head_sha": refs.head_sha,
+            "old_path": comment.path,
+            "new_path": comment.path,
+        });
+        if let Some(n) = comment.new_line {
+            position["new_line"] = json!(n);
+        }
+        if let Some(o) = comment.old_line {
+            position["old_line"] = json!(o);
+        }
+        self.api
+            .send_unit(
+                Method::Post,
+                &format!("{}/discussions", self.mr(pr.pr.number)),
+                json!({ "body": comment.body, "position": position }),
+            )
+            .await
+    }
+
+    async fn reply(&self, iid: u64, thread: &str, body: &str) -> ForgeResult<()> {
+        check_review_body(ReviewEvent::Comment, body)?;
+        self.api
+            .send_unit(
+                Method::Post,
+                &format!("{}/discussions/{}/notes", self.mr(iid), encode(thread)),
+                json!({ "body": body }),
+            )
+            .await
     }
 
     async fn merge(&self, iid: u64, method: MergeMethod, head_sha: &str) -> ForgeResult<()> {
@@ -339,6 +395,15 @@ struct Mr {
     detailed_merge_status: String,
     has_conflicts: bool,
     head_pipeline: Option<Pipeline>,
+    diff_refs: Option<WireDiffRefs>,
+}
+
+#[derive(Debug, Deserialize, Default, Clone)]
+#[serde(default)]
+struct WireDiffRefs {
+    base_sha: String,
+    start_sha: String,
+    head_sha: String,
 }
 
 impl From<Mr> for PullRequest {
@@ -394,7 +459,7 @@ impl From<CommitItem> for PrCommit {
     }
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 #[serde(default)]
 struct Position {
     new_path: Option<String>,
@@ -406,6 +471,7 @@ struct Position {
 #[derive(Debug, Deserialize, Default)]
 #[serde(default)]
 struct Note {
+    id: u64,
     body: String,
     author: User,
     created_at: String,
@@ -413,6 +479,48 @@ struct Note {
     #[serde(rename = "type")]
     kind: Option<String>,
     position: Option<Position>,
+    resolved: bool,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(default)]
+struct Discussion {
+    id: String,
+    notes: Vec<Note>,
+}
+
+impl Discussion {
+    /// A thread when it is a line comment (its first note is a diff note).
+    fn thread(self) -> Option<ReviewThread> {
+        let first = self.notes.first()?;
+        if first.kind.as_deref() != Some("DiffNote") {
+            return None;
+        }
+        let pos = first.position.clone().unwrap_or_default();
+        let (side, line) = match (pos.new_line, pos.old_line) {
+            (Some(n), _) => (DiffSide::Right, Some(n)),
+            (None, Some(o)) => (DiffSide::Left, Some(o)),
+            (None, None) => (DiffSide::Right, None),
+        };
+        Some(ReviewThread {
+            path: pos.new_path.or(pos.old_path).unwrap_or_default(),
+            line,
+            side,
+            resolved: self.notes.iter().all(|n| n.resolved),
+            comments: self
+                .notes
+                .into_iter()
+                .filter(|n| !n.system)
+                .map(|n| ThreadComment {
+                    id: n.id.to_string(),
+                    author: n.author.username,
+                    created_at: n.created_at,
+                    body: n.body,
+                })
+                .collect(),
+            id: self.id,
+        })
+    }
 }
 
 #[derive(Debug, Deserialize, Default)]

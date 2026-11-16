@@ -2,7 +2,9 @@
 //! each into one or more git invocations, using the repo's profile for
 //! identity and SSH.
 
+use crate::bisect::BisectMark;
 use crate::commit::Oid;
+use crate::rebase::RebasePlan;
 use crate::undo::Undo;
 use serde::{Deserialize, Serialize};
 
@@ -101,6 +103,9 @@ pub enum RepoOp {
     Rebase {
         onto: String,
     },
+    /// Rewrites `base..HEAD` as planned (git's own `rebase -i` with a
+    /// generated todo list).
+    InteractiveRebase(RebasePlan),
     // Commits
     CherryPick(Oid),
     Revert(Oid),
@@ -110,9 +115,29 @@ pub enum RepoOp {
     },
     // Multi-step operations
     Continue,
+    /// Skips the commit a rebase / cherry-pick / revert stopped at.
+    Skip,
     Abort,
     TakeOurs(Vec<String>),
     TakeTheirs(Vec<String>),
+    /// Writes the resolved `content` to a conflicted file and stages it.
+    Resolve {
+        path: String,
+        content: String,
+    },
+    // Bisect
+    /// Starts bisecting, optionally marking a bad and a good commit right away.
+    BisectStart {
+        bad: Option<Oid>,
+        good: Option<Oid>,
+    },
+    /// Marks `rev` (default: the checked-out commit).
+    BisectMark {
+        mark: BisectMark,
+        rev: Option<Oid>,
+    },
+    /// Ends bisecting and checks out where it started.
+    BisectReset,
     // Tags
     CreateTag {
         name: String,
@@ -191,13 +216,19 @@ impl RepoOp {
             Self::SetUpstream { upstream, .. } => format!("Tracking {upstream}"),
             Self::Merge { branch, .. } => format!("Merging {branch}"),
             Self::Rebase { onto } => format!("Rebasing onto {onto}"),
+            Self::InteractiveRebase(plan) => format!("Rebasing onto {}", plan.base.short()),
             Self::CherryPick(o) => format!("Cherry-picking {}", o.short()),
             Self::Revert(o) => format!("Reverting {}", o.short()),
             Self::Reset { target, .. } => format!("Resetting to {}", short_target(target)),
             Self::Continue => "Continuing".into(),
+            Self::Skip => "Skipping commit".into(),
             Self::Abort => "Aborting".into(),
             Self::TakeOurs(_) => "Taking ours".into(),
             Self::TakeTheirs(_) => "Taking theirs".into(),
+            Self::Resolve { path, .. } => format!("Resolving {path}"),
+            Self::BisectStart { .. } => "Starting bisect".into(),
+            Self::BisectMark { mark, .. } => format!("Marking {}", mark.label().to_lowercase()),
+            Self::BisectReset => "Ending bisect".into(),
             Self::CreateTag { name, .. } => format!("Creating tag {name}"),
             Self::DeleteTag(t) => format!("Deleting tag {t}"),
             Self::PushTag { tag, .. } => format!("Pushing tag {tag}"),

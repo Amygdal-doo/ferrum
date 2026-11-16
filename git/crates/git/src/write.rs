@@ -156,6 +156,13 @@ impl Repo {
                 check_rev(onto)?;
                 self.run(self.cmd(["rebase", onto])).await?
             }
+            RepoOp::InteractiveRebase(plan) => {
+                let out = self.interactive_rebase(plan, ctx.identity).await?;
+                if let Some(stop) = self.rebase_stop() {
+                    return Ok(Some(stop));
+                }
+                out
+            }
             RepoOp::CherryPick(oid) => {
                 let mut c = self.cmd(["cherry-pick"]);
                 if self.is_merge_commit(oid).await? {
@@ -189,7 +196,33 @@ impl Repo {
                 };
                 let mut c = self.cmd(args.iter().copied());
                 c = c.identity(ctx.identity);
-                self.run(c).await?
+                let out = self.run(c).await?;
+                self.clear_rebase_scratch();
+                if let Some(stop) = self.rebase_stop() {
+                    return Ok(Some(stop));
+                }
+                out
+            }
+            RepoOp::Skip => {
+                let sub = match self.operation() {
+                    Some(RepoOperation::Rebase) => "rebase",
+                    Some(RepoOperation::CherryPick) => "cherry-pick",
+                    Some(RepoOperation::Revert) => "revert",
+                    Some(RepoOperation::Merge) => {
+                        return Err(GitError::Invalid(
+                            "a merge has no commit to skip; abort it instead".into(),
+                        ));
+                    }
+                    None => return Err(GitError::Invalid("nothing to skip".into())),
+                };
+                let out = self
+                    .run(self.cmd([sub, "--skip"]).identity(ctx.identity))
+                    .await?;
+                self.clear_rebase_scratch();
+                if let Some(stop) = self.rebase_stop() {
+                    return Ok(Some(stop));
+                }
+                out
             }
             RepoOp::Abort => {
                 let Some(op) = self.operation() else {
@@ -201,7 +234,9 @@ impl Repo {
                     RepoOperation::CherryPick => "cherry-pick",
                     RepoOperation::Revert => "revert",
                 };
-                self.run(self.cmd([sub, "--abort"])).await?
+                let out = self.run(self.cmd([sub, "--abort"])).await?;
+                self.clear_rebase_scratch();
+                out
             }
             RepoOp::TakeOurs(paths) | RepoOp::TakeTheirs(paths) => {
                 let side = if matches!(op, RepoOp::TakeOurs(_)) {
@@ -213,6 +248,12 @@ impl Repo {
                     .await?;
                 self.run(paths_cmd(self, &["add"], paths)?).await?
             }
+            RepoOp::Resolve { path, content } => self.resolve(path, content).await?,
+            RepoOp::BisectStart { bad, good } => {
+                return self.bisect_start(bad.as_ref(), good.as_ref()).await;
+            }
+            RepoOp::BisectMark { mark, rev } => return self.bisect_mark(*mark, rev.as_ref()).await,
+            RepoOp::BisectReset => return self.bisect_reset().await,
             RepoOp::CreateTag {
                 name,
                 target,
@@ -366,6 +407,20 @@ impl Repo {
             RepoOp::Undo(undo) => self.undo(undo).await?,
         };
         Ok(out.summary())
+    }
+
+    /// "Stopped at …" when a rebase paused at an `edit` line.
+    fn rebase_stop(&self) -> Option<String> {
+        let progress = self.rebase_progress().filter(|p| p.editing)?;
+        let at = progress
+            .current
+            .as_deref()
+            .and_then(|l| l.split_whitespace().nth(1))
+            .map(|oid| oid.get(..7).unwrap_or(oid).to_owned())
+            .unwrap_or_default();
+        Some(format!(
+            "Stopped at {at} to edit: amend it, then Continue the rebase"
+        ))
     }
 
     /// Discards working-tree changes; deletes untracked files among `paths`.

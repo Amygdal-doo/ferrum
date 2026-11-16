@@ -1,6 +1,8 @@
 //! Working tree / index status.
 
+use crate::bisect::BisectState;
 use crate::commit::Oid;
+use crate::rebase::RebaseProgress;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum ChangeKind {
@@ -100,6 +102,10 @@ pub struct WorkingStatus {
     pub branch: BranchInfo,
     pub files: Vec<FileStatus>,
     pub operation: Option<RepoOperation>,
+    /// Where an interactive (or plain) rebase in progress has stopped.
+    pub rebase: Option<RebaseProgress>,
+    /// A `git bisect` session in progress.
+    pub bisect: Option<BisectState>,
 }
 
 impl WorkingStatus {
