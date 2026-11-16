@@ -171,6 +171,7 @@ pub fn page(site_url: &str, meta: &PageMeta, main: Markup) -> Markup {
                 // Runs before first paint to apply the saved theme (no flash).
                 script src=(assets::url("js/theme-init.js")) {}
                 script src=(assets::url("js/site.js")) defer {}
+                script src=(assets::url("js/filings.js")) defer {}
                 @if !meta.noindex && !meta.trail.is_empty() {
                     (seo::script(&seo::breadcrumb_list(site_url, &meta.trail)))
                 }

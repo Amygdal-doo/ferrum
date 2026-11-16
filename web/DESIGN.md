@@ -25,7 +25,7 @@ The system has two halves:
 | Type scale | `--fs-xs` 12 · `--fs-sm` 14 · `--fs-base` 17 · `--fs-lg` 19 · `--fs-xl` 24 · `--fs-2xl` (h2) · `--fs-3xl` (h1) · `--fs-hero` | Display sizes are fluid. `--measure` is 68ch for reading. |
 | Space | `--sp-1` … `--sp-32` on a 4px grid | Sections use `--sp-24`; `--tight` uses `--sp-12`. |
 | Shape | `--radius-xs` 2 (keys) < `--radius-sm` 3 < `--radius` 6 (buttons, cards) < `--radius-lg` 12 (app windows); `--rule`, `--rule-strong` | Radius grows with the size of the thing. |
-| Motion | `--ease`, `--dur-fast`, `--dur`, `--dur-slow` | Motion responds to an action. The home orbit is the one ambient motion; there is no entrance animation. `prefers-reduced-motion` turns all motion off (`base.css`). |
+| Motion | `--ease`, `--dur-fast`, `--dur`, `--dur-slow` | Motion responds to an action. The home hero has the one entrance (the headline cooling) and the filings, which follow the pointer and draw one still frame under reduced motion. `prefers-reduced-motion` turns all motion off (`base.css`). |
 | Layout | `--container` 1240, `--container-narrow`, `--gutter`, `--header-h`, `--z-header`, `--z-skip` | |
 
 ## Components (`src/components/`)
@@ -66,14 +66,14 @@ Page-level CSS: `pages.css` (home, `/apps`, product pages, about, 404, download)
 ## Home and `/apps`
 
 - Home (`pages/home.rs`, `pages/home_readme.rs`), top to bottom:
-  1. Hero: one calm sentence (sans, not display), Download for macOS and View
-     source, then the orbit: every app's logo circling an ellipse (CSS
-     `offset-path`, 90s a turn, held on hover or focus) around a window that
-     crossfades through four real screenshots, so no one app leads. Then a
-     platform note.
+  1. Hero: the iron-filings field (`js/filings.js`, a canvas behind the copy):
+     filings line up with a magnet under the pointer and heat to the temper
+     colours (`--filing`, `--heat-1..4`) near it; idle, the magnet drifts.
+     The headline "Your daily tools, rebuilt in Rust." rises hot and cools;
+     a lead, Download for macOS and View source, and a platform note.
   2. Works with: the coding agents and model providers, as their own logos
      (`ai_logo::strips`).
-  3. Showcases for FerrumEngineer, FerrumGIT and FerrumTerm: the app, a two-tone
+  3. Showcases for FerrumEngineer, FerrumGIT, FerrumTerm and FerrumIDE: the app, a two-tone
      sentence (claim, then a muted explanation) and its stage; sides alternate.
   Stages (`.stage`) are the page's bold element: a real screenshot from the
   release build (`assets/img/shots/<app>-{dark,light}.webp`, demo project, no

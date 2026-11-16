@@ -41,6 +41,12 @@
   --ink-mix: 100%;
   --glow: 0 0 0 1px color-mix(in srgb, var(--straw) 40%, transparent), 0 10px 40px -14px color-mix(in srgb, var(--straw) 55%, transparent);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 18px 40px -22px rgba(0, 0, 0, 0.75);
+  /* Iron-filings canvas (js/filings.js): weak field to strong. */
+  --filing: #4b6079;
+  --heat-1: var(--blue);
+  --heat-2: var(--violet);
+  --heat-3: var(--bronze);
+  --heat-4: var(--straw);
   /* Stages behind the home screenshots: iron cooling from a forge glow.
      --stage-tint is the app accent a stage mixes in. */
   --stage-base: #15100d;
@@ -86,6 +92,11 @@
   --syn-prompt: #3d7a22;
   --glow: 0 10px 30px -16px rgba(13, 21, 32, 0.45);
   --shadow: 0 1px 2px rgba(13, 21, 32, 0.08), 0 18px 40px -24px rgba(13, 21, 32, 0.3);
+  --filing: #a9b8c8;
+  --heat-1: #2f5fbf;
+  --heat-2: #6a40b5;
+  --heat-3: #b0612a;
+  --heat-4: #a87a12;
   --stage-base: #d9e1e8;
   --stage-ember: #f0a868;
   --stage-heat: #f7dfa8;

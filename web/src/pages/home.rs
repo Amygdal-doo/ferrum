@@ -1,7 +1,6 @@
-//! Home page, top to bottom: a short hero over every app's logo circling a
-//! window of real screenshots, the agents Ferrum works with, screenshot
-//! sections for FerrumEngineer, FerrumGIT and FerrumTerm (alternating
-//! sides), the other apps and tools, shell commands, a README
+//! Home page, top to bottom: the iron-filings hero (js/filings.js), the
+//! agents Ferrum works with, screenshot sections for FerrumEngineer,
+//! FerrumGIT, FerrumTerm and FerrumIDE (alternating sides), the other apps and tools, shell commands, a README
 //! with an anchor index (`home_readme`) and a closing download.
 //!
 //! The screenshots (`assets/img/shots/<shot>-{dark,light}.webp`) are taken
@@ -25,7 +24,7 @@ const DESCRIPTION: &str = "Open-source native developer tools in Rust: a code ed
      client, terminal, API client, database IDE and more for macOS and Linux, installed by one \
      free launcher.";
 
-const HEADLINE: &str = "Ferrum is a set of native developer tools, open source and built in Rust.";
+const HEADLINE: [&str; 2] = ["Your daily tools,", "rebuilt in Rust."];
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(None, DESCRIPTION, "/", "page-home")
@@ -58,84 +57,38 @@ fn source_button(label: &str) -> Markup {
 }
 
 /// A screenshot in both themes, at its pixel size (2000 wide) for layout.
-fn shot(name: &str, height: u32, alt: &str, eager: bool) -> Markup {
-    let loading = if eager { "eager" } else { "lazy" };
+fn shot(name: &str, height: u32, alt: &str) -> Markup {
     html! {
         @for theme in ["dark", "light"] {
             img class={ "shot shot--" (theme) } src=(assets::url(&format!("img/shots/{name}-{theme}.webp")))
-                alt=(alt) width="2000" height=(height) loading=(loading) decoding="async";
+                alt=(alt) width="2000" height=(height) loading="lazy" decoding="async";
         }
     }
 }
 
 fn hero() -> Markup {
+    // The canvas is the iron-filings field drawn by js/filings.js.
     html! {
         section class="hero" aria-labelledby="hero-title" {
-            div class="container" {
-                h1 class="hero__title" id="hero-title" { (HEADLINE) }
+            canvas class="hero__field" data-filings aria-hidden="true" {}
+            div class="container hero__inner" {
+                h1 class="hero__title" id="hero-title" {
+                    span class="hero__line" { (HEADLINE[0]) }
+                    " "
+                    span class="hero__line" { (HEADLINE[1]) }
+                }
+                p class="hero__lead" {
+                    "A code editor, agent workspace, Git client, terminal, API client, database \
+                     IDE and more, drawn on the GPU with no browser underneath. One launcher \
+                     installs and updates them. All of it is open source."
+                }
                 div class="hero__ctas" {
                     (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
                     (source_button("View source"))
                 }
-                (orbit())
                 p class="hero__note" {
                     "Free for macOS (Apple Silicon and Intel) and Linux, signed and notarized. "
                     a href=(site::DOWNLOAD_PATH) { "All downloads" }
-                }
-            }
-        }
-    }
-}
-
-/// The hero's screenshots, shown in turn: (shot, height, app, alt).
-const HERO_SHOTS: [(&str, u32, Product, &str); 4] = [
-    (
-        "ide",
-        1281,
-        products::FERRUMIDE,
-        "FerrumIDE with a TypeScript file open",
-    ),
-    (
-        "eng",
-        1179,
-        products::FERRUMENGINEER,
-        "FerrumEngineer: tasks and project files beside an agent thread",
-    ),
-    (
-        "git",
-        1250,
-        products::FERRUMGIT,
-        "FerrumGIT: a repository's history with a commit and its diff",
-    ),
-    (
-        "term",
-        1272,
-        products::FERRUMTERM,
-        "FerrumTerm: sessions by project, git log and passing tests side by side",
-    ),
-];
-
-/// Every app's logo circling an ellipse around a window that shows four of
-/// them in turn. No app leads: each logo links to its page.
-fn orbit() -> Markup {
-    let apps: Vec<_> = products::apps().collect();
-    let count = apps.len();
-    html! {
-        div class="stage stage--hero orbit" {
-            div class="orbit__window" {
-                @for (i, (name, height, app, alt)) in HERO_SHOTS.iter().enumerate() {
-                    div class="orbit__shot" style=(format!("--n: {i}; {}", app.accent_style())) {
-                        (shot(name, *height, alt, i == 0))
-                    }
-                }
-            }
-            ul class="orbit__ring" aria-label="Every Ferrum app" {
-                @for (i, p) in apps.iter().enumerate() {
-                    li class="orbit__item" style=(format!("--at: {}%", i * 100 / count)) {
-                        a href=(p.path()) title=(p.name) {
-                            img src=(assets::url(&p.logo_asset())) alt=(p.name) width="56" height="56";
-                        }
-                    }
                 }
             }
         }
@@ -185,7 +138,7 @@ struct Show {
     alt: &'static str,
 }
 
-const SHOWCASE: [Show; 3] = [
+const SHOWCASE: [Show; 4] = [
     Show {
         product: products::FERRUMENGINEER,
         title: "Agents do the work, you review it.",
@@ -213,6 +166,15 @@ const SHOWCASE: [Show; 3] = [
         height: 1272,
         alt: "FerrumTerm: sessions grouped by project, git log and passing tests side by side",
     },
+    Show {
+        product: products::FERRUMIDE,
+        title: "An editor that opens instantly.",
+        rest: "Written from scratch in Rust and drawn on the GPU, with language servers, Git, an \
+               agent and terminals beside your code.",
+        shot: "ide",
+        height: 1281,
+        alt: "FerrumIDE with a TypeScript file open, the project's files on the left",
+    },
 ];
 
 fn showcase(show: &Show, flip: bool) -> Markup {
@@ -231,7 +193,7 @@ fn showcase(show: &Show, flip: bool) -> Markup {
                     p class="showcase__rest" { (show.rest) }
                     a class="showcase__more" href=(p.path()) { "More about " (p.name) }
                 }
-                div class={ "stage stage--" (show.shot) } { (shot(show.shot, show.height, show.alt, false)) }
+                div class={ "stage stage--" (show.shot) } { (shot(show.shot, show.height, show.alt)) }
             }
         }
     }
@@ -325,7 +287,7 @@ fn closing() -> Markup {
             div class="container cta__inner closing__inner" {
                 div class="cta__copy" {
                     h2 class="cta__title closing__title" id="closing-title" {
-                        "Your daily tools, rebuilt in Rust."
+                        (HEADLINE[0]) " " (HEADLINE[1])
                     }
                     p {
                         "Free, open source, and one download away. Or paste this in Terminal on a \
@@ -351,23 +313,19 @@ mod tests {
     }
 
     #[test]
-    fn hero_has_one_headline_downloads_the_source_and_a_screenshot() {
+    fn hero_has_one_headline_the_filings_downloads_and_the_source() {
         let html = rendered();
         assert_eq!(html.matches("<h1").count(), 1);
-        assert!(html.contains(HEADLINE));
+        assert!(html.contains("data-filings"));
         assert!(html.contains(site::MACOS_DOWNLOAD_PATH));
         assert!(html.contains(&format!(r#"href="{}""#, site::SOURCE_REPO_URL)));
-        assert!(html.contains("img/shots/ide-dark.webp"));
-        assert!(html.contains("img/shots/ide-light.webp"));
         assert!(html.contains(r#""@type":"Organization""#));
         assert!(html.contains(r#""@type":"WebSite""#));
     }
 
     #[test]
     fn every_screenshot_is_an_asset_of_the_stated_size() {
-        let mut shots: Vec<_> = HERO_SHOTS.iter().map(|(n, h, ..)| (*n, *h)).collect();
-        shots.extend(SHOWCASE.iter().map(|s| (s.shot, s.height)));
-        for (name, height) in shots {
+        for (name, height) in SHOWCASE.iter().map(|s| (s.shot, s.height)) {
             for theme in ["dark", "light"] {
                 let path = format!(
                     "{}/assets/img/shots/{name}-{theme}.webp",
@@ -383,21 +341,6 @@ mod tests {
                 assert_eq!(h, height, "{path}");
             }
         }
-    }
-
-    #[test]
-    fn every_app_circles_the_hero() {
-        let html = rendered();
-        let ring = &html[html.find("orbit__ring").expect("ring")..];
-        let ring = &ring[..ring.find("</ul>").expect("end")];
-        for p in products::apps() {
-            assert!(
-                ring.contains(&format!(r#"href="{}""#, p.path())),
-                "{}",
-                p.name
-            );
-        }
-        assert_eq!(ring.matches("<li").count(), products::apps().count());
     }
 
     #[test]
