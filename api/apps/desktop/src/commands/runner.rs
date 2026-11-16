@@ -4,7 +4,7 @@
 use crate::app::FerrumApi;
 use crate::state::Dialog;
 use crate::state::runner::RunnerState;
-use ferrumapi_application::{CancellationToken, plan_run};
+use ferrumapi_application::{CancellationToken, RunEvent, plan_run};
 use ferrumapi_domain::{CollectionId, ItemId, RequestOrigin};
 use gpui::Context;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -60,6 +60,9 @@ impl FerrumApi {
         cx.spawn(async move |this, cx| {
             while let Some(event) = rx.recv().await {
                 let update = this.update(cx, |this, cx| {
+                    if let RunEvent::Changes(_, changes) = &event {
+                        this.apply_script_changes(changes, cx);
+                    }
                     if let Some(runner) = this.state.runner.as_mut().filter(|r| r.run == run) {
                         runner.apply(event);
                         cx.notify();

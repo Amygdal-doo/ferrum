@@ -42,6 +42,10 @@ impl FerrumApi {
             RequestSection::Builder => {
                 ferrumapi_domain::protocol::odata::options(&r.specs.odata).len()
             }
+            RequestSection::Scripts => {
+                usize::from(!r.scripts.pre_request.trim().is_empty())
+                    + usize::from(!r.scripts.tests.trim().is_empty())
+            }
             _ => 0,
         };
         h_flex()
@@ -138,6 +142,7 @@ impl FerrumApi {
             }
             RequestSection::Body => self.render_body_editor(id, r.body, vars, window, cx),
             RequestSection::Settings => self.render_settings_editor(id, &r, window, cx),
+            RequestSection::Scripts => self.render_scripts_editor(id, &r.scripts, window, cx),
             RequestSection::Query
             | RequestSection::Variables
             | RequestSection::Envelope

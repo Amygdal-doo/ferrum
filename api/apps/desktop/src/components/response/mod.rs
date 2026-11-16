@@ -4,6 +4,7 @@ mod body_view;
 mod display;
 mod search_bar;
 mod tables;
+mod tests_view;
 mod websocket;
 
 pub use display::BodyDisplay;
@@ -111,8 +112,12 @@ impl FerrumApi {
         cx: &mut Context<Self>,
     ) -> AnyElement {
         let colors = cx.theme().colors().clone();
-        let current = self.state.response_view;
-        let views = [
+        let report = response.script.clone();
+        let current = match self.state.response_view {
+            ResponseView::Tests if report.is_none() => ResponseView::Body,
+            v => v,
+        };
+        let mut views = vec![
             (ResponseView::Body, "Body".to_owned()),
             (
                 ResponseView::Headers,
@@ -130,6 +135,14 @@ impl FerrumApi {
                 format!("Cookies ({})", response.cookies.len()),
             ),
         ];
+        if let Some(r) = &report {
+            let label = if r.tests.is_empty() && r.errors.is_empty() {
+                "Tests".to_owned()
+            } else {
+                format!("Tests ({}/{})", r.passed_count(), r.tests.len())
+            };
+            views.push((ResponseView::Tests, label));
+        }
         let copy_body = response.body_text();
         let save_bytes = response.body.clone();
         let save_name = files::response_file_name(&response);
@@ -164,6 +177,7 @@ impl FerrumApi {
                 tables::headers_table(rows, cx)
             }
             ResponseView::Cookies => tables::cookies_table(response.cookies, cx),
+            ResponseView::Tests => tests_view::tests_view(&report.unwrap_or_default(), cx),
         };
 
         v_flex()

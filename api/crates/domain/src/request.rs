@@ -136,6 +136,9 @@ pub struct HttpRequest {
     #[serde(skip_serializing_if = "crate::protocol::is_default")]
     /// Boxed: most requests are REST and the specs are large.
     pub specs: Box<ProtocolSpecs>,
+    /// Pre-request and test scripts (see [`crate::script`]).
+    #[serde(skip_serializing_if = "crate::script::Scripts::is_empty")]
+    pub scripts: crate::script::Scripts,
 }
 
 impl HttpRequest {

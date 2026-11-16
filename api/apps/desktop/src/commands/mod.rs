@@ -12,6 +12,7 @@ pub mod mock;
 pub mod projects;
 pub mod protocols;
 pub mod runner;
+pub mod scripts;
 pub mod send;
 pub mod webhook;
 pub mod websocket;

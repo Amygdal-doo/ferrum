@@ -11,6 +11,7 @@ mod oauth2;
 mod project_files;
 mod protocols;
 mod runner;
+pub mod scripts;
 pub mod secrets;
 mod send;
 mod transfer;

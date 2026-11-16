@@ -74,6 +74,7 @@ pub fn substitute(request: &HttpRequest, vars: &VariableSet) -> HttpRequest {
         auth,
         settings: request.settings,
         specs: Box::new(request.specs.map_text(request.kind, r)),
+        scripts: request.scripts.clone(),
     }
 }
 

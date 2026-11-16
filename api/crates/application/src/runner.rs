@@ -1,15 +1,18 @@
 //! Collection runner: sends every request of a collection or folder in tree
-//! order, one at a time, reporting progress as [`RunEvent`]s. A response
-//! with a 2xx status passes (there are no test scripts yet). Runs use the
-//! cookie jar but are not recorded in history.
+//! order, one at a time, reporting progress as [`RunEvent`]s. A request with
+//! a test script passes when all its tests pass; one without passes on a
+//! 2xx status. Variables set by scripts carry over to the later requests of
+//! the run. Runs use the cookie jar but are not recorded in history.
 
-use crate::AppServices;
 use crate::send::{Prepared, prepare};
+use crate::{AppServices, scripts};
+use ferrumapi_domain::script::VarScope;
 use ferrumapi_domain::{
     Collection, CollectionId, Environment, ExecError, HttpMethod, ItemId, RequestOrigin,
 };
 use ferrumapi_http::CancellationToken;
 use std::future::Future;
+use std::sync::PoisonError;
 use tokio::sync::mpsc::UnboundedSender;
 
 /// One request of a run.
@@ -24,11 +27,13 @@ pub struct RunItem {
 /// How one request of a run ended.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RunOutcome {
-    /// A response arrived; `passed` when its status is 2xx.
+    /// A response arrived; `passed` when its tests pass (2xx without tests).
     Response {
         status: u16,
         time_ms: u64,
         passed: bool,
+        /// `(passed, total)` tests, when the request has a test script.
+        checks: Option<(usize, usize)>,
     },
     /// No response (invalid URL, connection refused, timeout, …).
     Error(String),
@@ -46,6 +51,9 @@ pub enum RunEvent {
     /// Request `index` is being sent.
     Started(usize),
     Finished(usize, RunOutcome),
+    /// Request `index`'s scripts set or unset environment / global
+    /// variables (the UI saves them).
+    Changes(usize, Vec<ferrumapi_domain::script::VarChange>),
     /// The run ended; `stopped` when it was cancelled before the last request.
     Done {
         stopped: bool,
@@ -129,17 +137,50 @@ impl AppServices {
         events: UnboundedSender<RunEvent>,
     ) {
         tracing::info!(count = items.len(), "collection run started");
+        // Script changes so far, applied to every later request.
+        let carried = std::sync::Mutex::new(Vec::new());
         let exec = |index: usize| {
             let prepared = items.get(index).map(|item| item.prepared.clone());
             let cancel = cancel.clone();
+            let (carried, events) = (&carried, &events);
             async move {
-                let prepared = prepared?;
+                let mut prepared = prepared?;
+                {
+                    let carried = carried.lock().unwrap_or_else(PoisonError::into_inner);
+                    scripts::apply_changes(&mut prepared.variables, &carried);
+                }
+                let (prepared, pre) = scripts::pre_request(prepared);
+                let tests = prepared.request.scripts.tests.clone();
+                let mut vars = prepared.variables.clone();
                 match self.execute(prepared, cancel).await {
-                    Ok(r) => Some(RunOutcome::Response {
-                        status: r.status,
-                        time_ms: r.time_ms,
-                        passed: (200..300).contains(&r.status),
-                    }),
+                    Ok(mut r) => {
+                        scripts::finish(&mut r, pre, &tests, &mut vars);
+                        let report = r.script.unwrap_or_default();
+                        let saved: Vec<_> = report
+                            .changes
+                            .iter()
+                            .filter(|c| c.scope != VarScope::Run)
+                            .cloned()
+                            .collect();
+                        if !saved.is_empty() {
+                            let _ = events.send(RunEvent::Changes(index, saved));
+                        }
+                        carried
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .extend(report.changes.iter().cloned());
+                        let scripted = !tests.trim().is_empty() || !report.errors.is_empty();
+                        Some(RunOutcome::Response {
+                            status: r.status,
+                            time_ms: r.time_ms,
+                            passed: if scripted {
+                                report.passed()
+                            } else {
+                                (200..300).contains(&r.status)
+                            },
+                            checks: scripted.then(|| (report.passed_count(), report.tests.len())),
+                        })
+                    }
                     Err(ExecError::Cancelled) => None,
                     Err(e) => Some(RunOutcome::Error(e.to_string())),
                 }

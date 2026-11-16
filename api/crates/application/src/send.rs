@@ -77,9 +77,10 @@ pub fn code_snippet(target: CodeTarget, prepared: &Prepared) -> String {
 }
 
 impl AppServices {
-    /// Executes `prepared` and records `authored` (pre-substitution) in
-    /// history. Cancelled requests are not recorded. Runs on any executor but
-    /// should be spawned on the services runtime.
+    /// Runs the pre-request script, executes `prepared`, runs the test
+    /// script (its report is on the response) and records `authored`
+    /// (pre-substitution) in history. Cancelled requests are not recorded.
+    /// Runs on any executor but should be spawned on the services runtime.
     pub async fn send(
         &self,
         authored: HttpRequest,
@@ -87,7 +88,13 @@ impl AppServices {
         origin: Option<RequestOrigin>,
         cancel: CancellationToken,
     ) -> Result<HttpResponse, ExecError> {
-        let result = self.execute(prepared, cancel).await;
+        let (prepared, pre) = crate::scripts::pre_request(prepared);
+        let tests = prepared.request.scripts.tests.clone();
+        let mut vars = prepared.variables.clone();
+        let mut result = self.execute(prepared, cancel).await;
+        if let Ok(response) = &mut result {
+            crate::scripts::finish(response, pre, &tests, &mut vars);
+        }
         if matches!(result, Err(ExecError::Cancelled)) {
             return result;
         }

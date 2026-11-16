@@ -215,6 +215,40 @@ fn every_kind_and_section_renders(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn scripts_section_and_tests_tab_render(cx: &mut TestAppContext) {
+    use crate::state::ResponseView;
+    use ferrumapi_domain::script::{ScriptReport, TestResult};
+    let (app, cx, dir) = app_window(cx);
+    let id = app.read_with(cx, |a, _| a.state.active_tab.expect("tab"));
+    render(&app, cx, |app| {
+        app.state
+            .edit_request(id, |r| r.scripts.tests = "assert status ==".into());
+        app.state.section = RequestSection::Scripts;
+        let mut resp = HttpResponse {
+            status: 200,
+            ..HttpResponse::default()
+        };
+        resp.script = Some(ScriptReport {
+            tests: vec![TestResult {
+                name: "status".into(),
+                passed: false,
+                message: "404 == 200 is false".into(),
+            }],
+            errors: vec!["tests line 2: bad".into()],
+            logs: vec!["hello".into()],
+            ..ScriptReport::default()
+        });
+        app.state
+            .responses
+            .insert(id, TabResponse::Done(Box::new(resp)));
+        app.state.response_view = ResponseView::Tests;
+    });
+    assert!(has_field(&app, cx, format!("script-tests:{id}")));
+    assert!(has_field(&app, cx, format!("script-pre:{id}")));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[gpui::test]
 fn signing_auth_types_render_their_fields(cx: &mut TestAppContext) {
     use ferrumapi_domain::{Auth, OAuth2Auth, OAuth2Grant};
     let (app, cx, dir) = app_window(cx);

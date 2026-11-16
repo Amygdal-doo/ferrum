@@ -19,6 +19,7 @@ pub mod mock;
 pub mod protocol;
 mod request;
 mod response;
+pub mod script;
 pub mod text;
 mod tree;
 pub mod urlparams;
