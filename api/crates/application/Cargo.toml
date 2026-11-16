@@ -17,6 +17,8 @@ ferrumapi-persistence.workspace = true
 ferrumapi-interop.workspace = true
 ferrumapi-server.workspace = true
 ferrumapi-grpc.workspace = true
+# Drafting test scripts with the shared agent models and keys
+ferrumagent-core.workspace = true
 futures.workspace = true
 tokio = { workspace = true, features = ["fs"] }
 chrono.workspace = true

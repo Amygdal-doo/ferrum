@@ -14,6 +14,8 @@ pub enum MenuAction {
     /// A request's cURL command (variables and inherited auth resolved).
     CopyCurl,
     Run,
+    /// Draft test scripts for the requests inside with the agent.
+    DraftTests,
     MockServer,
     AddRequest,
     AddFolder,
@@ -33,6 +35,7 @@ impl MenuAction {
             Self::Open => "Open in tab",
             Self::CopyCurl => "Copy as cURL",
             Self::Run => "Run…",
+            Self::DraftTests => "Draft tests with agent…",
             Self::MockServer => "Mock server…",
             Self::AddRequest => "Add request…",
             Self::AddFolder => "Add folder",

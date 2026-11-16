@@ -249,6 +249,79 @@ fn scripts_section_and_tests_tab_render(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn drafted_tests_are_reviewed_then_saved(cx: &mut TestAppContext) {
+    use crate::state::drafts::{DraftRow, DraftState, DraftStatus};
+    use ferrumapi_application::agent_tests::{DraftInput, DraftModel};
+    let (app, cx, dir) = app_window(cx);
+    let id = app.read_with(cx, |a, _| a.state.active_tab.expect("tab"));
+    let model = DraftModel {
+        provider: "anthropic".into(),
+        model: "m".into(),
+        label: "Model".into(),
+        enabled: true,
+    };
+    let soon = DraftModel {
+        provider: "ferrum".into(),
+        model: "ferrum-ai".into(),
+        label: "FerrumAI".into(),
+        enabled: false,
+    };
+    let row = |status, selected| DraftRow {
+        name: "r".into(),
+        tab: Some(id),
+        origin: None,
+        input: DraftInput {
+            name: "r".into(),
+            request: HttpRequest::default(),
+            description: String::new(),
+            response: None,
+        },
+        status,
+        selected,
+    };
+    render(&app, cx, |app| {
+        app.state.drafts = Some(DraftState::new(
+            vec![
+                row(
+                    DraftStatus::Ready {
+                        script: "assert status == 200".into(),
+                        problems: vec![(2, "bad".into())],
+                    },
+                    true,
+                ),
+                row(DraftStatus::Failed("no key".into()), true),
+                row(DraftStatus::Drafting, true),
+                row(
+                    DraftStatus::Ready {
+                        script: "assert time < 1".into(),
+                        problems: Vec::new(),
+                    },
+                    false,
+                ),
+            ],
+            vec![soon, model.clone()],
+            Some(model),
+        ));
+        app.state.dialog = Some(Dialog::DraftTests);
+    });
+    assert!(has_field(&app, cx, "draft-script-0".into()));
+    app.update(cx, |app, cx| app.save_drafts(cx));
+    let tests = app.read_with(cx, |a, _| {
+        a.state
+            .tab(id)
+            .map(|t| t.request.scripts.tests.clone())
+            .unwrap_or_default()
+    });
+    assert_eq!(
+        tests, "assert status == 200",
+        "only ticked, ready drafts are saved"
+    );
+    assert!(app.read_with(cx, |a, _| a.state.dialog.is_none()
+        && a.state.drafts.is_none()));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[gpui::test]
 fn signing_auth_types_render_their_fields(cx: &mut TestAppContext) {
     use ferrumapi_domain::{Auth, OAuth2Auth, OAuth2Grant};
     let (app, cx, dir) = app_window(cx);

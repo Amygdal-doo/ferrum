@@ -1,6 +1,7 @@
 //! UI state owned by the root view. Mutations go through the root's
 //! `Context`, which re-renders after `cx.notify()`.
 
+pub mod drafts;
 pub mod history;
 pub mod kv;
 pub mod protocols;
@@ -56,6 +57,8 @@ pub struct AppState {
     pub secret_edits: HashMap<String, ferrumapi_domain::Auth>,
     /// Keychain accounts already loaded into a tab (tried once each).
     pub hydrated: HashSet<String>,
+    /// The "Draft tests with agent" review, while open.
+    pub drafts: Option<drafts::DraftState>,
     /// Last OAuth 2 token message per auth (keychain account).
     pub oauth_status: HashMap<String, String>,
     pub sidebar_view: SidebarView,
@@ -107,6 +110,7 @@ impl AppState {
             secret_edits: HashMap::new(),
             oauth_status: HashMap::new(),
             hydrated: HashSet::new(),
+            drafts: None,
             sidebar_view: SidebarView::Collections,
             section: RequestSection::Params,
             response_view: ResponseView::Body,

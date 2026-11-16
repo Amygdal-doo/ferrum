@@ -5,7 +5,8 @@ use crate::app::FerrumApi;
 use crate::components::fields::{FieldSpec, on_change};
 use crate::components::hint;
 use ferrum_ui::components::{
-    ActiveTheme as _, Color, Label, LabelCommon as _, LabelSize, StyledTypography as _, v_flex,
+    ActiveTheme as _, Button, ButtonCommon as _, ButtonSize, ButtonStyle, Clickable as _, Color,
+    Label, LabelCommon as _, LabelSize, StyledTypography as _, Tooltip, h_flex, v_flex,
 };
 use ferrumapi_domain::script::{Scripts, check};
 use ferrumapi_domain::{HttpRequest, TabId};
@@ -48,11 +49,22 @@ impl FerrumApi {
             window,
             cx,
         );
+        let draft = Button::new("draft-tests", "Draft tests with agent…")
+            .style(ButtonStyle::Outlined)
+            .size(ButtonSize::Compact)
+            .tooltip(Tooltip::text(
+                "Uses your FerrumChat models to draft checks from the request, its OpenAPI description and last response. You review them before saving.",
+            ))
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.draft_tests_for_tab(tab_id, cx);
+                cx.notify();
+            }));
         v_flex()
             .gap_4()
             .child(hint(HELP))
             .child(pre)
             .child(tests)
+            .child(h_flex().child(draft))
             .into_any_element()
     }
 

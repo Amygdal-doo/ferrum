@@ -4,6 +4,7 @@
 //! [`AppServices`], so HTTP, disk and SQLite I/O never execute on the UI
 //! thread. UI code calls [`AppServices::spawn`] and awaits the handle.
 
+pub mod agent_tests;
 mod cookies;
 mod load;
 mod mock;

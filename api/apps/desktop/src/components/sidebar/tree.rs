@@ -15,13 +15,14 @@ use ferrumapi_domain::{
 use gpui::{AnyElement, Context, SharedString, Window, div, prelude::*, px};
 use uuid::Uuid;
 
-const CONTAINER_ACTIONS: [MenuAction; 7] = [
+const CONTAINER_ACTIONS: [MenuAction; 8] = [
     MenuAction::Run,
     MenuAction::AddRequest,
     MenuAction::AddFolder,
     MenuAction::Rename,
     MenuAction::Duplicate,
     MenuAction::Export,
+    MenuAction::DraftTests,
     MenuAction::Delete,
 ];
 
@@ -241,6 +242,7 @@ impl FerrumApi {
                         MenuAction::Open => this.open_tree_row(uid, cid, item, folder),
                         MenuAction::CopyCurl => this.copy_saved_as_curl(cid, item, cx),
                         MenuAction::Run => this.start_run(cid, item, cx),
+                        MenuAction::DraftTests => this.draft_tests_for_saved(cid, item, cx),
                         MenuAction::MockServer => this.open_mock_server(cid, cx),
                         MenuAction::AddRequest => {
                             this.state.dialog = Some(Dialog::NewRequest {

@@ -38,6 +38,24 @@ use eval::{Ctx, display, shown, truthy};
 use parse::{Expr, Op, Stmt};
 use serde::{Deserialize, Serialize};
 
+/// The language reference given to a model that drafts scripts.
+pub const LANGUAGE_GUIDE: &str = r#"FerrumAPI script language. One statement per line; `#` starts a comment.
+Statements:
+  test "name": <expr>      a named check that passes when <expr> is true
+  assert <expr>            a check named after its own text
+  set env.NAME = <expr>    save a value in the active environment (global.NAME: globals; var.NAME: this run only)
+  unset env.NAME
+  log <expr>
+Values: numbers, "strings" ({{var}} is replaced), true, false, null.
+  status (number), time (ms), size (bytes), body (text),
+  json (the parsed body: json.a.b, json.items[0].id, json["odd key"], json.items.length, json.items[-1]),
+  header("Content-Type") (case-insensitive; null when absent), env.NAME (a variable's value).
+Operators: == != < <= > >= (numbers or strings; "200" == 200 is true), contains, not contains,
+  matches "regex", startswith, endswith, exists, not exists,
+  is number|string|bool|array|object|null|empty, is not <type>, and, or, not, +, parentheses.
+Functions: len(x), lower(x), upper(x), trim(x), number(x), string(x).
+There are no loops, no functions of your own and no JavaScript (no pm.*, no expect())."#;
+
 /// Longest script accepted.
 pub const MAX_SCRIPT_BYTES: usize = 64 * 1024;
 

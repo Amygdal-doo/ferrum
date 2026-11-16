@@ -2530,6 +2530,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "chrono",
+ "ferrumagent-core",
  "ferrumapi-domain",
  "ferrumapi-grpc",
  "ferrumapi-http",

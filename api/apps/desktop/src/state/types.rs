@@ -203,4 +203,6 @@ pub enum Dialog {
     },
     /// The load test (`AppState::load_test`).
     LoadTest,
+    /// Agent-drafted tests under review (`AppState::drafts`).
+    DraftTests,
 }

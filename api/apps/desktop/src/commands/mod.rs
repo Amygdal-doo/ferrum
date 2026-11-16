@@ -4,6 +4,7 @@
 pub mod auth;
 pub mod collections;
 pub mod cookies;
+pub mod drafts;
 pub mod environments;
 pub mod files;
 pub mod history;
