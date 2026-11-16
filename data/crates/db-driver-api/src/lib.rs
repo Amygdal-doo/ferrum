@@ -7,8 +7,8 @@ pub mod documents;
 
 use async_trait::async_trait;
 use ferrumdata_domain::{
-    CapabilitySet, DatabaseEngine, DbError, KeyScanPage, KeyValueView, QueryEvent, QueryRequest,
-    ResolvedConnectionConfig, TableDetails, TableInfo, TableRef,
+    CapabilitySet, DatabaseEngine, DbError, DbErrorKind, KeyScanPage, KeyValueView, QueryEvent,
+    QueryRequest, ResolvedConnectionConfig, TableDetails, TableInfo, TableRef,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -55,6 +55,17 @@ pub trait DbConnection: Send + Sync {
         ))
     }
 
+    /// Runs FerrumData-generated statements (row edits, imports) in one
+    /// transaction: all of them, or none when one fails or affects a different
+    /// number of rows than it expects. Returns the rows affected per statement.
+    /// SQL engines only; the others keep the default `Unsupported` error.
+    async fn execute_script(&self, statements: &[ScriptStatement]) -> DbResult<Vec<u64>> {
+        let _ = statements;
+        Err(DbError::unsupported(
+            "Running edit scripts is not available for this engine",
+        ))
+    }
+
     /// Key browser operations for key-value engines (Redis); `None` for
     /// engines browsed by table.
     fn key_value(&self) -> Option<&dyn KeyValueStore> {
@@ -68,6 +79,42 @@ pub trait DbConnection: Send + Sync {
 
     /// Closes the pool. In-flight executions are cancelled.
     async fn close(&self);
+}
+
+/// One statement of a transactional script.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScriptStatement {
+    pub sql: String,
+    /// Rows the statement must affect (e.g. `1` for an update by primary key);
+    /// any other count rolls the whole script back.
+    pub expect_rows: Option<u64>,
+}
+
+impl ScriptStatement {
+    #[must_use]
+    pub fn new(sql: impl Into<String>) -> Self {
+        Self {
+            sql: sql.into(),
+            expect_rows: None,
+        }
+    }
+
+    /// The error that rolls a script back when statement `index` (0-based)
+    /// affected `actual` rows instead of the expected count.
+    #[must_use]
+    pub fn mismatch(&self, index: usize, actual: u64) -> Option<DbError> {
+        let expected = self.expect_rows?;
+        (expected != actual).then(|| {
+            DbError::new(
+                DbErrorKind::Query,
+                format!(
+                    "Statement {} affected {actual} rows instead of {expected}; nothing was changed. \
+                     The row may have been changed or deleted by someone else: refresh and retry.",
+                    index + 1
+                ),
+            )
+        })
+    }
 }
 
 /// Key-level browsing and editing for key-value engines. Writes are refused

@@ -3,6 +3,7 @@
 
 mod details;
 mod keys;
+mod tools;
 
 use crate::app::FerrumData;
 use crate::state::SchemaLoad;
@@ -31,6 +32,11 @@ impl FerrumData {
                 .child(text)
         };
 
+        let tools = self
+            .state
+            .profile(profile_id)
+            .is_some_and(|p| p.engine.is_sql())
+            .then(|| self.render_schema_tools(profile_id, cx));
         let tables = match self.state.schemas.get(&profile_id) {
             None | Some(SchemaLoad::Loading) => {
                 return muted("Loading tables…".into()).into_any_element();
@@ -170,6 +176,7 @@ impl FerrumData {
                     .text_color(colors.text_muted)
                     .child(format!("Tables ({total})"))
                     .child(div().flex_1())
+                    .children(tools)
                     .child(
                         IconButton::new(
                             SharedString::from(format!("reload-{profile_id}")),

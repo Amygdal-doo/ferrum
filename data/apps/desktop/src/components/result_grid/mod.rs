@@ -48,8 +48,10 @@ impl FerrumData {
         });
         let has_rows = run.is_some_and(|r| !r.buffer.columns().is_empty() && !r.buffer.is_empty());
         let has_selection = run.is_some_and(|r| r.selection.is_some());
+        let explainable = self.can_explain();
         let body = match pane {
             ResultsPane::History => self.render_history(cx),
+            ResultsPane::Plan => self.render_plan(tab_id, cx),
             ResultsPane::Results if self.state.runs.contains_key(&tab_id) => {
                 self.render_run(tab_id, cx)
             }
@@ -78,10 +80,37 @@ impl FerrumData {
                             .flex_none()
                             .gap_0p5()
                             .child(pane_button("pane-results", "Results", ResultsPane::Results))
-                            .child(pane_button("pane-history", "History", ResultsPane::History)),
+                            .child(pane_button("pane-history", "History", ResultsPane::History))
+                            .when(explainable || self.state.plans.contains_key(&tab_id), |this| {
+                                this.child(pane_button("pane-plan", "Plan", ResultsPane::Plan))
+                            }),
                     )
                     .children(status_line)
                     .child(div().flex_1())
+                    .when(explainable, |this| {
+                        this.child(
+                            Button::new("explain", "Explain")
+                                .style(ButtonStyle::Subtle)
+                                .size(ButtonSize::Compact)
+                                .tooltip(Tooltip::text(
+                                    "Show the plan of the selection or the statement under the caret",
+                                ))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.explain_from_editor(false, cx);
+                                })),
+                        )
+                        .child(
+                            Button::new("explain-analyze", "Analyze…")
+                                .style(ButtonStyle::Subtle)
+                                .size(ButtonSize::Compact)
+                                .tooltip(Tooltip::text(
+                                    "EXPLAIN ANALYZE: runs the statement and shows actual rows and times",
+                                ))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.explain_from_editor(true, cx);
+                                })),
+                        )
+                    })
                     .when(has_rows, |this| {
                         this.child(self.render_copy_menu(has_selection, window, cx))
                             .child(self.render_export_menu(window, cx))

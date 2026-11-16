@@ -8,6 +8,7 @@ pub mod error;
 pub mod history;
 pub mod ids;
 pub mod keyvalue;
+pub mod literal;
 pub mod query;
 pub mod schema;
 pub mod secret;
@@ -26,7 +27,8 @@ pub use query::{
     ExecutionEnvelope, QueryEvent, QueryLimits, QueryOutcome, QueryRequest, QueryState, RowBatch,
 };
 pub use schema::{
-    ColumnInfo, IndexInfo, TableDetails, TableInfo, TableKind, TableRef, redis_quote,
+    ColumnInfo, ForeignKeyInfo, IndexInfo, SchemaSnapshot, TableDetails, TableInfo, TableKind,
+    TableRef, TableSchema, redis_quote,
 };
 pub use secret::Secret;
 pub use settings::{AppSettings, EditorTabState, LayoutSettings, Theme};

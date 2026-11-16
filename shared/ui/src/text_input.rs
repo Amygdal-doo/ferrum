@@ -277,6 +277,12 @@ impl TextInput {
         self.last_layout.as_ref().map(|layout| layout.line_height)
     }
 
+    /// The caret's bounds in window coordinates as last painted (`None`
+    /// before the first paint), e.g. to anchor a completion popup.
+    pub fn caret_bounds(&self) -> Option<Bounds<Pixels>> {
+        self.cursor_bounds(self.cursor_offset())
+    }
+
     /// Selects `range` (byte offsets, clamped to char boundaries).
     pub fn select_range(&mut self, range: Range<usize>, cx: &mut Context<Self>) {
         let start = self.clamp_offset(range.start.min(range.end));

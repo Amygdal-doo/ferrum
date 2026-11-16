@@ -1,6 +1,6 @@
 [package]
 name = "ferrumdata-editor-core"
-description = "Editor model helpers: statement splitting and cursor-to-statement mapping."
+description = "Editor model helpers: statement splitting, SQL tokens, highlighting and completion."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

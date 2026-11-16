@@ -1,7 +1,7 @@
 //! Profile management, secret resolution and live connection pools.
 
 use ferrumdata_credentials::{CredentialStore, SessionStore};
-use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection, ServerInfo};
+use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection, ScriptStatement, ServerInfo};
 use ferrumdata_db_mongodb::MongoDriver;
 use ferrumdata_db_mysql::MySqlDriver;
 use ferrumdata_db_postgres::PostgresDriver;
@@ -10,9 +10,10 @@ use ferrumdata_db_sqlite::SqliteDriver;
 use ferrumdata_db_surrealdb::SurrealDriver;
 use ferrumdata_domain::{
     ConnectionProfile, DatabaseEngine, DbError, DbErrorKind, KeyScanPage, KeyValueView, ProfileId,
-    ResolvedConnectionConfig, Secret, SecretRef,
+    ResolvedConnectionConfig, SchemaSnapshot, Secret, SecretRef, TableSchema,
 };
 use ferrumdata_persistence::AppStore;
+use futures::StreamExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
@@ -38,6 +39,11 @@ pub struct ConnectionService {
     drivers: Arc<HashMap<DatabaseEngine, Arc<dyn DatabaseDriver>>>,
     live: Arc<RwLock<HashMap<ProfileId, Arc<dyn DbConnection>>>>,
 }
+
+/// Tables described at most per schema snapshot (ER diagram, compare, dump).
+pub const MAX_SCHEMA_TABLES: usize = 500;
+/// Catalog queries in flight per snapshot; the pools hold four connections.
+const SCHEMA_CONCURRENCY: usize = 4;
 
 fn no_key_browser() -> DbError {
     DbError::unsupported("This connection has no key browser (key-value engines only)")
@@ -206,6 +212,56 @@ impl ConnectionService {
             .await?
             .describe_table(&table)
             .await
+    }
+
+    /// Runs FerrumData-generated statements (row edits, imports) in one
+    /// transaction. Refused on read-only profiles before anything is sent;
+    /// the driver's read-only session would refuse them as well.
+    pub async fn execute_script(
+        &self,
+        id: ProfileId,
+        statements: Vec<ScriptStatement>,
+    ) -> Result<Vec<u64>, DbError> {
+        let profile = self
+            .list_profiles()
+            .await?
+            .into_iter()
+            .find(|p| p.id == id)
+            .ok_or_else(|| DbError::new(DbErrorKind::Internal, "Connection profile not found"))?;
+        if profile.read_only {
+            return Err(DbError::new(
+                DbErrorKind::Query,
+                "This connection is read-only: changes are not applied.",
+            ));
+        }
+        self.ensure_connected(id)
+            .await?
+            .execute_script(&statements)
+            .await
+    }
+
+    /// Every table with its details, `SCHEMA_CONCURRENCY` catalog lookups at
+    /// a time, capped at `MAX_SCHEMA_TABLES` tables (in list order).
+    pub async fn describe_schema(&self, id: ProfileId) -> Result<SchemaSnapshot, DbError> {
+        let conn = self.ensure_connected(id).await?;
+        let mut tables = conn.list_tables().await?;
+        let omitted = tables.len().saturating_sub(MAX_SCHEMA_TABLES);
+        tables.truncate(MAX_SCHEMA_TABLES);
+        let described: Vec<Result<TableSchema, DbError>> = futures::stream::iter(tables)
+            .map(|info| {
+                let conn = conn.clone();
+                async move {
+                    let details = conn.describe_table(&info.table).await?;
+                    Ok(TableSchema { info, details })
+                }
+            })
+            .buffered(SCHEMA_CONCURRENCY)
+            .collect()
+            .await;
+        Ok(SchemaSnapshot {
+            tables: described.into_iter().collect::<Result<_, _>>()?,
+            omitted,
+        })
     }
 
     /// Number of keys in the profile's database.

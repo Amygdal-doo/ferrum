@@ -6,11 +6,12 @@ mod execute;
 mod introspect;
 mod numeric;
 mod options;
+mod script;
 
 use async_trait::async_trait;
 use ferrumdata_db_driver_api::{
-    CancellationHandle, DatabaseDriver, DbConnection, DbResult, QueryExecution, ServerInfo,
-    event_channel,
+    CancellationHandle, DatabaseDriver, DbConnection, DbResult, QueryExecution, ScriptStatement,
+    ServerInfo, event_channel,
 };
 use ferrumdata_domain::{
     CapabilitySet, DatabaseEngine, QueryRequest, ResolvedConnectionConfig, Secret, TableDetails,
@@ -35,7 +36,7 @@ impl PostgresDriver {
         transactions: true,
         query_cancel: true,
         schema_introspection: true,
-        edit_rows: false, // IDE-014
+        edit_rows: true,
         multi_result: false,
         explain: false,
         parameters: false,
@@ -102,6 +103,10 @@ impl DbConnection for PostgresConnection {
 
     async fn describe_table(&self, table: &TableRef) -> DbResult<TableDetails> {
         introspect::describe_table(&self.pool, &self.secret, table).await
+    }
+
+    async fn execute_script(&self, statements: &[ScriptStatement]) -> DbResult<Vec<u64>> {
+        script::execute_script(&self.pool, &self.secret, statements).await
     }
 
     async fn execute(&self, request: QueryRequest) -> DbResult<QueryExecution> {

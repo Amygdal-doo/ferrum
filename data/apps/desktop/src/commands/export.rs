@@ -102,7 +102,7 @@ fn plural_rows(n: usize) -> String {
 }
 
 /// Tab title made safe as a file name.
-fn file_stem(title: &str) -> String {
+pub(crate) fn file_stem(title: &str) -> String {
     let stem: String = title
         .chars()
         .map(|c| {
@@ -121,7 +121,7 @@ fn file_stem(title: &str) -> String {
     }
 }
 
-fn default_export_dir() -> PathBuf {
+pub(crate) fn default_export_dir() -> PathBuf {
     directories::UserDirs::new()
         .map(|dirs| {
             dirs.download_dir()

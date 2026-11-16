@@ -1,12 +1,17 @@
 //! UI commands. Each one hands I/O to the services runtime via
 //! `AppServices::spawn` and only touches view state from the UI thread.
 
+pub mod compare;
 pub mod connection;
+pub mod edit;
+pub mod explain;
 pub mod export;
 pub mod history;
 pub mod keys;
 pub mod query;
 pub mod schema;
+pub mod tools;
+pub mod transfer;
 pub mod workspace;
 
 use ferrumdata_application::AppServices;

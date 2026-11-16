@@ -3,7 +3,7 @@
 use crate::error::map_sqlx_error;
 use ferrumdata_db_driver_api::DbResult;
 use ferrumdata_domain::{
-    ColumnInfo, IndexInfo, Secret, TableDetails, TableInfo, TableKind, TableRef,
+    ColumnInfo, ForeignKeyInfo, IndexInfo, Secret, TableDetails, TableInfo, TableKind, TableRef,
 };
 use sqlx::{PgPool, Row};
 
@@ -96,6 +96,39 @@ WHERE n.nspname = $1 AND c.relname = $2
 ORDER BY i.indisprimary DESC, ic.relname
 ";
 
+/// Column pairs in key order; actions decoded from `confdeltype` / `confupdtype`.
+const FOREIGN_KEYS: &str = r"
+SELECT con.conname::text AS name,
+       rn.nspname::text AS ref_schema,
+       rc.relname::text AS ref_table,
+       ARRAY(SELECT a.attname::text FROM unnest(con.conkey) WITH ORDINALITY k(n, o)
+             JOIN pg_attribute a ON a.attrelid = con.conrelid AND a.attnum = k.n
+             ORDER BY k.o) AS columns,
+       ARRAY(SELECT a.attname::text FROM unnest(con.confkey) WITH ORDINALITY k(n, o)
+             JOIN pg_attribute a ON a.attrelid = con.confrelid AND a.attnum = k.n
+             ORDER BY k.o) AS ref_columns,
+       con.confdeltype::text AS on_delete,
+       con.confupdtype::text AS on_update
+FROM pg_constraint con
+JOIN pg_class c ON c.oid = con.conrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+JOIN pg_class rc ON rc.oid = con.confrelid
+JOIN pg_namespace rn ON rn.oid = rc.relnamespace
+WHERE con.contype = 'f' AND n.nspname = $1 AND c.relname = $2
+ORDER BY con.conname
+";
+
+fn fk_action(code: &str) -> String {
+    match code {
+        "c" => "CASCADE",
+        "n" => "SET NULL",
+        "d" => "SET DEFAULT",
+        "r" => "RESTRICT",
+        _ => "NO ACTION",
+    }
+    .to_owned()
+}
+
 pub async fn describe_table(
     pool: &PgPool,
     secret: &Secret,
@@ -138,5 +171,33 @@ pub async fn describe_table(
         })
         .collect::<Result<_, sqlx::Error>>()
         .map_err(map)?;
-    Ok(TableDetails { columns, indexes })
+    let foreign_keys = sqlx::query(FOREIGN_KEYS)
+        .bind(schema)
+        .bind(&table.name)
+        .fetch_all(pool)
+        .await
+        .map_err(map)?
+        .iter()
+        .map(|r| {
+            let on_delete: String = r.try_get("on_delete")?;
+            let on_update: String = r.try_get("on_update")?;
+            Ok(ForeignKeyInfo {
+                name: r.try_get("name")?,
+                columns: r.try_get("columns")?,
+                ref_table: TableRef {
+                    schema: Some(r.try_get("ref_schema")?),
+                    name: r.try_get("ref_table")?,
+                },
+                ref_columns: r.try_get("ref_columns")?,
+                on_delete: fk_action(&on_delete),
+                on_update: fk_action(&on_update),
+            })
+        })
+        .collect::<Result<_, sqlx::Error>>()
+        .map_err(map)?;
+    Ok(TableDetails {
+        columns,
+        indexes,
+        foreign_keys,
+    })
 }

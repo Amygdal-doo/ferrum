@@ -5,11 +5,12 @@ mod error;
 mod execute;
 mod introspect;
 mod options;
+mod script;
 
 use async_trait::async_trait;
 use ferrumdata_db_driver_api::{
-    CancellationHandle, DatabaseDriver, DbConnection, DbResult, QueryExecution, ServerInfo,
-    event_channel,
+    CancellationHandle, DatabaseDriver, DbConnection, DbResult, QueryExecution, ScriptStatement,
+    ServerInfo, event_channel,
 };
 use ferrumdata_domain::{
     CapabilitySet, DatabaseEngine, QueryRequest, ResolvedConnectionConfig, TableDetails, TableInfo,
@@ -35,7 +36,7 @@ impl SqliteDriver {
         // Via SQLite's progress handler (SQLITE_INTERRUPT).
         query_cancel: true,
         schema_introspection: true,
-        edit_rows: false,
+        edit_rows: true,
         multi_result: false,
         explain: false,
         parameters: false,
@@ -96,6 +97,10 @@ impl DbConnection for SqliteConnection {
 
     async fn describe_table(&self, table: &TableRef) -> DbResult<TableDetails> {
         introspect::describe_table(&self.pool, table).await
+    }
+
+    async fn execute_script(&self, statements: &[ScriptStatement]) -> DbResult<Vec<u64>> {
+        script::execute_script(&self.pool, statements).await
     }
 
     async fn execute(&self, request: QueryRequest) -> DbResult<QueryExecution> {

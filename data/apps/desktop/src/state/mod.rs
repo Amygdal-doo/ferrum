@@ -4,9 +4,14 @@
 
 mod keys;
 mod run;
+mod tools;
 
 pub use keys::{KeyBrowser, KeyViewLoad};
 pub use run::TabRun;
+pub use tools::{
+    CompareLoad, CompareView, DiagramView, DumpView, ImportView, PlanLoad, SnapshotLoad,
+    TaskStatus, ToolTab,
+};
 
 use ferrumdata_domain::{
     AppSettings, ConnectionProfile, EditorTabId, EditorTabState, HistoryEntry, ProfileId,
@@ -49,6 +54,8 @@ pub struct EditorTab {
     pub table: Option<TableRef>,
     /// Set for key tabs (Redis value viewer). Not restored after a restart.
     pub key: Option<String>,
+    /// Set for tool tabs (ER diagram …). Not restored after a restart.
+    pub tool: Option<ToolTab>,
 }
 
 impl EditorTab {
@@ -62,6 +69,7 @@ impl EditorTab {
             unsaved: false,
             table: None,
             key: None,
+            tool: None,
         }
     }
 
@@ -88,6 +96,7 @@ impl From<EditorTabState> for EditorTab {
             unsaved: false,
             table: s.table,
             key: None,
+            tool: None,
         }
     }
 }
@@ -104,9 +113,21 @@ pub enum Dialog {
     },
     /// `None` clears the history of every connection.
     ClearHistory(Option<ConnectionProfile>),
+    /// EXPLAIN ANALYZE executes the statement: confirm first.
+    ConfirmAnalyze {
+        tab_id: EditorTabId,
+        profile: ConnectionProfile,
+        sql: String,
+    },
     DeleteKey {
         profile: ConnectionProfile,
         key: String,
+    },
+    /// Staged row edits of a table tab on a production connection.
+    ConfirmApply {
+        tab_id: EditorTabId,
+        profile: ConnectionProfile,
+        sql: String,
     },
 }
 
@@ -116,6 +137,8 @@ pub enum ResultsPane {
     #[default]
     Results,
     History,
+    /// EXPLAIN plan of the tab.
+    Plan,
 }
 
 /// Which history entries to list: one connection's, or every connection's.
@@ -160,6 +183,16 @@ pub struct AppState {
     pub key_browsers: HashMap<ProfileId, KeyBrowser>,
     /// Value of the key shown in each key tab.
     pub key_views: HashMap<EditorTabId, KeyViewLoad>,
+    /// EXPLAIN result per tab.
+    pub plans: HashMap<EditorTabId, PlanLoad>,
+    /// Schema compare tabs.
+    pub compares: HashMap<EditorTabId, CompareView>,
+    /// SQL dump tabs.
+    pub dumps: HashMap<EditorTabId, DumpView>,
+    /// CSV import tabs.
+    pub imports: HashMap<EditorTabId, ImportView>,
+    /// ER diagram per diagram tab.
+    pub diagrams: HashMap<EditorTabId, DiagramView>,
     /// The sidebar is hidden (⌘B).
     pub sidebar_hidden: bool,
     /// The results card was used last (it is drawn lighter), else the editor card.

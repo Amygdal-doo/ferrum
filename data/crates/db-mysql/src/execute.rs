@@ -6,9 +6,11 @@ use crate::options::MySqlOptions;
 use ferrumdata_db_driver_api::CancellationHandle;
 use ferrumdata_domain::{DbError, QueryEvent, QueryOutcome, QueryRequest, Secret};
 use futures::TryStreamExt;
-use sqlx::mysql::{MySqlConnection, MySqlDatabaseError};
+use sqlx::mysql::{MySqlConnection, MySqlDatabaseError, MySqlQueryResult, MySqlRow};
 use sqlx::pool::PoolConnection;
-use sqlx::{AssertSqlSafe, Connection, Executor, MySql, MySqlPool, SqlSafeStr, Statement};
+use sqlx::{
+    AssertSqlSafe, Connection, Either, Executor, MySql, MySqlPool, Row, SqlSafeStr, Statement,
+};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -118,26 +120,21 @@ async fn stream(
         Err(e) if is_unsupported_ps(&e) => {
             // Text protocol fallback for statements MySQL cannot prepare.
             let sql = AssertSqlSafe(request.sql.clone()).into_sql_str();
-            let result = sqlx::raw_sql(sql).execute(&mut **conn).await.map_err(map)?;
-            return Ok(Streamed {
-                rows_returned: 0,
-                rows_affected: Some(result.rows_affected()),
-                truncated: false,
-                abandoned: false,
-            });
+            let results = sqlx::raw_sql(sql).fetch_many(&mut **conn);
+            return stream_late(results, request, tx, secret).await;
         }
         Err(e) => return Err(map(e)),
     };
     let columns = column_meta(statement.columns());
 
     if columns.is_empty() {
-        let result = statement.query().execute(&mut **conn).await.map_err(map)?;
-        return Ok(Streamed {
-            rows_returned: 0,
-            rows_affected: Some(result.rows_affected()),
-            truncated: false,
-            abandoned: false,
-        });
+        // No columns when prepared does not mean no rows: EXPLAIN reports
+        // its column only once executed. Run it as text, which reports both
+        // rows and the affected-row count.
+        drop(statement);
+        let sql = AssertSqlSafe(request.sql.clone()).into_sql_str();
+        let results = sqlx::raw_sql(sql).fetch_many(&mut **conn);
+        return stream_late(results, request, tx, secret).await;
     }
 
     let receiver_gone = || Streamed {
@@ -185,6 +182,78 @@ async fn stream(
         rows_affected: None,
         truncated,
         abandoned: truncated,
+    })
+}
+
+/// Streams a statement whose columns are known only from its first row
+/// (`EXPLAIN …`, text-protocol fallback). Without rows it reports the
+/// affected-row count like any other DML.
+async fn stream_late<S>(
+    mut results: S,
+    request: &QueryRequest,
+    tx: &mpsc::Sender<QueryEvent>,
+    secret: &Secret,
+) -> Result<Streamed, DbError>
+where
+    S: futures::Stream<Item = Result<Either<MySqlQueryResult, MySqlRow>, sqlx::Error>> + Unpin,
+{
+    let map = |e: sqlx::Error| map_sqlx_error(&e, secret);
+    let batch_size = request.limits.batch_rows.max(1);
+    let mut batch = Vec::with_capacity(batch_size);
+    let mut affected = 0u64;
+    let mut total = 0usize;
+    let mut has_columns = false;
+    let gone = Streamed {
+        rows_returned: 0,
+        rows_affected: None,
+        truncated: false,
+        abandoned: true,
+    };
+    while let Some(item) = results.try_next().await.map_err(map)? {
+        let row = match item {
+            Either::Left(done) => {
+                affected += done.rows_affected();
+                continue;
+            }
+            Either::Right(row) => row,
+        };
+        if !has_columns {
+            has_columns = true;
+            if tx
+                .send(QueryEvent::Metadata(column_meta(row.columns())))
+                .await
+                .is_err()
+            {
+                return Ok(gone);
+            }
+        }
+        if total >= request.limits.max_rows {
+            return Ok(Streamed {
+                rows_returned: total,
+                rows_affected: None,
+                truncated: true,
+                abandoned: true,
+            });
+        }
+        batch.push(decode_row(&row));
+        total += 1;
+        if batch.len() >= batch_size
+            && tx
+                .send(QueryEvent::Rows(std::mem::take(&mut batch)))
+                .await
+                .is_err()
+        {
+            return Ok(gone);
+        }
+    }
+    if !batch.is_empty() && tx.send(QueryEvent::Rows(batch)).await.is_err() {
+        return Ok(gone);
+    }
+    Ok(Streamed {
+        rows_returned: total,
+        rows_affected: (!has_columns).then_some(affected),
+        truncated: false,
+        abandoned: false,
     })
 }
 

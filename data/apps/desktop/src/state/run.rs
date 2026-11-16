@@ -1,3 +1,4 @@
+use ferrumdata_application::edits::RowEdits;
 use ferrumdata_domain::{
     CellValue, DbError, ExecutionId, ProfileId, QueryEvent, QueryOutcome, QueryState,
 };
@@ -32,6 +33,8 @@ pub struct TabRun {
     order: Option<Vec<usize>>,
     /// In view coordinates.
     pub selection: Option<GridSelection>,
+    /// Row edits staged on a table tab's result (buffer row indexes).
+    pub edits: RowEdits,
 }
 
 impl TabRun {
@@ -59,6 +62,7 @@ impl TabRun {
             sort: None,
             order: None,
             selection: None,
+            edits: RowEdits::default(),
         }
     }
 
@@ -117,6 +121,22 @@ impl TabRun {
         self.order = self
             .sort
             .map(|(col, direction)| sorted_order(&self.buffer, col, direction));
+    }
+
+    /// Buffer row shown at view position `index` (`None` past the buffer,
+    /// where staged new rows are listed).
+    #[must_use]
+    pub fn buffer_index(&self, index: usize) -> Option<usize> {
+        match &self.order {
+            Some(order) => order.get(index).copied(),
+            None => (index < self.buffer.len()).then_some(index),
+        }
+    }
+
+    /// Rows the grid lists: the result, then staged new rows.
+    #[must_use]
+    pub fn row_count(&self) -> usize {
+        self.buffer.len() + self.edits.new_rows().len()
     }
 
     /// The row shown at view position `index`.
@@ -302,6 +322,18 @@ mod tests {
         );
         run.selection = None;
         assert_eq!(run.copy_text(), None);
+    }
+
+    #[test]
+    fn staged_new_rows_follow_the_result_in_any_sort_order() {
+        let mut run = run_with(&[(2, "b"), (1, "a")]);
+        run.edits.add_row(2);
+        assert_eq!(run.row_count(), 3);
+        assert_eq!(run.buffer_index(0), Some(0));
+        assert_eq!(run.buffer_index(2), None);
+        run.toggle_sort(0);
+        assert_eq!(run.buffer_index(0), Some(1));
+        assert_eq!(run.buffer_index(2), None);
     }
 
     #[test]

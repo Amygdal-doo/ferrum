@@ -28,7 +28,7 @@ mod root;
 pub mod settings;
 mod splitter;
 pub mod surface;
-mod text_input;
+pub mod text_input;
 pub mod theme;
 pub mod window_chrome;
 

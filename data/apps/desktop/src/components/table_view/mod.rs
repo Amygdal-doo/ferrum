@@ -1,4 +1,7 @@
-//! Table browser tab: breadcrumb, refresh, one-line SQL bar, full-height grid.
+//! Table browser tab: breadcrumb, refresh, one-line SQL bar, the editing bar
+//! and pending changes (`edit.rs`), full-height grid.
+
+mod edit;
 
 use crate::app::FerrumData;
 use ferrum_ui::prelude::*;
@@ -13,6 +16,13 @@ impl FerrumData {
             return div().into_any_element();
         };
         let tab_id = tab.id;
+        // A restored tab needs the table list for the primary key (editing).
+        if let Some(profile_id) = tab.profile_id
+            && !self.state.schemas.contains_key(&profile_id)
+        {
+            self.load_tables(profile_id, cx);
+        }
+        let pending = self.has_pending_edits(tab_id);
         let running = self.state.active_run_in_flight();
         let input = self.tab_input(tab_id, true, window, cx);
         let crumb = |text: String| Label::new(text).size(LabelSize::Small).color(Color::Muted);
@@ -41,12 +51,18 @@ impl FerrumData {
                         Button::new("refresh-table", "Refresh")
                             .start_icon(Icon::new(IconName::RotateCw).size(IconSize::Small))
                             .style(ButtonStyle::Outlined)
-                            .disabled(running)
-                            .tooltip(Tooltip::text("Refresh rows"))
+                            .disabled(running || pending)
+                            .tooltip(Tooltip::text(if pending {
+                                "Apply or discard the pending changes first"
+                            } else {
+                                "Refresh rows"
+                            }))
                             .on_click(cx.listener(|this, _, _, cx| this.refresh_table(cx))),
                     ),
             )
             .child(div().flex_none().px_4().py_3().child(input))
+            .child(self.render_edit_bar(tab_id, cx))
+            .children(self.render_pending_edits(tab_id, cx))
             .child(
                 div()
                     .flex_1()
