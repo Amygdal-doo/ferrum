@@ -54,6 +54,10 @@ pub struct FerrumData {
     pub project_bar: Entity<ProjectBar>,
     /// Connection the bar was last set from (`Some(None)`: none).
     pub(crate) project_synced: Option<Option<String>>,
+    /// FerrumChat beside the cards (see `agent`).
+    pub(crate) agent: ferrumagent_ui::AgentPane,
+    /// The connection the agent's tools use, set before each message.
+    pub(crate) agent_profile: crate::agent::ProfileSlot,
     notice_task: Option<Task<()>>,
     _autosave: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -93,6 +97,8 @@ impl FerrumData {
             notice: None,
             project_bar,
             project_synced: None,
+            agent: ferrumagent_ui::AgentPane::new(),
+            agent_profile: crate::agent::ProfileSlot::default(),
             notice_task: None,
             _autosave: Task::ready(()),
             _subscriptions: vec![filter_changed, history_changed],
@@ -358,14 +364,17 @@ impl FerrumData {
                 ))
             })
             .child(
-                v_flex()
+                // The Agent pane, when open, is a card right of the others.
+                h_flex()
                     .flex_1()
                     .min_w_0()
                     .h_full()
                     .pt(gap)
                     .pr(gap)
                     .when(!sidebar_open, |main| main.pl(gap))
-                    .child(main),
+                    .gap(gap)
+                    .child(v_flex().flex_1().min_w_0().h_full().child(main))
+                    .children(self.agent.card(cx)),
             )
             .into_any_element()
     }

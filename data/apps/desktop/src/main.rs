@@ -1,6 +1,7 @@
 //! FerrumData desktop entry point.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod agent;
 mod app;
 mod app_info;
 mod commands;
@@ -34,6 +35,7 @@ fn main() {
         .unified_titlebar();
     ferrum_ui::run(config, move |window, cx| {
         ferrum_account_ui::init(ferrum_account_ui::AccountApp::Data, cx);
+        ferrumagent_ui::init(cx);
         cx.new(|cx| app::FerrumData::new(services, window, cx))
     });
 }

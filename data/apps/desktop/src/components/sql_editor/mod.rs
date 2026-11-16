@@ -97,7 +97,9 @@ impl FerrumData {
                 )
             })
             .child(tools)
-            // The Ferrum account (Sign in / avatar) at the top right.
+            // The Agent toggle and the Ferrum account (Sign in / avatar) at
+            // the top right.
+            .child(self.agent_toggle(cx))
             .children(ferrum_account_ui::account_button(cx))
             .into_any_element()
     }

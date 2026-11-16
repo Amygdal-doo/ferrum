@@ -27,6 +27,14 @@ tracing-subscriber.workspace = true
 directories.workspace = true
 uuid.workspace = true
 chrono.workspace = true
+# FerrumChat in the Agent pane, with the database tools.
+ferrumagent-ui.workspace = true
+async-trait.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+futures.workspace = true
 
 [lints]
 workspace = true

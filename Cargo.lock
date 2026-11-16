@@ -2836,15 +2836,20 @@ dependencies = [
 name = "ferrumdata-desktop"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "chrono",
  "directories",
  "ferrum-account-ui",
  "ferrum-ui",
+ "ferrumagent-ui",
  "ferrumdata-application",
  "ferrumdata-domain",
  "ferrumdata-editor-core",
  "ferrumdata-result-grid-core",
+ "futures",
  "gpui",
+ "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",
