@@ -339,6 +339,13 @@ fn commit_box(app: &GitView, id: RepoId, staged: usize, cx: &mut Context<GitView
         .as_ref()
         .and_then(|p| p.identity().map(|(n, e)| format!("{n} <{e}>")));
     let amend = view.amend;
+    let drafting = view.drafting;
+    let model_label = app
+        .ai_model
+        .as_deref()
+        .map_or("default model ▾".to_owned(), |k| {
+            format!("{} ▾", k.split_once('/').map_or(k, |(_, m)| m))
+        });
     let summary_len = view.summary.chars().count();
     let can_commit = app.can_commit(id);
     let label = match (amend, staged) {
@@ -367,6 +374,40 @@ fn commit_box(app: &GitView, id: RepoId, staged: usize, cx: &mut Context<GitView
                             .size(LabelSize::Small)
                             .weight(gpui::FontWeight::SEMIBOLD),
                     ),
+                )
+                .child(
+                    ghost_button(
+                        "ai-draft",
+                        if drafting {
+                            "Drafting…"
+                        } else {
+                            "Draft with AI"
+                        },
+                    )
+                    .disabled(drafting || staged == 0)
+                    .tooltip(Tooltip::text(
+                        "Write the message from the staged changes; you edit and commit",
+                    ))
+                    .on_click(cx.listener(move |app, _, _, cx| {
+                        app.draft_commit_message(id, cx);
+                    })),
+                )
+                .child(
+                    div()
+                        .id("ai-model")
+                        .cursor_pointer()
+                        .tooltip(Tooltip::text("Model for AI drafts"))
+                        .child(
+                            Label::new(model_label)
+                                .size(LabelSize::XSmall)
+                                .color(Color::Muted),
+                        )
+                        .on_mouse_down(
+                            gpui::MouseButton::Left,
+                            cx.listener(|app, event: &gpui::MouseDownEvent, _, cx| {
+                                app.open_ai_model_menu(event.position, cx);
+                            }),
+                        ),
                 )
                 .child(
                     Checkbox::new("amend", ToggleState::from(amend))

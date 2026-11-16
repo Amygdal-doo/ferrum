@@ -32,6 +32,12 @@ pub enum Action {
     /// Start bisecting with this commit good (`true`) or bad, HEAD the other.
     BisectStart(Oid, bool),
     BisectMark(BisectMark, Oid),
+    /// The model AI drafts use (`provider/model`).
+    SetAiModel {
+        key: String,
+        label: String,
+        selected: bool,
+    },
     Revert(Oid),
     Reset(Oid),
     StashApply(usize),
@@ -85,6 +91,13 @@ impl Action {
             Self::StashApply(_) => MenuItem::new("Apply stash"),
             Self::StashPop(_) => MenuItem::new("Pop stash"),
             Self::StashDrop(_) => MenuItem::new("Drop stash…").danger().sep(),
+            Self::SetAiModel {
+                label, selected, ..
+            } => MenuItem::new(if *selected {
+                format!("✓ {label}")
+            } else {
+                label.clone()
+            }),
             Self::FetchRemote(r) => MenuItem::new(format!("Fetch {r}")),
             Self::RemoveRemote(r) => MenuItem::new(format!("Remove remote {r}…")).danger().sep(),
             Self::Copy(_) => MenuItem::new("Copy name").sep(),
@@ -343,6 +356,10 @@ impl GitView {
                 "Drop",
                 RepoOp::StashDrop(i),
             ),
+            Action::SetAiModel { key, label, .. } => {
+                self.ai_model = Some(key);
+                return self.notify(format!("Drafts use {label}"), false, cx);
+            }
             Action::FetchRemote(r) => {
                 return self.op(
                     id,

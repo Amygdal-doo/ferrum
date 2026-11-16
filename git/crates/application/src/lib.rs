@@ -4,10 +4,12 @@
 //! processes, keychain calls and SQLite I/O never block the UI thread. UI
 //! code calls [`AppServices::spawn`] and awaits the handle.
 
+mod ai;
 mod profiles;
 mod pulls;
 mod repos;
 
+pub use ai::{AiModel, Draft};
 pub use ferrumgit_domain as domain;
 pub use ferrumgit_forge as forge;
 pub use ferrumgit_git::{
@@ -80,6 +82,8 @@ pub struct AppServices {
     repos: Arc<Mutex<HashMap<String, Repo>>>,
     /// Forge tokens, HTTP transport and rate limits (pull requests).
     forge: Arc<pulls::ForgeState>,
+    /// The shared agent settings and keys, for AI drafts (opened on first use).
+    models: Arc<std::sync::OnceLock<ferrumagent_core::models::ModelStore>>,
 }
 
 impl AppServices {
@@ -118,6 +122,7 @@ impl AppServices {
             forge: Arc::new(pulls::ForgeState::new(Arc::new(
                 ferrumgit_credentials::SessionStore::default(),
             ))),
+            models: Arc::default(),
         })
     }
 

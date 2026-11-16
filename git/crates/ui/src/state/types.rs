@@ -172,6 +172,8 @@ pub struct RepoView {
     pub summary: String,
     pub description: String,
     pub amend: bool,
+    /// An AI draft of the commit message is being written.
+    pub drafting: bool,
     /// Bumped to remount the commit inputs after a programmatic change.
     pub draft_rev: u64,
     pub page: Page,

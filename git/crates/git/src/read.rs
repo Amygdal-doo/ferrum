@@ -328,6 +328,49 @@ impl Repo {
         Ok(details)
     }
 
+    /// The staged changes as `(stat, patch)`, the patch cut to `max` bytes
+    /// (for drafting a commit message).
+    pub async fn staged_patch(&self, max: usize) -> GitResult<(String, String)> {
+        let base = ["diff", "--cached", "--no-color", "--no-ext-diff", "-M"];
+        let (stat, patch) = tokio::join!(
+            self.run(self.cmd(base.iter().copied().chain(["--stat=100"]))),
+            self.run(self.cmd(base.iter().copied().chain(["-U2"]))),
+        );
+        Ok((stat?.stdout_str(), cut(patch?.stdout_str(), max)))
+    }
+
+    /// Commit messages (oldest first) and the diffstat of `base..HEAD`,
+    /// each cut to `max` bytes (for drafting a pull request description).
+    pub async fn branch_summary(&self, base: &str, max: usize) -> GitResult<(String, String)> {
+        check_rev(base)?;
+        let range = format!("{base}..HEAD");
+        let (log, stat) = tokio::join!(
+            self.run(self.cmd([
+                "log",
+                "--reverse",
+                "--no-merges",
+                "--format=- %s%n%w(0,2,2)%b",
+                &range
+            ])),
+            self.run(self.cmd([
+                "diff".to_owned(),
+                "--stat=100".to_owned(),
+                "--no-color".to_owned(),
+                format!("{base}...HEAD"),
+            ])),
+        );
+        Ok((cut(log?.stdout_str(), max), cut(stat?.stdout_str(), max)))
+    }
+
+    /// `true` when `rev` names a commit.
+    pub async fn rev_exists(&self, rev: &str) -> bool {
+        check_rev(rev).is_ok()
+            && self
+                .run(self.cmd(["rev-parse", "--verify", "-q", &format!("{rev}^{{commit}}")]))
+                .await
+                .is_ok()
+    }
+
     /// Last commit message, for "Amend".
     pub async fn head_message(&self) -> GitResult<String> {
         let out = self.run(self.cmd(["log", "-1", "--format=%B"])).await?;
@@ -356,6 +399,23 @@ pub(crate) fn check_rev(rev: &str) -> GitResult<()> {
         return Err(GitError::Invalid(format!("invalid revision: {rev:?}")));
     }
     Ok(())
+}
+
+/// `text` cut to at most `max` bytes at a line boundary, with a note.
+fn cut(text: String, max: usize) -> String {
+    if text.len() <= max {
+        return text;
+    }
+    let mut end = max;
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    let end = text[..end].rfind('\n').map_or(end, |i| i + 1);
+    format!(
+        "{}[… {} more bytes not shown]\n",
+        &text[..end],
+        text.len() - end
+    )
 }
 
 pub(crate) fn parse_limited(raw: &[u8]) -> (Vec<FileDiff>, bool) {

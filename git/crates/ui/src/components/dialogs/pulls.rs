@@ -30,6 +30,8 @@ pub struct CreatePrForm {
     pub base: Entity<TextInput>,
     pub head: String,
     pub draft: bool,
+    /// An AI draft of the title and description is being written.
+    pub drafting: bool,
 }
 
 pub struct ReviewForm {
@@ -137,6 +139,7 @@ impl CreatePrForm {
             base: text("Base branch", base, window, cx),
             head,
             draft: false,
+            drafting: false,
         }
     }
 
@@ -384,6 +387,25 @@ pub fn render_create(app: &GitView, form: &CreatePrForm, cx: &mut Context<GitVie
         .child(field("Title", form.title.clone()))
         .child(field("Into (base branch)", form.base.clone()))
         .child(field("Description", form.body.clone()))
+        .child(
+            h_flex()
+                .gap_2()
+                .child(
+                    small_button(
+                        "pr-ai-draft",
+                        if form.drafting {
+                            "Drafting…"
+                        } else {
+                            "Draft with AI"
+                        },
+                    )
+                    .disabled(form.drafting || detached)
+                    .on_click(cx.listener(|app, _, _, cx| app.draft_pull_request(cx))),
+                )
+                .child(hint(
+                    "Title and description from the branch's commits; edit before creating.",
+                )),
+        )
         .child(
             Checkbox::new("pr-draft", ToggleState::from(draft))
                 .label("Create as draft")

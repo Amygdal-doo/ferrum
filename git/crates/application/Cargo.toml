@@ -17,7 +17,10 @@ ferrumgit-graph.workspace = true
 ferrumgit-persistence.workspace = true
 ferrumgit-credentials.workspace = true
 ferrumgit-forge.workspace = true
-tokio = { workspace = true, features = ["fs", "process"] }
+# AI drafts: the shared agent core's providers, models and keys.
+ferrumagent-core.workspace = true
+futures.workspace = true
+tokio = { workspace = true, features = ["fs", "process", "time"] }
 tokio-util.workspace = true
 thiserror.workspace = true
 tracing.workspace = true

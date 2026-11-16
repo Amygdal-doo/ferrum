@@ -81,6 +81,9 @@ pub struct GitView {
     /// A pull request review comment being written.
     pub(crate) review_draft: Option<crate::components::review::ReviewDraft>,
     pub(crate) review_subscription: Option<Subscription>,
+    /// Model for AI drafts this session (`provider/model`); `None` = the
+    /// agent's default model.
+    pub(crate) ai_model: Option<String>,
     focus_handle: FocusHandle,
     _poll: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -256,6 +259,7 @@ impl GitView {
             editor: None,
             review_draft: None,
             review_subscription: None,
+            ai_model: None,
             focus_handle: cx.focus_handle(),
             _poll: Self::start_polling(cx),
             _subscriptions: subscriptions,

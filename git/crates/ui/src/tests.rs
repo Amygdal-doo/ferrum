@@ -13,6 +13,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
+/// AI drafts of the commit message.
+mod ai;
 /// Bisect from the commit menu.
 mod bisect;
 /// The three-way conflict view.
