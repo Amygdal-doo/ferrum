@@ -21,7 +21,7 @@ use gpui::{
     SharedString, Subscription, Window, actions, anchored, deferred, div, point, prelude::*, px,
 };
 
-use crate::project::{self, FerrumApp, RecentProject};
+use crate::project::{self, RecentProject};
 use crate::{TextInput, TextInputEvent};
 
 actions!(ferrum, [ToggleProjectSwitcher]);
@@ -297,16 +297,6 @@ impl ProjectBar {
         })
         .detach();
         cx.notify();
-    }
-
-    fn open_in(&mut self, app: FerrumApp, cx: &mut Context<Self>) {
-        let Some(path) = self.project.clone() else {
-            return;
-        };
-        match project::open_in(app, &path) {
-            Ok(()) => self.show_message(format!("Opening in {}…", app.name()), false, cx),
-            Err(e) => self.show_message(e, true, cx),
-        }
     }
 
     fn show_message(&mut self, text: impl Into<SharedString>, error: bool, cx: &mut Context<Self>) {
@@ -592,10 +582,6 @@ impl ProjectBar {
 impl Render for ProjectBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors();
-        let this_app = FerrumApp::from_binary(self.app_binary);
-        // A detail (e.g. a database file) may describe something inside the
-        // folder: the folder can still be opened in the other apps.
-        let has_project = self.project.is_some();
         let mut right = h_flex().flex_none().gap_0p5();
         if let Some((message, error)) = &self.message {
             right = right.child(
@@ -605,46 +591,6 @@ impl Render for ProjectBar {
                         .color(if *error { Color::Error } else { Color::Muted }),
                 ),
             );
-        }
-        if has_project {
-            for app in FerrumApp::ALL.into_iter().filter(|a| Some(*a) != this_app) {
-                let icon = match app {
-                    FerrumApp::Editor => IconName::Code,
-                    FerrumApp::Git => IconName::GitBranch,
-                    FerrumApp::Term => IconName::Terminal,
-                };
-                if self.inline {
-                    right = right.child(
-                        IconButton::new(
-                            SharedString::from(format!("open-in-{}", app.binary())),
-                            icon,
-                        )
-                        .icon_size(IconSize::Small)
-                        .icon_color(Color::Muted)
-                        .tooltip(Tooltip::text(format!(
-                            "Open this project in {}",
-                            app.name()
-                        )))
-                        .on_click(cx.listener(move |this, _, _, cx| this.open_in(app, cx))),
-                    );
-                    continue;
-                }
-                right = right.child(
-                    Button::new(
-                        SharedString::from(format!("open-in-{}", app.binary())),
-                        app.label(),
-                    )
-                    .style(ButtonStyle::Subtle)
-                    .size(ButtonSize::Compact)
-                    .label_size(LabelSize::XSmall)
-                    .start_icon(Icon::new(icon).size(IconSize::XSmall).color(Color::Muted))
-                    .tooltip(Tooltip::text(format!(
-                        "Open this project in {}",
-                        app.name()
-                    )))
-                    .on_click(cx.listener(move |this, _, _, cx| this.open_in(app, cx))),
-                );
-            }
         }
         h_flex()
             .id("project-bar")
