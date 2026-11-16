@@ -19,6 +19,7 @@ fn main() {
         .app(app_info::app_info())
         .unified_titlebar();
     ferrum_ui::run(config, |window, cx| {
+        ferrum_account_ui::init(ferrum_account_ui::AccountApp::Kit, cx);
         app::bind_keys(cx);
         cx.new(|cx| app::FerrumKit::new(window, cx))
     });

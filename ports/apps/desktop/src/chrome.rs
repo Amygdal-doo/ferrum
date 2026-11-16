@@ -134,6 +134,11 @@ pub fn table_header(
             ferrum_ui::title_button("refresh", IconName::ArrowCircle, "Refresh (⌘R)")
                 .on_click(cx.listener(|app, _, _, cx| app.refresh(cx))),
         )
+        // The Ferrum account (Sign in / avatar) at the top right; in the
+        // detail card's header while that card is open.
+        .when(app.selected_listener().is_none(), |row| {
+            row.children(ferrum_account_ui::account_button(cx))
+        })
         .into_any_element()
 }
 

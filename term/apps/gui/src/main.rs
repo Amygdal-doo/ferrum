@@ -30,6 +30,7 @@ fn main() {
             .min_size(420., 260.)
             .app(ferrumterm_ui::app_info()),
         |window, cx| {
+            ferrum_account_ui::init(ferrum_account_ui::AccountApp::Term, cx);
             ferrumterm_ui::init(cx);
             ferrumgit_ui::init(cx);
             TermView::new(TermViewOptions::standalone(), window, cx)

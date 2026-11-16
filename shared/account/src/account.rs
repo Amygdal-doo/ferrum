@@ -112,6 +112,14 @@ impl Account {
         Ok(self.file.read()?.mode(self.app))
     }
 
+    /// The launcher's user as cached in `account.json`: `None` once the
+    /// launcher has signed out. Reads the file only (no keychain, no
+    /// network), so an app can tell whether "Use launcher account" would
+    /// work without touching the launcher's refresh token.
+    pub fn launcher_user(&self) -> Result<Option<Me>> {
+        Ok(self.file.read()?.user)
+    }
+
     pub fn set_mode(&self, mode: AppMode) -> Result<()> {
         if self.app.is_launcher() {
             return Ok(());

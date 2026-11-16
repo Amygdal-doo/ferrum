@@ -59,6 +59,16 @@ fn tool(
         .into_any_element()
 }
 
+/// The Ferrum account (Sign in / avatar) for the window's top right, in the
+/// stand-alone app.
+fn account(app: &GitView, cx: &mut Context<GitView>) -> Option<AnyElement> {
+    if !app.options.show_account {
+        return None;
+    }
+    let account = ferrum_account_ui::account_button(cx)?;
+    Some(div().flex_none().pl_1().child(account).into_any_element())
+}
+
 fn separator(cx: &Context<GitView>) -> impl IntoElement {
     div()
         .mx_1()
@@ -100,6 +110,7 @@ pub fn home_header(
                 .px_1()
                 .child(Label::new(title).weight(gpui::FontWeight::SEMIBOLD)),
         )
+        .children(account(app, cx))
         .into_any_element()
 }
 
@@ -209,7 +220,10 @@ fn page_title(app: &GitView, id: RepoId) -> String {
 pub fn detail_header(app: &GitView, window: &Window, cx: &mut Context<GitView>) -> AnyElement {
     let row = card_header("detail-header", false, app, window, cx);
     let Some(entry) = app.state.active_entry() else {
-        return row.into_any_element();
+        return row
+            .child(div().flex_1())
+            .children(account(app, cx))
+            .into_any_element();
     };
     let theme = cx.theme().clone();
     let colors = theme.colors();
@@ -443,7 +457,10 @@ pub fn detail_header(app: &GitView, window: &Window, cx: &mut Context<GitView>) 
             cx,
         ));
 
-    row.child(title).child(actions).into_any_element()
+    row.child(title)
+        .child(actions)
+        .children(account(app, cx))
+        .into_any_element()
 }
 
 /// ◧ (sidebar), ⌘ (quick open) and + (repositories): in the sidebar's

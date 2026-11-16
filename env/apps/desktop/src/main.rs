@@ -25,6 +25,7 @@ fn main() {
         .unified_titlebar()
         .app(app_info::app_info());
     ferrum_ui::run(config, |window, cx| {
+        ferrum_account_ui::init(ferrum_account_ui::AccountApp::Env, cx);
         app::bind_keys(cx);
         let config = app::EnvConfig::from_home();
         cx.new(|cx| app::EnvApp::new(config, window, cx))

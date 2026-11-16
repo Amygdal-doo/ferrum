@@ -142,6 +142,11 @@ pub fn card_header(
                     .on_click(cx.listener(|app, _, _, cx| app.refresh(app.state.section, cx))),
             )
         })
+        // The Ferrum account (Sign in / avatar) at the top right; in the
+        // detail card's header while that card is open.
+        .when(!app.detail_open(), |bar| {
+            bar.children(ferrum_account_ui::account_button(cx))
+        })
         .into_any_element()
 }
 

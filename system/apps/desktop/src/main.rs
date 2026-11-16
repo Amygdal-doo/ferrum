@@ -36,6 +36,7 @@ fn main() {
         .unified_titlebar()
         .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
+        ferrum_account_ui::init(ferrum_account_ui::AccountApp::System, cx);
         app::bind_keys(cx);
         cx.set_menus(menus::menus(&app_info::app_info()));
         let options = app::Options {

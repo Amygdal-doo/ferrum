@@ -33,6 +33,7 @@ fn main() {
         .app(app_info::app_info())
         .unified_titlebar();
     ferrum_ui::run(config, move |window, cx| {
+        ferrum_account_ui::init(ferrum_account_ui::AccountApp::Data, cx);
         cx.new(|cx| app::FerrumData::new(services, window, cx))
     });
 }

@@ -24,6 +24,9 @@ struct Entry {
     logo: Option<crate::AgentLogo>,
     /// A small badge at the end, e.g. a plan name.
     badge: Option<SharedString>,
+    /// Shortcut text shown on the right, for commands that are not GPUI
+    /// actions (wins over `action`'s binding).
+    keys: Option<SharedString>,
     toggle: Option<(bool, IconPosition)>,
     action: Option<Box<dyn Action>>,
     disabled: bool,
@@ -96,6 +99,7 @@ impl ContextMenu {
             icon: None,
             logo: None,
             badge: None,
+            keys: None,
             toggle: None,
             action,
             disabled: false,
@@ -115,6 +119,7 @@ impl ContextMenu {
             icon: Some(icon),
             logo: None,
             badge: None,
+            keys: None,
             toggle: None,
             action: None,
             disabled: false,
@@ -136,6 +141,7 @@ impl ContextMenu {
             icon: None,
             logo: None,
             badge: None,
+            keys: None,
             toggle: Some((toggled, position)),
             action,
             disabled: false,
@@ -159,6 +165,14 @@ impl ContextMenu {
         self
     }
 
+    /// Shows `keys` (e.g. "⌘K ⌘T") as the shortcut of the entry added last.
+    pub fn with_keys(mut self, keys: impl Into<SharedString>) -> Self {
+        if let Some(Item::Entry(entry)) = self.items.last_mut() {
+            entry.keys = Some(keys.into());
+        }
+        self
+    }
+
     /// A greyed-out entry that cannot be chosen.
     pub fn disabled_entry(self, label: impl Into<SharedString>) -> Self {
         self.push_entry(Entry {
@@ -166,6 +180,7 @@ impl ContextMenu {
             icon: None,
             logo: None,
             badge: None,
+            keys: None,
             toggle: None,
             action: None,
             disabled: true,
@@ -256,7 +271,8 @@ impl ContextMenu {
                     }))
                 })
         };
-        let shortcut = entry.action.as_ref().and_then(|action| {
+        let shortcut = entry.keys.as_ref().map(ToString::to_string).or_else(|| {
+            let action = entry.action.as_ref()?;
             let binding = window.highest_precedence_binding_for_action(action.as_ref())?;
             let keys: Vec<String> = binding
                 .keystrokes()

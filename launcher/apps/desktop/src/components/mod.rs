@@ -1,4 +1,3 @@
-pub mod account;
 pub mod detail;
 pub mod logo;
 pub mod onboarding;

@@ -34,6 +34,7 @@ fn main() {
             .app(app_info::app_info())
             .unified_titlebar(),
         move |window, cx| {
+            ferrum_account_ui::init(ferrum_account_ui::AccountApp::Api, cx);
             app::bind_keys(cx);
             cx.new(|cx| app::FerrumApi::new(services, window, cx))
         },

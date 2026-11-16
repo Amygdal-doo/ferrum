@@ -35,6 +35,7 @@ fn main() {
         .min_size(980., 600.)
         .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
+        ferrum_account_ui::init(ferrum_account_ui::AccountApp::Git, cx);
         ferrumgit_ui::init_with_services(services, cx);
         let view = GitView::new(open_at, GitViewOptions::desktop(), window, cx);
         window.focus(&view.focus_handle(cx), cx);

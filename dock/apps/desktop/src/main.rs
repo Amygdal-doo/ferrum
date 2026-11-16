@@ -35,6 +35,7 @@ fn main() {
         .unified_titlebar()
         .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
+        ferrum_account_ui::init(ferrum_account_ui::AccountApp::Dock, cx);
         app::bind_keys(cx);
         cx.new(|cx| {
             let mut app = app::FerrumContainers::new(services, docker_cli, window, cx);

@@ -11,6 +11,8 @@ license.workspace = true
 ferrumgit-domain.workspace = true
 ferrumgit-application.workspace = true
 ferrum-ui.workspace = true
+# The Ferrum account control in the stand-alone app's header.
+ferrum-account-ui.workspace = true
 gpui.workspace = true
 tracing.workspace = true
 directories.workspace = true

@@ -210,6 +210,14 @@ impl FerrumContainers {
         }
     }
 
+    /// The container detail card is drawn, right of the list (see
+    /// `views::section`).
+    pub fn detail_open(&self) -> bool {
+        matches!(self.status, EngineStatus::Connected(_))
+            && self.state.section == crate::state::Section::Containers
+            && self.state.detail.is_some()
+    }
+
     /// The sidebar is drawn (open, and an engine is connected).
     pub fn sidebar_shown(&self) -> bool {
         self.sidebar_open && matches!(self.status, EngineStatus::Connected(_))

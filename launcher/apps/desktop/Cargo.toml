@@ -15,7 +15,7 @@ path = "src/main.rs"
 [dependencies]
 ferrumlauncher-core.workspace = true
 # Ferrum account sign-in (avatar menu, Settings › Account).
-ferrum-account.workspace = true
+ferrum-account-ui.workspace = true
 ferrum-ui.workspace = true
 chrono.workspace = true
 semver.workspace = true

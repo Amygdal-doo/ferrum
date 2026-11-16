@@ -28,6 +28,9 @@ pub struct GitViewOptions {
     /// that offer those actions themselves (see [`crate::GitView::remote`]);
     /// the compact page tabs stay.
     pub show_toolbar: bool,
+    /// The Ferrum account control (Sign in / avatar) at the right end of
+    /// the top-right header; the stand-alone app only.
+    pub show_account: bool,
 }
 
 impl GitViewOptions {
@@ -40,6 +43,7 @@ impl GitViewOptions {
             show_project_bar: true,
             open_files_in_host: false,
             show_toolbar: true,
+            show_account: true,
         }
     }
 
@@ -53,6 +57,7 @@ impl GitViewOptions {
             show_project_bar: false,
             open_files_in_host: true,
             show_toolbar: true,
+            show_account: false,
         }
     }
 

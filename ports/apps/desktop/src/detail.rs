@@ -110,7 +110,9 @@ pub fn render(
                     cx.notify();
                 }),
             ),
-        );
+        )
+        // The Ferrum account at the window's top right.
+        .children(ferrum_account_ui::account_button(cx));
     let body = v_flex()
         .id("detail")
         .flex_1()

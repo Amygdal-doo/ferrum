@@ -15,6 +15,8 @@ path = "src/main.rs"
 ferrumenv-core.workspace = true
 chrono.workspace = true
 ferrum-ui.workspace = true
+# The Ferrum account: Sign in / avatar menu, Settings › Account.
+ferrum-account-ui.workspace = true
 gpui.workspace = true
 sha2.workspace = true
 zeroize.workspace = true

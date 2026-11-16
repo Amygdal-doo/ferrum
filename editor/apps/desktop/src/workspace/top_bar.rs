@@ -4,7 +4,9 @@
 //! tabs, and the [Git] [Agent] [Term] toggles at its right end). While the
 //! sidebar is hidden, ◧ ⌘ + and the project move into that header. Each
 //! toggle opens or closes its tool as a pane inside the window;
-//! right-clicking Git or Term offers the stand-alone app instead.
+//! right-clicking Git or Term offers the stand-alone app instead. The
+//! Ferrum account (Sign in / avatar menu, with Keymap and Themes) ends the
+//! header.
 
 use ferrum_ui::components::{Clickable, ContextMenu, IconName, Toggleable, right_click_menu};
 use ferrum_ui::prelude::*;
@@ -22,13 +24,19 @@ pub const TOP_BAR_TOOLS: [(ToolKind, &str); 3] = [
     (ToolKind::Term, "terminal:toggle"),
 ];
 
-/// " (⌘⇧P)": the first shortcut bound to `command`, for tooltips.
-fn shortcut(command: &str, cx: &App) -> String {
+/// "⌘⇧P": the first shortcut bound to `command`.
+fn keys(command: &str, cx: &App) -> Option<String> {
     cx.global::<Settings>()
         .keymap
         .keys_for(command)
         .first()
-        .map(|k| format!(" ({})", display_keys(k, MAC)))
+        .map(|k| display_keys(k, MAC))
+}
+
+/// " (⌘⇧P)": the first shortcut bound to `command`, for tooltips.
+fn shortcut(command: &str, cx: &App) -> String {
+    keys(command, cx)
+        .map(|k| format!(" ({k})"))
         .unwrap_or_default()
 }
 
@@ -140,7 +148,26 @@ impl Workspace {
                 )
             })
             .child(toggles)
+            .children(self.render_account(cx))
             .into_any_element()
+    }
+
+    /// The Ferrum account: Sign in, or the avatar and its menu (with the
+    /// editor's Keymap and Themes commands).
+    fn render_account(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let mut button = ferrum_account_ui::AccountButton::new();
+        for (label, command) in [
+            ("Keymap", "application:open-keymap"),
+            ("Themes", "theme:select"),
+        ] {
+            let weak = cx.weak_entity();
+            button = button.entry(label, keys(command, cx).as_deref(), move |window, cx| {
+                weak.update(cx, |w, cx| w.run_command(command, window, cx))
+                    .ok();
+            });
+        }
+        let account = button.render(cx)?;
+        Some(div().flex_none().pl_1().child(account).into_any_element())
     }
 
     fn render_tool_toggle(

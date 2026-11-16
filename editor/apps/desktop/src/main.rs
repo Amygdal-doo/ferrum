@@ -79,6 +79,7 @@ fn main() {
         .min_size(640., 400.)
         .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
+        ferrum_account_ui::init(ferrum_account_ui::AccountApp::Editor, cx);
         // The embedded tools' key bindings (scoped to their panes) must be
         // in place before the base bindings are captured.
         init_tools(cx);

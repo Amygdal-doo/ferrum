@@ -114,8 +114,9 @@ impl FerrumEngineer {
         }))
     }
 
-    /// The tasks list and the Files / Git / Terminal toggles, at the right
-    /// of the chat's (or a page's) header row.
+    /// The tasks list, the Files / Git / Terminal toggles and the Ferrum
+    /// account (Sign in / avatar), at the right of the chat's (or a page's)
+    /// header row.
     pub(crate) fn header_end(&self, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .flex_none()
@@ -124,6 +125,10 @@ impl FerrumEngineer {
             .child(self.files_toggle(cx))
             .child(self.pane_toggle(Column::Git, IconName::GitBranch, "⌥⌘2", cx))
             .child(self.pane_toggle(Column::Term, IconName::Terminal, "⌥⌘3", cx))
+            .children(
+                ferrum_account_ui::account_button(cx)
+                    .map(|account| div().flex_none().pl_1().child(account)),
+            )
     }
 
     /// A page's header row (the page replaces the chat in its card).

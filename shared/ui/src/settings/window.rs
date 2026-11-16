@@ -10,7 +10,7 @@ use gpui::{
 };
 
 use super::widgets::{icon_tile, page_title};
-use super::{SettingsPage, shared_pages};
+use super::{SettingsPage, extra_pages, shared_pages};
 use crate::app_info::app_info;
 use crate::components::{
     Clickable, Color, Disableable, IconButton, IconName, Label, LabelCommon, LabelSize, h_flex,
@@ -80,6 +80,7 @@ impl SettingsWindow {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let (head, tail) = shared_pages();
         let mut pages = head;
+        pages.extend(extra_pages(cx));
         pages.extend(app_info(cx).pages.iter().cloned());
         pages.extend(tail);
         let search = cx.new(|cx| TextInput::new(window, cx).placeholder("Search Settings"));

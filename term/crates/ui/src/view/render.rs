@@ -439,7 +439,10 @@ impl TermView {
                 })
             })
             .when(self.options.standalone, |row| {
-                row.child(self.git_toggles(cx))
+                // The Ferrum account (Sign in / avatar) at the top right.
+                let account = ferrum_account_ui::account_button(cx)
+                    .map(|account| div().flex_none().pl_1().child(account));
+                row.child(self.git_toggles(cx)).children(account)
             })
     }
 

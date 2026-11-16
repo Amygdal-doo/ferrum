@@ -1,8 +1,6 @@
 //! FerrumLauncher desktop entry point.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
-mod account;
-mod account_page;
 mod app;
 mod app_info;
 mod commands;
@@ -106,8 +104,17 @@ fn main() {
         .without_status_item()
         .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
+        // The Ferrum account: Sign in / avatar in the title row, Settings ›
+        // Account; its messages show in the launcher's notice line.
+        ferrum_account_ui::init(ferrum_account_ui::AccountApp::Launcher, cx);
         let launcher =
             cx.new(|cx| app::FerrumLauncher::new(services, state, startup_notice, window, cx));
+        let notices = launcher.downgrade();
+        ferrum_account_ui::set_message_handler(cx, move |message, error, cx| {
+            notices
+                .update(cx, |launcher, cx| launcher.notify_user(message, error, cx))
+                .ok();
+        });
         let main_window = window.window_handle();
         launcher.update(cx, |launcher, _| {
             launcher.integration.main_window = Some(main_window);

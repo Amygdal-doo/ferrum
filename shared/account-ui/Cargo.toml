@@ -1,0 +1,18 @@
+[package]
+name = "ferrum-account-ui"
+description = "The Ferrum account in every desktop app: the title-bar Sign in button / avatar menu, Settings › Account and the sign-in state behind them."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+ferrum-account.workspace = true
+ferrum-ui.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "time"] }
+tokio-util.workspace = true
+tracing.workspace = true
+
+[lints]
+workspace = true

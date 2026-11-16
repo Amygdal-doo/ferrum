@@ -223,6 +223,9 @@ impl FerrumKit {
                     .text_color(colors.text_muted)
                     .child(tool.description()),
             )
+            // The Ferrum account (Sign in / avatar) at the top right.
+            .child(div().flex_1())
+            .children(ferrum_account_ui::account_button(cx))
     }
 }
 

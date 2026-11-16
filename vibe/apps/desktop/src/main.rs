@@ -48,6 +48,7 @@ fn main() {
         .min_size(720., 480.)
         .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
+        ferrum_account_ui::init(ferrum_account_ui::AccountApp::Vibe, cx);
         ferrumagent_ui::init(cx);
         ferrumgit_ui::init(cx);
         ferrumterm_ui::init(cx);

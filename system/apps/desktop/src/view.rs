@@ -71,6 +71,8 @@ impl FerrumSystem {
                     ),
             )
             .when(!empty, |row| row.child(self.header_buttons(cx)))
+            // The Ferrum account (Sign in / avatar) at the top right.
+            .children(ferrum_account_ui::account_button(cx))
     }
 
     /// The header's right end: the tools toggle and the ◨ panel toggle.

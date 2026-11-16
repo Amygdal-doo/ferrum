@@ -14,6 +14,8 @@ path = "src/main.rs"
 [dependencies]
 ferrumdock-engine.workspace = true
 ferrum-ui.workspace = true
+# The Ferrum account: Sign in / avatar menu, Settings › Account.
+ferrum-account-ui.workspace = true
 gpui.workspace = true
 tokio.workspace = true
 futures.workspace = true

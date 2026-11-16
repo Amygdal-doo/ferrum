@@ -183,7 +183,11 @@ impl EnvApp {
         // A bare title row (traffic lights, window drag) over the centred card.
         v_flex()
             .size_full()
-            .child(ferrum_ui::title_row("lock-title", true, window))
+            .child(
+                ferrum_ui::title_row("lock-title", true, window)
+                    .child(div().flex_1())
+                    .children(ferrum_account_ui::account_button(cx)),
+            )
             .child(
                 v_flex()
                     .flex_1()

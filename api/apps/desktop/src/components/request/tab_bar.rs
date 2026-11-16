@@ -134,6 +134,8 @@ impl FerrumApi {
                 )
             })
             .child(tools)
+            // The Ferrum account (Sign in / avatar) at the top right.
+            .children(ferrum_account_ui::account_button(cx))
             .into_any_element()
     }
 }

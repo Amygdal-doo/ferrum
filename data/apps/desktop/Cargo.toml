@@ -17,6 +17,8 @@ ferrumdata-application.workspace = true
 ferrumdata-result-grid-core.workspace = true
 ferrumdata-editor-core.workspace = true
 ferrum-ui.workspace = true
+# The Ferrum account: Sign in / avatar menu, Settings › Account.
+ferrum-account-ui.workspace = true
 # Named directly so `gpui::actions!` resolves (same as FerrumGIT/FerrumAPI).
 gpui.workspace = true
 tokio.workspace = true

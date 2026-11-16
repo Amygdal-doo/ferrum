@@ -14,6 +14,8 @@ path = "src/main.rs"
 [dependencies]
 ferrumgit-ui.workspace = true
 ferrum-ui.workspace = true
+# The Ferrum account: Sign in / avatar menu, Settings › Account.
+ferrum-account-ui.workspace = true
 gpui.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

@@ -2437,6 +2437,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrum-account-ui"
+version = "0.1.0"
+dependencies = [
+ "ferrum-account",
+ "ferrum-ui",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "ferrum-brand"
 version = "0.1.0"
 dependencies = [
@@ -2542,6 +2553,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "directories",
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumapi-application",
  "ferrumapi-domain",
@@ -2826,6 +2838,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "directories",
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumdata-application",
  "ferrumdata-domain",
@@ -2889,6 +2902,7 @@ name = "ferrumdock-desktop"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumdock-engine",
  "futures",
@@ -2962,6 +2976,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumagent-ui",
  "ferrumci-core",
@@ -3004,6 +3019,7 @@ name = "ferrumenv-desktop"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumenv-core",
  "gpui",
@@ -3046,6 +3062,7 @@ dependencies = [
 name = "ferrumgit-desktop"
 version = "0.1.0"
 dependencies = [
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumgit-ui",
  "gpui",
@@ -3121,6 +3138,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "directories",
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumgit-application",
  "ferrumgit-domain",
@@ -3157,6 +3175,7 @@ name = "ferrumkit-desktop"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumkit-core",
  "gpui",
@@ -3192,7 +3211,7 @@ name = "ferrumlauncher-desktop"
 version = "0.6.0"
 dependencies = [
  "chrono",
- "ferrum-account",
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumlauncher-core",
  "futures",
@@ -3234,6 +3253,7 @@ name = "ferrumports-desktop"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumports-core",
  "gpui",
@@ -3253,6 +3273,7 @@ dependencies = [
 name = "ferrumsystem-desktop"
 version = "0.1.0"
 dependencies = [
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumsystem-core",
  "gpui",
@@ -3304,6 +3325,7 @@ dependencies = [
 name = "ferrumterm-gui"
 version = "0.1.0"
 dependencies = [
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumgit-ui",
  "ferrumterm-ui",
@@ -3354,6 +3376,7 @@ dependencies = [
 name = "ferrumterm-ui"
 version = "0.1.0"
 dependencies = [
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumgit-ui",
  "ferrumterm-client",
@@ -3376,6 +3399,7 @@ name = "ferrumvibe-desktop"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "ferrum-account-ui",
  "ferrum-ui",
  "ferrumagent-ui",
  "ferrumgit-ui",

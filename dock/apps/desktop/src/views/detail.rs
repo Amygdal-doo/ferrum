@@ -99,7 +99,9 @@ pub fn render(
             false,
             cx,
             |app, cx| app.close_detail(cx),
-        ));
+        ))
+        // The Ferrum account at the window's top right.
+        .children(ferrum_account_ui::account_button(cx));
 
     let tab = detail.tab;
     let tabs = if project.is_some() {

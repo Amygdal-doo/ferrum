@@ -52,8 +52,15 @@ impl EnvApp {
             .border_b_1()
             .border_color(colors.border_variant)
             .text_ui_sm(cx);
+        // The Ferrum account (Sign in / avatar) closes the row, at the
+        // window's top right.
+        let account = |row: ferrum_ui::gpui::Stateful<ferrum_ui::gpui::Div>,
+                       cx: &mut Context<Self>| {
+            row.child(div().flex_1())
+                .children(ferrum_account_ui::account_button(cx))
+        };
         let Some(unlocked) = self.vault() else {
-            return row;
+            return account(row, cx);
         };
         if !sidebar_open {
             row = row
@@ -67,7 +74,7 @@ impl EnvApp {
                 .child(div().w(px(6.)));
         }
         let Some(project) = unlocked.project() else {
-            return row;
+            return account(row, cx);
         };
         let mut tabs = h_flex()
             .id("env-tabs")
@@ -123,6 +130,7 @@ impl EnvApp {
                     |this, window, cx| this.lock(window, cx),
                 ))
             })
+            .children(ferrum_account_ui::account_button(cx))
     }
 
     /// Actions on the current environment, as small icon buttons.
