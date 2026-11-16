@@ -9,53 +9,58 @@ use ferrum_ui::prelude::*;
 use ferrumlauncher_core::{AppId, store};
 use std::sync::{Arc, OnceLock};
 
-// In `AppId::BUILTIN` order.
+// Keyed by app, so reordering `AppId::BUILTIN` cannot mix the logos up.
 macro_rules! logo_bytes {
+    ($size:literal; $($app:ident => $name:literal),* $(,)?) => {
+        [$((
+            AppId::$app,
+            include_bytes!(concat!("../../../../../brand/png/", $name, "-", $size, ".png")).as_slice(),
+        )),*]
+    };
+}
+
+macro_rules! logos {
     ($size:literal) => {
-        [
-            include_bytes!(concat!("../../../../../brand/png/editor-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/vibe-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/system-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/api-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/git-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/data-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/term-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/kit-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/dock-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/ports-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/env-", $size, ".png")).as_slice(),
-            include_bytes!(concat!("../../../../../brand/png/launcher-", $size, ".png")).as_slice(),
-        ]
+        logo_bytes!($size;
+            EDITOR => "editor", VIBE => "vibe", GIT => "git", TERM => "term", API => "api",
+            DOCK => "dock", DATA => "data", ENV => "env", PORTS => "ports", KIT => "kit",
+            SYSTEM => "system", LAUNCHER => "launcher",
+        )
     };
 }
 
 const LOGOS: usize = AppId::BUILTIN.len();
-const SMALL: [&[u8]; LOGOS] = logo_bytes!("64");
-const LARGE: [&[u8]; LOGOS] = logo_bytes!("128");
+const SMALL: [(AppId, &[u8]); LOGOS] = logos!("64");
+const LARGE: [(AppId, &[u8]); LOGOS] = logos!("128");
 
-fn images(
-    cache: &'static OnceLock<Vec<Arc<Image>>>,
-    bytes: &[&[u8]; LOGOS],
-) -> &'static [Arc<Image>] {
+type Images = Vec<(AppId, Arc<Image>)>;
+
+fn images(cache: &'static OnceLock<Images>, bytes: &[(AppId, &[u8]); LOGOS]) -> &'static Images {
     cache.get_or_init(|| {
         bytes
             .iter()
-            .map(|bytes| Arc::new(Image::from_bytes(ImageFormat::Png, bytes.to_vec())))
+            .map(|(app, bytes)| {
+                (
+                    *app,
+                    Arc::new(Image::from_bytes(ImageFormat::Png, bytes.to_vec())),
+                )
+            })
             .collect()
     })
 }
 
 /// The compiled-in logo of a built-in app.
 fn builtin_logo(app: AppId, size: Pixels) -> Option<Arc<Image>> {
-    static SMALL_IMAGES: OnceLock<Vec<Arc<Image>>> = OnceLock::new();
-    static LARGE_IMAGES: OnceLock<Vec<Arc<Image>>> = OnceLock::new();
+    static SMALL_IMAGES: OnceLock<Images> = OnceLock::new();
+    static LARGE_IMAGES: OnceLock<Images> = OnceLock::new();
     let set = if size > px(48.) {
         images(&LARGE_IMAGES, &LARGE)
     } else {
         images(&SMALL_IMAGES, &SMALL)
     };
-    let index = AppId::BUILTIN.iter().position(|id| *id == app)?;
-    set.get(index).cloned()
+    set.iter()
+        .find(|(id, _)| *id == app)
+        .map(|(_, image)| image.clone())
 }
 
 impl FerrumLauncher {
@@ -140,5 +145,22 @@ impl FerrumLauncher {
             .ok();
         })
         .detach();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_builtin_app_gets_its_own_logo() {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../brand/png");
+        for (set, size) in [(&SMALL, 64), (&LARGE, 128)] {
+            for app in AppId::BUILTIN {
+                let (_, bytes) = set.iter().find(|(id, _)| *id == app).expect("logo");
+                let file = std::fs::read(format!("{dir}/{app}-{size}.png")).expect("png");
+                assert_eq!(*bytes, file.as_slice(), "{app} {size}");
+            }
+        }
     }
 }

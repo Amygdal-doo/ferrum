@@ -25,7 +25,7 @@ The system has two halves:
 | Type scale | `--fs-xs` 12 · `--fs-sm` 14 · `--fs-base` 17 · `--fs-lg` 19 · `--fs-xl` 24 · `--fs-2xl` (h2) · `--fs-3xl` (h1) · `--fs-hero` | Display sizes are fluid. `--measure` is 68ch for reading. |
 | Space | `--sp-1` … `--sp-32` on a 4px grid | Sections use `--sp-24`; `--tight` uses `--sp-12`. |
 | Shape | `--radius-xs` 2 (keys) < `--radius-sm` 3 < `--radius` 6 (buttons, cards) < `--radius-lg` 12 (app windows); `--rule`, `--rule-strong` | Radius grows with the size of the thing. |
-| Motion | `--ease`, `--dur-fast`, `--dur`, `--dur-slow` | Motion responds to an action. The home hero's "cooling" headline is the one entrance animation. The home desk steps through the apps every 7s until the dock is used (paused on hover or focus) and crossfades in 250ms. `prefers-reduced-motion` turns all motion off (`base.css`). |
+| Motion | `--ease`, `--dur-fast`, `--dur`, `--dur-slow` | Motion responds to an action. The home page has no entrance animation. `prefers-reduced-motion` turns all motion off (`base.css`). |
 | Layout | `--container` 1240, `--container-narrow`, `--gutter`, `--header-h`, `--z-header`, `--z-skip` | |
 
 ## Components (`src/components/`)
@@ -66,19 +66,18 @@ Page-level CSS: `pages.css` (home, `/apps`, product pages, about, 404, download)
 ## Home and `/apps`
 
 - Home (`pages/home.rs`, `pages/home_readme.rs`), top to bottom:
-  1. Hero: one headline beside a short intro, Download for macOS and View source.
-  2. The desk (`pages/home_desk.rs`): one large app window on a quiet desktop surface,
-     a one-line caption (the app's tagline and "More about …"), and a dock of the
-     flat logo tiles: the Apps group, a divider, the Tools. Every demo
-     (`feature_demos::for_slug`) is rendered with only FerrumIDE visible (`hidden` on
-     the rest), so nothing shifts. Dock buttons (`aria-pressed`, `aria-controls`)
-     switch the window; the active one is raised with a dot under it. It steps through
-     the Apps group every 7s until the dock is used, pauses on hover or focus, and
-     holds still under reduced motion. `#app-<slug>` opens an app. Without JS the
-     dock icons are plain links to the app pages. Under 720px the window turns
-     portrait and the dock wraps into two rows (apps, tools).
-     Under it, the platform note and three stats.
-  3. An agent at work: FerrumEngineer's demo beside the four real steps it shows.
+  1. Hero: one calm sentence (sans, not display), Download for macOS and View
+     source, then a stage with a real FerrumIDE screenshot and a platform note.
+  2. Works with: the coding agents and model providers, as their own logos
+     (`ai_logo::strips`).
+  3. Showcases for FerrumEngineer, FerrumGIT and FerrumTerm: the app, a two-tone
+     sentence (claim, then a muted explanation) and its stage; sides alternate.
+  Stages (`.stage`) are the page's bold element: a real screenshot from the
+  release build (`assets/img/shots/<app>-{dark,light}.webp`, demo project, no
+  personal data) over a forge glow of `--stage-*` tokens tinted by the app accent,
+  with grain. The screenshot for the current theme shows. Retake them when an
+  app's look changes.
+  Then the other apps and tools (`card::grouped_app_strips`).
   4. Shell commands (`fei .`, `feg .`, `fet`, `fen .`, `fterm …`) with one line each.
   5. A README with a plain anchor index (not numbered: the topics aren't a
      sequence): native, the launcher, agents, the project bar, local, open source,

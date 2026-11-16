@@ -51,7 +51,9 @@ pub fn methods(def: &ServerDef) -> &'static [Method] {
                 targets: Targets::RustTriple,
             },
         ],
-        "typescript" => &[Method::Npm(&["typescript", "typescript-language-server"])],
+        // TypeScript 7 (the Go port) ships no tsserver, which
+        // typescript-language-server needs.
+        "typescript" => &[Method::Npm(&["typescript@5", "typescript-language-server"])],
         "python" => &[Method::Npm(&["pyright"])],
         "json" | "css" | "html" => &[Method::Npm(&["vscode-langservers-extracted"])],
         "yaml" => &[Method::Npm(&["yaml-language-server"])],
@@ -85,6 +87,7 @@ pub fn managed_bin_dirs(servers: &Path) -> Vec<PathBuf> {
         let mut found: Vec<PathBuf> = entries
             .flatten()
             .map(|e| e.path())
+            .filter(|p| !lacks_tsserver(p))
             .flat_map(|p| [p.join("bin"), p.join("node_modules").join(".bin")])
             .filter(|p| p.is_dir())
             .collect();
@@ -94,6 +97,22 @@ pub fn managed_bin_dirs(servers: &Path) -> Vec<PathBuf> {
     dirs.retain(|d| d.is_dir());
     dirs.dedup();
     dirs
+}
+
+/// An npm prefix with TypeScript 7, which has no tsserver: hidden so that
+/// typescript-language-server installs again (with TypeScript 5).
+fn lacks_tsserver(prefix: &Path) -> bool {
+    let typescript = prefix.join("node_modules").join("typescript");
+    typescript.is_dir() && !typescript.join("lib").join("tsserver.js").is_file()
+}
+
+/// `npm install` argument: the package at its pinned version, else latest.
+fn npm_spec(package: &str) -> String {
+    if package.rfind('@').is_some_and(|at| at > 0) {
+        package.to_owned()
+    } else {
+        format!("{package}@latest")
+    }
 }
 
 /// `path_env` with the installed programs after the user's own.
@@ -220,7 +239,7 @@ impl Installer<'_> {
         }
     }
 
-    /// `npm install --prefix <prefix> <packages>@latest` (Node.js first
+    /// `npm install --prefix <prefix> <packages>` (latest unless pinned) (Node.js first
     /// when there is none). The programs land in
     /// `<prefix>/node_modules/.bin`, which [`with_managed`] adds to PATH
     /// when `prefix` is a folder of `servers/`.
@@ -235,7 +254,7 @@ impl Installer<'_> {
             .args(["install", "--prefix"])
             .arg(prefix)
             .args(["--no-audit", "--no-fund", "--loglevel=error"])
-            .args(packages.iter().map(|p| format!("{p}@latest")));
+            .args(packages.iter().map(|p| npm_spec(p)));
         self.run(&mut command)
     }
 
@@ -722,5 +741,25 @@ mod tests {
         extract_tar_gz(&archive, dir.path(), "node-x", &target).expect("unpack");
         assert!(target.join("bin/npm").is_file());
         assert!(managed_bin_dirs(dir.path()).contains(&target.join("bin")));
+    }
+
+    #[test]
+    fn npm_packages_keep_a_pinned_version() {
+        assert_eq!(npm_spec("typescript@5"), "typescript@5");
+        assert_eq!(npm_spec("pyright"), "pyright@latest");
+        assert_eq!(npm_spec("@scope/pkg"), "@scope/pkg@latest");
+    }
+
+    #[test]
+    fn a_typescript_without_tsserver_is_not_used() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let prefix = dir.path().join("typescript-language-server");
+        let bin = prefix.join("node_modules/.bin");
+        std::fs::create_dir_all(&bin).expect("bin");
+        std::fs::create_dir_all(prefix.join("node_modules/typescript/lib")).expect("lib");
+        assert!(!managed_bin_dirs(dir.path()).contains(&bin));
+        std::fs::write(prefix.join("node_modules/typescript/lib/tsserver.js"), "")
+            .expect("tsserver");
+        assert!(managed_bin_dirs(dir.path()).contains(&bin));
     }
 }

@@ -39,7 +39,7 @@ pub const SERVERS: &[ServerDef] = &[
         languages: &[Language::JavaScript, Language::TypeScript, Language::Tsx],
         commands: &[("typescript-language-server", &["--stdio"])],
         root_markers: &["tsconfig.json", "jsconfig.json", "package.json"],
-        install: "npm install -g typescript typescript-language-server",
+        install: "npm install -g typescript@5 typescript-language-server",
     },
     ServerDef {
         id: "python",

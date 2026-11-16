@@ -41,6 +41,14 @@
   --ink-mix: 100%;
   --glow: 0 0 0 1px color-mix(in srgb, var(--straw) 40%, transparent), 0 10px 40px -14px color-mix(in srgb, var(--straw) 55%, transparent);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 18px 40px -22px rgba(0, 0, 0, 0.75);
+  /* Stages behind the home screenshots: iron cooling from a forge glow.
+     --stage-tint is the app accent a stage mixes in. */
+  --stage-base: #15100d;
+  --stage-ember: #e8743b;
+  --stage-heat: #f3b04a;
+  --stage-cool: #2b4a73;
+  --stage-ember-mix: 55%;
+  --shot-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 40px 80px -30px rgba(0, 0, 0, 0.85);
   /* Syntax colours in the animated app windows. */
   --syn-kw: var(--straw);
   --syn-fn: #5b8def;
@@ -78,6 +86,12 @@
   --syn-prompt: #3d7a22;
   --glow: 0 10px 30px -16px rgba(13, 21, 32, 0.45);
   --shadow: 0 1px 2px rgba(13, 21, 32, 0.08), 0 18px 40px -24px rgba(13, 21, 32, 0.3);
+  --stage-base: #d9e1e8;
+  --stage-ember: #f0a868;
+  --stage-heat: #f7dfa8;
+  --stage-cool: #9fb8d4;
+  --stage-ember-mix: 70%;
+  --shot-shadow: 0 2px 6px rgba(13, 21, 32, 0.12), 0 40px 80px -36px rgba(13, 21, 32, 0.45);
 }
 
 /* ---------- 2. Colour: brand (same in both themes) ---------- */

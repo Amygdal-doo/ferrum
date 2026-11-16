@@ -2,139 +2,63 @@
    components.css; the features page and demo windows in features.css. */
 
 
-/* ---------- Home: hero over a desktop with an app window and a dock ----------
-   The desk is the page's one bold element; everything after it is quiet. */
+/* ---------- Home: a quiet hero over a real screenshot ----------
+   The stages are the page's one bold element: real app windows over a
+   forge glow. Everything else is quiet text. */
 .page-home .hero { padding-top: var(--sp-16); }
-.hero__head { display: grid; gap: var(--sp-6) var(--sp-12); align-items: end; }
-@media (min-width: 1000px) { .hero__head { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); } }
-.hero__title { font-size: clamp(2.9rem, 1.2rem + 7vw, 7.5rem); line-height: 0.9; margin: 0; text-wrap: initial; }
-.hero__line { display: block; }
-.hero__copy { min-width: 0; }
-.hero__lead { font-size: var(--fs-lg); color: var(--text); max-width: 46ch; }
-.hero__ctas { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin: var(--sp-6) 0 0; }
-.hero__foot { display: grid; gap: var(--sp-6) var(--sp-12); align-items: start; }
-@media (min-width: 1000px) { .hero__foot { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); } }
-.hero__note { margin: 0; padding-top: var(--sp-6); font-size: var(--fs-sm); color: var(--text-muted); max-width: 46ch; }
+.hero__title {
+  margin: 0; max-width: 22ch; font: 600 clamp(1.9rem, 1.3rem + 2.2vw, 3rem)/1.15 var(--font-sans);
+  letter-spacing: -0.015em; text-wrap: balance;
+}
+.hero__ctas { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin: var(--sp-8) 0 0; }
+.hero__note { margin: var(--sp-4) 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
 .hero__note a { color: var(--text); }
 .btn--icon .icon { width: 18px; height: 18px; }
 
-/* Three facts, number over label (the dt comes first in the markup). */
-.hero-stats { margin: 0; display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; border-top: var(--rule-strong); }
-.hero-stat { display: flex; flex-direction: column-reverse; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-6) var(--sp-6) 0 0; min-width: 0; }
-.hero-stat + .hero-stat { padding-left: var(--sp-6); border-left: var(--rule); }
-.hero-stat dd { margin: 0; font: 800 clamp(1.9rem, 1.3rem + 1.4vw, 2.6rem)/1 var(--font-display); color: var(--text); white-space: nowrap; }
-.hero-stat dt { font-size: var(--fs-sm); line-height: 1.35; color: var(--text-muted); max-width: 18ch; }
-@media (max-width: 759px) {
-  .hero-stats { grid-template-columns: minmax(0, 1fr); }
-  .hero-stat, .hero-stat + .hero-stat { flex-direction: row-reverse; justify-content: space-between; align-items: baseline; padding: var(--sp-3) 0; border-left: 0; border-bottom: var(--rule); }
-  .hero-stat dd { font-size: 1.75rem; }
-  .hero-stat dt { max-width: none; text-align: right; }
+/* A stage: the screenshot floats on a glow of the app's colour over hot iron. */
+.stage {
+  --glow-at: 18% 100%;
+  position: relative; isolation: isolate; overflow: hidden; margin-top: var(--sp-12);
+  padding: clamp(20px, 5vw, 72px) clamp(16px, 6vw, 96px) 0; border-radius: var(--radius-lg);
+  background:
+    radial-gradient(60% 70% at var(--glow-at), color-mix(in srgb, var(--stage-heat) 70%, transparent), transparent 70%),
+    radial-gradient(90% 90% at var(--glow-at), color-mix(in srgb, color-mix(in srgb, var(--app-accent, var(--stage-ember)) 50%, var(--stage-ember)) var(--stage-ember-mix), transparent), transparent 75%),
+    radial-gradient(80% 80% at 100% 0%, var(--stage-cool), transparent 70%),
+    var(--stage-base);
 }
+/* Grain, so the glow reads as a surface rather than a gradient. */
+.stage::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0.35; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.shot {
+  display: block; width: 100%; height: auto; border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shot-shadow);
+}
+.shot--light, :root[data-theme="light"] .shot--dark { display: none; }
+:root[data-theme="light"] .shot--light { display: block; }
+.stage--hero { margin-top: var(--sp-12); padding-inline: clamp(16px, 4vw, 64px); }
 
-/* The one orchestrated load: each line rises in hot (straw) and cools to steel. */
-.js .hero__line { animation: hero-cool 1.6s var(--ease) both; }
-.js .hero__line + .hero__line { animation-delay: 0.18s; }
-.js .hero__copy { animation: hero-rise 0.9s var(--ease) 0.45s both; }
-@keyframes hero-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-@keyframes hero-cool {
-  0% { opacity: 0; transform: translateY(0.35em); color: var(--straw-soft); text-shadow: 0 0 40px color-mix(in srgb, var(--straw) 80%, transparent); }
-  35% { opacity: 1; color: var(--straw); }
-  65% { color: color-mix(in srgb, var(--bronze) 50%, var(--text)); text-shadow: 0 0 24px color-mix(in srgb, var(--bronze) 40%, transparent); }
-  100% { opacity: 1; transform: none; color: var(--text); text-shadow: none; }
-}
+/* Agents and models, under the hero. */
+.works-with__title { margin: 0 0 var(--sp-6); font: 600 var(--fs-lg)/1.3 var(--font-sans); color: var(--text-muted); }
 
-/* The desk: one app window on a quiet desktop, with a dock of every app.
-   Every app's panel sits in the same grid cell, so switching never moves the
-   page; site.js crossfades between them. The window's own bar names the app,
-   so the demos' bars are hidden here. */
-.desk {
-  margin-block: var(--sp-12); padding: clamp(var(--sp-4), 4vw, var(--sp-12)) clamp(var(--sp-3), 4vw, var(--sp-12)) var(--sp-4);
-  border: var(--rule); border-radius: var(--radius-lg); background: var(--bg-elev);
-  display: flex; flex-direction: column; align-items: center;
+/* One app at work: two-tone sentence beside its stage, sides alternating. */
+.showcase__inner { display: grid; gap: var(--sp-8) var(--sp-16); align-items: center; }
+@media (min-width: 1000px) {
+  .showcase__inner { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.7fr); }
+  .showcase--flip .showcase__inner { grid-template-columns: minmax(0, 1.7fr) minmax(0, 0.8fr); }
+  .showcase--flip .showcase__copy { order: 2; }
+  .showcase--flip .stage { --glow-at: 82% 100%; }
 }
-.desk__window {
-  width: 100%; max-width: 58rem; aspect-ratio: 16 / 9;
-  display: flex; flex-direction: column; overflow: hidden;
-  border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg);
-  box-shadow: var(--shadow);
-}
-.desk__bar {
-  display: flex; align-items: center; height: 34px; padding: 0 14px; flex: none;
-  background: var(--surface); border-bottom: 1px solid var(--border);
-}
-.desk__title { flex: 1; margin-right: 42px; text-align: center; font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); }
-.desk__screen { flex: 1; min-height: 0; display: grid; }
-.desk__app { grid-area: 1 / 1; min-width: 0; min-height: 0; display: flex; }
-.desk__app[hidden] { display: none; }
-.desk__app .demo { flex: 1; min-width: 0; border: 0; border-radius: 0; box-shadow: none; }
-.desk__app .demo__bar { display: none; }
-.desk__app .demo__body { min-height: 0; }
-.desk__app.is-in { animation: desk-in 250ms var(--ease) both; }
-.desk__app.is-out { animation: desk-out 250ms var(--ease) both; pointer-events: none; }
-@keyframes desk-in { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
-@keyframes desk-out { from { opacity: 1; } to { opacity: 0; transform: scale(1.01); } }
-
-.desk__caption { margin: var(--sp-4) 0 0; max-width: 60rem; text-align: center; font-size: var(--fs-sm); color: var(--text-muted); }
-.desk__caption a { color: var(--text); font-weight: 600; white-space: nowrap; }
-
-/* The dock: logo tiles, a dot under the app on screen, a little lift on hover. */
-.appdock {
-  list-style: none; margin: var(--sp-6) 0 0; padding: 8px 10px 10px;
-  display: flex; align-items: flex-end; gap: 6px; max-width: 100%;
-  border: 1px solid var(--border); border-radius: 18px; background: var(--surface);
-}
-.appdock__item { flex: none; }
-.appdock__sep { flex: none; align-self: stretch; width: 1px; margin: 4px 6px; background: var(--border-strong); }
-.appdock__btn, .appdock__link {
-  position: relative; display: block; padding: 0 0 8px; border: 0; background: none; cursor: pointer;
-  transform-origin: 50% 100%; transition: transform var(--dur-fast) var(--ease);
-}
-.appdock__btn img, .appdock__link img { display: block; width: 52px; height: 52px; }
-.js .appdock__link, html:not(.js) .appdock__btn { display: none; }
-.appdock__btn::after {
-  content: ""; position: absolute; left: 50%; bottom: 1px; width: 4px; height: 4px; margin-left: -2px;
-  border-radius: 50%; background: var(--text); opacity: 0; transition: opacity var(--dur-fast) var(--ease);
-}
-.appdock__btn[aria-pressed="true"] { transform: translateY(-3px); }
-.appdock__btn[aria-pressed="true"]::after { opacity: 1; }
-.appdock__btn:focus-visible, .appdock__link:focus-visible { outline-offset: 2px; border-radius: 12px; }
-@media (hover: hover) {
-  .appdock__item:hover > * { transform: translateY(-4px) scale(1.14); }
-  .appdock__item:has(+ .appdock__item:hover) > *, .appdock__item:hover + .appdock__item > * { transform: translateY(-2px) scale(1.05); }
-}
-/* The name shows above the icon on hover or focus, like a dock tooltip. */
-.appdock__name {
-  position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
-  padding: 2px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2);
-  font: 600 var(--fs-xs)/1.6 var(--font-sans); color: var(--text); white-space: nowrap;
-  opacity: 0; pointer-events: none; transition: opacity var(--dur-fast) var(--ease);
-}
-.appdock__item:hover .appdock__name, .appdock__btn:focus-visible .appdock__name, .appdock__link:focus-visible .appdock__name { opacity: 1; }
-
-@media (max-width: 719px) {
-  .desk { margin-block: var(--sp-8); }
-  .desk__window { aspect-ratio: 4 / 5; }
-  /* Two rows: the apps, then the tools. */
-  .appdock { flex-wrap: wrap; justify-content: center; gap: 4px 5px; padding: 8px 8px 6px; }
-  .appdock__sep { flex-basis: 100%; width: auto; height: 1px; margin: 2px 8px; align-self: auto; background: var(--border); }
-  .appdock__btn img, .appdock__link img { width: 36px; height: 36px; }
-}
-
-/* ---------- Home: an agent at work (FerrumEngineer) ---------- */
-.agent-show__body { display: grid; gap: var(--sp-8) var(--sp-12); align-items: start; }
-@media (min-width: 1000px) { .agent-show__body { grid-template-columns: minmax(0, 0.62fr) minmax(0, 1.5fr); } }
-.agent-steps { list-style: none; margin: 0; padding: 0; counter-reset: agent; }
-.agent-steps li { counter-increment: agent; position: relative; padding: var(--sp-4) 0 var(--sp-4) var(--sp-12); border-top: var(--rule); }
-.agent-steps li:last-child { border-bottom: var(--rule); }
-.agent-steps li::before {
-  content: counter(agent); position: absolute; left: 0; top: var(--sp-4);
-  font: 800 1.75rem/1 var(--font-display); color: color-mix(in srgb, var(--app-accent) var(--ink-mix), var(--text));
-}
-.agent-steps h3 { margin: 0 0 var(--sp-1); }
-.agent-steps p { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
-.agent-show__demo { min-width: 0; }
-.agent-show__demo .demo__body { min-height: 400px; }
-.agent-show__more { margin: var(--sp-8) 0 0; font-weight: 600; }
+.showcase .stage { margin: 0; padding: clamp(20px, 4vw, 48px) 0 0 clamp(20px, 4vw, 48px); }
+/* The window runs off the stage's right edge, so its UI reads at a useful size. */
+.showcase .shot { width: 155%; max-width: none; border-bottom-left-radius: 0; }
+.showcase__app { display: flex; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-4); font-weight: 600; color: var(--text-muted); }
+.showcase__app img { border-radius: 7px; }
+.showcase__title { margin: 0; font: 600 clamp(1.35rem, 1.1rem + 0.7vw, 1.65rem)/1.25 var(--font-sans); letter-spacing: -0.01em; text-wrap: balance; }
+.showcase__rest { margin: var(--sp-3) 0 0; font: 400 var(--fs-lg)/1.55 var(--font-sans); letter-spacing: 0; color: var(--text-muted); }
+.page-home .showcase { padding-block: var(--sp-16); }
+.showcase__more { display: inline-block; margin-top: var(--sp-6); font-weight: 600; }
 
 /* ---------- Home: shell commands ---------- */
 .cmd-list {
