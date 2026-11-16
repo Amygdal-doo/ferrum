@@ -2,7 +2,7 @@
 //! metadata, scroll state, syntax highlights, git marks and search
 //! matches. Rendering lives in `element`, input in `input`, command
 //! dispatch in `commands`, background work in `background`, find support
-//! in `search`; language server features in `lsp`, `lsp_actions`,
+//! in `search`, code folding in `folding`; language server features in `lsp`, `lsp_actions`,
 //! `completion` and `popups`.
 
 mod background;
@@ -10,6 +10,7 @@ mod commands;
 mod completion;
 mod decorations;
 mod element;
+mod folding;
 mod input;
 mod layout;
 mod lsp;
@@ -26,6 +27,7 @@ use std::sync::atomic::AtomicUsize;
 use ferrumeditor_core::display::DisplayMap;
 use ferrumeditor_core::editor::EditorState;
 use ferrumeditor_core::files::{DiskStamp, LineEnding, LoadedFile, SaveOptions};
+use ferrumeditor_core::folding::{FoldRegion, Folds};
 use ferrumeditor_core::git::LineMark;
 use ferrumeditor_core::highlight::HighlightSpan;
 use ferrumeditor_core::language::Language;
@@ -127,6 +129,10 @@ pub struct EditorView {
     highlight_version: Option<u64>,
     highlight_cancel: Arc<AtomicUsize>,
     highlight_task: Option<Task<()>>,
+    /// Foldable regions from the last tree-sitter pass, by header row.
+    fold_regions: Arc<Vec<FoldRegion>>,
+    /// Folded regions, kept in step with edits.
+    folds: Folds,
     pub git_repo: Option<PathBuf>,
     git_base: Option<Arc<String>>,
     git_marks: Arc<Vec<(usize, LineMark)>>,
@@ -202,6 +208,8 @@ impl EditorView {
             highlight_version: None,
             highlight_cancel: Arc::default(),
             highlight_task: None,
+            fold_regions: Arc::default(),
+            folds: Folds::default(),
             git_repo,
             git_base: None,
             git_marks: Arc::default(),

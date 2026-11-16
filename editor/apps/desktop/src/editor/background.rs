@@ -1,11 +1,11 @@
-//! Background work for an editor: tree-sitter highlighting and git line
-//! marks, both debounced and computed off the main thread on a snapshot.
+//! Background work for an editor: tree-sitter highlighting (with the
+//! foldable regions) and git line marks, both debounced and computed off the main thread on a snapshot.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use ferrumeditor_core::{git, highlight};
+use ferrumeditor_core::{folding, git, highlight};
 use gpui::Context;
 
 use super::{EditorView, HIGHLIGHT_LIMIT};
@@ -22,6 +22,7 @@ impl EditorView {
         let language = self.state.language;
         if !highlight::supports(language) || self.state.buffer().len() > HIGHLIGHT_LIMIT {
             self.highlights = Arc::default();
+            self.fold_regions = Arc::default();
             self.highlight_version = Some(version);
             self.highlight_task = None;
             return;
@@ -36,15 +37,19 @@ impl EditorView {
                 cx.background_executor().timer(HIGHLIGHT_DEBOUNCE).await;
             }
             let flag = cancel.clone();
-            let spans = cx
+            let (spans, regions) = cx
                 .background_executor()
-                .spawn(async move { highlight::highlight(language, &text, Some(&flag)) })
+                .spawn(async move {
+                    let spans = highlight::highlight(language, &text, Some(&flag));
+                    (spans, folding::fold_regions(language, &text))
+                })
                 .await;
             if cancel.load(Ordering::Relaxed) != 0 {
                 return;
             }
             this.update(cx, |this, cx| {
                 this.highlights = Arc::new(spans);
+                this.fold_regions = Arc::new(regions);
                 this.highlight_version = Some(version);
                 cx.notify();
             })

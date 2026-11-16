@@ -154,6 +154,11 @@ fn config(language: Language) -> Option<&'static HighlightConfiguration> {
     slot(language)?.get_or_init(|| build(language)).as_ref()
 }
 
+/// The tree-sitter grammar of `language` (for code folding).
+pub(crate) fn grammar(language: Language) -> Option<tree_sitter::Language> {
+    config(language).map(|config| config.language.clone())
+}
+
 fn markdown_inline_config() -> Option<&'static HighlightConfiguration> {
     static INLINE: Slot = OnceLock::new();
     INLINE

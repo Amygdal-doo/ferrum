@@ -20,10 +20,25 @@ impl Point {
     }
 }
 
+/// Edits kept for [`Buffer::edits_since`]; older ones are forgotten.
+const JOURNAL_LIMIT: usize = 512;
+
+/// One edit in the journal: the version it produced, the replaced range
+/// and the length of the inserted text.
+#[derive(Debug, Clone)]
+struct JournalEntry {
+    version: u64,
+    range: Range<usize>,
+    new_len: usize,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Buffer {
     rope: Rope,
     version: u64,
+    /// Recent edits, oldest first, so ranges kept elsewhere (folds) can
+    /// follow the text.
+    journal: std::collections::VecDeque<JournalEntry>,
 }
 
 impl Buffer {
@@ -31,6 +46,7 @@ impl Buffer {
         Self {
             rope: Rope::from_str(&normalize_newlines(text)),
             version: 0,
+            journal: Default::default(),
         }
     }
 
@@ -168,6 +184,14 @@ impl Buffer {
             self.rope.insert(char_start, &text);
         }
         self.version += 1;
+        if self.journal.len() == JOURNAL_LIMIT {
+            self.journal.pop_front();
+        }
+        self.journal.push_back(JournalEntry {
+            version: self.version,
+            range: start..end,
+            new_len: text.len(),
+        });
         start..start + text.len()
     }
 
@@ -175,6 +199,27 @@ impl Buffer {
     pub fn set_text(&mut self, text: &str) {
         self.rope = Rope::from_str(&normalize_newlines(text));
         self.version += 1;
+        self.journal.clear();
+    }
+
+    /// The edits made after `version`, oldest first, as (replaced range,
+    /// inserted length); `None` if they are no longer known (the text was
+    /// replaced, or too many edits ago).
+    pub fn edits_since(&self, version: u64) -> Option<Vec<(Range<usize>, usize)>> {
+        if version == self.version {
+            return Some(Vec::new());
+        }
+        let first = self.journal.front()?;
+        if version >= self.version || first.version > version + 1 {
+            return None;
+        }
+        Some(
+            self.journal
+                .iter()
+                .filter(|e| e.version > version)
+                .map(|e| (e.range.clone(), e.new_len))
+                .collect(),
+        )
     }
 
     /// Leading whitespace (spaces/tabs) of `row`.
@@ -244,6 +289,27 @@ mod tests {
         assert_eq!(buffer.text(), ">hello there\nfriend");
         buffer.edit(0..1, "");
         assert_eq!(buffer.text(), "hello there\nfriend");
+    }
+
+    #[test]
+    fn journal_lists_edits_since_a_version() {
+        let mut buffer = Buffer::new("abc");
+        buffer.edit(0..1, "xy");
+        let v1 = buffer.version();
+        buffer.edit(3..4, "");
+        assert_eq!(buffer.edits_since(v1), Some(vec![(3..4, 0)]));
+        assert_eq!(buffer.edits_since(0), Some(vec![(0..1, 2), (3..4, 0)]));
+        assert_eq!(buffer.edits_since(buffer.version()), Some(Vec::new()));
+        buffer.set_text("new");
+        assert_eq!(buffer.edits_since(v1), None);
+        for _ in 0..JOURNAL_LIMIT + 1 {
+            buffer.edit(0..0, "a");
+        }
+        assert_eq!(buffer.edits_since(v1 + 1), None);
+        assert_eq!(
+            buffer.edits_since(buffer.version() - 2).map(|e| e.len()),
+            Some(2)
+        );
     }
 
     #[test]

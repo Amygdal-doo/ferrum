@@ -35,6 +35,8 @@ mod tests_themes;
 #[cfg(test)]
 mod tests_tools;
 #[cfg(test)]
+mod tests_view;
+#[cfg(test)]
 mod tests_viewer;
 
 use ferrum_ui::AppConfig;

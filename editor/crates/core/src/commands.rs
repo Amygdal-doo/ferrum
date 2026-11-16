@@ -230,6 +230,12 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("editor:add-cursor-above", E, &["ctrl-shift-up"]),
     ("editor:add-cursor-below", E, &["ctrl-shift-down"]),
     ("editor:go-to-matching-bracket", E, &["ctrl-m"]),
+    // Code folding (regions from tree-sitter)
+    ("editor:fold", E, &["cmd-alt-["]),
+    ("editor:unfold", E, &["cmd-alt-]"]),
+    ("editor:toggle-fold", E, &[]),
+    ("editor:fold-all", E, &["cmd-k cmd-0"]),
+    ("editor:unfold-all", E, &["cmd-k cmd-j"]),
     ("editor:cancel", E, &["escape"]),
     ("editor:show-character-palette", E, &["ctrl-cmd-space"]),
     ("editor:show-completions", E, &["ctrl-space", "cmd-i"]),

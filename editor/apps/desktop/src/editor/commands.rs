@@ -48,6 +48,9 @@ impl EditorView {
         if self.run_lsp_command(name, cx) {
             return true;
         }
+        if self.fold_command(name, cx) {
+            return true;
+        }
         let version = self.state.buffer().version();
         let selections = self.state.selections().to_vec();
         let page = self.page_rows();

@@ -17,6 +17,9 @@ use crate::theme_apply::ui;
 
 const SCROLLBAR_WIDTH: Pixels = px(10.);
 
+/// Drawn after the header row of a folded region.
+const FOLD_PLACEHOLDER: &str = " ⋯";
+
 pub struct EditorElement {
     editor: Entity<EditorView>,
 }
@@ -204,23 +207,23 @@ impl EditorView {
     ) -> Frame {
         let settings = cx.global::<Settings>();
         let theme = settings.theme.clone();
-        let tab_size = self.state.settings.tab_size;
         let line_height = style.line_height;
         let char_width = style.char_width;
         let line_count = self.state.buffer().line_count();
         let digits = line_count.to_string().len().max(2) as f32;
+        // Line numbers, then the fold lane next to the text.
         let gutter_width = if self.show_line_numbers {
             char_width * (digits + 1.) + px(16.)
         } else {
             px(14.)
-        };
+        } + super::folding::FOLD_LANE;
         let text_left = bounds.left() + gutter_width + px(6.);
         let text_width =
             (bounds.size.width - gutter_width - px(6.) - SCROLLBAR_WIDTH).max(char_width * 10.);
         let wrap = self
             .soft_wrap
             .then(|| ((text_width / char_width).floor() as usize).max(16));
-        self.display_map.sync(self.state.buffer(), tab_size, wrap);
+        self.sync_display_map(wrap);
 
         // Vertical scroll: keep the primary cursor in view after commands.
         let total_rows = self.display_map.row_count();
@@ -376,7 +379,14 @@ impl EditorView {
             let line_len = buffer.line_len(buffer_row);
             let display_start = expanded.to_display(segment.start);
             let display_end = expanded.to_display(segment.end).max(display_start);
-            let text: SharedString = expanded.text[display_start..display_end].to_string().into();
+            let mut text: String = expanded.text[display_start..display_end].to_string();
+            // A folded region shows as `⋯` after the row it hangs from.
+            let folded = segment.end >= line_len && self.folds.is_folded(buffer, buffer_row);
+            if folded {
+                text.push_str(FOLD_PLACEHOLDER);
+            }
+            let text: SharedString = text.into();
+            let text_len = text.len() - if folded { FOLD_PLACEHOLDER.len() } else { 0 };
             let marked = self.marked_range.clone().filter(|m| {
                 m.start >= line_start + segment.start && m.end <= line_start + segment.end
             });
@@ -394,8 +404,19 @@ impl EditorView {
                     marked,
                     squiggles,
                 },
-                text.len(),
+                text_len,
             );
+            let mut runs = runs;
+            if folded {
+                runs.push(TextRun {
+                    len: FOLD_PLACEHOLDER.len(),
+                    font: style.font.clone(),
+                    color: text_color.opacity(0.5),
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                });
+            }
             let shaped = window
                 .text_system()
                 .shape_line(text, style.font_size, &runs, None);

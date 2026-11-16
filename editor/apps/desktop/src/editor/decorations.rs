@@ -1,5 +1,6 @@
 //! Per-frame decorations: current line, search matches, selections,
-//! indent guides, bracket match, cursors, line numbers and git marks.
+//! indent guides, bracket match, cursors, line numbers, fold toggles and
+//! git marks.
 
 use ferrumeditor_core::display::visual_col;
 use ferrumeditor_core::git::LineMark;
@@ -234,9 +235,40 @@ impl EditorView {
                 let shaped = window
                     .text_system()
                     .shape_line(text, style.font_size, &[run], None);
-                let x = layout.bounds.left() + layout.gutter_width - px(10.) - shaped.width;
+                let x = layout.bounds.left() + layout.gutter_width
+                    - super::folding::FOLD_LANE
+                    - px(2.)
+                    - shaped.width;
                 frame.numbers.push((shaped, point(x, row.top)));
             }
+        }
+        // Fold toggles: ▸ on folded rows, a fainter ▾ where a region starts.
+        let buffer = self.state.buffer();
+        for row in layout.rows.iter().filter(|r| r.segment.start == 0) {
+            let folded = self.folds.is_folded(buffer, row.buffer_row);
+            if !folded && !self.is_fold_header(row.buffer_row) {
+                continue;
+            }
+            let (glyph, color) = if folded {
+                ("▸", active)
+            } else {
+                ("▾", normal.opacity(0.6))
+            };
+            let run = TextRun {
+                len: glyph.len(),
+                font: style.font.clone(),
+                color,
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            };
+            let shaped =
+                window
+                    .text_system()
+                    .shape_line(glyph.into(), style.font_size, &[run], None);
+            let x = layout.bounds.left() + layout.gutter_width - super::folding::FOLD_LANE
+                + (super::folding::FOLD_LANE - shaped.width) / 2.;
+            frame.numbers.push((shaped, point(x, row.top)));
         }
         // Problems: a dot per line, coloured by the worst one.
         let diagnostics = &self.lsp.diagnostics;

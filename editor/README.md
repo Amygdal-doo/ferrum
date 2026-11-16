@@ -27,6 +27,7 @@ handling are its own; nothing from Zed's editor stack (`editor`, `language`, `pr
 | Find in files (respects `.gitignore`, skips binary/huge files, cancellable background search), results grouped by file, open at match | ✅ tested |
 | Fuzzy matcher (smart case, path-aware bonuses) for the file finder and command palette; file list built on a background thread | ✅ tested |
 | Tree-sitter highlighting for Rust, JavaScript, TypeScript, TSX, JSON, TOML, YAML, Markdown (inline + fenced code injections), Python, Go, HTML (JS/CSS injections), CSS, Bash — full reparse on a background thread, debounced; disabled above 4 MB | ✅ tested (spans) |
+| Code folding from the tree-sitter tree (brace / bracket blocks with the closing row kept visible, Python blocks, comments, Markdown sections, TOML tables, YAML mappings, HTML elements): ▾ / ▸ toggles in the gutter's fold lane, ⌥⌘[ / ⌥⌘] fold / unfold at the caret, ⌘K ⌘0 / ⌘K ⌘J fold all / unfold all (also in *View*); a folded row ends in `⋯`; folds follow edits, and an edit inside a fold or a caret moved into it opens it | ✅ regions and fold tracking unit-tested; keys, vertical moves and edits headless-tested; drawing not hand-tested |
 | Editor surface: only visible rows are shaped; line numbers, current-line highlight, selections, cursors, indent guides, bracket-match boxes, search matches, git gutter, scrollbar, soft wrap (word-boundary wrapping), horizontal scroll, IME / dead keys via GPUI's input handler, mouse select / drag (word, line), clipboard (whole-line copy/paste) | ⚠️ headless-tested; not hand-tested |
 | Workspace: tree view (expand/collapse, new file/folder, rename, Move to Trash, reveal active file, reveal in Finder, keyboard navigation), tabs with dirty dot and save prompt on close, split right/down, focus next/previous pane, reopen closed tab | ⚠️ headless-tested in parts |
 | Command palette (every command with its current key binding), file finder (Cmd+P), go to line (Ctrl+G, `line[:col]`) | ✅ headless-tested |
@@ -74,7 +75,7 @@ recent-projects list is not updated by the headless tests (they never write
 `~/.ferrum/projects.json`).
 Incremental tree-sitter reparsing (every edit reparses the whole file in the background);
 multiple windows; packages/plugins (a `Package` trait and command registry seam exist);
-cursor blinking; minimap; code folding; encodings other than UTF-8; editing files
+cursor blinking; minimap; encodings other than UTF-8; editing files
 over 64 MB; a project-wide replace; drag-and-drop of tabs or files; tree view drag-to-move;
 tab overflow menu; per-project settings; Linux/Windows key defaults beyond a mechanical
 `cmd`→`ctrl` translation.

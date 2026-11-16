@@ -1,5 +1,5 @@
 //! Display geometry independent of fonts: tab expansion, visual (cell)
-//! columns, and soft-wrap rows. A [`DisplayMap`] maps buffer offsets to
+//! columns, soft-wrap rows and rows hidden by folds. A [`DisplayMap`] maps buffer offsets to
 //! display rows and cell columns, which vertical motions and the renderer
 //! share.
 
@@ -149,15 +149,20 @@ pub struct DisplayPoint {
     pub col: usize,
 }
 
-/// Maps buffer rows to display rows. Without wrapping every buffer row is
-/// one display row and nothing is stored.
+/// Maps buffer rows to display rows. Without wrapping or folds every
+/// buffer row is one display row and nothing is stored. Rows hidden by a
+/// fold take no display rows.
 #[derive(Debug, Clone, Default)]
 pub struct DisplayMap {
     tab_size: usize,
     wrap_width: Option<usize>,
-    /// Per buffer row: byte columns where display rows start (wrap only).
+    /// Buffer rows hidden by folds (sorted, disjoint).
+    hidden: Vec<Range<usize>>,
+    /// Per buffer row: byte columns where display rows start (wrap or
+    /// folds only; empty for hidden rows).
     row_starts: Vec<Vec<usize>>,
-    /// Per buffer row: first display row (wrap only).
+    /// Per buffer row: first display row (wrap or folds only; a hidden row
+    /// gets the next shown row's).
     first_display_row: Vec<usize>,
     display_rows: usize,
     version: Option<u64>,
@@ -182,37 +187,69 @@ impl DisplayMap {
 
     /// Recomputes wrap rows if the buffer, tab size or width changed.
     pub fn sync(&mut self, buffer: &Buffer, tab_size: usize, wrap_width: Option<usize>) {
+        let hidden = self.hidden.clone();
+        self.sync_with_folds(buffer, tab_size, wrap_width, &hidden);
+    }
+
+    /// Like [`DisplayMap::sync`], with the buffer rows folds hide (sorted,
+    /// disjoint row ranges).
+    pub fn sync_with_folds(
+        &mut self,
+        buffer: &Buffer,
+        tab_size: usize,
+        wrap_width: Option<usize>,
+        hidden: &[Range<usize>],
+    ) {
         let tab_size = tab_size.max(1);
         let wrap_width = wrap_width.filter(|w| *w > 0);
         if self.version == Some(buffer.version())
             && self.tab_size == tab_size
             && self.wrap_width == wrap_width
-            && (wrap_width.is_some() || self.display_rows == buffer.line_count())
+            && self.hidden == hidden
+            && (!self.is_identity() || self.display_rows == buffer.line_count())
         {
             return;
         }
         self.tab_size = tab_size;
         self.wrap_width = wrap_width;
+        self.hidden = hidden.to_vec();
         self.version = Some(buffer.version());
         self.row_starts.clear();
         self.first_display_row.clear();
-        let Some(width) = wrap_width else {
+        if self.is_identity() {
             self.display_rows = buffer.line_count();
             return;
-        };
+        }
         let mut total = 0;
+        let mut hidden = self.hidden.iter().peekable();
         for row in 0..buffer.line_count() {
-            let line = buffer.line(row);
-            let starts = if line.len() <= width && !line.contains('\t') {
-                vec![0]
-            } else {
-                wrap_line(&line, width, tab_size)
-            };
+            while hidden.next_if(|h| h.end <= row).is_some() {}
             self.first_display_row.push(total);
+            if hidden.peek().is_some_and(|h| h.contains(&row)) {
+                self.row_starts.push(Vec::new());
+                continue;
+            }
+            let line = buffer.line(row);
+            let starts = match wrap_width {
+                Some(width) if line.len() > width || line.contains('\t') => {
+                    wrap_line(&line, width, tab_size)
+                }
+                _ => vec![0],
+            };
             total += starts.len();
             self.row_starts.push(starts);
         }
         self.display_rows = total;
+    }
+
+    /// One display row per buffer row: nothing stored.
+    fn is_identity(&self) -> bool {
+        self.wrap_width.is_none() && self.hidden.is_empty()
+    }
+
+    /// Whether a fold hides buffer row `row`.
+    pub fn is_hidden(&self, row: usize) -> bool {
+        self.hidden.iter().any(|h| h.contains(&row))
     }
 
     pub fn row_count(&self) -> usize {
@@ -220,7 +257,7 @@ impl DisplayMap {
     }
 
     pub fn first_display_row(&self, buffer_row: usize) -> usize {
-        if self.wrap_width.is_none() {
+        if self.is_identity() {
             return buffer_row;
         }
         self.first_display_row
@@ -231,7 +268,7 @@ impl DisplayMap {
 
     /// Buffer row and the byte columns of that line shown on display row `row`.
     pub fn buffer_segment(&self, buffer: &Buffer, row: usize) -> (usize, Range<usize>) {
-        if self.wrap_width.is_none() {
+        if self.is_identity() {
             let row = row.min(buffer.line_count().saturating_sub(1));
             return (row, 0..buffer.line_len(row));
         }
@@ -250,11 +287,16 @@ impl DisplayMap {
     }
 
     pub fn to_display(&self, buffer: &Buffer, offset: usize) -> DisplayPoint {
-        let point = buffer.offset_to_point(offset);
+        let mut point = buffer.offset_to_point(offset);
+        if let Some(fold) = self.hidden.iter().find(|h| h.contains(&point.row)) {
+            // Inside a fold: the end of the row the fold hangs from.
+            let row = fold.start.saturating_sub(1);
+            point = crate::buffer::Point::new(row, buffer.line_len(row));
+        }
         let line = buffer.line(point.row);
         let first = self.first_display_row(point.row);
         let (segment, seg_start) = match self.row_starts.get(point.row) {
-            Some(starts) if self.wrap_width.is_some() => {
+            Some(starts) if !starts.is_empty() => {
                 let i = starts
                     .partition_point(|s| *s <= point.col)
                     .saturating_sub(1);
@@ -349,5 +391,38 @@ mod tests {
         assert_eq!(map.to_offset(&buffer, DisplayPoint { row: 0, col: 20 }), 5);
         assert_eq!(map.to_offset(&buffer, DisplayPoint { row: 2, col: 20 }), 15);
         assert_eq!(map.first_display_row(1), 3);
+    }
+
+    #[test]
+    #[allow(clippy::single_range_in_vec_init)] // one fold is the point
+    fn folded_rows_take_no_display_rows() {
+        let buffer = Buffer::new("fn a() {\n    x;\n    y;\n}\nz");
+        let mut map = DisplayMap::new(4, None);
+        map.sync_with_folds(&buffer, 4, None, &[1..3]);
+        assert_eq!(map.row_count(), 3);
+        assert_eq!(map.buffer_segment(&buffer, 0), (0, 0..8));
+        assert_eq!(map.buffer_segment(&buffer, 1), (3, 0..1));
+        assert_eq!(map.buffer_segment(&buffer, 2), (4, 0..1));
+        assert!(map.is_hidden(2) && !map.is_hidden(3));
+        // An offset inside the fold shows at the end of its first row.
+        let inside = buffer.line_start(2) + 2;
+        assert_eq!(
+            map.to_display(&buffer, inside),
+            DisplayPoint { row: 0, col: 8 }
+        );
+        assert_eq!(
+            map.to_offset(&buffer, DisplayPoint { row: 1, col: 0 }),
+            buffer.line_start(3)
+        );
+        // Folds and wrap together; a fold reaching the last row.
+        let mut map = DisplayMap::new(4, Some(4));
+        map.sync_with_folds(&buffer, 4, Some(4), &[1..5]);
+        assert_eq!(map.row_count(), 3);
+        assert_eq!(map.buffer_segment(&buffer, 2), (0, 7..8));
+        // Unfolding restores the identity mapping.
+        let mut map = DisplayMap::new(4, None);
+        map.sync_with_folds(&buffer, 4, None, &[1..3]);
+        map.sync_with_folds(&buffer, 4, None, &[]);
+        assert_eq!(map.row_count(), 5);
     }
 }

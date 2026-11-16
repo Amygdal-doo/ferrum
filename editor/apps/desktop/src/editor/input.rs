@@ -40,6 +40,17 @@ impl EditorView {
             cx.emit(EditorEvent::ToggleBreakpoint(row));
             return;
         }
+        // The lane next to the text folds and unfolds.
+        if in_gutter
+            && event.position.x
+                >= layout.bounds.left() + layout.gutter_width - super::folding::FOLD_LANE
+        {
+            let row = self.state.buffer().row_of(offset);
+            self.toggle_fold_at(row);
+            self.sync_display_map(self.display_map.wrap_width());
+            cx.notify();
+            return;
+        }
         self.marked_range = None;
         let m = event.modifiers;
         if m.platform && !m.alt && !m.shift && !in_gutter && self.has_language_server() {
