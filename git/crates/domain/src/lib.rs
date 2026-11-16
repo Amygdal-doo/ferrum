@@ -4,6 +4,7 @@
 //! older records keep loading when fields are added.
 
 mod commit;
+mod conflict;
 mod diff;
 mod forge;
 mod history;
@@ -21,6 +22,7 @@ mod undo;
 mod workspace;
 
 pub use commit::{Commit, CommitDetails, Oid, Stash};
+pub use conflict::{ConflictChoice, ConflictFile, ConflictSegment, PARSE_MARKER_SIZE};
 pub use diff::{DiffLine, DiffSource, FileDiff, Hunk, LineKind, SplitRow};
 pub use forge::{ForgeHost, ForgeKind, RepoForge, TokenSource};
 pub use history::{Blame, BlameCommit, BlameLine, FileCommit};

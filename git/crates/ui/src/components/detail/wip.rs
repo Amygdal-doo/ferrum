@@ -114,6 +114,7 @@ pub fn wip_panel(
             .as_ref()
             .is_some_and(|(path, src)| path == p && (*src == DiffSource::Staged) == staged)
     };
+    let open_conflict = view.conflict.as_ref().map(|c| c.file.path.clone());
     let busy = app.state.is_busy(id);
     let unstaged_paths: Vec<String> = unstaged.iter().map(|f| f.path.clone()).collect();
 
@@ -124,13 +125,13 @@ pub fn wip_panel(
             .iter()
             .map(|f| {
                 let (p1, p2, p3) = (f.path.clone(), f.path.clone(), f.path.clone());
-                let file = f.clone();
+                let path = f.path.clone();
                 FileRow::new(
                     format!("c-{}", f.path),
                     f.path.clone(),
                     f.index,
-                    is_open(&f.path, false),
-                    move |app, _, _, cx| app.open_file(id, &file, false, cx),
+                    open_conflict.as_deref() == Some(f.path.as_str()),
+                    move |app, _, _, cx| app.open_conflict(id, path.clone(), cx),
                 )
                 .action(OURS, move |app, _, _, cx| {
                     app.op(id, RepoOp::TakeOurs(vec![p1.clone()]), cx);

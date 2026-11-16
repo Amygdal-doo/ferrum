@@ -295,7 +295,11 @@ mod tests {
     fn validation_catches_what_git_would_refuse() {
         use RebaseAction::*;
         let p = plan(vec![step("a", "A", Drop), step("b", "B", Squash)]);
-        assert!(p.validate().expect_err("invalid").contains("earlier commit"));
+        assert!(
+            p.validate()
+                .expect_err("invalid")
+                .contains("earlier commit")
+        );
         let p = plan(vec![step("a", "A", Reword)]);
         assert!(p.validate().expect_err("invalid").contains("new message"));
         let mut p = plan(vec![step("a", "A", Pick), step("b", "B", Fixup)]);

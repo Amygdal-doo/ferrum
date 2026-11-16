@@ -119,6 +119,11 @@ pub enum RepoOp {
     Abort,
     TakeOurs(Vec<String>),
     TakeTheirs(Vec<String>),
+    /// Writes the resolved `content` to a conflicted file and stages it.
+    Resolve {
+        path: String,
+        content: String,
+    },
     // Tags
     CreateTag {
         name: String,
@@ -206,6 +211,7 @@ impl RepoOp {
             Self::Abort => "Aborting".into(),
             Self::TakeOurs(_) => "Taking ours".into(),
             Self::TakeTheirs(_) => "Taking theirs".into(),
+            Self::Resolve { path, .. } => format!("Resolving {path}"),
             Self::CreateTag { name, .. } => format!("Creating tag {name}"),
             Self::DeleteTag(t) => format!("Deleting tag {t}"),
             Self::PushTag { tag, .. } => format!("Pushing tag {tag}"),

@@ -13,6 +13,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
+/// The three-way conflict view.
+mod conflicts;
 /// The stand-alone app's file editor.
 mod editor;
 /// The interactive rebase dialog.

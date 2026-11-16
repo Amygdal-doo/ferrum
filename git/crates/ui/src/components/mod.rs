@@ -1,5 +1,6 @@
 pub mod actions;
 pub mod code;
+pub mod conflict;
 pub mod detail;
 pub mod dialogs;
 pub mod diff;

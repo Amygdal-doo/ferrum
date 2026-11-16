@@ -70,6 +70,7 @@ impl GitView {
                 }
                 app.refresh_project_branch(id, cx);
                 app.refresh_diff(id, cx);
+                app.refresh_conflict(id);
                 app.refresh_editor(id, cx);
                 app.refresh_file_view(id, cx);
                 // New commits may match the active search.
@@ -435,6 +436,7 @@ impl GitView {
         staged: bool,
         cx: &mut Context<Self>,
     ) {
+        self.state.update_view(id, |v| v.conflict = None);
         let source = if staged {
             DiffSource::Staged
         } else if file.worktree == ferrumgit_domain::ChangeKind::Untracked {

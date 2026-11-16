@@ -248,6 +248,7 @@ impl Repo {
                     .await?;
                 self.run(paths_cmd(self, &["add"], paths)?).await?
             }
+            RepoOp::Resolve { path, content } => self.resolve(path, content).await?,
             RepoOp::CreateTag {
                 name,
                 target,

@@ -56,9 +56,10 @@ pub fn right_column(app: &mut GitView, _: &mut Window, cx: &mut Context<GitView>
         // File history / blame covers the panel on every page until closed.
         _ if let Some(f) = view.file.clone() => file_panel(app, id, f, cx),
         Page::PullRequests => pull_detail::pull_detail(app, id, cx),
-        Page::WorkingCopy => match view.diff {
-            Some(_) => diff_pane(app, cx),
-            None => empty("Select a file to see its changes"),
+        Page::WorkingCopy => match (view.conflict, view.diff) {
+            (Some(c), _) => crate::components::conflict::conflict_pane(app, id, c, cx),
+            (None, Some(_)) => diff_pane(app, cx),
+            (None, None) => empty("Select a file to see its changes"),
         },
         Page::History | Page::Stashes => match view.details.clone() {
             Some(d) => commit::commit_panel(app, id, d, cx),

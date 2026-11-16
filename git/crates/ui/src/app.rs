@@ -322,9 +322,9 @@ impl GitView {
         } else if self.in_folder() {
             self.close_folder_diff(cx);
         } else if let Some(id) = self.state.active {
-            // Esc closes the file panel first, then the diff.
+            // Esc closes the file panel first, then the conflict view, then the diff.
             self.state.update_view(id, |v| {
-                if v.file.take().is_none() {
+                if v.file.take().is_none() && v.conflict.take().is_none() {
                     v.diff = None;
                 }
             });

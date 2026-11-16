@@ -2,8 +2,8 @@
 
 use crate::{AppError, AppResult, AppServices};
 use ferrumgit_domain::{
-    Blame, CommitDetails, DiffSource, FileCommit, FileDiff, Oid, Profile, ProfileId, RebaseStep,
-    RepoEntry, RepoOp, Stash,
+    Blame, CommitDetails, ConflictFile, DiffSource, FileCommit, FileDiff, Oid, Profile, ProfileId,
+    RebaseStep, RepoEntry, RepoOp, Stash,
 };
 use ferrumgit_git::{CancellationToken, NetEnv, OpContext, Snapshot};
 use ferrumgit_graph::{GraphRow, layout};
@@ -100,6 +100,17 @@ impl AppServices {
         limit: usize,
     ) -> AppResult<Vec<String>> {
         Ok(self.repo(path).await?.grep_messages(text, limit).await?)
+    }
+
+    /// Both sides of a conflicted file, for the three-way view.
+    pub async fn conflict_file(&self, path: &str, file: &str) -> AppResult<ConflictFile> {
+        Ok(self.repo(path).await?.conflict_file(file).await?)
+    }
+
+    /// Writes a conflicted file's partly resolved text (without staging it),
+    /// to finish it in the editor.
+    pub async fn write_conflict_draft(&self, path: &str, file: &str, text: &str) -> AppResult<()> {
+        Ok(self.repo(path).await?.write_file(file, text).await?)
     }
 
     /// The commits an interactive rebase onto `base` would rewrite, oldest first.

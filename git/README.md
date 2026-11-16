@@ -42,6 +42,7 @@ or a specific private key). Each repository is assigned one profile (toolbar →
 | Branches: create (from anything), checkout, checkout remote (tracking), rename, delete, delete on remote, merge, rebase | ✅ tested |
 | Commits: checkout detached, cherry-pick, revert (merge commits use `-m 1`), reset soft/mixed/hard, create branch/tag here, copy SHA | ✅ tested |
 | Merge/rebase/cherry-pick/revert in progress: banner, take ours/theirs, mark resolved, continue, abort | ✅ tested |
+| **Conflicts in three columns**: clicking a conflicted file shows ours / theirs / result per conflict (names follow the operation: merge, rebase, cherry-pick, revert); take ours, theirs, both (either order) or the base per conflict, *Edit result* writes the choices so far (open conflicts keep git's markers) and opens the file in the editor, *Mark resolved* writes and stages it. Sides come from the index stages via `git merge-file --diff3`, so a half-edited file does not confuse the view; deleted-on-one-side and binary files keep the whole-file Ours / Theirs | ✅ parser + git layer tested during merge, rebase and cherry-pick; resolve flow tested headless; not clicked through |
 | **Interactive rebase**: commit menu → *Interactive rebase onto this commit…*; reorder by drag or ⌥↑/⌥↓, pick / reword / edit / squash / fixup / drop per commit (buttons or P R E S F D), preview of the resulting history, then git's own `rebase -i` runs with the generated todo list (rewording is a `pick` plus an `exec git commit --amend`, so no editor opens); stops on conflicts and `edit` lines with step progress in the banner, **Skip** next to continue / abort | ✅ git layer tested end to end (reorder, squash, fixup, drop, reword, edit stop, conflict skip / abort, stale plans, merges refused); dialog keyboard flow tested headless; drag not clicked through |
 | Tags: lightweight/annotated, push, delete local/remote | ✅ tested |
 | Stash: save (message, include untracked), apply, pop, drop, view stash diff | ✅ tested |
@@ -67,7 +68,7 @@ call for it on every edition: *Request changes* withdraws your approval and post
 search beyond the loaded history
 (matches are limited to the commits in the graph; "Load more" extends it), blame of a line's
 previous revision ("blame parent"), horizontal scrolling of long lines in blame and split diffs
-(they are clipped), merge-conflict editor (use ours/theirs or edit the file, then *Resolved*),
+(they are clipped), conflict view for files deleted on one side or binary (use ours/theirs), line-level picks inside one conflict,
 progress percentages for network ops, and packaging and signing.
 
 ## Prerequisites

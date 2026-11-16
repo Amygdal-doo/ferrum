@@ -3,7 +3,8 @@
 use ferrumgit_application::forge::{PrDetail, PrFilter, PrList, ReviewEvent};
 use ferrumgit_application::{CancellationToken, ForgeInfo, PrChanges, RepoData};
 use ferrumgit_domain::{
-    Blame, CommitDetails, DiffSource, FileCommit, FileDiff, Oid, ProfileId, RepoId, RepoOp,
+    Blame, CommitDetails, ConflictChoice, ConflictFile, DiffSource, FileCommit, FileDiff, Oid,
+    ProfileId, RepoId, RepoOp,
 };
 use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
@@ -103,6 +104,31 @@ pub struct DiffView {
     pub lines: BTreeSet<(usize, usize)>,
 }
 
+/// Three-way view of a conflicted file (ours / theirs / result); replaces
+/// the diff while open.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConflictView {
+    pub file: Arc<ConflictFile>,
+    /// One per conflict, in order.
+    pub choices: Vec<ConflictChoice>,
+}
+
+impl ConflictView {
+    #[must_use]
+    pub fn new(file: ConflictFile) -> Self {
+        let choices = vec![ConflictChoice::Unresolved; file.conflicts()];
+        Self {
+            file: Arc::new(file),
+            choices,
+        }
+    }
+
+    #[must_use]
+    pub fn resolved(&self) -> usize {
+        self.choices.iter().filter(|c| c.is_resolved()).count()
+    }
+}
+
 /// Tab of the file panel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FileTab {
@@ -139,6 +165,8 @@ pub struct RepoView {
     pub selection: Selection,
     pub details: Option<Arc<CommitDetails>>,
     pub diff: Option<DiffView>,
+    /// Conflicted file open in the three-way view.
+    pub conflict: Option<ConflictView>,
     /// Last change fingerprint seen by the poller.
     pub fingerprint: String,
     pub summary: String,
