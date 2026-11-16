@@ -629,7 +629,7 @@ pub fn display_keys(keys: &str) -> String {
 }
 
 impl Render for Onboarding {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
         let body = match self.step() {
             Step::Welcome => self.render_welcome(cx),
@@ -652,15 +652,15 @@ impl Render for Onboarding {
             .child(crate::surface::backdrop(true, cx).absolute().inset_0())
             .text_color(colors.text)
             .child(
-                h_flex()
-                    .flex_none()
-                    .h(px(40.))
-                    .px_4()
+                // A title row so the traffic lights get their own room
+                // instead of sitting on top of the title.
+                crate::window_chrome::title_row("onboarding-title", true, window)
+                    .pr_4()
                     .justify_between()
                     .border_b_1()
                     .border_color(colors.border_variant)
                     .child(
-                        h_flex().gap_2().child(
+                        h_flex().gap_2().pl_2().child(
                             Label::new(format!("Get Started with {}", self.info.name))
                                 .size(LabelSize::Small),
                         ),
