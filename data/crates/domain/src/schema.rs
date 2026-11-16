@@ -26,7 +26,7 @@ impl TableKind {
 }
 
 /// A table-like object, identified exactly as stored (case preserved).
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct TableRef {
     pub schema: Option<String>,
     pub name: String,

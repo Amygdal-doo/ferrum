@@ -31,6 +31,10 @@ impl FerrumData {
         }
         let selection = self.state.runs.get(&tab_id).and_then(|r| r.selection);
         let single_cell = selection.is_some_and(|s| s.is_single_cell());
+        let target = self
+            .state
+            .active_tab()
+            .and_then(|t| Some((t.profile_id?, t.table.clone()?)));
         h_flex()
             .px_4()
             .pb_2()
@@ -63,6 +67,16 @@ impl FerrumData {
                         this.set_selected_null(tab_id, cx);
                     })),
             )
+            .when_some(target, |this, (profile_id, table)| {
+                this.child(
+                    Button::new("csv-import", "Import CSV…")
+                        .style(ButtonStyle::Outlined)
+                        .tooltip(Tooltip::text("Insert rows from a CSV file into this table"))
+                        .on_click(cx.listener(move |this, _, _, cx| {
+                            this.open_import(profile_id, table.clone(), cx);
+                        })),
+                )
+            })
             .child(hint(
                 "Double-click a cell to edit · Enter keeps the value · Esc cancels".into(),
             ))

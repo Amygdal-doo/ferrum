@@ -10,7 +10,12 @@ use std::sync::Arc;
 
 impl FerrumData {
     /// Focuses the connection's tool tab of this kind, or opens one.
-    fn open_tool(&mut self, profile_id: ProfileId, tool: ToolTab, title: String) -> EditorTabId {
+    pub(crate) fn open_tool(
+        &mut self,
+        profile_id: ProfileId,
+        tool: ToolTab,
+        title: String,
+    ) -> EditorTabId {
         let existing = self
             .state
             .tabs
@@ -21,6 +26,16 @@ impl FerrumData {
             self.state.active_tab = Some(id);
             return id;
         }
+        self.new_tool_tab(profile_id, tool, title)
+    }
+
+    /// Opens a new tool tab and makes it active.
+    pub(crate) fn new_tool_tab(
+        &mut self,
+        profile_id: ProfileId,
+        tool: ToolTab,
+        title: String,
+    ) -> EditorTabId {
         let mut tab = EditorTab::new(0, Some(profile_id));
         tab.title = title;
         tab.tool = Some(tool);
@@ -83,6 +98,8 @@ impl FerrumData {
     /// Drops a closed tab's tool state.
     pub(crate) fn forget_tool(&mut self, tab_id: EditorTabId) {
         self.state.diagrams.remove(&tab_id);
+        self.state.dumps.remove(&tab_id);
+        self.state.imports.remove(&tab_id);
     }
 
     #[must_use]

@@ -6,9 +6,12 @@
 
 pub mod browse;
 mod connections;
+pub mod ddl;
+pub mod dump;
 pub mod edits;
 pub mod er;
 pub mod explain;
+pub mod import;
 pub mod key_tree;
 mod queries;
 pub mod safety;

@@ -238,3 +238,144 @@ async fn explain_query_plan_marks_full_scans() {
     .expect_err("no analyze on SQLite");
     assert_eq!(err.kind, DbErrorKind::Unsupported);
 }
+
+/// The dump without its BEGIN / COMMIT: `execute_script` brings its own.
+fn script_body(dump: &str) -> String {
+    dump.lines()
+        .filter(|l| *l != "BEGIN;" && *l != "COMMIT;")
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[tokio::test]
+async fn sql_dump_round_trips_schema_and_data() {
+    let f = fixture(&[
+        "CREATE TABLE parent (id INTEGER PRIMARY KEY, name TEXT NOT NULL DEFAULT 'x')",
+        "CREATE TABLE child (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parent(id) ON DELETE CASCADE, \
+         note TEXT, data BLOB, score REAL)",
+        "CREATE UNIQUE INDEX child_note ON child(note)",
+        "INSERT INTO parent VALUES (1, 'it''s'), (2, 'b\\c')",
+        "INSERT INTO child VALUES (10, 1, NULL, X'00ff', 1.5), (11, 2, '', NULL, -2.0)",
+    ])
+    .await;
+    let snapshot = f.connections.describe_schema(f.id).await.expect("snapshot");
+    let dir = tempfile::tempdir().expect("dir");
+    let path = dir.path().join("dump.sql");
+    let summary = ferrumdata_application::dump::write_dump(
+        &f.queries,
+        DatabaseEngine::Sqlite,
+        f.id,
+        &snapshot.tables,
+        ferrumdata_application::dump::DumpOptions {
+            schema: true,
+            data: true,
+        },
+        &path,
+    )
+    .await
+    .expect("dump");
+    assert_eq!((summary.tables, summary.rows), (2, 4));
+    let dump = std::fs::read_to_string(&path).expect("read");
+    // Parents are created before the tables that reference them.
+    assert!(dump.find("CREATE TABLE \"parent\"") < dump.find("CREATE TABLE \"child\""));
+
+    let copy = fixture(&[]).await;
+    copy.connections
+        .execute_script(
+            copy.id,
+            vec![ferrumdata_application::ScriptStatement::new(script_body(
+                &dump,
+            ))],
+        )
+        .await
+        .expect("load dump");
+    for sql in [
+        "SELECT * FROM parent ORDER BY id",
+        "SELECT * FROM child ORDER BY id",
+        "SELECT name, \"unique\" FROM pragma_index_list('child') ORDER BY name",
+    ] {
+        assert_eq!(f.rows(sql).await, copy.rows(sql).await, "{sql}");
+    }
+    let fk = copy
+        .connections
+        .describe_table(
+            copy.id,
+            ferrumdata_domain::TableRef {
+                schema: None,
+                name: "child".into(),
+            },
+        )
+        .await
+        .expect("describe");
+    assert_eq!(fk.foreign_keys[0].on_delete, "CASCADE");
+}
+
+#[tokio::test]
+async fn csv_import_maps_columns_and_is_all_or_nothing() {
+    use ferrumdata_application::import::{ImportPlan, auto_map, parse_csv};
+    let f = fixture(&[
+        "CREATE TABLE person (id INTEGER PRIMARY KEY, name TEXT NOT NULL, age INTEGER, \
+         team TEXT DEFAULT 'none')",
+    ])
+    .await;
+    let table = ferrumdata_domain::TableRef {
+        schema: None,
+        name: "person".into(),
+    };
+    let columns: Vec<String> = ["id", "name", "age", "team"].map(String::from).to_vec();
+    let csv = parse_csv("Name;Age;ID\n\"Doe; Jane\";41;1\nBob;;2\n", None);
+    let plan = ImportPlan {
+        header: true,
+        empty_as_null: true,
+        mapping: auto_map(&columns, &csv.records[0]),
+    };
+    let script = plan
+        .statements(DatabaseEngine::Sqlite, &table, &columns, &csv)
+        .expect("script");
+    f.connections
+        .execute_script(f.id, script)
+        .await
+        .expect("import");
+    assert_eq!(
+        f.rows("SELECT * FROM person ORDER BY id").await,
+        vec![
+            vec![
+                CellValue::Signed(1),
+                text("Doe; Jane"),
+                CellValue::Signed(41),
+                text("none")
+            ],
+            vec![
+                CellValue::Signed(2),
+                text("Bob"),
+                CellValue::Null,
+                text("none")
+            ],
+        ]
+    );
+
+    // A NOT NULL violation in the second batch leaves the table unchanged.
+    let mut rows = String::from("id,name\n");
+    for i in 10..150 {
+        rows.push_str(&format!("{i},n{i}\n"));
+    }
+    rows.push_str("150,\n");
+    let csv = parse_csv(&rows, None);
+    let plan = ImportPlan {
+        header: true,
+        empty_as_null: true,
+        mapping: auto_map(&columns, &csv.records[0]),
+    };
+    let script = plan
+        .statements(DatabaseEngine::Sqlite, &table, &columns, &csv)
+        .expect("script");
+    assert_eq!(script.len(), 2);
+    f.connections
+        .execute_script(f.id, script)
+        .await
+        .expect_err("not null");
+    assert_eq!(
+        f.rows("SELECT count(*) FROM person").await[0][0],
+        CellValue::Signed(2)
+    );
+}

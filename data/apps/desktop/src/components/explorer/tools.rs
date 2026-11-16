@@ -25,7 +25,10 @@ impl FerrumData {
                             }
                         })
                     };
-                    entry(menu, "ER diagram", |this, id, cx| this.open_diagram(id, cx))
+                    let menu = entry(menu, "ER diagram", |this, id, cx| this.open_diagram(id, cx));
+                    entry(menu, "Export SQL dump…", |this, id, cx| {
+                        this.open_dump(id, cx)
+                    })
                 }))
             })
             .trigger(

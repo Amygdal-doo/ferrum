@@ -3,13 +3,83 @@
 
 use ferrumdata_application::er::ErLayout;
 use ferrumdata_application::explain::Plan;
-use ferrumdata_domain::SchemaSnapshot;
+use ferrumdata_application::import::{CsvData, ImportPlan};
+use ferrumdata_domain::{SchemaSnapshot, TableRef};
+use std::collections::BTreeSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 /// What a tool tab shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolTab {
     Diagram,
+    /// SQL dump of chosen tables.
+    Dump,
+    /// CSV import into one table (see [`ImportView::table`]).
+    Import,
+}
+
+/// A long-running tool action (dump, import).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum TaskStatus {
+    #[default]
+    Idle,
+    Running,
+    Done(String),
+    Failed(String),
+}
+
+/// SQL dump tab: the connection's tables and what to export.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DumpView {
+    pub load: SnapshotLoad,
+    /// Tables to export (all base tables once loaded).
+    pub selected: BTreeSet<TableRef>,
+    pub schema: bool,
+    pub data: bool,
+    pub status: TaskStatus,
+}
+
+impl Default for DumpView {
+    fn default() -> Self {
+        Self {
+            load: SnapshotLoad::Loading,
+            selected: BTreeSet::new(),
+            schema: true,
+            data: true,
+            status: TaskStatus::Idle,
+        }
+    }
+}
+
+/// CSV import tab of one table.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImportView {
+    pub table: TableRef,
+    /// The table's column names, loaded from the catalog.
+    pub columns: Result<Vec<String>, String>,
+    pub file: Option<PathBuf>,
+    pub csv: Option<Arc<CsvData>>,
+    pub plan: ImportPlan,
+    pub status: TaskStatus,
+}
+
+impl ImportView {
+    #[must_use]
+    pub fn new(table: TableRef) -> Self {
+        Self {
+            table,
+            columns: Err("Loading columns…".into()),
+            file: None,
+            csv: None,
+            plan: ImportPlan {
+                header: true,
+                empty_as_null: true,
+                mapping: Vec::new(),
+            },
+            status: TaskStatus::Idle,
+        }
+    }
 }
 
 /// A schema snapshot being loaded for a tool.

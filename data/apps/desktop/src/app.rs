@@ -330,6 +330,8 @@ impl FerrumData {
             let view = if let Some((tab_id, tool)) = tool_tab {
                 match tool {
                     ToolTab::Diagram => self.render_diagram_view(tab_id, cx),
+                    ToolTab::Dump => self.render_dump_view(tab_id, cx),
+                    ToolTab::Import => self.render_import_view(tab_id, window, cx),
                 }
             } else if key_tab {
                 self.render_key_view(window, cx)
