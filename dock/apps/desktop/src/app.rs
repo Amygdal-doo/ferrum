@@ -99,6 +99,10 @@ pub struct FerrumContainers {
     pub(crate) vm_busy: bool,
     pub(crate) log_task: Option<(Task<()>, tokio::task::AbortHandle)>,
     pub(crate) notice_task: Option<Task<()>>,
+    /// FerrumChat beside the cards (see `agent`).
+    pub(crate) agent: ferrumagent_ui::AgentPane,
+    /// The engine the agent's tools use, set before each message.
+    pub(crate) agent_engine: crate::agent::EngineSlot,
     focus_handle: FocusHandle,
     _poll: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -189,6 +193,8 @@ impl FerrumContainers {
             polling: false,
             log_task: None,
             notice_task: None,
+            agent: ferrumagent_ui::AgentPane::new(),
+            agent_engine: crate::agent::EngineSlot::default(),
             focus_handle: cx.focus_handle(),
             _poll: Self::start_polling(cx),
             _subscriptions: subscriptions,
@@ -261,14 +267,17 @@ impl Render for FerrumContainers {
             .sidebar_shown()
             .then(|| views::chrome::sidebar(self, window, cx));
         // The cards start at the top: each carries its own header row.
-        let main = v_flex()
+        // The Agent pane, when open, is a card right of the others.
+        let main = h_flex()
             .flex_1()
             .min_w_0()
             .h_full()
             .py(ferrum_ui::PANE_GAP)
             .pr(ferrum_ui::PANE_GAP)
             .when(sidebar.is_none(), |d| d.pl(ferrum_ui::PANE_GAP))
-            .child(body);
+            .gap(ferrum_ui::PANE_GAP)
+            .child(v_flex().flex_1().min_w_0().h_full().child(body))
+            .children(self.agent.card(cx));
         // Backdrop (drawn by the root) shows through: no background here.
         h_flex()
             .id("ferrumdock")

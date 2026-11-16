@@ -100,7 +100,8 @@ pub fn render(
             cx,
             |app, cx| app.close_detail(cx),
         ))
-        // The Ferrum account at the window's top right.
+        // The Agent toggle and the Ferrum account at the window's top right.
+        .child(app.agent_toggle(cx))
         .children(ferrum_account_ui::account_button(cx));
 
     let tab = detail.tab;

@@ -1,6 +1,7 @@
 //! FerrumContainers desktop entry point.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod agent;
 mod app;
 mod app_info;
 mod commands;
@@ -36,6 +37,7 @@ fn main() {
         .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         ferrum_account_ui::init(ferrum_account_ui::AccountApp::Dock, cx);
+        ferrumagent_ui::init(cx);
         app::bind_keys(cx);
         cx.new(|cx| {
             let mut app = app::FerrumContainers::new(services, docker_cli, window, cx);

@@ -145,7 +145,8 @@ pub fn card_header(
         // The Ferrum account (Sign in / avatar) at the top right; in the
         // detail card's header while that card is open.
         .when(!app.detail_open(), |bar| {
-            bar.children(ferrum_account_ui::account_button(cx))
+            bar.child(app.agent_toggle(cx))
+                .children(ferrum_account_ui::account_button(cx))
         })
         .into_any_element()
 }

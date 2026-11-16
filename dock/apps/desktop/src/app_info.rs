@@ -17,4 +17,7 @@ pub fn app_info() -> AppInfo {
             PermissionKind::Automation,
             "Opens a shell inside a container in Terminal when FerrumTerm isn't installed.",
         )
+        .event(ferrumagent_ui::NEEDS_YOU)
+        .event(ferrumagent_ui::DONE)
+        .event(ferrumagent_ui::FAILED)
 }
