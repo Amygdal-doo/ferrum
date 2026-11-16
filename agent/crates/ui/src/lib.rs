@@ -17,6 +17,12 @@
 //! chat.update(cx, |chat, cx| chat.set_visible(false, cx));
 //! ```
 //!
+//! An app that is not a code editor (FerrumTerm, FerrumData…) opens
+//! [`ChatView::without_project`] with its name and tools (or passes them
+//! in [`ChatOptions::host`] for a project), tells the chat what the user is
+//! looking at with [`ChatOptions::context`], and shows it with
+//! [`AgentPane`] behind the [`agent_toggle`] at its top right.
+//!
 //! A host that draws its own thread list and window chrome sets
 //! [`ChatOptions::shell`] and drives the chat with
 //! [`ChatView::open_thread`], [`ChatView::start_task`] and
@@ -37,6 +43,7 @@ mod markdown;
 mod menus;
 mod messages;
 mod opening;
+mod pane;
 mod settings;
 mod threads;
 mod tool_card;
@@ -44,6 +51,8 @@ mod view;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_host;
 #[cfg(test)]
 mod tests_models;
 
@@ -56,8 +65,9 @@ pub use live::{
     DONE, DONE_EVENT, FAILED, FAILED_EVENT, NEEDS_YOU, NEEDS_YOU_EVENT, Notifier, ToastClick,
     default_notifier,
 };
+pub use pane::{AgentPane, agent_toggle};
 pub use threads::{status_indicator, thread_logo};
-pub use view::{ChatEvent, ChatOptions, ChatView, HeaderSlot};
+pub use view::{ChatEvent, ChatOptions, ChatView, HeaderSlot, HostContextFn};
 
 use gpui::{App, KeyBinding};
 

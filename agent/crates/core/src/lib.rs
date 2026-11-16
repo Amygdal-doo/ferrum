@@ -17,6 +17,8 @@
 //!   [`session`] ties it all together for a UI.
 //! - [`status`]: each thread's Needs you / Done / Working / Idle state, a
 //!   pure state machine a UI feeds with session events.
+//! - [`host`]: the app a chat is built into (FerrumTerm, FerrumData…): what
+//!   the user sees there, the app's own tools, and chats without a project.
 //!
 //! Async code runs on tokio ([`runtime::handle`]); a UI receives
 //! [`session::SessionEvent`]s on a `futures` channel any executor can poll.
@@ -27,6 +29,7 @@ pub mod changeset;
 pub mod context;
 pub mod custom_models;
 pub mod fsutil;
+pub mod host;
 pub mod jsonrpc;
 pub mod mcp;
 pub mod models;
@@ -40,6 +43,7 @@ pub mod runtime;
 pub mod secrets;
 pub mod session;
 pub mod settings;
+pub mod shell_path;
 pub mod snapshot;
 pub mod status;
 pub mod store;

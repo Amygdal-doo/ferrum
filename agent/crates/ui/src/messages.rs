@@ -47,7 +47,14 @@ impl ChatView {
                     })
                     .when(
                         self.session.is_none() && self.load_error.is_none(),
-                        |this| this.child(div().p_4().child(LoadingLabel::new("Opening project"))),
+                        |this| {
+                            let label = if self.advice {
+                                "Starting"
+                            } else {
+                                "Opening project"
+                            };
+                            this.child(div().p_4().child(LoadingLabel::new(label)))
+                        },
                     )
                     .children(messages.iter().map(|m| match m.role {
                         Role::User => self.render_user(m, cx).into_any_element(),
@@ -81,10 +88,19 @@ impl ChatView {
             )
             .child(Label::new(format!("{} mode", mode.label())).size(LabelSize::Small))
             .child(
-                Label::new(match mode {
-                    Mode::Agent => "Describe a change; the agent edits, you review each hunk.",
-                    Mode::Ask => "Ask about the code. Nothing will be edited.",
-                    Mode::Plan => "Describe a feature; you get a plan to review, then Build.",
+                Label::new(match (mode, self.advice) {
+                    (Mode::Agent, false) => {
+                        "Describe a change; the agent edits, you review each hunk."
+                    }
+                    (Mode::Ask, false) => "Ask about the code. Nothing will be edited.",
+                    (Mode::Plan, false) => {
+                        "Describe a feature; you get a plan to review, then Build."
+                    }
+                    (Mode::Agent, true) => {
+                        "Ask for help; the agent asks before it changes anything."
+                    }
+                    (Mode::Ask, true) => "Ask anything. Nothing will be changed.",
+                    (Mode::Plan, true) => "Describe a goal; you get a plan to review, then Build.",
                 })
                 .size(LabelSize::XSmall)
                 .color(Color::Muted),

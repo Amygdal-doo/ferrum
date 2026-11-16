@@ -178,9 +178,13 @@ impl ChatView {
         let empty = self.thread.messages.is_empty();
         if self.placeholder_empty != Some(empty) {
             self.placeholder_empty = Some(empty);
-            self.composer.update(cx, |input, cx| {
-                input.set_placeholder(placeholder(empty), cx)
-            });
+            let text = if self.advice && empty {
+                "Ask anything…"
+            } else {
+                placeholder(empty)
+            };
+            self.composer
+                .update(cx, |input, cx| input.set_placeholder(text, cx));
         }
     }
 

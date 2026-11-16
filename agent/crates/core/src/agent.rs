@@ -8,12 +8,13 @@ use std::sync::{Arc, Mutex, PoisonError};
 use futures::StreamExt;
 use tokio_util::sync::CancellationToken;
 
+use crate::host::{AppHost, Workspace};
 use crate::modes::Mode;
 use crate::permissions::{Decision, PermissionBroker, PermissionRequest, Permissions, Policy};
 use crate::provider::{ChatRequest, Message, Provider, StopReason, StreamEvent, Usage};
 use crate::rules::Rule;
 use crate::thread::{ThreadEvent, ToolCallRecord, ToolStatus};
-use crate::tools::{self, ToolContext, ToolRegistry};
+use crate::tools::{ToolContext, ToolRegistry};
 
 /// Model requests per user turn before the agent stops and asks.
 pub const MAX_ROUNDS: usize = 40;
@@ -36,25 +37,44 @@ pub struct NativeAgent {
     pub broker: Arc<dyn PermissionBroker>,
     pub permissions: Arc<Mutex<Permissions>>,
     pub rules: Vec<Rule>,
+    /// The app the chat is built into, when not a code editor.
+    pub host: Option<AppHost>,
+    pub workspace: Workspace,
 }
 
-/// The system prompt: who we are, the project, the mode, the rules.
+/// The system prompt: who we are, the project (or the host app and what
+/// the user sees there), the mode, the rules.
 pub fn system_prompt(
     root: &std::path::Path,
     mode: Mode,
     rules: &[Rule],
     files: &[PathBuf],
+    host: Option<&AppHost>,
+    workspace: Workspace,
 ) -> String {
-    let mut prompt = format!(
-        "You are FerrumChat, an expert coding agent working inside the user's project.\n\
-         Project root: {}\nPlatform: {}\nToday: {}\n\
-         Paths you pass to tools are relative to the project root; you cannot reach outside it.\n\
-         Be concise. Use markdown; put code in fenced blocks with a language.\n\n{}\n",
-        root.display(),
-        std::env::consts::OS,
-        chrono::Utc::now().format("%Y-%m-%d"),
-        mode.instructions(),
-    );
+    let today = chrono::Utc::now().format("%Y-%m-%d");
+    let mut prompt = match workspace {
+        Workspace::Project => format!(
+            "You are FerrumChat, an expert coding agent working inside the user's project.\n\
+             Project root: {}\nPlatform: {}\nToday: {today}\n\
+             Paths you pass to tools are relative to the project root; you cannot reach outside it.\n\
+             Be concise. Use markdown; put code in fenced blocks with a language.\n\n{}\n",
+            root.display(),
+            std::env::consts::OS,
+            mode.instructions(),
+        ),
+        Workspace::Advice => format!(
+            "You are FerrumChat, an expert assistant for developers.\n\
+             Platform: {}\nToday: {today}\n\
+             Be concise. Use markdown; put code and commands in fenced blocks with a language.\n\n{}\n",
+            std::env::consts::OS,
+            mode.advice_instructions(),
+        ),
+    };
+    if let Some(host) = host {
+        prompt.push('\n');
+        prompt.push_str(&crate::host::prompt_section(host, workspace));
+    }
     let section = crate::rules::prompt_section(rules, files);
     if !section.is_empty() {
         prompt.push_str("\n# Project rules\n");
@@ -72,7 +92,14 @@ impl NativeAgent {
         files: &[PathBuf],
         cancel: &CancellationToken,
     ) -> StopReason {
-        let system = system_prompt(self.ctx.sandbox.root(), mode, &self.rules, files);
+        let system = system_prompt(
+            self.ctx.sandbox.root(),
+            mode,
+            &self.rules,
+            files,
+            self.host.as_ref(),
+            self.workspace,
+        );
         for _ in 0..MAX_ROUNDS {
             if cancel.is_cancelled() {
                 return StopReason::Cancelled;
@@ -161,7 +188,7 @@ impl NativeAgent {
                     StreamEvent::ThinkingDelta(text) => sink.emit(ThreadEvent::ThinkingDelta(text)),
                     StreamEvent::ToolCall { id, name, input } => {
                         let record = ToolCallRecord {
-                            title: tools::title(&name, &input),
+                            title: self.tools.title(&name, &input),
                             access: self.tools.access(&name),
                             id,
                             name,

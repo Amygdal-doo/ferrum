@@ -1,6 +1,6 @@
 //! Tools the agent can call: built-ins scoped to the project root (see
-//! [`sandbox`]) and tools from MCP servers. Writes go through the
-//! session's [`ChangeSet`].
+//! [`sandbox`]), the host app's own (see [`crate::host`]) and tools from
+//! MCP servers. Writes go through the session's [`ChangeSet`].
 
 pub mod builtin;
 pub mod runner;
@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::changeset::ChangeSet;
+use crate::host::HostTool;
 use crate::mcp::McpClient;
 use crate::modes::Mode;
 use crate::provider::ToolSpec;
@@ -78,15 +79,42 @@ struct McpTool {
     remote_name: String,
 }
 
-/// Built-ins plus MCP tools (named `mcp__<server>__<tool>`).
-#[derive(Default)]
+/// Built-ins, the host app's tools and MCP tools (named
+/// `mcp__<server>__<tool>`). Without a project only `write_plan` of the
+/// built-ins is offered.
 pub struct ToolRegistry {
     mcp: Vec<McpTool>,
+    host: Vec<Arc<dyn HostTool>>,
+    files: bool,
+}
+
+impl Default for ToolRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ToolRegistry {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            mcp: Vec::new(),
+            host: Vec::new(),
+            files: true,
+        }
+    }
+
+    /// No project: the file and shell built-ins are left out.
+    #[must_use]
+    pub fn without_files(mut self) -> Self {
+        self.files = false;
+        self
+    }
+
+    /// Adds the host app's tools.
+    #[must_use]
+    pub fn with_host(mut self, tools: Vec<Arc<dyn HostTool>>) -> Self {
+        self.host = tools;
+        self
     }
 
     /// Adds a connected MCP server's tools.
@@ -112,8 +140,19 @@ impl ToolRegistry {
     pub fn all(&self) -> Vec<ToolDef> {
         builtin::defs()
             .into_iter()
+            .filter(|t| self.files || t.spec.name == builtin::WRITE_PLAN)
+            .chain(self.host.iter().map(|t| t.def()))
             .chain(self.mcp.iter().map(|t| t.def.clone()))
             .collect()
+    }
+
+    /// A short card title for a call (the host tool's own, else
+    /// [`title`]).
+    pub fn title(&self, name: &str, input: &Value) -> String {
+        match self.host.iter().find(|t| t.def().spec.name == name) {
+            Some(tool) => tool.title(input),
+            None => title(name, input),
+        }
     }
 
     /// The tools `mode` offers the model.
@@ -132,11 +171,17 @@ impl ToolRegistry {
     }
 
     pub async fn call(&self, ctx: &ToolContext, name: &str, input: Value) -> ToolOutput {
+        if let Some(tool) = self.host.iter().find(|t| t.def().spec.name == name) {
+            return tool.call(input).await;
+        }
         if let Some(tool) = self.mcp.iter().find(|t| t.def.spec.name == name) {
             return match tool.client.call_tool(&tool.remote_name, input).await {
                 Ok(output) => output,
                 Err(e) => ToolOutput::error(e.to_string()),
             };
+        }
+        if !self.files && name != builtin::WRITE_PLAN {
+            return ToolOutput::error(format!("Unknown tool `{name}`: there is no project here."));
         }
         builtin::run(ctx, name, input).await
     }

@@ -17,6 +17,9 @@ const GREP_LIMIT: usize = 200;
 const DIFF_LIMIT: usize = 60 * 1024;
 const COMMAND_TIMEOUT: u64 = 120;
 
+/// Plan mode's tool: the only built-in a chat without a project offers.
+pub const WRITE_PLAN: &str = "write_plan";
+
 fn def(name: &str, access: Access, description: &str, schema: Value) -> ToolDef {
     ToolDef {
         spec: ToolSpec {
@@ -111,7 +114,7 @@ pub fn defs() -> Vec<ToolDef> {
             }}),
         ),
         def(
-            "write_plan",
+            WRITE_PLAN,
             Access::Plan,
             "Save the implementation plan (markdown). The user reviews it and presses Build.",
             json!({"type": "object", "properties": {"markdown": {"type": "string"}}, "required": ["markdown"]}),

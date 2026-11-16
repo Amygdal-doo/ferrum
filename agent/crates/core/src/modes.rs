@@ -64,4 +64,24 @@ impl Mode {
             }
         }
     }
+
+    /// The same for a chat without a project (see [`crate::host`]).
+    pub fn advice_instructions(self) -> &'static str {
+        match self {
+            Mode::Ask => {
+                "You are in Ask mode: answer and advise. You may use the app's read-only tools; \
+                 nothing is changed."
+            }
+            Mode::Agent => {
+                "You are in Agent mode: help the user get it done, using the app's tools where \
+                 they help. Read-only tools run at once; the user approves each action first."
+            }
+            Mode::Plan => {
+                "You are in Plan mode: look around with the read-only tools, ask clarifying \
+                 questions when the request is ambiguous, then call write_plan with a concise \
+                 markdown plan (goal, steps, risks). Nothing is changed until the user presses \
+                 Build."
+            }
+        }
+    }
 }

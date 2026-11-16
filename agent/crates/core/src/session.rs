@@ -23,6 +23,7 @@ use crate::acp::{self, AcpAgentConfig, AcpBridge, AcpClient};
 use crate::agent::{NativeAgent, TurnSink};
 use crate::changeset::{ChangeSet, CheckpointInfo};
 use crate::context::{self, Mention};
+use crate::host::{AppHost, Workspace};
 use crate::mcp::{McpClient, McpConfig};
 use crate::models::ModelStore;
 use crate::modes::Mode;
@@ -134,6 +135,10 @@ pub struct SessionConfig {
     pub path_env: Option<String>,
     /// Resume this thread instead of starting a new one.
     pub thread_id: Option<String>,
+    /// A code project, or none (advice and the host's tools only).
+    pub workspace: Workspace,
+    /// The app the chat is built into, when not a code editor.
+    pub host: Option<AppHost>,
 }
 
 impl SessionConfig {
@@ -156,6 +161,8 @@ impl SessionConfig {
             mcp,
             path_env: None,
             thread_id: None,
+            workspace: Workspace::Project,
+            host: None,
             home,
         }
     }
@@ -175,7 +182,19 @@ impl SessionConfig {
             mcp: McpConfig::default(),
             path_env: None,
             thread_id: None,
+            workspace: Workspace::Project,
+            host: None,
         }
+    }
+
+    /// No project: the chat of `host`, keeping its threads in
+    /// [`crate::host::app_folder`] under `home`.
+    #[must_use]
+    pub fn without_project(mut self, host: AppHost) -> Self {
+        self.project = crate::host::app_folder(&self.home, &host.app);
+        self.workspace = Workspace::Advice;
+        self.host = Some(host);
+        self
     }
 }
 
@@ -191,6 +210,8 @@ struct Shared {
     acp_agents: Vec<AcpAgentConfig>,
     mcp: McpConfig,
     path_env: Option<String>,
+    workspace: Workspace,
+    host: Option<AppHost>,
     changes: Arc<Mutex<ChangeSet>>,
     permissions: Arc<Mutex<Permissions>>,
     tools: Arc<tokio::sync::Mutex<Option<Arc<ToolRegistry>>>>,
@@ -233,6 +254,8 @@ struct Inner {
     acp_agents: Vec<AcpAgentConfig>,
     mcp: McpConfig,
     path_env: Option<String>,
+    workspace: Workspace,
+    host: Option<AppHost>,
     /// Shared with sibling sessions: MCP servers connect once.
     tools: Arc<tokio::sync::Mutex<Option<Arc<ToolRegistry>>>>,
     mcp_clients: Arc<Mutex<Vec<Arc<McpClient>>>>,
@@ -252,9 +275,18 @@ impl ChatSession {
     /// Opens the session: snapshots the project (blocks) and starts or
     /// resumes a thread.
     pub fn new(config: SessionConfig) -> Result<(Self, UnboundedReceiver<SessionEvent>), String> {
+        if config.workspace == Workspace::Advice {
+            std::fs::create_dir_all(&config.project)
+                .map_err(|e| format!("{}: {e}", config.project.display()))?;
+        }
         let sandbox = Sandbox::new(&config.project).map_err(|e| e.to_string())?;
         let project = sandbox.root().to_path_buf();
-        let changes = ChangeSet::take(&project)?;
+        let changes = match config.workspace {
+            Workspace::Project => ChangeSet::take(&project)?,
+            // Nothing to track (and never git: the folder may sit in a
+            // repository of the home folder).
+            Workspace::Advice => ChangeSet::new(crate::snapshot::Snapshot::take_files(&project)?),
+        };
         let store = ThreadStore::new(&config.home, &project);
         let agent = config
             .agent
@@ -289,6 +321,8 @@ impl ChatSession {
             acp_agents: config.acp_agents,
             mcp: config.mcp,
             path_env: config.path_env,
+            workspace: config.workspace,
+            host: config.host,
             changes: Arc::new(Mutex::new(changes)),
             permissions: Arc::new(Mutex::new(permissions)),
             tools: Arc::new(tokio::sync::Mutex::new(None)),
@@ -329,6 +363,8 @@ impl ChatSession {
             acp_agents: inner.acp_agents.clone(),
             mcp: inner.mcp.clone(),
             path_env: inner.path_env.clone(),
+            workspace: inner.workspace,
+            host: inner.host.clone(),
             changes: inner.changes.clone(),
             permissions: inner.permissions.clone(),
             tools: inner.tools.clone(),
@@ -370,6 +406,8 @@ impl ChatSession {
             acp_agents: shared.acp_agents,
             mcp: shared.mcp,
             path_env: shared.path_env,
+            workspace: shared.workspace,
+            host: shared.host,
             tools: shared.tools,
             mcp_clients: shared.mcp_clients,
             acp: tokio::sync::Mutex::new(None),
@@ -385,6 +423,11 @@ impl ChatSession {
 
     pub fn project(&self) -> &Path {
         &self.inner.project
+    }
+
+    /// A code project, or none.
+    pub fn workspace(&self) -> Workspace {
+        self.inner.workspace
     }
 
     /// A copy of the current thread.
@@ -910,6 +953,15 @@ impl Inner {
                     .await
             }
             AgentChoice::Acp { agent } => {
+                // An external agent has its own system prompt: what the
+                // user sees in the host app goes along with the message.
+                let context = self.host.as_ref().map(|h| (h.app.clone(), h.context.get()));
+                if let Some((app, text)) = context.filter(|(_, text)| !text.trim().is_empty()) {
+                    attachments.push(Attachment {
+                        label: format!("{app}: what the user sees"),
+                        text,
+                    });
+                }
                 self.run_acp(&agent, &queued.text, &attachments, token)
                     .await
             }
@@ -934,7 +986,15 @@ impl Inner {
         if let Some(tools) = slot.as_ref() {
             return tools.clone();
         }
-        let mut registry = ToolRegistry::new();
+        let mut registry = ToolRegistry::new().with_host(
+            self.host
+                .as_ref()
+                .map(|h| h.tools.clone())
+                .unwrap_or_default(),
+        );
+        if self.workspace == Workspace::Advice {
+            registry = registry.without_files();
+        }
         let mut status = Vec::new();
         for (name, config) in self.mcp.enabled() {
             let mut config = config.clone();
@@ -1009,6 +1069,8 @@ impl Inner {
             broker: self.broker(),
             permissions: self.permissions.clone(),
             rules,
+            host: self.host.clone(),
+            workspace: self.workspace,
         };
         let sink = Sink(self.clone());
         agent.run_turn(&sink, mode, files, token).await

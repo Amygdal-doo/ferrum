@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use ferrum_ui::prelude::*;
 use ferrum_ui::{Notice, TextInput, TextInputEvent, render_notice};
 use ferrumagent_core::context::{Mention, Suggestion};
+use ferrumagent_core::host::{AppHost, HostContext};
 use ferrumagent_core::models::ModelStore;
 use ferrumagent_core::modes::Mode;
 use ferrumagent_core::permissions::{Approval, Decision, PermissionRequest};
@@ -64,7 +65,16 @@ pub struct ChatOptions {
     /// Delivers "needs you" / "finished" notifications; `None`:
     /// [`crate::default_notifier`] (`ferrum_ui::notify`).
     pub notifier: Option<crate::Notifier>,
+    /// The app the chat is built into, when not a code editor: its name,
+    /// its tools ([`ChatView::without_project`] requires one).
+    pub host: Option<AppHost>,
+    /// What the user is looking at in the host app, read on the UI thread
+    /// just before each message is sent (goes into the system prompt).
+    pub context: Option<HostContextFn>,
 }
+
+/// See [`ChatOptions::context`].
+pub type HostContextFn = std::rc::Rc<dyn Fn(&mut App) -> String>;
 
 pub(crate) struct Picker {
     /// Byte offset of the `@` in the composer.
@@ -80,6 +90,10 @@ pub type HeaderSlot = std::rc::Rc<dyn Fn(&mut Window, &mut App) -> gpui::AnyElem
 
 pub struct ChatView {
     pub(crate) project: PathBuf,
+    /// No code project: advice and the host's tools only.
+    pub(crate) advice: bool,
+    /// The host's context cell and what fills it before a message.
+    host_context: Option<(HostContext, HostContextFn)>,
     pub(crate) shell: bool,
     /// Shell host: leave room for the traffic lights in the header row.
     pub(crate) header_lights: bool,
@@ -175,6 +189,22 @@ impl ChatView {
         cx.new(|cx| Self::build(project, options, window, cx))
     }
 
+    /// A chat without a project, built into `host` (FerrumData,
+    /// FerrumContainers…): advice and the app's tools; it opens at once
+    /// and keeps its threads per app.
+    pub fn without_project(
+        host: AppHost,
+        options: ChatOptions,
+        window: &mut Window,
+        cx: &mut gpui::App,
+    ) -> Entity<Self> {
+        let options = ChatOptions {
+            host: Some(host),
+            ..options
+        };
+        cx.new(|cx| Self::build(PathBuf::new(), options, window, cx))
+    }
+
     pub(crate) fn build(
         project: PathBuf,
         options: ChatOptions,
@@ -224,6 +254,25 @@ impl ChatView {
         if let Some(mode) = options.mode {
             config.mode = mode;
         }
+        // An empty root: no project (see `without_project`).
+        let advice = project.as_os_str().is_empty() && options.host.is_some();
+        if let Some(host) = options.host {
+            if advice {
+                config = config.without_project(host);
+            } else {
+                config.host = Some(host);
+            }
+        }
+        let project = if advice {
+            config.project.clone()
+        } else {
+            project
+        };
+        let host_context = config
+            .host
+            .as_ref()
+            .map(|h| h.context.clone())
+            .zip(options.context);
         let models = ModelStore::from_config(&config);
         let mut thread = Thread::new(project.clone(), "", config.mode);
         thread.title = "Starting…".into();
@@ -232,6 +281,8 @@ impl ChatView {
         });
         let mut this = Self {
             project,
+            advice,
+            host_context,
             shell,
             header_lights: false,
             header_start: None,
@@ -278,7 +329,8 @@ impl ChatView {
             pending: None,
             send_after_switch: None,
             all_changed_files: false,
-            placeholder_empty: Some(true),
+            // Without a project the first render sets its own placeholder.
+            placeholder_empty: (!advice).then_some(true),
             models,
             pending_agent: None,
             pending_approval: None,
@@ -475,6 +527,7 @@ impl ChatView {
             return;
         }
         self.apply_pending(cx);
+        self.refresh_host_context(cx);
         let Some(session) = &self.session else {
             return;
         };
@@ -484,6 +537,23 @@ impl ChatView {
         self.follow = true;
         self.scroll.scroll_to_bottom();
         cx.notify();
+    }
+
+    /// Asks the host what the user is looking at now (for the next turn).
+    pub(crate) fn refresh_host_context(&mut self, cx: &mut Context<Self>) {
+        if let Some((cell, read)) = self.host_context.clone() {
+            cell.set(read(cx));
+        }
+    }
+
+    /// Whether the chat has no code project (see [`Self::without_project`]).
+    pub fn has_project(&self) -> bool {
+        !self.advice
+    }
+
+    /// Puts keyboard focus in the composer (a host opening the chat's pane).
+    pub fn focus_composer(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.refocus(window, cx);
     }
 
     fn new_line(&mut self, _: &NewLine, window: &mut Window, cx: &mut Context<Self>) {
