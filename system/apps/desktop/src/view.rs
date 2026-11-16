@@ -71,7 +71,9 @@ impl FerrumSystem {
                     ),
             )
             .when(!empty, |row| row.child(self.header_buttons(cx)))
-            // The Ferrum account (Sign in / avatar) at the top right.
+            // The Agent toggle and the Ferrum account (Sign in / avatar) at
+            // the top right.
+            .child(self.agent_toggle(cx))
             .children(ferrum_account_ui::account_button(cx))
     }
 
@@ -355,7 +357,8 @@ impl Render for FerrumSystem {
                             .pr(ferrum_ui::PANE_GAP)
                             .when(!self.sidebar_open(), |r| r.pl(ferrum_ui::PANE_GAP))
                             .child(diagram)
-                            .children(panel),
+                            .children(panel)
+                            .children(self.agent.card(cx)),
                     ),
             )
             .children(notice.map(|n| {

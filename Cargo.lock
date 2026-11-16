@@ -3279,11 +3279,15 @@ dependencies = [
 name = "ferrumsystem-desktop"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "ferrum-account-ui",
  "ferrum-ui",
+ "ferrumagent-ui",
  "ferrumsystem-core",
+ "futures",
  "gpui",
  "serde",
+ "serde_json",
  "tempfile",
 ]
 

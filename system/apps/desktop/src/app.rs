@@ -73,6 +73,9 @@ pub struct Options {
     pub prefs_file: Option<PathBuf>,
     /// `~/.ferrum/projects.json` (`None`: not recorded).
     pub projects_file: Option<PathBuf>,
+    /// Where the Agent pane's chat keeps its settings and threads, with
+    /// keys in memory (tests); `None`: `~/.ferrum/agent` and the keychain.
+    pub agent_home: Option<PathBuf>,
 }
 
 impl Default for Options {
@@ -81,6 +84,7 @@ impl Default for Options {
             project: None,
             prefs_file: prefs::default_file(),
             projects_file: ferrum_ui::project::projects_file(),
+            agent_home: None,
         }
     }
 }
@@ -188,6 +192,11 @@ pub struct FerrumSystem {
     pub(crate) fields: Option<crate::component::NodeFields>,
     pub(crate) live: Live,
     pub(crate) notice: Option<Notice>,
+    /// FerrumChat beside the diagram (see `agent`).
+    pub(crate) agent: ferrumagent_ui::AgentPane,
+    /// The diagram the agent's tools read, set before each message.
+    pub(crate) agent_system: crate::agent_tools::SystemSlot,
+    pub(crate) agent_home: Option<PathBuf>,
     pub(crate) focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
 }
@@ -240,6 +249,9 @@ impl FerrumSystem {
             fields: None,
             live: Live::default(),
             notice: None,
+            agent: ferrumagent_ui::AgentPane::new(),
+            agent_system: crate::agent_tools::SystemSlot::default(),
+            agent_home: options.agent_home,
             focus_handle: cx.focus_handle(),
             _subscriptions: subscriptions,
         };

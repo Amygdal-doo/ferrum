@@ -18,11 +18,16 @@ ferrum-ui.workspace = true
 ferrum-account-ui.workspace = true
 gpui.workspace = true
 serde.workspace = true
+# FerrumChat in the Agent pane, with the diagram tools.
+ferrumagent-ui.workspace = true
+async-trait.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 # Headless GPUI test harness (TestAppContext); no window is shown.
 gpui = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
+futures.workspace = true
 
 [lints]
 workspace = true

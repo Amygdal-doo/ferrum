@@ -13,4 +13,7 @@ pub fn app_info() -> AppInfo {
         .key("New diagram / Open project", "cmd-n / cmd-o")
         .key("Toggle sidebar / panel", "cmd-b / alt-cmd-b")
         .key("Settings", "cmd-,")
+        .event(ferrumagent_ui::NEEDS_YOU)
+        .event(ferrumagent_ui::DONE)
+        .event(ferrumagent_ui::FAILED)
 }

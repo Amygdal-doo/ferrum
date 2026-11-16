@@ -11,12 +11,12 @@ use tempfile::TempDir;
 use crate::app::{FerrumSystem, NewDiagram, OpenDemo, Options, Source};
 use crate::prefs::{self, UiPrefs};
 
-struct Fixture {
+pub(crate) struct Fixture {
     dir: TempDir,
 }
 
 impl Fixture {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             dir: tempfile::tempdir().expect("tempdir"),
         }
@@ -35,7 +35,7 @@ impl Fixture {
     }
 
     /// A project folder, with a starter diagram when `with_system`.
-    fn project(&self, name: &str, with_system: bool) -> PathBuf {
+    pub(crate) fn project(&self, name: &str, with_system: bool) -> PathBuf {
         let path = self.dir.path().join(name);
         std::fs::create_dir_all(&path).expect("mkdir");
         if with_system {
@@ -44,19 +44,21 @@ impl Fixture {
         path
     }
 
-    fn open<'a>(
+    pub(crate) fn open<'a>(
         &self,
         cx: &'a mut TestAppContext,
         project: Option<PathBuf>,
     ) -> (Entity<FerrumSystem>, &'a mut VisualTestContext) {
         cx.update(|cx| {
             ferrum_ui::init_for_tests(cx);
+            ferrumagent_ui::init(cx);
             crate::app::bind_keys(cx);
         });
         let options = Options {
             project,
             prefs_file: Some(self.prefs_file()),
             projects_file: Some(self.dir.path().join("projects.json")),
+            agent_home: Some(self.dir.path().join("agent")),
         };
         let (app, cx) = cx.add_window_view(|window, cx| FerrumSystem::new(options, window, cx));
         cx.simulate_resize(size(px(1440.), px(880.)));
@@ -65,7 +67,7 @@ impl Fixture {
     }
 }
 
-fn draw(cx: &mut VisualTestContext) {
+pub(crate) fn draw(cx: &mut VisualTestContext) {
     cx.run_until_parked();
     cx.update(|window, cx| window.draw(cx).clear(cx));
 }

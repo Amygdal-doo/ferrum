@@ -3,6 +3,8 @@
 //! the project open last, the demo at the very first start, else nothing.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod agent;
+mod agent_tools;
 mod app;
 mod app_info;
 mod canvas;
@@ -37,6 +39,7 @@ fn main() {
         .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         ferrum_account_ui::init(ferrum_account_ui::AccountApp::System, cx);
+        ferrumagent_ui::init(cx);
         app::bind_keys(cx);
         cx.set_menus(menus::menus(&app_info::app_info()));
         let options = app::Options {
