@@ -38,6 +38,8 @@ pub struct HttpResponse {
     pub grpc: Option<crate::protocol::grpc::GrpcStatus>,
     /// gRPC calls: trailing metadata.
     pub trailers: Vec<(String, String)>,
+    /// What the request's pre-request and test scripts did (none: no scripts).
+    pub script: Option<crate::script::ScriptReport>,
 }
 
 impl HttpResponse {

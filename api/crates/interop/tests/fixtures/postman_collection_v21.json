@@ -149,7 +149,7 @@
     {
       "name": "Script body",
       "request": {
-        "auth": { "type": "oauth2", "oauth2": [{ "key": "accessToken", "value": "x", "type": "string" }] },
+        "auth": { "type": "hawk", "hawk": [{ "key": "authId", "value": "x", "type": "string" }] },
         "method": "POST",
         "header": [],
         "body": { "mode": "raw", "raw": "console.log(1)", "options": { "raw": { "language": "javascript" } } },

@@ -76,6 +76,8 @@ impl RunnerState {
         match event {
             RunEvent::Started(i) => self.set(i, RowStatus::Running),
             RunEvent::Finished(i, outcome) => self.set(i, RowStatus::Done(outcome)),
+            // Saved by the command loop (`apply_script_changes`).
+            RunEvent::Changes(..) => {}
             RunEvent::Done { stopped } => {
                 self.running = false;
                 self.stopped = stopped;
@@ -137,6 +139,7 @@ mod tests {
             prepared: Prepared {
                 request: HttpRequest::default(),
                 variables: VariableSet::new(),
+                environment: None,
             },
         }
     }
@@ -146,6 +149,7 @@ mod tests {
             status,
             time_ms,
             passed: (200..300).contains(&status),
+            checks: None,
         }
     }
 

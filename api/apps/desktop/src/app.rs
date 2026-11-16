@@ -63,6 +63,8 @@ pub struct FerrumApi {
     focus_handle: FocusHandle,
     /// Whether focus was already moved into the open dialog.
     pub dialog_focused: bool,
+    /// The shared agent models for drafting tests (loaded on first use).
+    pub drafter: Option<ferrumapi_application::agent_tests::TestDrafter>,
     notice: Option<Notice>,
     notice_task: Option<Task<()>>,
     _autosave: Task<()>,
@@ -96,6 +98,7 @@ impl FerrumApi {
             project_bar,
             focus_handle,
             dialog_focused: false,
+            drafter: None,
             notice: None,
             notice_task: None,
             _autosave: Self::autosave_loop(cx),

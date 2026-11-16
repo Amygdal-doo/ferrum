@@ -2,8 +2,8 @@
 
 use crate::{AppServices, DEFAULT_HISTORY_LIMIT};
 use ferrumapi_domain::{
-    Auth, Collection, Environment, ExecError, HistoryEntry, HttpRequest, HttpResponse, RequestKind,
-    RequestOrigin, VariableSet,
+    Auth, Collection, Environment, EnvironmentId, ExecError, HistoryEntry, HttpRequest,
+    HttpResponse, RequestKind, RequestOrigin, VariableSet,
 };
 use ferrumapi_http::CancellationToken;
 use ferrumapi_interop::codegen::{self, CodeTarget};
@@ -14,6 +14,8 @@ use ferrumapi_interop::codegen::{self, CodeTarget};
 pub struct Prepared {
     pub request: HttpRequest,
     pub variables: VariableSet,
+    /// The active environment (OAuth 2 tokens are cached per environment).
+    pub environment: Option<EnvironmentId>,
 }
 
 fn find_collection(
@@ -63,6 +65,7 @@ pub fn prepare(
     Prepared {
         request: req,
         variables: variables_for(origin, collections, globals, environment),
+        environment: environment.map(|e| e.id),
     }
 }
 
@@ -74,9 +77,10 @@ pub fn code_snippet(target: CodeTarget, prepared: &Prepared) -> String {
 }
 
 impl AppServices {
-    /// Executes `prepared` and records `authored` (pre-substitution) in
-    /// history. Cancelled requests are not recorded. Runs on any executor but
-    /// should be spawned on the services runtime.
+    /// Runs the pre-request script, executes `prepared`, runs the test
+    /// script (its report is on the response) and records `authored`
+    /// (pre-substitution) in history. Cancelled requests are not recorded.
+    /// Runs on any executor but should be spawned on the services runtime.
     pub async fn send(
         &self,
         authored: HttpRequest,
@@ -84,7 +88,13 @@ impl AppServices {
         origin: Option<RequestOrigin>,
         cancel: CancellationToken,
     ) -> Result<HttpResponse, ExecError> {
-        let result = self.execute(prepared, cancel).await;
+        let (prepared, pre) = crate::scripts::pre_request(prepared);
+        let tests = prepared.request.scripts.tests.clone();
+        let mut vars = prepared.variables.clone();
+        let mut result = self.execute(prepared, cancel).await;
+        if let Ok(response) = &mut result {
+            crate::scripts::finish(response, pre, &tests, &mut vars);
+        }
         if matches!(result, Err(ExecError::Cancelled)) {
             return result;
         }
@@ -114,6 +124,7 @@ impl AppServices {
         prepared: Prepared,
         cancel: CancellationToken,
     ) -> Result<HttpResponse, ExecError> {
+        let prepared = self.resolve_auth(prepared, &cancel).await?;
         match prepared.request.kind {
             RequestKind::Grpc => return self.grpc_call(prepared, cancel).await,
             RequestKind::WebSocket => {
@@ -126,6 +137,7 @@ impl AppServices {
         let Prepared {
             mut request,
             variables,
+            ..
         } = prepared;
         self.apply_cookies(&mut request, &variables).await;
         let result = self.http.execute(&request, &variables, cancel).await;

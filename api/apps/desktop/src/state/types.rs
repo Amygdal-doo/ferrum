@@ -32,6 +32,8 @@ pub enum RequestSection {
     Procedure,
     /// WebSocket composer / gRPC method + message.
     Message,
+    /// Pre-request and test scripts.
+    Scripts,
 }
 
 impl RequestSection {
@@ -40,21 +42,35 @@ impl RequestSection {
     pub const fn for_kind(kind: RequestKind) -> &'static [Self] {
         use RequestSection as S;
         match kind {
-            RequestKind::Rest => &[S::Params, S::Auth, S::Headers, S::Body, S::Settings],
-            RequestKind::Graphql => &[S::Query, S::Variables, S::Auth, S::Headers, S::Settings],
-            RequestKind::Soap => &[S::Envelope, S::Auth, S::Headers, S::Settings],
+            RequestKind::Rest => &[
+                S::Params,
+                S::Auth,
+                S::Headers,
+                S::Body,
+                S::Scripts,
+                S::Settings,
+            ],
+            RequestKind::Graphql => &[
+                S::Query,
+                S::Variables,
+                S::Auth,
+                S::Headers,
+                S::Scripts,
+                S::Settings,
+            ],
+            RequestKind::Soap => &[S::Envelope, S::Auth, S::Headers, S::Scripts, S::Settings],
             RequestKind::Odata => &[
                 S::Builder,
                 S::Params,
                 S::Auth,
                 S::Headers,
                 S::Body,
+                S::Scripts,
                 S::Settings,
             ],
-            RequestKind::Trpc => &[S::Procedure, S::Auth, S::Headers, S::Settings],
-            RequestKind::WebSocket | RequestKind::Grpc => {
-                &[S::Message, S::Headers, S::Auth, S::Settings]
-            }
+            RequestKind::Trpc => &[S::Procedure, S::Auth, S::Headers, S::Scripts, S::Settings],
+            RequestKind::Grpc => &[S::Message, S::Headers, S::Auth, S::Scripts, S::Settings],
+            RequestKind::WebSocket => &[S::Message, S::Headers, S::Auth, S::Settings],
         }
     }
 
@@ -83,6 +99,7 @@ impl RequestSection {
             Self::Envelope => "Envelope",
             Self::Procedure => "Procedure",
             Self::Message => "Message",
+            Self::Scripts => "Scripts",
         }
     }
 }
@@ -92,6 +109,8 @@ pub enum ResponseView {
     Body,
     Headers,
     Cookies,
+    /// Script results (shown when the request has scripts).
+    Tests,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,4 +203,6 @@ pub enum Dialog {
     },
     /// The load test (`AppState::load_test`).
     LoadTest,
+    /// Agent-drafted tests under review (`AppState::drafts`).
+    DraftTests,
 }

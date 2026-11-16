@@ -1,8 +1,10 @@
 //! UI commands. Each one hands I/O to the services runtime via
 //! `AppServices::spawn` and only touches state from the UI thread.
 
+pub mod auth;
 pub mod collections;
 pub mod cookies;
+pub mod drafts;
 pub mod environments;
 pub mod files;
 pub mod history;
@@ -11,6 +13,7 @@ pub mod mock;
 pub mod projects;
 pub mod protocols;
 pub mod runner;
+pub mod scripts;
 pub mod send;
 pub mod webhook;
 pub mod websocket;

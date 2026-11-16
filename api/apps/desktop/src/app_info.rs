@@ -19,7 +19,7 @@ pub fn app_info() -> AppInfo {
         )
         .migration(Migration {
             from: &["Postman", "Insomnia", "Bruno", "Hoppscotch"],
-            summary: "Collections, environments and requests come over as Postman files you import in one step.",
-            task: "FerrumAPI imports Postman v2.1 collection and environment files (File › Import Collection / Import Environment) and curl commands; it has no Insomnia or Bruno importer. Postman: export from the app or use files the user points to. Insomnia (~/Library/Application Support/Insomnia), Bruno (.bru files in the user's collection folders) and Hoppscotch exports: convert each collection to a Postman v2.1 collection JSON and each environment to a Postman environment JSON. Write them to ~/Downloads/ferrum-api-import/ only, never into FerrumAPI's database, and finish by telling me which files to import. Leave secret values empty and list the variables that need one.",
+            summary: "Collections come over as Postman, Insomnia or OpenAPI files you import in one step.",
+            task: "FerrumAPI imports Postman v2.1 collection and environment files, Insomnia exports (v4 JSON / YAML, v5 YAML), OpenAPI 3 documents (JSON / YAML) and curl commands (File › Import Collection / Import Environment); it has no Bruno or Hoppscotch importer. Postman and Insomnia: export from the app or use files the user points to. Bruno (.bru files in the user's collection folders) and Hoppscotch exports: convert each collection to a Postman v2.1 collection JSON and each environment to a Postman environment JSON. Write them to ~/Downloads/ferrum-api-import/ only, never into FerrumAPI's database, and finish by telling me which files to import. Leave secret values empty and list the variables that need one.",
         })
 }

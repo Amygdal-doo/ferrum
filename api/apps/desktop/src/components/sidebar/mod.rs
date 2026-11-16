@@ -127,7 +127,7 @@ impl FerrumApi {
                 icon_action(
                     "import-collection",
                     IconName::Download,
-                    "Import Postman collection",
+                    "Import a Postman, Insomnia or OpenAPI file",
                     cx,
                     |this, cx| this.import_collection(cx),
                 ),

@@ -1,7 +1,7 @@
 //! cURL (bash) snippets, one option per line.
 
 use super::{Prepared, timeout_secs};
-use ferrumapi_domain::{FormFieldKind, HttpMethod, RequestBody, RequestSettings};
+use ferrumapi_domain::{Auth, FormFieldKind, HttpMethod, RequestBody, RequestSettings};
 
 /// Single-quotes `s` for a POSIX shell (`'` → `'\''`).
 pub(crate) fn quote(s: &str) -> String {
@@ -23,7 +23,36 @@ pub(super) fn generate(p: &Prepared<'_>) -> String {
     if let Some((u, pw)) = p.basic {
         lines.push(format!("--user {}", quote(&format!("{u}:{pw}"))));
     }
+    match p.signing {
+        Some(Auth::Digest(a)) => {
+            lines.push("--digest".into());
+            lines.push(format!(
+                "--user {}",
+                quote(&format!("{}:{}", a.username, a.password))
+            ));
+        }
+        Some(Auth::AwsSigV4(a)) => {
+            lines.push(format!(
+                "--aws-sigv4 {}",
+                quote(&format!("aws:amz:{}:{}", a.region.trim(), a.service.trim()))
+            ));
+            lines.push(format!(
+                "--user {}",
+                quote(&format!("{}:{}", a.access_key_id, a.secret_access_key))
+            ));
+            if !a.session_token.is_empty() {
+                lines.push(format!(
+                    "--header {}",
+                    quote(&format!("x-amz-security-token: {}", a.session_token))
+                ));
+            }
+        }
+        _ => {}
+    }
     for (k, v) in &p.headers {
+        if p.signing.is_some() && v == super::SIGNED_PLACEHOLDER {
+            continue;
+        }
         lines.push(format!("--header {}", quote(&format!("{k}: {v}"))));
     }
     if let Some(ct) = p.implied_content_type() {

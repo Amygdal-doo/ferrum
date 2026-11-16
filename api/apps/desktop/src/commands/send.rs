@@ -4,6 +4,7 @@ use super::background;
 use crate::app::FerrumApi;
 use crate::state::TabResponse;
 use ferrumapi_application::CancellationToken;
+use ferrumapi_domain::script::VarScope;
 use ferrumapi_domain::{ExecError, TabId};
 use gpui::Context;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -88,7 +89,21 @@ impl FerrumApi {
                     Ok(Err(e)) => TabResponse::Failed(e.to_string()),
                     Err(e) => TabResponse::Failed(e),
                 };
+                // Variables the scripts set in the environment / globals.
+                let changes: Vec<_> = match &next {
+                    TabResponse::Done(r) => r
+                        .script
+                        .iter()
+                        .flat_map(|s| s.changes.iter())
+                        .filter(|c| c.scope != VarScope::Run)
+                        .cloned()
+                        .collect(),
+                    _ => Vec::new(),
+                };
                 state.responses.insert(tab_id, next);
+                if !changes.is_empty() {
+                    this.apply_script_changes(&changes, cx);
+                }
                 this.refresh_history(cx);
                 cx.notify();
             });

@@ -103,7 +103,7 @@ impl FerrumApi {
                 ferrum_ui::title_button(
                     "import",
                     IconName::Download,
-                    "Import a Postman collection or a cURL command",
+                    "Import a Postman / Insomnia / OpenAPI file or a cURL command",
                 )
                 .on_click(cx.listener(|this, _, _, cx| {
                     this.state.dialog = Some(Dialog::Import {

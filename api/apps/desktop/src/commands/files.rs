@@ -73,22 +73,30 @@ impl FerrumApi {
     }
 
     pub fn import_collection(&mut self, cx: &mut Context<Self>) {
-        self.pick_then(cx, "Import Postman collection", true, |this, path, cx| {
+        self.pick_then(cx, "Import collection", false, |this, path, cx| {
             let svc = this.services.clone();
             this.io(
                 cx,
-                async move { svc.import_postman_file(path).await },
+                async move { svc.import_collection_file(path).await },
                 |this, result, cx| match result {
-                    Ok(c) => {
-                        let name = c.name.clone();
-                        this.state.expanded.insert(c.id.0);
-                        this.state.collections.push(c);
-                        this.notify(format!("Imported “{name}”."), false, cx);
-                    }
+                    Ok((c, format)) => this.add_imported(c, format, cx),
                     Err(e) => this.notify(format!("Import failed: {e}"), true, cx),
                 },
             );
         });
+    }
+
+    /// Shows a newly imported collection in the sidebar.
+    pub fn add_imported(
+        &mut self,
+        c: ferrumapi_domain::Collection,
+        format: &str,
+        cx: &mut Context<Self>,
+    ) {
+        let name = c.name.clone();
+        self.state.expanded.insert(c.id.0);
+        self.state.collections.push(c);
+        self.notify(format!("Imported “{name}” ({format})."), false, cx);
     }
 
     pub fn import_environment(&mut self, cx: &mut Context<Self>) {

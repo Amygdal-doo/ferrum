@@ -52,10 +52,18 @@ impl FerrumApi {
         let (label, color) = badge_for(&row.status, cx);
         let (code, time, error) = match &row.status {
             RowStatus::Done(RunOutcome::Response {
-                status, time_ms, ..
+                status,
+                time_ms,
+                checks,
+                ..
             }) => (
                 Some((status.to_string(), status_color(*status, cx))),
-                human_duration_ms(*time_ms),
+                match checks {
+                    Some((ok, total)) => {
+                        format!("{} · {ok}/{total} tests", human_duration_ms(*time_ms))
+                    }
+                    None => human_duration_ms(*time_ms),
+                },
                 None,
             ),
             RowStatus::Done(RunOutcome::Error(e)) => (None, String::new(), Some(e.clone())),

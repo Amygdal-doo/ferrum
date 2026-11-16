@@ -4,6 +4,7 @@
 //! older records keep loading when fields are added.
 
 mod auth;
+mod auth_types;
 mod body;
 mod collection;
 mod cookie_jar;
@@ -18,6 +19,7 @@ pub mod mock;
 pub mod protocol;
 mod request;
 mod response;
+pub mod script;
 pub mod text;
 mod tree;
 pub mod urlparams;
@@ -27,6 +29,10 @@ mod workspace;
 pub mod xml;
 
 pub use auth::{ApiKeyLocation, Auth};
+pub use auth_types::{
+    AwsSigV4Auth, ClientAuthentication, DigestAuth, OAuth1Auth, OAuth2Auth, OAuth2Grant,
+    OAuth2Token,
+};
 pub use body::{FormField, FormFieldKind, RawLanguage, RequestBody};
 pub use collection::{Collection, Folder, Item, RequestOrigin, SavedRequest};
 pub use cookie_jar::{

@@ -2,6 +2,7 @@
 
 use crate::AppServices;
 use ferrumapi_domain::{Collection, Environment, HttpRequest};
+use ferrumapi_interop::detect::{self, Imported};
 use ferrumapi_interop::{InteropError, curl, postman};
 use std::path::PathBuf;
 
@@ -20,8 +21,30 @@ impl AppServices {
     pub async fn import_postman_file(&self, path: PathBuf) -> Result<Collection, TransferError> {
         let json = tokio::fs::read_to_string(&path).await?;
         let collection = postman::import_collection(&json)?;
-        self.store.save_collection(&collection).await?;
+        self.save_collection(&collection).await?;
         Ok(collection)
+    }
+
+    /// Reads a Postman collection, Insomnia export or OpenAPI 3 document
+    /// (JSON or YAML), saves the collection and returns it with the format.
+    pub async fn import_collection_file(
+        &self,
+        path: PathBuf,
+    ) -> Result<(Collection, &'static str), TransferError> {
+        let text = tokio::fs::read_to_string(&path).await?;
+        let (collection, format) = detect::import_collection(&text)?;
+        self.save_collection(&collection).await?;
+        Ok((collection, format))
+    }
+
+    /// Pasted text: a cURL command becomes a request (not saved); a
+    /// collection / export / OpenAPI document is saved.
+    pub async fn import_pasted(&self, text: String) -> Result<Imported, TransferError> {
+        let imported = detect::import_text(&text)?;
+        if let Imported::Collection(c, _) = &imported {
+            self.save_collection(c).await?;
+        }
+        Ok(imported)
     }
 
     /// Reads a Postman environment file, saves it and returns it.

@@ -2528,7 +2528,9 @@ name = "ferrumapi-application"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "chrono",
+ "ferrumagent-core",
  "ferrumapi-domain",
  "ferrumapi-grpc",
  "ferrumapi-http",
@@ -2536,11 +2538,14 @@ dependencies = [
  "ferrumapi-persistence",
  "ferrumapi-server",
  "futures",
+ "keyring",
  "serde_json",
+ "sha2 0.10.9",
  "thiserror 2.0.21",
  "tokio",
  "tokio-tungstenite",
  "tracing",
+ "url",
  "uuid",
  "wiremock",
 ]
@@ -2571,6 +2576,7 @@ name = "ferrumapi-domain"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "regex",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
@@ -2608,14 +2614,19 @@ name = "ferrumapi-http"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "chrono",
  "ferrumapi-domain",
  "futures",
+ "hmac 0.12.1",
+ "md-5 0.10.6",
  "mime_guess",
  "percent-encoding",
  "reqwest",
  "rustls",
  "rustls-platform-verifier",
  "serde_json",
+ "sha1 0.10.7",
+ "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -2623,6 +2634,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "url",
+ "uuid",
  "wiremock",
 ]
 
@@ -2635,6 +2647,7 @@ dependencies = [
  "roxmltree 0.21.1",
  "serde",
  "serde_json",
+ "serde_yaml_ng",
  "thiserror 2.0.21",
  "url",
  "uuid",

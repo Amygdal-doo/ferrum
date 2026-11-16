@@ -7,6 +7,7 @@ fn ok(status: u16) -> RunOutcome {
         status,
         time_ms: 1,
         passed: (200..300).contains(&status),
+        checks: None,
     }
 }
 

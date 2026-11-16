@@ -3,6 +3,7 @@
 mod code;
 mod collection_settings;
 mod cookies;
+mod draft_tests;
 mod environment;
 mod import;
 mod load_test;
@@ -103,6 +104,7 @@ impl FerrumApi {
             Dialog::Webhooks => self.render_webhooks_dialog(window, cx),
             Dialog::NewRequest { target } => self.render_new_request_dialog(target, cx),
             Dialog::LoadTest => self.render_load_test_dialog(window, cx),
+            Dialog::DraftTests => self.render_draft_tests_dialog(window, cx),
             Dialog::DeleteItem {
                 collection,
                 item,

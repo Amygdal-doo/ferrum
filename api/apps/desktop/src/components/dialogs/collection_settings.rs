@@ -61,6 +61,15 @@ impl FerrumApi {
             ));
         let body = match pane {
             SettingsPane::Auth => {
+                let env: &[_] = self
+                    .state
+                    .active_environment()
+                    .map_or(&[], |e| &e.variables);
+                let variables = ferrumapi_domain::VariableSet::from_layers(&[
+                    &self.state.globals.variables,
+                    &c.variables,
+                    env,
+                ]);
                 let target: AuthTarget = Rc::new(|this, f| {
                     with_draft(this, |c, _| {
                         if c.auth.is_inherit() {
@@ -77,6 +86,7 @@ impl FerrumApi {
                         inherited: None,
                         request_fields: false,
                         target,
+                        variables,
                     },
                     window,
                     cx,

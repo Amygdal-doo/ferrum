@@ -1,6 +1,7 @@
 //! Reusable editing widgets.
 
 mod auth_editor;
+mod auth_signing;
 mod kv_table;
 mod secret_input;
 mod vars_table;

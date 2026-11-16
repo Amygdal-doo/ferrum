@@ -64,6 +64,7 @@ fn get(prepared: &Prepared, url: String, accept: &str) -> Prepared {
     Prepared {
         request,
         variables: prepared.variables.clone(),
+        environment: prepared.environment,
     }
 }
 
@@ -103,6 +104,7 @@ impl AppServices {
             .fetch(Prepared {
                 request,
                 variables: prepared.variables,
+                environment: prepared.environment,
             })
             .await?;
         let schema = parse_introspection(&resp.body).map_err(|e| {
@@ -229,6 +231,9 @@ impl AppServices {
         prepared: Prepared,
         origin: Option<RequestOrigin>,
     ) -> Result<WsSession, ExecError> {
+        let prepared = self
+            .resolve_auth(prepared, &CancellationToken::new())
+            .await?;
         let result = ferrumapi_http::ws::connect(&prepared.request, &prepared.variables).await;
         let mut entry = HistoryEntry::new(authored, origin);
         match &result {

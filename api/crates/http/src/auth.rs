@@ -8,14 +8,21 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
 use url::Url;
 
 /// Adds the auth header or query pair. `Inherit` is treated as `None`
-/// (the caller resolves inheritance before executing).
+/// (the caller resolves inheritance before executing). OAuth 1, AWS and
+/// Digest are applied to the built request (`signing`); OAuth 2 reaches
+/// here already turned into a token header by the application layer.
 pub(crate) fn apply_auth(
     auth: &Auth,
     headers: &mut HeaderMap,
     url: &mut Url,
 ) -> Result<(), ExecError> {
     match auth {
-        Auth::Inherit | Auth::None => Ok(()),
+        Auth::Inherit
+        | Auth::None
+        | Auth::OAuth2(_)
+        | Auth::OAuth1(_)
+        | Auth::Digest(_)
+        | Auth::AwsSigV4(_) => Ok(()),
         Auth::Basic { username, password } => {
             let encoded = STANDARD.encode(format!("{username}:{password}"));
             set_if_absent(headers, AUTHORIZATION, &format!("Basic {encoded}"))

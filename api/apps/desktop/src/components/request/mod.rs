@@ -4,6 +4,7 @@ mod body;
 mod form_data;
 mod kinds;
 mod method_picker;
+mod scripts;
 mod sections;
 mod settings;
 mod tab_bar;

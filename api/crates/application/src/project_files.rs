@@ -112,7 +112,7 @@ impl AppServices {
             match serde_json::from_str::<Collection>(&text) {
                 Ok(mut c) => {
                     c.project = Some(project_text.clone());
-                    self.store.save_collection(&c).await?;
+                    self.save_collection(&c).await?;
                     imported.push(c);
                 }
                 Err(_) => skipped.push(

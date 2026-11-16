@@ -26,7 +26,9 @@ fn app_window(
         ferrum_ui::init_for_tests(cx);
     });
     let dir = std::env::temp_dir().join(format!("ferrumapi-ui-{}", uuid::Uuid::new_v4()));
-    let services = AppServices::start(&dir).expect("services");
+    // Auth secrets in memory, never the real keychain.
+    let secrets = std::sync::Arc::new(ferrumapi_application::secrets::MemoryStore::default());
+    let services = AppServices::start_with_secrets(&dir, secrets).expect("services");
     // The GPUI test scheduler must not be woken from the services runtime's
     // threads, so the view is built without loading local data.
     let (app, cx) = cx.add_window_view(move |window, cx| {
@@ -209,5 +211,152 @@ fn every_kind_and_section_renders(cx: &mut TestAppContext) {
         });
     });
     assert!(app.read_with(cx, |a, _| a.state.dialog.is_some()));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[gpui::test]
+fn scripts_section_and_tests_tab_render(cx: &mut TestAppContext) {
+    use crate::state::ResponseView;
+    use ferrumapi_domain::script::{ScriptReport, TestResult};
+    let (app, cx, dir) = app_window(cx);
+    let id = app.read_with(cx, |a, _| a.state.active_tab.expect("tab"));
+    render(&app, cx, |app| {
+        app.state
+            .edit_request(id, |r| r.scripts.tests = "assert status ==".into());
+        app.state.section = RequestSection::Scripts;
+        let mut resp = HttpResponse {
+            status: 200,
+            ..HttpResponse::default()
+        };
+        resp.script = Some(ScriptReport {
+            tests: vec![TestResult {
+                name: "status".into(),
+                passed: false,
+                message: "404 == 200 is false".into(),
+            }],
+            errors: vec!["tests line 2: bad".into()],
+            logs: vec!["hello".into()],
+            ..ScriptReport::default()
+        });
+        app.state
+            .responses
+            .insert(id, TabResponse::Done(Box::new(resp)));
+        app.state.response_view = ResponseView::Tests;
+    });
+    assert!(has_field(&app, cx, format!("script-tests:{id}")));
+    assert!(has_field(&app, cx, format!("script-pre:{id}")));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[gpui::test]
+fn drafted_tests_are_reviewed_then_saved(cx: &mut TestAppContext) {
+    use crate::state::drafts::{DraftRow, DraftState, DraftStatus};
+    use ferrumapi_application::agent_tests::{DraftInput, DraftModel};
+    let (app, cx, dir) = app_window(cx);
+    let id = app.read_with(cx, |a, _| a.state.active_tab.expect("tab"));
+    let model = DraftModel {
+        provider: "anthropic".into(),
+        model: "m".into(),
+        label: "Model".into(),
+        enabled: true,
+    };
+    let soon = DraftModel {
+        provider: "ferrum".into(),
+        model: "ferrum-ai".into(),
+        label: "FerrumAI".into(),
+        enabled: false,
+    };
+    let row = |status, selected| DraftRow {
+        name: "r".into(),
+        tab: Some(id),
+        origin: None,
+        input: DraftInput {
+            name: "r".into(),
+            request: HttpRequest::default(),
+            description: String::new(),
+            response: None,
+        },
+        status,
+        selected,
+    };
+    render(&app, cx, |app| {
+        app.state.drafts = Some(DraftState::new(
+            vec![
+                row(
+                    DraftStatus::Ready {
+                        script: "assert status == 200".into(),
+                        problems: vec![(2, "bad".into())],
+                    },
+                    true,
+                ),
+                row(DraftStatus::Failed("no key".into()), true),
+                row(DraftStatus::Drafting, true),
+                row(
+                    DraftStatus::Ready {
+                        script: "assert time < 1".into(),
+                        problems: Vec::new(),
+                    },
+                    false,
+                ),
+            ],
+            vec![soon, model.clone()],
+            Some(model),
+        ));
+        app.state.dialog = Some(Dialog::DraftTests);
+    });
+    assert!(has_field(&app, cx, "draft-script-0".into()));
+    app.update(cx, |app, cx| app.save_drafts(cx));
+    let tests = app.read_with(cx, |a, _| {
+        a.state
+            .tab(id)
+            .map(|t| t.request.scripts.tests.clone())
+            .unwrap_or_default()
+    });
+    assert_eq!(
+        tests, "assert status == 200",
+        "only ticked, ready drafts are saved"
+    );
+    assert!(app.read_with(cx, |a, _| a.state.dialog.is_none()
+        && a.state.drafts.is_none()));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[gpui::test]
+fn signing_auth_types_render_their_fields(cx: &mut TestAppContext) {
+    use ferrumapi_domain::{Auth, OAuth2Auth, OAuth2Grant};
+    let (app, cx, dir) = app_window(cx);
+    let cases = [
+        (Auth::OAuth2(Box::default()), "oauth2", "auth_url"),
+        (
+            Auth::OAuth2(Box::new(OAuth2Auth {
+                grant: OAuth2Grant::ClientCredentials,
+                ..OAuth2Auth::default()
+            })),
+            "oauth2",
+            "token_url",
+        ),
+        (Auth::OAuth1(Box::default()), "oauth1", "consumer_secret"),
+        (Auth::Digest(Box::default()), "digest", "password"),
+        (Auth::AwsSigV4(Box::default()), "awsv4", "secret_access_key"),
+    ];
+    for (mut auth, kind, field) in cases {
+        // A loaded secret, so no keychain read is started.
+        let first = auth.secret_fields()[0].0;
+        auth.set_secret_field(first, "s".into());
+        let request = HttpRequest {
+            auth,
+            ..HttpRequest::default()
+        };
+        let tab = RequestTab::new(kind, request);
+        let id = tab.id;
+        render(&app, cx, |app| {
+            app.push_tab(tab);
+            app.state.section = RequestSection::Auth;
+        });
+        assert!(
+            has_field(&app, cx, format!("auth:{id}:{kind}:{field}")),
+            "{kind} {field}"
+        );
+    }
     let _ = std::fs::remove_dir_all(dir);
 }

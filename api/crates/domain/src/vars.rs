@@ -77,6 +77,10 @@ impl VariableSet {
         self.values.insert(key.into(), value.into());
     }
 
+    pub fn remove(&mut self, key: &str) {
+        self.values.remove(key);
+    }
+
     #[must_use]
     pub fn get(&self, key: &str) -> Option<&str> {
         self.values.get(key).map(String::as_str)
