@@ -13,6 +13,14 @@ Status: **Open — blocking spike not yet executed** · 2026-10-18
 > GPUI's input handler. The spike options below should now be evaluated against GPUI
 > (including reusing FerrumIDE's `editor` crate).
 
+> **Update 2026-11-17:** highlighting and completion shipped on the `TextInput` without a
+> parser dependency. No SQL tree-sitter grammar is in the workspace (only the Editor's
+> languages), and a grammar would still need dialect work for dollar quotes, backticks and
+> `[ident]`; a lexer in `ferrumdata-editor-core` (`lex.rs`) covers what highlighting and
+> completion need. Completion (`complete.rs`) reads the statement's FROM / JOIN / UPDATE /
+> INTO clauses for tables and aliases; it is not a parser. `TextInput::caret_bounds`
+> (ferrum-ui) anchors the popup at the caret.
+
 ## Context
 An IDE-grade editor (highlighting, completion, multi-cursor, IME, 1 MB documents) is the
 highest UI risk. Options per spec: **A** custom Rust editor over a rope with a browser

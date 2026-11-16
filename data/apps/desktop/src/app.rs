@@ -2,6 +2,7 @@
 
 use crate::commands::keys::KeyInputs;
 use crate::components::connection::{ConnectionForm, ConnectionFormEvent};
+use crate::components::sql_editor::{CompletionPopup, apply_highlights};
 use crate::state::{AppState, Dialog};
 use ferrum_ui::gpui::{Axis, MouseDownEvent, UniformListScrollHandle};
 use ferrum_ui::prelude::*;
@@ -58,6 +59,10 @@ pub struct FerrumData {
     pub(crate) agent: ferrumagent_ui::AgentPane,
     /// The connection the agent's tools use, set before each message.
     pub(crate) agent_profile: crate::agent::ProfileSlot,
+    /// Open completion list of the SQL editor.
+    pub(crate) completion: Option<CompletionPopup>,
+    /// Set while a completion is inserted, so the edit does not reopen the list.
+    pub(crate) accepting_completion: bool,
     notice_task: Option<Task<()>>,
     _autosave: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -75,6 +80,7 @@ impl FerrumData {
         let focus_handle = cx.focus_handle();
         window.focus(&focus_handle, cx);
         crate::components::result_grid::bind_grid_keys(cx);
+        crate::components::sql_editor::bind_editor_keys(cx);
         cx.bind_keys([
             KeyBinding::new("cmd-b", ToggleSidebar, None),
             KeyBinding::new("ctrl-b", ToggleSidebar, None),
@@ -99,6 +105,8 @@ impl FerrumData {
             project_synced: None,
             agent: ferrumagent_ui::AgentPane::new(),
             agent_profile: crate::agent::ProfileSlot::default(),
+            completion: None,
+            accepting_completion: false,
             notice_task: None,
             _autosave: Task::ready(()),
             _subscriptions: vec![filter_changed, history_changed],
@@ -199,6 +207,7 @@ impl FerrumData {
                 existing.input.update(cx, |i, cx| {
                     i.set_placeholder(editor_placeholder(engine), cx)
                 });
+                apply_highlights(&existing.input, engine, cx);
             }
             return existing.input.clone();
         }
@@ -230,12 +239,23 @@ impl FerrumData {
                         t.sql = sql;
                         t.unsaved = true;
                     });
+                    if table {
+                        let engine = this.tab_engine(tab_id).1;
+                        apply_highlights(input, engine, cx);
+                    } else {
+                        this.editor_changed(tab_id, cx);
+                    }
                     cx.notify();
                 }
                 TextInputEvent::Submit => this.run_from_editor(cx),
-                TextInputEvent::Blurred => {}
+                TextInputEvent::Blurred => {
+                    if !table {
+                        this.dismiss_completion(cx);
+                    }
+                }
             },
         );
+        apply_highlights(&input, engine, cx);
         let entry = TabInput {
             input: input.clone(),
             engine,

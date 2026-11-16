@@ -1,8 +1,14 @@
 //! SQL editor pane: tab bar + multi-line monospace input with a line-number
-//! gutter. The IDE-grade editor is gated on the ADR-003 spike.
+//! gutter, syntax highlighting and schema-aware completion (`assist.rs`).
+
+mod assist;
+
+pub use assist::{CompletionPopup, ShowCompletions, apply_highlights, bind_editor_keys};
 
 use crate::app::FerrumData;
+use ferrum_ui::menu;
 use ferrum_ui::prelude::*;
+use ferrum_ui::text_input;
 
 impl FerrumData {
     pub fn render_editor_pane(
@@ -116,6 +122,41 @@ impl FerrumData {
             .join("\n");
         let id = tab.id;
         let input = self.tab_input(id, false, window, cx);
+        let popup = self.render_completion(cx);
+        // While the completion list is open, ↑ ↓ ⏎ ⇥ and Escape drive it
+        // instead of the editor (captured before the input sees them).
+        let input = div()
+            .key_context(assist::KEY_CONTEXT)
+            .capture_action(cx.listener(|this, _: &text_input::Up, _, cx| {
+                if this.move_completion(-1, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|this, _: &text_input::Down, _, cx| {
+                if this.move_completion(1, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|this, _: &text_input::Enter, window, cx| {
+                if this.accept_completion(None, window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|this, _: &text_input::Tab, window, cx| {
+                if this.accept_completion(None, window, cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .capture_action(cx.listener(|this, _: &menu::Cancel, _, cx| {
+                if this.dismiss_completion(cx) {
+                    cx.stop_propagation();
+                }
+            }))
+            .on_action(cx.listener(move |this, _: &ShowCompletions, _, cx| {
+                this.show_completions(id, cx);
+            }))
+            .child(input)
+            .children(popup);
 
         // Gutter and input share one scroll container so they stay aligned.
         div()

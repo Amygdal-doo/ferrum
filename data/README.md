@@ -26,6 +26,7 @@ no webview, no React/TypeScript/Tauri/Electron. Part of the Ferrum monorepo (`..
 | Table browser tab: breadcrumb, refresh, editable SQL bar, ordered by primary key (warns if none), auto-sized columns | ✅ |
 | Browse queries per engine (backtick/double-quote quoting, SurrealQL `SELECT … ORDER BY id`, MongoDB `db.getCollection(…).find({}).sort({_id: 1})`) | ✅ unit-tested; SurrealDB/MongoDB forms also run live |
 | Editor tabs + SQL text (and table tabs) restored after restart | ✅ |
+| SQL editor: syntax highlighting per dialect (PostgreSQL dollar quotes / `E''` / `$1`, MySQL backticks / `#` / backslash escapes, SQLite `[ident]`); completion while typing or on ⌃Space / ⌘I: keywords and functions, tables after `FROM`/`JOIN`/`UPDATE`/`INTO`, columns of the tables the statement names, `alias.` → that table's columns (↑ ↓ ⏎ ⇥ Esc). Tables and columns load lazily from the active connection | ✅ lexer and completion unit-tested (`editor-core`); popup compiles, not yet manually smoke tested |
 | Query history (IDE-013): every run recorded per connection (text, time, duration, rows or error, incl. failed/cancelled runs and table browsing) in the local app DB, max 2,000 per connection; **History** tab in the results panel with search, this connection / all connections, Open (new tab), Run (new tab + run, production confirmation applies), double-click to open, Clear… | ✅ store + service unit-tested; panel compiles, not yet manually smoke tested |
 | Export (IDE-017): **Export → CSV / JSON…** saves every loaded row (not just the visible ones, in the current sort order) via a save dialog; **Copy as → CSV / JSON / Markdown** copies the selection, or all rows when nothing is selected | ✅ serializers unit-tested (quotes, newlines, NULL vs `''`, binary, decimals, JSON columns, absent document fields); dialog/clipboard not yet manually smoke tested |
 | Grid: click a header to sort (asc → desc → off; client-side, type-aware: numbers by value incl. exact decimals, dates/timestamps chronologically, text case-insensitively, NULL/absent last), drag a header's right edge to resize, click/shift-click/row-number selection, ⌘C copies a cell (full value) or a range (TSV), ⌘A selects all | ✅ comparator, selection and copy logic unit-tested; mouse/keyboard wiring not yet manually smoke tested |
@@ -73,7 +74,7 @@ DB index and credentials in the profile). On read-only profiles only commands on
 On production-tagged profiles the same list decides when to ask for confirmation.
 
 ## Not built yet (from the spec)
-Row editing / "+ Row" / column add (IDE-014), syntax highlighting/autocomplete (gated on ADR-003 spike),
+Row editing / "+ Row" / column add (IDE-014), multi-cursor and undo/redo in the editor,
 transactions UI, SSH, AI. Redis (alpha) does not yet have: editing of hash/list/set/
 sorted-set/stream elements (only string values, TTL and delete), pub/sub, `MONITOR`, transactions, Cluster/Sentinel,
 RESP3, key rename/create, opening keys that are not valid UTF-8 (they are listed but disabled), key tabs restored
