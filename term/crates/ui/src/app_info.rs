@@ -80,6 +80,10 @@ pub fn app_info() -> AppInfo {
             tint: 0x3dd68c,
             defaults: Channels::ALL,
         })
+        // The Agent pane's chat.
+        .event(ferrumagent_ui::NEEDS_YOU)
+        .event(ferrumagent_ui::DONE)
+        .event(ferrumagent_ui::FAILED)
         .page(TerminalPage::default())
         .page(KeyboardPage)
         .page(MachinesPage::default())

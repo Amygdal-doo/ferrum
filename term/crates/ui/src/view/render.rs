@@ -439,10 +439,14 @@ impl TermView {
                 })
             })
             .when(self.options.standalone, |row| {
+                row.child(self.git_toggles(cx))
+            })
+            .when(self.options.agent, |row| row.child(self.agent_toggle(cx)))
+            .when(self.options.standalone, |row| {
                 // The Ferrum account (Sign in / avatar) at the top right.
                 let account = ferrum_account_ui::account_button(cx)
                     .map(|account| div().flex_none().pl_1().child(account));
-                row.child(self.git_toggles(cx)).children(account)
+                row.children(account)
             })
     }
 
@@ -600,7 +604,8 @@ impl Render for TermView {
                     })
                     .gap(ferrum_ui::PANE_GAP)
                     .child(terminal)
-                    .children(self.git_card(cx)),
+                    .children(self.git_card(cx))
+                    .children(self.agent.pane.card(cx)),
             );
         let root = crate::actions::on_actions(v_flex(), cx);
         root.relative()

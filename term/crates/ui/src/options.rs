@@ -30,6 +30,12 @@ pub struct TermViewOptions {
     /// state, and retries the shared server instead of falling back to a
     /// private one. Hosts leave this `false`.
     pub standalone: bool,
+    /// The Agent toggle and pane (FerrumChat beside the terminal; the
+    /// desktop window). Hosts with their own agent leave this `false`.
+    pub agent: bool,
+    /// Where the Agent pane's chat keeps its settings and threads, with
+    /// keys in memory (tests); `None`: `~/.ferrum/agent` and the keychain.
+    pub agent_home: Option<PathBuf>,
 }
 
 impl Default for TermViewOptions {
@@ -41,6 +47,8 @@ impl Default for TermViewOptions {
             attach_to_server: true,
             session_name: None,
             standalone: false,
+            agent: false,
+            agent_home: None,
         }
     }
 }
@@ -51,8 +59,18 @@ impl TermViewOptions {
     pub fn standalone() -> Self {
         Self {
             standalone: true,
+            agent: true,
             ..Self::default()
         }
+    }
+
+    /// The Agent toggle and pane; chats keep their settings, threads and
+    /// keys in `home` instead of the user's (tests).
+    #[must_use]
+    pub fn agent(mut self, home: Option<PathBuf>) -> Self {
+        self.agent = true;
+        self.agent_home = home;
+        self
     }
 
     /// A compact pane inside another app, sidebar collapsed.
@@ -104,7 +122,8 @@ mod tests {
     fn presets() {
         let d = TermViewOptions::default();
         assert!(d.attach_to_server && d.show_sidebar && !d.compact && !d.standalone);
-        assert!(TermViewOptions::standalone().standalone);
+        assert!(TermViewOptions::standalone().standalone && TermViewOptions::standalone().agent);
+        assert!(!d.agent && !TermViewOptions::embedded().agent);
         let e = TermViewOptions::embedded()
             .cwd("/code/app")
             .session_name("editor:app");

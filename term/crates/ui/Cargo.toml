@@ -21,6 +21,10 @@ ferrum-ui.workspace = true
 ferrum-account-ui.workspace = true
 # FerrumGIT beside the terminal (the pane header's FerrumGIT / Changes toggles).
 ferrumgit-ui.workspace = true
+# FerrumChat beside the terminal (the desktop window's Agent pane), with
+# the terminal tools.
+ferrumagent-ui.workspace = true
+async-trait.workspace = true
 # Named for `gpui::actions!` (which refers to `gpui::…` paths).
 gpui.workspace = true
 futures.workspace = true

@@ -23,6 +23,8 @@
 //! server inside the host process instead (sessions then end with the host).
 
 mod actions;
+mod agent_pane;
+mod agent_tools;
 mod alerts;
 mod app;
 mod app_info;

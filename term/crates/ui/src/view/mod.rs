@@ -77,6 +77,8 @@ pub struct TermView {
     pub(crate) font_key: Option<(f32, gpui::SharedString)>,
     /// FerrumGIT beside the terminal (desktop window only).
     pub(crate) git: Option<crate::git_pane::GitPane>,
+    /// FerrumChat beside the terminal (see `agent_pane`).
+    pub(crate) agent: crate::agent_pane::AgentState,
     _blink: Task<()>,
     _message_timer: Option<Task<()>>,
     _events: Task<()>,
@@ -118,6 +120,7 @@ impl TermView {
             }
         });
         let focus_handle = cx.focus_handle();
+        let agent = crate::agent_pane::AgentState::new(options.agent, cx);
         let project = options
             .standalone
             .then(|| crate::project::ProjectState::new(window, cx));
@@ -155,6 +158,7 @@ impl TermView {
             pending_folder_item: None,
             font_key: None,
             git: None,
+            agent,
             _blink: blink,
             _message_timer: None,
             _events: events,

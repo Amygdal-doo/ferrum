@@ -32,6 +32,7 @@ fn main() {
         |window, cx| {
             ferrum_account_ui::init(ferrum_account_ui::AccountApp::Term, cx);
             ferrumterm_ui::init(cx);
+            ferrumagent_ui::init(cx);
             ferrumgit_ui::init(cx);
             TermView::new(TermViewOptions::standalone(), window, cx)
         },

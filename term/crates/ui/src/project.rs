@@ -38,6 +38,11 @@ impl ProjectState {
         self.shown.as_ref().map(|(_, dir)| project_root(dir))
     }
 
+    /// The focused pane's working directory, as last read.
+    pub(crate) fn focused_dir(&self) -> Option<PathBuf> {
+        self.shown.as_ref().map(|(_, dir)| dir.clone())
+    }
+
     pub fn new(window: &mut Window, cx: &mut Context<TermView>) -> Self {
         let bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx).inline(true));
         let events = cx.subscribe(&bar, |view: &mut TermView, _, event, cx| match event {

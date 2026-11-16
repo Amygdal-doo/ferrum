@@ -3342,6 +3342,7 @@ version = "0.1.0"
 dependencies = [
  "ferrum-account-ui",
  "ferrum-ui",
+ "ferrumagent-ui",
  "ferrumgit-ui",
  "ferrumterm-ui",
  "tracing-subscriber",
@@ -3391,8 +3392,10 @@ dependencies = [
 name = "ferrumterm-ui"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "ferrum-account-ui",
  "ferrum-ui",
+ "ferrumagent-ui",
  "ferrumgit-ui",
  "ferrumterm-client",
  "ferrumterm-net",
