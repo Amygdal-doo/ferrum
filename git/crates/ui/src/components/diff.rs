@@ -86,12 +86,18 @@ pub fn diff_pane(app: &GitView, cx: &mut Context<GitView>) -> AnyElement {
     let deleted = file.change == ferrumgit_domain::ChangeKind::Deleted;
     let file_buttons = h_flex()
         .gap_1()
-        .when(app.options.open_files_in_host && !deleted, |d| {
+        .when(!deleted, |d| {
+            // Hosts open their own editor; the app edits in place.
+            let (label, tip) = if app.options.open_files_in_host {
+                ("Open", "Open this file in the editor")
+            } else {
+                ("Edit", "Edit this file")
+            };
             d.child(
-                ghost_button("diff-open", "Open")
-                    .tooltip(Tooltip::text("Open this file in the editor"))
-                    .on_click(cx.listener(move |app, _, _, cx| {
-                        app.open_in_host(id, &p_open, open_line, cx);
+                ghost_button("diff-open", label)
+                    .tooltip(Tooltip::text(tip))
+                    .on_click(cx.listener(move |app, _, window, cx| {
+                        app.edit_file(id, &p_open, open_line, window, cx);
                     })),
             )
         })

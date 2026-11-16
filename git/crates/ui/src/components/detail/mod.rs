@@ -51,6 +51,8 @@ pub fn right_column(app: &mut GitView, _: &mut Window, cx: &mut Context<GitView>
     };
     let view = app.state.view(id);
     let body = match view.page {
+        // The file editor covers the panel on every page until closed.
+        _ if app.editor_shown() => crate::components::editor::pane::render(app, cx),
         // File history / blame covers the panel on every page until closed.
         _ if let Some(f) = view.file.clone() => file_panel(app, id, f, cx),
         Page::PullRequests => pull_detail::pull_detail(app, id, cx),

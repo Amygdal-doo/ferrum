@@ -141,6 +141,7 @@ pub fn wip_panel(
                 .action(RESOLVED, move |app, _, _, cx| {
                     app.op(id, RepoOp::Stage(vec![p3.clone()]), cx);
                 })
+                .edit_action(app, id, f)
                 .render(cx)
             })
             .collect();
@@ -198,6 +199,7 @@ pub fn wip_panel(
             .action(STAGE, move |app, _, _, cx| {
                 app.op(id, RepoOp::Stage(vec![p2.clone()]), cx);
             })
+            .edit_action(app, id, f)
             .render(cx),
         );
     }
@@ -234,6 +236,7 @@ pub fn wip_panel(
             .action(UNSTAGE, move |app, _, _, cx| {
                 app.op(id, RepoOp::Unstage(vec![p.clone()]), cx);
             })
+            .edit_action(app, id, f)
             .render(cx),
         );
     }

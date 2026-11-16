@@ -70,6 +70,7 @@ impl GitView {
                 }
                 app.refresh_project_branch(id, cx);
                 app.refresh_diff(id, cx);
+                app.refresh_editor(id, cx);
                 app.refresh_file_view(id, cx);
                 // New commits may match the active search.
                 let search = app.state.view(id).search;

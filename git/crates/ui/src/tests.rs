@@ -13,6 +13,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 
+/// The stand-alone app's file editor.
+mod editor;
+
 /// A host app's pane: the view plus the events it received.
 pub(crate) struct Host {
     pub(crate) git: Entity<GitView>,

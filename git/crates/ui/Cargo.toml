@@ -13,6 +13,8 @@ ferrumgit-application.workspace = true
 ferrum-ui.workspace = true
 # The Ferrum account control in the stand-alone app's header.
 ferrum-account-ui.workspace = true
+# The stand-alone app's file editor: FerrumIDE's buffer, undo, highlighting.
+ferrumeditor-core.workspace = true
 gpui.workspace = true
 tracing.workspace = true
 directories.workspace = true

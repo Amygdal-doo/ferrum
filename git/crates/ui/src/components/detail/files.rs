@@ -6,8 +6,14 @@ use ferrum_ui::components::{
     Color, Label, LabelCommon, LabelSize, StyledTypography, Tooltip, h_flex,
 };
 use ferrum_ui::theme::ActiveTheme;
-use ferrumgit_domain::ChangeKind;
+use ferrumgit_domain::{ChangeKind, FileStatus, RepoId};
 use gpui::{AnyElement, ClickEvent, Context, SharedString, Window, div, prelude::*, px};
+
+const EDIT: RowAction = RowAction {
+    label: "Edit",
+    title: "Edit this file",
+    danger: false,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RowAction {
@@ -52,6 +58,19 @@ impl FileRow {
     ) -> Self {
         self.actions.push((action, Box::new(handler)));
         self
+    }
+
+    /// "Edit" in the stand-alone app's editor, for a file that exists in
+    /// the work tree (hosts open files from the diff instead).
+    pub fn edit_action(self, app: &GitView, id: RepoId, file: &FileStatus) -> Self {
+        let deleted = [file.index, file.worktree].contains(&ChangeKind::Deleted);
+        if app.options.open_files_in_host || deleted {
+            return self;
+        }
+        let path = file.path.clone();
+        self.action(EDIT, move |app, _, window, cx| {
+            app.edit_file(id, &path, None, window, cx);
+        })
     }
 
     pub fn render(self, cx: &mut Context<GitView>) -> AnyElement {

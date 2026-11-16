@@ -166,6 +166,8 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("up", ferrum_ui::menu::SelectPrevious, Some(PICKER_CONTEXT)),
         KeyBinding::new("down", ferrum_ui::menu::SelectNext, Some(PICKER_CONTEXT)),
     ]);
+    // The stand-alone app's file editor (scoped to its own key contexts).
+    crate::components::editor::bind_keys(cx);
 }
 
 /// [`init`], using already started services (the FerrumGIT app starts them

@@ -160,6 +160,9 @@ impl GitView {
     }
 
     pub fn close_tab(&mut self, id: RepoId, cx: &mut Context<Self>) {
+        if !self.release_editor(id, cx) {
+            return;
+        }
         let open = &mut self.state.open;
         let idx = open.iter().position(|o| *o == id);
         open.retain(|o| *o != id);
@@ -248,6 +251,9 @@ impl GitView {
 
     /// Forgets a repository (the files are not touched).
     pub fn forget(&mut self, id: RepoId, cx: &mut Context<Self>) {
+        if !self.release_editor(id, cx) {
+            return;
+        }
         if self.state.open.contains(&id) {
             self.close_tab(id, cx);
         }

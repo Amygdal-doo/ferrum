@@ -3140,6 +3140,7 @@ dependencies = [
  "directories",
  "ferrum-account-ui",
  "ferrum-ui",
+ "ferrumeditor-core",
  "ferrumgit-application",
  "ferrumgit-domain",
  "gpui",

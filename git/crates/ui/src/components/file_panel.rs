@@ -91,8 +91,13 @@ pub fn file_panel(
                 ),
         )
         .child(div().flex_1())
-        .when(app.options.open_files_in_host, |d| {
+        .map(|d| {
             let path = file.path.clone();
+            let (label, tip) = if app.options.open_files_in_host {
+                ("Open", "Open this file in the editor")
+            } else {
+                ("Edit", "Edit this file")
+            };
             d.child(
                 div()
                     .id("file-open")
@@ -102,10 +107,10 @@ pub fn file_panel(
                     .cursor_pointer()
                     .text_ui_sm(cx)
                     .hover(|s| s.bg(colors.element_hover))
-                    .tooltip(Tooltip::text("Open this file in the editor"))
-                    .child("Open")
-                    .on_click(cx.listener(move |app, _, _, cx| {
-                        app.open_in_host(id, &path, None, cx);
+                    .tooltip(Tooltip::text(tip))
+                    .child(label)
+                    .on_click(cx.listener(move |app, _, window, cx| {
+                        app.edit_file(id, &path, None, window, cx);
                     })),
             )
         })

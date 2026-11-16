@@ -3,6 +3,7 @@ pub mod code;
 pub mod detail;
 pub mod dialogs;
 pub mod diff;
+pub mod editor;
 pub mod file_panel;
 pub mod graph;
 pub mod highlight;

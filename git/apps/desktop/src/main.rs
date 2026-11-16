@@ -39,6 +39,12 @@ fn main() {
         ferrumgit_ui::init_with_services(services, cx);
         let view = GitView::new(open_at, GitViewOptions::desktop(), window, cx);
         window.focus(&view.focus_handle(cx), cx);
+        // Unsaved edits in the file editor are asked about before closing.
+        let weak = view.downgrade();
+        window.on_window_should_close(cx, move |_, cx| {
+            weak.update(cx, |view, cx| view.confirm_quit(cx))
+                .unwrap_or(true)
+        });
         view
     });
 }

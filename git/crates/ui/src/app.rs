@@ -76,6 +76,8 @@ pub struct GitView {
     pub(crate) active_pane: u8,
     /// Width the view was last laid out at (measured during paint).
     pub(crate) width: Rc<Cell<Option<Pixels>>>,
+    /// The stand-alone app's file editor (see `components::editor::pane`).
+    pub(crate) editor: Option<crate::components::editor::pane::OpenEditor>,
     focus_handle: FocusHandle,
     _poll: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -248,6 +250,7 @@ impl GitView {
             sidebar_open: true,
             active_pane: 0,
             width: Rc::default(),
+            editor: None,
             focus_handle: cx.focus_handle(),
             _poll: Self::start_polling(cx),
             _subscriptions: subscriptions,
@@ -314,6 +317,8 @@ impl GitView {
         if self.menu.take().is_some() {
         } else if self.dialog.is_some() {
             self.close_dialog(window, cx);
+        } else if self.editor_shown() {
+            self.close_editor(window, cx);
         } else if self.in_folder() {
             self.close_folder_diff(cx);
         } else if let Some(id) = self.state.active {
@@ -481,6 +486,7 @@ impl Render for GitView {
             .on_action(cx.listener(Self::on_reload))
             .on_action(cx.listener(Self::on_back))
             .on_action(cx.listener(Self::on_forward))
+            .on_action(cx.listener(Self::on_quit))
             .when(self.options.show_project_bar, |d| {
                 d.on_action(cx.listener(|app, _: &ToggleProjectSwitcher, window, cx| {
                     app.project_bar
