@@ -25,7 +25,7 @@ The system has two halves:
 | Type scale | `--fs-xs` 12 · `--fs-sm` 14 · `--fs-base` 17 · `--fs-lg` 19 · `--fs-xl` 24 · `--fs-2xl` (h2) · `--fs-3xl` (h1) · `--fs-hero` | Display sizes are fluid. `--measure` is 68ch for reading. |
 | Space | `--sp-1` … `--sp-32` on a 4px grid | Sections use `--sp-24`; `--tight` uses `--sp-12`. |
 | Shape | `--radius-xs` 2 (keys) < `--radius-sm` 3 < `--radius` 6 (buttons, cards) < `--radius-lg` 12 (app windows); `--rule`, `--rule-strong` | Radius grows with the size of the thing. |
-| Motion | `--ease`, `--dur-fast`, `--dur`, `--dur-slow` | Motion responds to an action. The home page has no entrance animation. `prefers-reduced-motion` turns all motion off (`base.css`). |
+| Motion | `--ease`, `--dur-fast`, `--dur`, `--dur-slow` | Motion responds to an action. The home orbit is the one ambient motion; there is no entrance animation. `prefers-reduced-motion` turns all motion off (`base.css`). |
 | Layout | `--container` 1240, `--container-narrow`, `--gutter`, `--header-h`, `--z-header`, `--z-skip` | |
 
 ## Components (`src/components/`)
@@ -67,7 +67,10 @@ Page-level CSS: `pages.css` (home, `/apps`, product pages, about, 404, download)
 
 - Home (`pages/home.rs`, `pages/home_readme.rs`), top to bottom:
   1. Hero: one calm sentence (sans, not display), Download for macOS and View
-     source, then a stage with a real FerrumIDE screenshot and a platform note.
+     source, then the orbit: every app's logo circling an ellipse (CSS
+     `offset-path`, 90s a turn, held on hover or focus) around a window that
+     crossfades through four real screenshots, so no one app leads. Then a
+     platform note.
   2. Works with: the coding agents and model providers, as their own logos
      (`ai_logo::strips`).
   3. Showcases for FerrumEngineer, FerrumGIT and FerrumTerm: the app, a two-tone

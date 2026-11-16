@@ -1,7 +1,7 @@
-//! Home page, top to bottom: a short hero over a real FerrumIDE screenshot,
-//! the agents Ferrum works with, a screenshot section for FerrumEngineer,
-//! FerrumGIT and FerrumTerm
-//! (alternating sides), the other apps and tools, shell commands, a README
+//! Home page, top to bottom: a short hero over every app's logo circling a
+//! window of real screenshots, the agents Ferrum works with, screenshot
+//! sections for FerrumEngineer, FerrumGIT and FerrumTerm (alternating
+//! sides), the other apps and tools, shell commands, a README
 //! with an anchor index (`home_readme`) and a closing download.
 //!
 //! The screenshots (`assets/img/shots/<shot>-{dark,light}.webp`) are taken
@@ -77,13 +77,65 @@ fn hero() -> Markup {
                     (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
                     (source_button("View source"))
                 }
-                div class="stage stage--hero" {
-                    (shot("ide", 1281, "FerrumIDE with a TypeScript file open, the project's files on \
-                                        the left", true))
-                }
+                (orbit())
                 p class="hero__note" {
                     "Free for macOS (Apple Silicon and Intel) and Linux, signed and notarized. "
                     a href=(site::DOWNLOAD_PATH) { "All downloads" }
+                }
+            }
+        }
+    }
+}
+
+/// The hero's screenshots, shown in turn: (shot, height, app, alt).
+const HERO_SHOTS: [(&str, u32, Product, &str); 4] = [
+    (
+        "ide",
+        1281,
+        products::FERRUMIDE,
+        "FerrumIDE with a TypeScript file open",
+    ),
+    (
+        "eng",
+        1179,
+        products::FERRUMENGINEER,
+        "FerrumEngineer: tasks and project files beside an agent thread",
+    ),
+    (
+        "git",
+        1250,
+        products::FERRUMGIT,
+        "FerrumGIT: a repository's history with a commit and its diff",
+    ),
+    (
+        "term",
+        1272,
+        products::FERRUMTERM,
+        "FerrumTerm: sessions by project, git log and passing tests side by side",
+    ),
+];
+
+/// Every app's logo circling an ellipse around a window that shows four of
+/// them in turn. No app leads: each logo links to its page.
+fn orbit() -> Markup {
+    let apps: Vec<_> = products::apps().collect();
+    let count = apps.len();
+    html! {
+        div class="stage stage--hero orbit" {
+            div class="orbit__window" {
+                @for (i, (name, height, app, alt)) in HERO_SHOTS.iter().enumerate() {
+                    div class="orbit__shot" style=(format!("--n: {i}; {}", app.accent_style())) {
+                        (shot(name, *height, alt, i == 0))
+                    }
+                }
+            }
+            ul class="orbit__ring" aria-label="Every Ferrum app" {
+                @for (i, p) in apps.iter().enumerate() {
+                    li class="orbit__item" style=(format!("--at: {}%", i * 100 / count)) {
+                        a href=(p.path()) title=(p.name) {
+                            img src=(assets::url(&p.logo_asset())) alt=(p.name) width="56" height="56";
+                        }
+                    }
                 }
             }
         }
@@ -313,7 +365,7 @@ mod tests {
 
     #[test]
     fn every_screenshot_is_an_asset_of_the_stated_size() {
-        let mut shots = vec![("ide", 1281)];
+        let mut shots: Vec<_> = HERO_SHOTS.iter().map(|(n, h, ..)| (*n, *h)).collect();
         shots.extend(SHOWCASE.iter().map(|s| (s.shot, s.height)));
         for (name, height) in shots {
             for theme in ["dark", "light"] {
@@ -331,6 +383,21 @@ mod tests {
                 assert_eq!(h, height, "{path}");
             }
         }
+    }
+
+    #[test]
+    fn every_app_circles_the_hero() {
+        let html = rendered();
+        let ring = &html[html.find("orbit__ring").expect("ring")..];
+        let ring = &ring[..ring.find("</ul>").expect("end")];
+        for p in products::apps() {
+            assert!(
+                ring.contains(&format!(r#"href="{}""#, p.path())),
+                "{}",
+                p.name
+            );
+        }
+        assert_eq!(ring.matches("<li").count(), products::apps().count());
     }
 
     #[test]
