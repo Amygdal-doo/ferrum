@@ -65,6 +65,9 @@ pub struct GitView {
     /// Page to show once the repository being opened is ready (see
     /// [`GitView::show_changes`]).
     pub(crate) pending_page: Option<Page>,
+    /// Embedded on a folder outside any work tree: its changes since a
+    /// snapshot and the repositories below it (see [`crate::folder`]).
+    pub(crate) folder: Option<crate::folder::FolderMode>,
     /// Compact layout: list width (side by side) or height (stacked); not saved.
     pub(crate) compact_split: Option<f32>,
     /// The window's sidebar is shown (◧ in the title row).
@@ -103,10 +106,13 @@ impl GitView {
     }
 
     /// Shows the repository containing `path` (no-op if it is already shown).
-    /// Without repository tabs it replaces the current one.
+    /// Without repository tabs it replaces the current one, and a folder
+    /// outside any work tree shows its changes and the repositories below.
     pub fn set_repo(&mut self, path: impl AsRef<Path>, cx: &mut Context<Self>) {
         let path = path.as_ref();
-        if self.repo_path().is_some_and(|p| p == path) {
+        if self.repo_path().is_some_and(|p| p == path)
+            || self.folder.as_ref().is_some_and(|f| f.path == path)
+        {
             return;
         }
         self.open_path(path.to_path_buf(), cx);
@@ -237,6 +243,7 @@ impl GitView {
             resizing: false,
             drawer_open: false,
             pending_page: None,
+            folder: None,
             compact_split: None,
             sidebar_open: true,
             active_pane: 0,
@@ -307,6 +314,8 @@ impl GitView {
         if self.menu.take().is_some() {
         } else if self.dialog.is_some() {
             self.close_dialog(window, cx);
+        } else if self.in_folder() {
+            self.close_folder_diff(cx);
         } else if let Some(id) = self.state.active {
             // Esc closes the file panel first, then the diff.
             self.state.update_view(id, |v| {
@@ -328,7 +337,9 @@ impl GitView {
     }
 
     fn on_reload(&mut self, _: &Reload, _: &mut Window, cx: &mut Context<Self>) {
-        if self.dialog.is_none()
+        if self.in_folder() {
+            self.reload_folder(cx);
+        } else if self.dialog.is_none()
             && let Some(id) = self.state.active
         {
             self.load(id, cx);
@@ -446,8 +457,14 @@ impl Render for GitView {
             )
         });
         let compact = self.options.compact;
-        let toolbar = compact.then(|| compact::render(self, window, cx));
-        let body = layout::render_body(self, window, cx);
+        let in_folder = self.in_folder();
+        let toolbar = (compact && !in_folder).then(|| compact::render(self, window, cx));
+        let picked = crate::folder::picked_strip(self, cx);
+        let body = if in_folder {
+            crate::folder::render(self, cx)
+        } else {
+            layout::render_body(self, window, cx)
+        };
         let sidebar = self
             .sidebar_shown()
             .then(|| layout::sidebar_column(self, window, cx));
@@ -480,7 +497,7 @@ impl Render for GitView {
             .child(measure)
             .map(|d| {
                 if compact {
-                    d.children(toolbar).child(body)
+                    d.children(picked).children(toolbar).child(body)
                 } else {
                     // Window: sidebar on the backdrop, then the list and
                     // detail cards, each with its own header row.

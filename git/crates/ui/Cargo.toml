@@ -17,6 +17,9 @@ gpui.workspace = true
 tracing.workspace = true
 directories.workspace = true
 chrono.workspace = true
+# Folders without git: watching them and diffing against a snapshot.
+notify.workspace = true
+similar.workspace = true
 syntect = { version = "5", default-features = false, features = ["default-fancy"] }
 
 [dev-dependencies]

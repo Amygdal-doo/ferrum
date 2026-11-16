@@ -14,9 +14,9 @@ use std::process::Command;
 use std::time::Duration;
 
 /// A host app's pane: the view plus the events it received.
-struct Host {
-    git: Entity<GitView>,
-    events: Vec<GitViewEvent>,
+pub(crate) struct Host {
+    pub(crate) git: Entity<GitView>,
+    pub(crate) events: Vec<GitViewEvent>,
     _events: Subscription,
 }
 
@@ -26,7 +26,7 @@ impl Render for Host {
     }
 }
 
-fn git(dir: &Path, args: &[&str]) {
+pub(crate) fn git(dir: &Path, args: &[&str]) {
     let status = Command::new("git")
         .args(["-c", "user.name=Test", "-c", "user.email=test@example.com"])
         .args(args)
@@ -47,7 +47,7 @@ fn repo() -> tempfile::TempDir {
     dir
 }
 
-fn init(data: &Path, cx: &mut TestAppContext) {
+pub(crate) fn init(data: &Path, cx: &mut TestAppContext) {
     // Git and SQLite run on the services' own Tokio threads.
     cx.executor().allow_parking();
     let services = AppServices::start(data).expect("services");
@@ -57,7 +57,7 @@ fn init(data: &Path, cx: &mut TestAppContext) {
     });
 }
 
-fn host(
+pub(crate) fn host(
     repo: Option<PathBuf>,
     options: GitViewOptions,
     cx: &mut TestAppContext,
@@ -76,7 +76,11 @@ fn host(
 }
 
 /// Lets the services runtime (real threads) finish until `done` holds.
-fn wait_for(cx: &mut VisualTestContext, git: &Entity<GitView>, done: impl Fn(&GitView) -> bool) {
+pub(crate) fn wait_for(
+    cx: &mut VisualTestContext,
+    git: &Entity<GitView>,
+    done: impl Fn(&GitView) -> bool,
+) {
     for _ in 0..500 {
         cx.run_until_parked();
         if git.read_with(cx, |view, _| done(view)) {
@@ -87,7 +91,7 @@ fn wait_for(cx: &mut VisualTestContext, git: &Entity<GitView>, done: impl Fn(&Gi
     panic!("timed out waiting for the view");
 }
 
-fn canonical(path: &Path) -> PathBuf {
+pub(crate) fn canonical(path: &Path) -> PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 

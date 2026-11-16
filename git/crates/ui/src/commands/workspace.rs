@@ -186,16 +186,38 @@ impl GitView {
         }
     }
 
-    /// Opens (and remembers) the repository containing `path`.
+    /// Opens (and remembers) the repository containing `path`. Embedded,
+    /// a folder outside any work tree opens as a folder pane instead.
     pub fn open_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        if !self.options.show_repo_tabs && !crate::folder::in_work_tree(&path) {
+            self.enter_folder(path, cx);
+            return;
+        }
+        self.folder = None;
+        self.add_and_open(path, cx);
+    }
+
+    /// Records the repository containing `path` and shows it. A result
+    /// that arrives after the view moved on to a folder is dropped (unless
+    /// it is the repository picked there).
+    pub(crate) fn add_and_open(&mut self, path: PathBuf, cx: &mut Context<Self>) {
         let services = self.services.clone();
         let p = path.display().to_string();
         self.spawn_run(
             cx,
             async move { services.add_repo(&p).await },
-            |app, result, cx| match result {
-                Ok(entry) => app.upsert_and_open(entry, cx),
-                Err(e) => app.notify(e, true, cx),
+            move |app, result, cx| {
+                if app
+                    .folder
+                    .as_ref()
+                    .is_some_and(|f| f.picked.as_ref() != Some(&path))
+                {
+                    return;
+                }
+                match result {
+                    Ok(entry) => app.upsert_and_open(entry, cx),
+                    Err(e) => app.notify(e, true, cx),
+                }
             },
         );
     }

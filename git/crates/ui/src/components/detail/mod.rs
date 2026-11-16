@@ -2,7 +2,7 @@
 //! and the right panel (details / diff) for the active repository.
 
 mod commit;
-mod files;
+pub(crate) mod files;
 mod pull_detail;
 mod pull_list;
 mod stashes;

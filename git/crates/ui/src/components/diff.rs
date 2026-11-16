@@ -203,7 +203,7 @@ pub fn diff_pane(app: &GitView, cx: &mut Context<GitView>) -> AnyElement {
 }
 
 /// First changed (else first shown) line of the new file, 1-based.
-fn first_line(file: &ferrumgit_domain::FileDiff) -> Option<u32> {
+pub(crate) fn first_line(file: &ferrumgit_domain::FileDiff) -> Option<u32> {
     let lines = || file.hunks.iter().flat_map(|h| &h.lines);
     lines()
         .find(|l| l.kind == ferrumgit_domain::LineKind::Added)

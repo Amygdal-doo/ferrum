@@ -60,16 +60,23 @@ impl GitView {
 
     /// Shows the working copy: uncommitted changes and their diffs. Also
     /// applies to a repository still being opened with [`Self::set_repo`].
+    /// On a folder without git: the files changed since it is watched.
     pub fn show_changes(&mut self, cx: &mut Context<Self>) {
         self.show_page(Page::WorkingCopy, cx);
     }
 
-    /// Shows the commit history (see [`Self::show_changes`]).
+    /// Shows the commit history (see [`Self::show_changes`]); on a folder
+    /// without git, the repositories found below it.
     pub fn show_history(&mut self, cx: &mut Context<Self>) {
         self.show_page(Page::History, cx);
     }
 
     fn show_page(&mut self, page: Page, cx: &mut Context<Self>) {
+        if self.in_folder() {
+            // A folder without git: its changes, or the repositories below.
+            self.set_folder_page(page.into(), cx);
+            return;
+        }
         self.pending_page = Some(page);
         if let Some(id) = self.state.active
             && self.state.view(id).page != page

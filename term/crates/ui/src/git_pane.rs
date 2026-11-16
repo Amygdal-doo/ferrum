@@ -1,7 +1,9 @@
 //! FerrumGIT beside the terminal (the desktop window only), as in
 //! FerrumEngineer: the pane header's FerrumGIT and Changes toggles show the
 //! repository of the focused pane's folder, on its history or on the
-//! uncommitted changes and their diffs. It follows the focused pane when
+//! uncommitted changes and their diffs. A folder outside any repository
+//! (an agent running in `~`) shows the files changed there since the pane
+//! opened, and the repositories below it. It follows the focused pane when
 //! it changes directory; files open in FerrumIDE.
 
 use std::path::PathBuf;
@@ -32,13 +34,10 @@ pub(crate) struct GitPane {
 const SHARE: f32 = 0.42;
 
 impl TermView {
-    /// The repository folder the pane follows: the focused pane's project,
-    /// when it is inside a git work tree.
+    /// The folder the pane follows: the focused pane's project (its
+    /// repository, or the folder itself outside any).
     fn git_folder(&self) -> Option<PathBuf> {
-        self.project
-            .as_ref()
-            .and_then(|p| p.root())
-            .filter(|dir| in_work_tree(dir))
+        self.project.as_ref().and_then(|p| p.root())
     }
 
     /// Shows the pane on `page`, or hides it when it already shows `page`.
@@ -56,8 +55,7 @@ impl TermView {
             return;
         }
         let Some(folder) = self.git_folder() else {
-            self.app
-                .notify("This tab's folder is not a git repository: cd into one to see it here.");
+            self.app.notify("This tab has no folder to show.");
             cx.notify();
             return;
         };
@@ -149,26 +147,5 @@ impl TermView {
                 .overflow_hidden()
                 .child(div().size_full().child(git.view.clone())),
         )
-    }
-}
-
-/// Whether `dir` or a folder above it has `.git` (a folder, or a file for
-/// worktrees and submodules).
-fn in_work_tree(dir: &std::path::Path) -> bool {
-    dir.ancestors().any(|d| d.join(".git").exists())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::in_work_tree;
-
-    #[test]
-    fn finds_the_work_tree_above_a_folder() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let nested = dir.path().join("a/b");
-        std::fs::create_dir_all(&nested).expect("mkdir");
-        assert!(!in_work_tree(&nested));
-        std::fs::create_dir(dir.path().join("a/.git")).expect("git dir");
-        assert!(in_work_tree(&nested));
     }
 }

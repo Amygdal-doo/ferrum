@@ -16,6 +16,7 @@ mod app;
 mod commands;
 mod components;
 mod embed;
+mod folder;
 mod state;
 #[cfg(test)]
 mod tests;

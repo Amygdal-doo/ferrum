@@ -3143,6 +3143,8 @@ dependencies = [
  "ferrumgit-application",
  "ferrumgit-domain",
  "gpui",
+ "notify",
+ "similar",
  "syntect",
  "tempfile",
  "tracing",
