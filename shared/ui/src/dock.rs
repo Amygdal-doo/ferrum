@@ -7,7 +7,8 @@
 //! policy `Regular`); an `Accessory` app keeps the previous app's menu bar
 //! even while its own window is key. So a hidden app carries its menus in a
 //! menu bar extra instead (see `status_item`), unless it has one of its own
-//! (FerrumLauncher).
+//! (FerrumLauncher). An app in the Dock shows the extra too when it is
+//! listed in `show_in_menu_bar` (Settings › System › Show in menu bar).
 
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -44,11 +45,17 @@ fn preferences_file() -> Option<PathBuf> {
     crate::prefs::path("preferences.json")
 }
 
-/// Whether `binary` is listed in the preferences JSON `text`.
+/// Whether `binary` is in the `hide_from_dock` list of the preferences
+/// JSON `text`.
 pub fn listed(text: &str, binary: &str) -> bool {
+    listed_under(text, "hide_from_dock", binary)
+}
+
+/// Whether `binary` is in the list `key` of the preferences JSON `text`.
+pub fn listed_under(text: &str, key: &str, binary: &str) -> bool {
     // A tiny reader so the shared UI crate needs no JSON dependency: the
     // file is `{"hide_from_dock": ["a", "b"]}`, written by the launcher.
-    let Some((_, rest)) = text.split_once("\"hide_from_dock\"") else {
+    let Some((_, rest)) = text.split_once(&format!("\"{key}\"")) else {
         return false;
     };
     let Some(list) = rest
@@ -65,6 +72,16 @@ pub fn listed(text: &str, binary: &str) -> bool {
 
 /// Whether this app should start without a Dock icon.
 pub fn hidden_by_preference() -> bool {
+    preference_lists("hide_from_dock")
+}
+
+/// Whether this app keeps its menu bar icon while it is in the Dock.
+pub fn in_menu_bar_by_preference() -> bool {
+    preference_lists("show_in_menu_bar")
+}
+
+/// Whether the preferences list `key` names this app's binary.
+fn preference_lists(key: &str) -> bool {
     let (Some(file), Some(binary)) = (
         preferences_file(),
         std::env::current_exe()
@@ -73,7 +90,55 @@ pub fn hidden_by_preference() -> bool {
     ) else {
         return false;
     };
-    std::fs::read_to_string(file).is_ok_and(|text| listed(&text, &binary))
+    std::fs::read_to_string(file).is_ok_and(|text| listed_under(&text, key, &binary))
+}
+
+/// Whether the app can show a menu bar extra at all (FerrumLauncher has
+/// its own).
+pub fn has_status_item() -> bool {
+    STATUS_ITEM_NAME
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .is_some()
+}
+
+/// Adds or removes `binary` from the `show_in_menu_bar` list (Settings ›
+/// System › Show in menu bar), keeping every other field of the file.
+pub fn set_in_menu_bar(binary: &str, shown: bool) {
+    let Some(file) = preferences_file() else {
+        return;
+    };
+    if let Err(error) = ferrum_shell::ops::set_in_menu_bar(&file, binary, shown) {
+        eprintln!("ferrum: could not save {}: {error}", file.display());
+    }
+}
+
+/// Shows or hides the menu bar extra of an app that has a Dock icon (one
+/// without always shows it).
+#[cfg(target_os = "macos")]
+pub fn set_menu_bar_icon_visible(visible: bool) {
+    let Some(mtm) = objc2::MainThreadMarker::new() else {
+        return;
+    };
+    if visible {
+        show_status_item(mtm);
+    } else if !hidden_by_preference() {
+        status_item::hide();
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn set_menu_bar_icon_visible(_visible: bool) {}
+
+#[cfg(target_os = "macos")]
+fn show_status_item(mtm: objc2::MainThreadMarker) {
+    let name = STATUS_ITEM_NAME
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    if let Some(name) = name {
+        status_item::show(&name, mtm);
+    }
 }
 
 /// Adds or removes `binary` from the `hide_from_dock` list (Settings ›
@@ -100,19 +165,15 @@ pub fn set_dock_icon_visible(visible: bool) {
     let app = NSApplication::sharedApplication(mtm);
     if visible {
         app.setActivationPolicy(NSApplicationActivationPolicy::Regular);
-        status_item::hide();
+        if !in_menu_bar_by_preference() {
+            status_item::hide();
+        }
         // A newly `Regular` app gets the menu bar only once activated.
         #[allow(deprecated)]
         app.activateIgnoringOtherApps(true);
     } else {
         app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
-        let name = STATUS_ITEM_NAME
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone();
-        if let Some(name) = name {
-            status_item::show(&name, mtm);
-        }
+        show_status_item(mtm);
     }
 }
 
@@ -130,7 +191,7 @@ pub fn refresh_status_item() {
 
 #[cfg(test)]
 mod tests {
-    use super::{listed, status_menu_titles};
+    use super::{listed, listed_under, status_menu_titles};
 
     #[test]
     fn the_app_menu_is_named_after_the_app() {
@@ -159,5 +220,9 @@ mod tests {
         assert!(!listed(text, "ferrumterm"));
         assert!(!listed("{}", "ferrumeditor"));
         assert!(!listed("{\"hide_from_dock\": []}", "ferrumeditor"));
+        let both = r#"{"hide_from_dock": ["ferrumgit"], "show_in_menu_bar": ["ferrumterm"]}"#;
+        assert!(listed_under(both, "show_in_menu_bar", "ferrumterm"));
+        assert!(!listed_under(both, "show_in_menu_bar", "ferrumgit"));
+        assert!(!listed(both, "ferrumterm"));
     }
 }

@@ -4,6 +4,7 @@
 //!
 //! ```json
 //! { "hide_from_dock": ["ferrumeditor"],
+//!   "show_in_menu_bar": ["ferrumterm"],
 //!   "shell_commands": { "editor": { "name": "fei", "enabled": true } },
 //!   "commands_revision": 1,
 //!   "ferrum_command": true }
@@ -50,6 +51,10 @@ pub struct CommandPref {
 pub struct SharedPrefs {
     /// Binaries (`ferrumeditor`, …) that run without a Dock icon.
     pub hide_from_dock: BTreeSet<String>,
+    /// Binaries that keep their menu bar icon while they have a Dock icon
+    /// too (without one, the icon always shows).
+    #[serde(skip_serializing_if = "BTreeSet::is_empty")]
+    pub show_in_menu_bar: BTreeSet<String>,
     /// Per app id; `None` until moved here from the launcher's state.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub shell_commands: Option<BTreeMap<String, CommandPref>>,
@@ -131,6 +136,14 @@ impl SharedPrefs {
             self.hide_from_dock.insert(binary.to_owned());
         } else {
             self.hide_from_dock.remove(binary);
+        }
+    }
+
+    pub fn set_in_menu_bar(&mut self, binary: &str, shown: bool) {
+        if shown {
+            self.show_in_menu_bar.insert(binary.to_owned());
+        } else {
+            self.show_in_menu_bar.remove(binary);
         }
     }
 

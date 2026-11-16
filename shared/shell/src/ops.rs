@@ -203,3 +203,10 @@ pub fn set_hidden(prefs_path: &Path, binary: &str, hidden: bool) -> std::io::Res
     prefs.set_hidden(binary, hidden);
     prefs.save(prefs_path)
 }
+
+/// Records whether `binary` keeps its menu bar icon while in the Dock.
+pub fn set_in_menu_bar(prefs_path: &Path, binary: &str, shown: bool) -> std::io::Result<()> {
+    let mut prefs = SharedPrefs::load(prefs_path);
+    prefs.set_in_menu_bar(binary, shown);
+    prefs.save(prefs_path)
+}

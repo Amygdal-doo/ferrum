@@ -265,7 +265,8 @@ impl SystemView {
     fn dock_section(cx: &App) -> Section {
         let in_dock = !crate::dock::hidden_by_preference();
         let info = app_info(cx);
-        Section::new("Dock").row(
+        let binary = info.binary;
+        let section = Section::new("Dock and Menu Bar").row(
             Row::new("dock-icon", "Show in Dock")
                 .detail(
                     "Off: no Dock icon or ⌘-Tab entry; the app's menus move to an icon in the \
@@ -281,6 +282,28 @@ impl SystemView {
                         }
                         cx.refresh_windows();
                     }),
+                ),
+        );
+        if !crate::dock::has_status_item() {
+            return section;
+        }
+        // Without a Dock icon the menu bar icon is the only way in.
+        let in_menu_bar = !in_dock || crate::dock::in_menu_bar_by_preference();
+        section.row(
+            Row::new("menu-bar-icon", "Show in menu bar")
+                .detail(if in_dock {
+                    "An icon in the menu bar with the app's menus."
+                } else {
+                    "Always on while the app isn't in the Dock."
+                })
+                .control(
+                    Switch::new("menu-bar-icon-switch", in_menu_bar)
+                        .disabled(!in_dock)
+                        .on_change(move |on, _, cx| {
+                            crate::dock::set_in_menu_bar(binary, on);
+                            crate::dock::set_menu_bar_icon_visible(on);
+                            cx.refresh_windows();
+                        }),
                 ),
         )
     }

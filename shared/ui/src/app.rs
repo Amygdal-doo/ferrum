@@ -135,6 +135,8 @@ pub fn run<V: Render + 'static>(
         }
         if hidden_from_dock {
             crate::dock::set_dock_icon_visible(false);
+        } else if crate::dock::in_menu_bar_by_preference() {
+            crate::dock::set_menu_bar_icon_visible(true);
         }
         cx.activate(true);
     });
