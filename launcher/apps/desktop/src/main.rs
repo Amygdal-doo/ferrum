@@ -97,7 +97,9 @@ fn main() {
     tracing::info!(data_dir = %services.paths.data_dir.display(), "starting FerrumLauncher");
 
     let config = AppConfig::new("FerrumLauncher")
-        .size(1040., 680.)
+        // Wide enough for the whole Overview table (see `TABLE_MIN_WIDTH`),
+        // so it only scrolls vertically.
+        .size(1180., 720.)
         .min_size(760., 480.)
         .unified_titlebar()
         // Without a Dock icon it lives in its own menu bar extra.
