@@ -22,6 +22,7 @@ fn spawn_block(
         session,
         window,
         socket: &socket,
+        wake: &server.wake,
     };
     Block::spawn(id, spawn, cols, rows, &ctx, server.internal.clone())
 }

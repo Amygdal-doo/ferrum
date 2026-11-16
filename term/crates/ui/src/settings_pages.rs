@@ -341,7 +341,7 @@ impl Render for TerminalSettingsView {
                         Row::new("fterm-skill", "fterm skill and status hooks")
                             .detail(
                                 "Teaches Claude Code and Codex to open panes with `fterm`, and \
-                                 adds Claude Code hooks that report working / blocked / done.",
+                                 adds Claude Code and Codex hooks that report working / blocked / done.",
                             )
                             .control(
                                 Button::new("install-fterm-skill", "Install")

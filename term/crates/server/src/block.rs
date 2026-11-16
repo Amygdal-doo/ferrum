@@ -2,6 +2,7 @@
 //! dedicated thread that feeds the emulator, answers terminal queries, bumps
 //! the frame generation and reports status / title / exit to the server.
 
+use crate::detect::Wake;
 use ferrumterm_emulator::Terminal;
 use ferrumterm_protocol::status::StatusUpdate;
 use ferrumterm_protocol::{BlockId, Input, ProgramStatus, Spawn};
@@ -47,6 +48,8 @@ pub struct Block {
     pub last_output: Mutex<Option<Instant>>,
     /// Status detection bookkeeping (see `Server::detect_tick`).
     pub detect: Mutex<Detection>,
+    /// Detection looks soon after an agent prints or is typed into.
+    wake: Arc<Wake>,
 }
 
 /// Per-block state of agent status detection.
@@ -60,6 +63,11 @@ pub struct Detection {
     /// Foreground process group last looked up, and when it last looked busy.
     pub foreground: Option<i32>,
     pub busy_at: Option<Instant>,
+    /// The agent shows a working indicator (see `detect::shows_indicator`;
+    /// also learnt when it shows one).
+    pub indicates: bool,
+    /// Last Enter typed into the block (a prompt submitted).
+    pub submitted_at: Option<Instant>,
 }
 
 /// Where FerrumTerm-specific environment comes from.
@@ -67,6 +75,7 @@ pub struct SpawnContext<'a> {
     pub session: &'a str,
     pub window: &'a str,
     pub socket: &'a str,
+    pub wake: &'a Arc<Wake>,
 }
 
 impl Block {
@@ -131,6 +140,7 @@ impl Block {
         let killer = child.clone_killer();
         let pid = child.process_id();
         let (generation, _) = watch::channel(0u64);
+        let agent = ferrumterm_protocol::agents::agent_of_command(&spec.command);
         let block = Arc::new(Self {
             id,
             label: Mutex::new(spec.label.clone()),
@@ -145,12 +155,14 @@ impl Block {
             master: Mutex::new(pair.master),
             killer: Mutex::new(killer),
             generation,
-            agent: Mutex::new(
-                ferrumterm_protocol::agents::agent_of_command(&spec.command).map(str::to_owned),
-            ),
+            agent: Mutex::new(agent.map(str::to_owned)),
             poked: Mutex::new(Instant::now()),
             last_output: Mutex::new(None),
-            detect: Mutex::new(Detection::default()),
+            detect: Mutex::new(Detection {
+                indicates: agent.is_some_and(crate::detect::shows_indicator),
+                ..Detection::default()
+            }),
+            wake: ctx.wake.clone(),
         });
 
         let b = block.clone();
@@ -186,6 +198,9 @@ impl Block {
             if lock(&self.poked).elapsed() > Duration::from_millis(crate::detect::ECHO_MS) {
                 *lock(&self.last_output) = Some(Instant::now());
             }
+            if lock(&self.agent).is_some() {
+                self.wake.poke();
+            }
             for s in feed.status {
                 let _ = tx.send(Internal::Status(self.id, s));
             }
@@ -215,9 +230,16 @@ impl Block {
             }
         }
         *lock(&self.poked) = Instant::now();
-        lock(&self.writer)
+        let written = lock(&self.writer)
             .write_all(&bytes)
-            .map_err(|e| format!("write failed: {e}"))
+            .map_err(|e| format!("write failed: {e}"));
+        // Enter: a prompt submitted (or a permission granted). Also how a
+        // program typed into a shell starts, so look even without an agent.
+        if bytes.ends_with(b"\r") {
+            lock(&self.detect).submitted_at = Some(Instant::now());
+            self.wake.poke();
+        }
+        written
     }
 
     pub fn resize(&self, cols: u16, rows: u16) {

@@ -64,6 +64,8 @@ pub struct Server {
     pub(crate) windows: AtomicUsize,
     /// Set when shutting down (stops the detection thread).
     pub(crate) stopping: AtomicBool,
+    /// Wakes the detection thread (agent output, Enter typed).
+    pub(crate) wake: Arc<detect::Wake>,
     pub(crate) exits: Mutex<VecDeque<(BlockId, i32)>>,
     pub(crate) internal: mpsc::UnboundedSender<Internal>,
     pub(crate) awake: Mutex<system::Awake>,
@@ -184,20 +186,24 @@ impl Server {
         self.update_awake();
     }
 
-    /// One round of agent status detection (see `detect`) over every block.
-    pub(crate) fn detect_tick(&self) {
+    /// One round of agent status detection (see `detect`) over every block;
+    /// true while detection says an agent is working (its turn ends on a
+    /// timer, so look again soon).
+    pub(crate) fn detect_tick(&self) -> bool {
         let blocks: Vec<Arc<block::Block>> = lock(&self.state).blocks.values().cloned().collect();
         let mut changed = false;
+        let mut working = false;
         for b in blocks {
             if lock(&b.exited).is_some() {
                 continue;
             }
             changed |= Self::update_agent(&b);
-            self.detect_block(&b);
+            working |= self.detect_block(&b) == Some(ProgramState::Working);
         }
         if changed {
             self.emit(Event::Changed);
         }
+        working
     }
 
     /// Looks up the foreground program when it changed; true when the
@@ -212,6 +218,8 @@ impl Server {
             d.foreground = fg;
             d.explicit = false;
             d.busy_at = None;
+            // The Enter that started it is not a prompt to it.
+            d.submitted_at = None;
         }
         let agent = fg
             .and_then(detect::process_command)
@@ -222,6 +230,7 @@ impl Server {
                     .and_then(|_| ferrumterm_protocol::agents::agent_of_command(&b.command))
             })
             .map(str::to_owned);
+        lock(&b.detect).indicates = agent.as_deref().is_some_and(detect::shows_indicator);
         let mut current = lock(&b.agent);
         if *current == agent {
             return false;
@@ -230,17 +239,18 @@ impl Server {
         true
     }
 
-    fn detect_block(&self, b: &block::Block) {
+    /// Classifies one block; returns the state detection gave it.
+    fn detect_block(&self, b: &block::Block) -> Option<ProgramState> {
         let detected = lock(&b.detect).detected;
         if lock(&b.agent).is_none() {
             // The agent left the foreground: drop what detection said.
             if detected {
                 self.set_status(b.id, None, StatusSource::Detected);
             }
-            return;
+            return None;
         }
         if lock(&b.detect).explicit {
-            return;
+            return None;
         }
         let (screen, title) = {
             let term = lock(&b.term);
@@ -252,16 +262,28 @@ impl Server {
             title: &title,
             quiet_ms,
         });
-        let since_busy = {
+        let clock = {
             let mut d = lock(&b.detect);
-            if signal == detect::Signal::Busy {
-                d.busy_at = Some(std::time::Instant::now());
+            // Once an agent shows an indicator, it is what tells work apart.
+            d.indicates |= signal == detect::Signal::Busy;
+            let now = std::time::Instant::now();
+            let mut clock = detect::Clock {
+                indicates: d.indicates,
+                ..detect::Clock::default()
+            };
+            if clock.is_busy(&signal) {
+                d.busy_at = Some(now);
             }
-            d.busy_at.map(|at| at.elapsed().as_millis() as u64)
+            let ms = |at: Option<std::time::Instant>| {
+                at.map(|at| now.saturating_duration_since(at).as_millis() as u64)
+            };
+            clock.since_busy_ms = ms(d.busy_at);
+            clock.since_submit_ms = ms(d.submitted_at);
+            clock
         };
         let current = lock(&b.status).clone();
         let previous = current.as_ref().filter(|_| detected).map(|s| s.state);
-        let next = detect::step(previous, &signal, since_busy);
+        let next = detect::step(previous, &signal, &clock);
         let mut status = ferrumterm_protocol::ProgramStatus::new(next);
         if let detect::Signal::Question { line, kind } = signal {
             status.kind = Some(kind.to_owned());
@@ -273,6 +295,7 @@ impl Server {
         if !same {
             self.set_status(b.id, Some(status), StatusSource::Detected);
         }
+        Some(next)
     }
 
     fn block_exited(&self, id: BlockId, code: i32) {
@@ -351,6 +374,7 @@ pub async fn run_until(
         clients: AtomicUsize::new(0),
         windows: AtomicUsize::new(0),
         stopping: AtomicBool::new(false),
+        wake: Arc::default(),
         exits: Mutex::new(VecDeque::new()),
         internal,
         awake: Mutex::new(awake),
@@ -370,18 +394,28 @@ pub async fn run_until(
         }
     });
 
-    // Agent status detection keeps running with no client connected.
+    // Agent status detection keeps running with no client connected. It
+    // looks when an agent prints or Enter is typed, every `WORKING_TICK`
+    // while one works (to end its turn on time) and else once a second.
     let weak = Arc::downgrade(&server);
+    let wake = server.wake.clone();
     std::thread::Builder::new()
         .name("fterm-detect".into())
         .spawn(move || {
+            let mut tick = detect::IDLE_TICK;
             loop {
-                std::thread::sleep(std::time::Duration::from_secs(1));
+                if wake.wait(tick) {
+                    std::thread::sleep(detect::SETTLE);
+                }
                 let Some(server) = weak.upgrade() else { break };
                 if server.stopping.load(Ordering::Relaxed) {
                     break;
                 }
-                server.detect_tick();
+                tick = if server.detect_tick() {
+                    detect::WORKING_TICK
+                } else {
+                    detect::IDLE_TICK
+                };
             }
         })?;
 
