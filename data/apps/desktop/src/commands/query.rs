@@ -64,6 +64,10 @@ impl FerrumData {
             self.notify_user("Choose a connection for this tab first.", true, cx);
             return;
         };
+        if self.has_pending_edits(tab.id) {
+            self.notify_user("Apply or discard the pending changes first.", true, cx);
+            return;
+        }
         let inputs = if tab.table.is_some() {
             &self.table_inputs
         } else {

@@ -63,6 +63,8 @@ pub struct FerrumData {
     pub(crate) completion: Option<CompletionPopup>,
     /// Set while a completion is inserted, so the edit does not reopen the list.
     pub(crate) accepting_completion: bool,
+    /// Inline editor of a table tab's cell (row editing).
+    pub(crate) cell_editor: Option<crate::commands::edit::CellEditor>,
     notice_task: Option<Task<()>>,
     _autosave: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -107,6 +109,7 @@ impl FerrumData {
             agent_profile: crate::agent::ProfileSlot::default(),
             completion: None,
             accepting_completion: false,
+            cell_editor: None,
             notice_task: None,
             _autosave: Task::ready(()),
             _subscriptions: vec![filter_changed, history_changed],

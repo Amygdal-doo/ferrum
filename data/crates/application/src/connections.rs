@@ -1,7 +1,7 @@
 //! Profile management, secret resolution and live connection pools.
 
 use ferrumdata_credentials::{CredentialStore, SessionStore};
-use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection, ServerInfo};
+use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection, ScriptStatement, ServerInfo};
 use ferrumdata_db_mongodb::MongoDriver;
 use ferrumdata_db_mysql::MySqlDriver;
 use ferrumdata_db_postgres::PostgresDriver;
@@ -205,6 +205,32 @@ impl ConnectionService {
         self.ensure_connected(id)
             .await?
             .describe_table(&table)
+            .await
+    }
+
+    /// Runs FerrumData-generated statements (row edits, imports) in one
+    /// transaction. Refused on read-only profiles before anything is sent;
+    /// the driver's read-only session would refuse them as well.
+    pub async fn execute_script(
+        &self,
+        id: ProfileId,
+        statements: Vec<ScriptStatement>,
+    ) -> Result<Vec<u64>, DbError> {
+        let profile = self
+            .list_profiles()
+            .await?
+            .into_iter()
+            .find(|p| p.id == id)
+            .ok_or_else(|| DbError::new(DbErrorKind::Internal, "Connection profile not found"))?;
+        if profile.read_only {
+            return Err(DbError::new(
+                DbErrorKind::Query,
+                "This connection is read-only: changes are not applied.",
+            ));
+        }
+        self.ensure_connected(id)
+            .await?
+            .execute_script(&statements)
             .await
     }
 

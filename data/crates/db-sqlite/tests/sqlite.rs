@@ -1,7 +1,7 @@
 //! Driver contract tests against real SQLite database files. These need no
 //! server, so they always run (each test uses its own temporary file).
 
-use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection};
+use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection, ScriptStatement};
 use ferrumdata_db_sqlite::SqliteDriver;
 use ferrumdata_domain::{
     CellValue, ConnectionProfile, DatabaseEngine, DbErrorKind, Endpoint, ExecutionId, ProfileId,
@@ -368,4 +368,81 @@ async fn describes_columns_and_indexes() {
     let d = conn.describe_table(&table("nope")).await.expect("describe");
     assert!(d.columns.is_empty() && d.indexes.is_empty());
     conn.close().await;
+}
+
+#[tokio::test]
+async fn scripts_run_in_one_transaction_and_check_affected_rows() {
+    let (_dir, path) = new_db();
+    let conn = connect(&path, false).await;
+    ok(&conn, "CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)").await;
+    ok(&conn, "INSERT INTO t VALUES (1, 'a'), (2, 'b')").await;
+    let expect = |sql: &str, rows: u64| ScriptStatement {
+        sql: sql.into(),
+        expect_rows: Some(rows),
+    };
+
+    let counts = conn
+        .execute_script(&[
+            expect("UPDATE t SET v = 'x' WHERE id = 1", 1),
+            ScriptStatement::new("INSERT INTO t (v) VALUES ('c')"),
+        ])
+        .await
+        .expect("script");
+    assert_eq!(counts, vec![1, 1]);
+
+    // Row 9 does not exist: the whole script, including the delete, is undone.
+    let err = conn
+        .execute_script(&[
+            expect("DELETE FROM t WHERE id = 2", 1),
+            expect("UPDATE t SET v = 'y' WHERE id = 9", 1),
+        ])
+        .await
+        .expect_err("mismatch");
+    assert_eq!(err.kind, DbErrorKind::Query);
+    assert!(
+        err.message.contains("nothing was changed"),
+        "{}",
+        err.message
+    );
+
+    // A failing statement rolls back as well.
+    let err = conn
+        .execute_script(&[
+            ScriptStatement::new("DELETE FROM t WHERE id = 2"),
+            ScriptStatement::new("INSERT INTO missing VALUES (1)"),
+        ])
+        .await
+        .expect_err("missing table");
+    assert_eq!(err.kind, DbErrorKind::Query);
+
+    let events = run(
+        &conn,
+        "SELECT id, v FROM t ORDER BY id",
+        QueryLimits::default(),
+    )
+    .await;
+    assert_eq!(
+        rows(&events),
+        vec![
+            vec![CellValue::Signed(1), CellValue::Text("x".into())],
+            vec![CellValue::Signed(2), CellValue::Text("b".into())],
+            vec![CellValue::Signed(3), CellValue::Text("c".into())],
+        ]
+    );
+}
+
+#[tokio::test]
+async fn read_only_profile_refuses_scripts() {
+    let (_dir, path) = new_db();
+    ok(
+        &connect(&path, false).await,
+        "CREATE TABLE t (id INTEGER PRIMARY KEY)",
+    )
+    .await;
+    let conn = connect(&path, true).await;
+    let err = conn
+        .execute_script(&[ScriptStatement::new("INSERT INTO t VALUES (1)")])
+        .await
+        .expect_err("read-only");
+    assert_eq!(err.kind, DbErrorKind::Query);
 }

@@ -76,6 +76,46 @@ impl FerrumData {
                         .into_any_element(),
                 )
             }
+            Dialog::ConfirmApply {
+                tab_id,
+                profile,
+                sql,
+            } => {
+                let colors = cx.theme().colors().clone();
+                let preview: String = sql.chars().take(2000).collect();
+                let target = format!(
+                    "These changes will be written to {} ({}), tagged Production.",
+                    profile.display_name,
+                    profile.target_label()
+                );
+                Some(
+                    Modal::new("Apply changes on production?")
+                        .on_dismiss(close(cx))
+                        .child(Label::new(target))
+                        .child(
+                            div()
+                                .id("apply-preview")
+                                .max_h(px(192.))
+                                .overflow_y_scroll()
+                                .rounded_md()
+                                .p_3()
+                                .bg(colors.editor_background)
+                                .font_buffer(cx)
+                                .text_xs()
+                                .child(preview),
+                        )
+                        .footer(Button::new("apply-cancel", "Cancel").on_click(close(cx)))
+                        .footer(
+                            Button::new("apply-confirm", "Apply on production")
+                                .style(ButtonStyle::Tinted(TintColor::Error))
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.close_dialog(window, cx);
+                                    this.apply_edits(tab_id, cx);
+                                })),
+                        )
+                        .into_any_element(),
+                )
+            }
             Dialog::DeleteKey { profile, key } => {
                 let id = profile.id;
                 Some(

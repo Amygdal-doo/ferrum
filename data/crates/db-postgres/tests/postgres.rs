@@ -4,11 +4,11 @@
 //! `docker compose up -d postgres`. Override the target with
 //! `FERRUMDATA_TEST_PG_HOST`, `_PORT`, `_USER`, `_PASSWORD`, `_DB`.
 
-use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection};
+use ferrumdata_db_driver_api::{DatabaseDriver, DbConnection, ScriptStatement};
 use ferrumdata_db_postgres::PostgresDriver;
 use ferrumdata_domain::{
-    CellValue, ConnectionProfile, DbErrorKind, Endpoint, ExecutionId, ProfileId, QueryEvent,
-    QueryLimits, QueryRequest, ResolvedConnectionConfig, Secret, TlsMode,
+    CellValue, ConnectionProfile, DatabaseEngine, DbErrorKind, Endpoint, ExecutionId, ProfileId,
+    QueryEvent, QueryLimits, QueryRequest, ResolvedConnectionConfig, Secret, TlsMode,
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -414,5 +414,54 @@ async fn describes_columns_and_indexes() {
         QueryLimits::default(),
     )
     .await;
+    conn.close().await;
+}
+
+#[tokio::test]
+async fn scripts_are_atomic_and_literals_round_trip() {
+    if !enabled() {
+        return;
+    }
+    let conn = connect().await;
+    let table = format!("s_{}", ExecutionId::new().0.simple());
+    let engine = DatabaseEngine::Postgres;
+    let tricky = "it's a \\ back\\slash";
+    let create = format!("create table {table} (id int primary key, v text)");
+    conn.execute_script(&[ScriptStatement::new(create)])
+        .await
+        .expect("create");
+    let insert = format!(
+        "insert into {table} (id, v) values (1, {})",
+        engine.string_literal(tricky)
+    );
+    let counts = conn
+        .execute_script(&[ScriptStatement {
+            sql: insert,
+            expect_rows: Some(1),
+        }])
+        .await
+        .expect("insert");
+    assert_eq!(counts, vec![1]);
+    let err = conn
+        .execute_script(&[
+            ScriptStatement::new(format!("delete from {table} where id = 1")),
+            ScriptStatement {
+                sql: format!("delete from {table} where id = 2"),
+                expect_rows: Some(1),
+            },
+        ])
+        .await
+        .expect_err("expected count");
+    assert_eq!(err.kind, DbErrorKind::Query);
+    let events = run(
+        &conn,
+        &format!("select v from {table}"),
+        QueryLimits::default(),
+    )
+    .await;
+    assert_eq!(rows(&events), vec![vec![CellValue::Text(tricky.into())]]);
+    conn.execute_script(&[ScriptStatement::new(format!("drop table {table}"))])
+        .await
+        .expect("drop");
     conn.close().await;
 }

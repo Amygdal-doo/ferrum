@@ -108,6 +108,12 @@ pub enum Dialog {
         profile: ConnectionProfile,
         key: String,
     },
+    /// Staged row edits of a table tab on a production connection.
+    ConfirmApply {
+        tab_id: EditorTabId,
+        profile: ConnectionProfile,
+        sql: String,
+    },
 }
 
 /// What the bottom panel shows.

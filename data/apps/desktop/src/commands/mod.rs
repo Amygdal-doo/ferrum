@@ -2,6 +2,7 @@
 //! `AppServices::spawn` and only touches view state from the UI thread.
 
 pub mod connection;
+pub mod edit;
 pub mod export;
 pub mod history;
 pub mod keys;

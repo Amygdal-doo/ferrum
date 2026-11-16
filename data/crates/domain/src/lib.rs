@@ -8,6 +8,7 @@ pub mod error;
 pub mod history;
 pub mod ids;
 pub mod keyvalue;
+pub mod literal;
 pub mod query;
 pub mod schema;
 pub mod secret;
