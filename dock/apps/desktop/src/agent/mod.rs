@@ -141,17 +141,19 @@ mod tests {
 
     #[test]
     fn the_context_says_what_the_window_shows() {
-        let mut state = AppState::default();
-        state.containers = vec![
-            container("aaa111", "web-app-1", Some(("web", "app")), "running"),
-            container("bbb222", "web-db-1", Some(("web", "db")), "exited"),
-        ];
-        state.filter = "web".into();
-        state.detail = Some(DetailState::new("bbb222".into()));
-        state.notice = Some(Notice {
-            message: "Stopped web-db-1".into(),
-            error: false,
-        });
+        let state = AppState {
+            containers: vec![
+                container("aaa111", "web-app-1", Some(("web", "app")), "running"),
+                container("bbb222", "web-db-1", Some(("web", "db")), "exited"),
+            ],
+            filter: "web".into(),
+            detail: Some(DetailState::new("bbb222".into())),
+            notice: Some(Notice {
+                message: "Stopped web-db-1".into(),
+                error: false,
+            }),
+            ..AppState::default()
+        };
         let text = context(&EngineStatus::Offline("socket refused".into()), &state);
         assert!(text.contains("Engine: offline (socket refused)"), "{text}");
         assert!(text.contains("Section shown: Containers (filtered by \"web\")"));
