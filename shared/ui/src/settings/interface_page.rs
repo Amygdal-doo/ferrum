@@ -1,5 +1,6 @@
-//! Settings › Interface: colour scheme, toolbar density, text size and the
-//! onboarding walkthrough. (Show in Dock is under Settings › System.)
+//! Settings › Interface: colour scheme, density (Comfortable / Compact),
+//! interface style, text size and the onboarding walkthrough. (Show in
+//! Dock is under Settings › System.)
 
 use gpui::{AnyElement, App, Hsla, IntoElement, ParentElement, Styled, Window, px};
 
@@ -12,17 +13,13 @@ use crate::components::{Button, Clickable, IconName, h_flex};
 
 pub(super) struct InterfacePage;
 
-/// The colour scheme and toolbar pickers, shared with onboarding.
-pub(crate) fn look_pickers(cx: &App) -> impl IntoElement {
-    let prefs = appearance::current(cx);
+/// The Auto / Light / Dark cards, shared with onboarding.
+pub(crate) fn scheme_pickers(cx: &App) -> impl IntoElement {
+    let current = appearance::current(cx).scheme;
     let schemes = [
         (ColorScheme::Auto, "Auto"),
         (ColorScheme::Light, "Light"),
         (ColorScheme::Dark, "Dark"),
-    ];
-    let toolbars = [
-        (ToolbarStyle::Comfortable, "Comfortable"),
-        (ToolbarStyle::Compact, "Compact"),
     ];
     h_flex()
         .py_3()
@@ -35,10 +32,22 @@ pub(crate) fn look_pickers(cx: &App) -> impl IntoElement {
                 scheme_preview(scheme, cx),
             )
             .width(px(112.))
-            .selected(prefs.scheme == scheme)
+            .selected(current == scheme)
             .on_click(move |_, _, cx| appearance::update(cx, |p| p.scheme = scheme))
         }))
-        .child(gpui::div().w(px(16.)))
+}
+
+/// The Comfortable / Compact cards, shared with onboarding.
+pub(crate) fn density_pickers(cx: &App) -> impl IntoElement {
+    let current = appearance::current(cx).toolbar;
+    let toolbars = [
+        (ToolbarStyle::Comfortable, "Comfortable"),
+        (ToolbarStyle::Compact, "Compact"),
+    ];
+    h_flex()
+        .py_3()
+        .gap_3()
+        .flex_wrap()
         .children(toolbars.map(|(style, label)| {
             ChoiceCard::new(
                 ("toolbar", style as usize),
@@ -46,7 +55,7 @@ pub(crate) fn look_pickers(cx: &App) -> impl IntoElement {
                 toolbar_preview(style, cx),
             )
             .width(px(112.))
-            .selected(prefs.toolbar == style)
+            .selected(current == style)
             .on_click(move |_, _, cx| appearance::update(cx, |p| p.toolbar = style))
         }))
 }
@@ -90,6 +99,9 @@ impl SettingsPage for InterfacePage {
             "light",
             "scheme",
             "toolbar",
+            "density",
+            "compact",
+            "comfortable",
             "text size",
             "onboarding",
         ]
@@ -110,11 +122,20 @@ impl SettingsPage for InterfacePage {
             .flex()
             .flex_col()
             .gap_6()
-            .child(Section::new("Look").row(look_pickers(cx)).footnote(format!(
-                "Auto follows the system. The colour scheme is {}'s own; \
-                         toolbar, style and text size apply to every Ferrum app.",
-                info.name
-            )))
+            .child(
+                Section::new("Look")
+                    .row(scheme_pickers(cx))
+                    .footnote(format!(
+                        "Auto follows the system. The colour scheme is {}'s own; \
+                         density, style and text size apply to every Ferrum app.",
+                        info.name
+                    )),
+            )
+            .child(
+                Section::new("Density")
+                    .row(density_pickers(cx))
+                    .footnote("Compact makes toolbars and title rows shorter."),
+            )
             .child(
                 Section::new("Interface style")
                     .row(style_pickers(cx))

@@ -18,7 +18,7 @@ use crate::components::{
     IconButton, IconName, Label, LabelCommon, LabelSize, format_keystroke, h_flex, v_flex,
 };
 use crate::integrations::{self, Agent, PermissionStatus};
-use crate::settings::interface_page::look_pickers;
+use crate::settings::interface_page::{density_pickers, scheme_pickers};
 use crate::settings::themes_page::theme_row;
 use crate::settings::widgets::{ChoiceCard, icon_tile, key_caps, primary_button};
 use crate::theme::ActiveTheme;
@@ -254,10 +254,10 @@ impl Onboarding {
             )
             .child(
                 Self::card(cx)
-                    .child(
-                        Label::new("Color scheme and toolbar").weight(gpui::FontWeight::SEMIBOLD),
-                    )
-                    .child(look_pickers(cx))
+                    .child(Label::new("Color scheme").weight(gpui::FontWeight::SEMIBOLD))
+                    .child(scheme_pickers(cx))
+                    .child(Label::new("Density").weight(gpui::FontWeight::SEMIBOLD))
+                    .child(density_pickers(cx))
                     .child(Label::new("Interface style").weight(gpui::FontWeight::SEMIBOLD))
                     .child(crate::settings::interface_page::style_pickers(cx))
                     .child(
