@@ -171,7 +171,10 @@ async fn schema_snapshot_feeds_the_er_layout() {
         .iter()
         .map(|t| t.info.table.name.as_str())
         .collect();
-    assert_eq!(names, vec!["big_orders", "customer", "line", "notes", "orders"]);
+    assert_eq!(
+        names,
+        vec!["big_orders", "customer", "line", "notes", "orders"]
+    );
     let line = &snapshot.tables[2];
     assert_eq!(line.details.foreign_keys[0].ref_columns, vec!["id"]);
 
@@ -185,6 +188,53 @@ async fn schema_snapshot_feeds_the_er_layout() {
             .map_or(f32::NAN, |n| n.x)
     };
     assert!(x("customer") < x("orders") && x("orders") < x("line"));
-    let line_node = layout.nodes.iter().find(|n| n.title == "line").expect("line");
+    let line_node = layout
+        .nodes
+        .iter()
+        .find(|n| n.title == "line")
+        .expect("line");
     assert!(line_node.rows[0].primary_key && line_node.rows[0].foreign_key);
+}
+
+#[tokio::test]
+async fn explain_query_plan_marks_full_scans() {
+    let f = fixture(&[
+        "CREATE TABLE customer (id INTEGER PRIMARY KEY, name TEXT)",
+        "CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER, total REAL)",
+    ])
+    .await;
+    let plan = ferrumdata_application::explain::run_explain(
+        &f.queries,
+        DatabaseEngine::Sqlite,
+        f.id,
+        "SELECT c.name, o.total FROM orders o JOIN customer c ON c.id = o.customer_id ORDER BY o.total;",
+        false,
+    )
+    .await
+    .expect("plan");
+    let rows: Vec<(&str, bool)> = plan
+        .rows
+        .iter()
+        .map(|r| (r.node.label.as_str(), r.slow))
+        .collect();
+    assert!(rows.contains(&("SCAN o", true)), "{rows:?}");
+    assert!(
+        rows.iter()
+            .any(|(label, slow)| label.starts_with("SEARCH c") && !slow),
+        "{rows:?}"
+    );
+    assert!(
+        rows.iter()
+            .any(|(label, slow)| label.contains("TEMP B-TREE") && *slow)
+    );
+    let err = ferrumdata_application::explain::run_explain(
+        &f.queries,
+        DatabaseEngine::Sqlite,
+        f.id,
+        "SELECT 1",
+        true,
+    )
+    .await
+    .expect_err("no analyze on SQLite");
+    assert_eq!(err.kind, DbErrorKind::Unsupported);
 }

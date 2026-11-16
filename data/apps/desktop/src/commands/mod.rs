@@ -3,6 +3,7 @@
 
 pub mod connection;
 pub mod edit;
+pub mod explain;
 pub mod export;
 pub mod history;
 pub mod keys;

@@ -158,6 +158,7 @@ impl FerrumData {
         self.key_inputs.remove(&id);
         self.state.key_views.remove(&id);
         self.forget_tool(id);
+        self.state.plans.remove(&id);
         let tabs = &mut self.state.tabs;
         let Some(idx) = tabs.iter().position(|t| t.id == id) else {
             return;

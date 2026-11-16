@@ -4,6 +4,7 @@ pub mod dialogs;
 pub mod explorer;
 pub mod history;
 pub mod key_view;
+pub mod plan;
 pub mod result_grid;
 pub mod shell;
 pub mod sql_editor;

@@ -8,6 +8,7 @@ pub mod browse;
 mod connections;
 pub mod edits;
 pub mod er;
+pub mod explain;
 pub mod key_tree;
 mod queries;
 pub mod safety;

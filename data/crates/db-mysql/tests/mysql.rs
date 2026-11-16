@@ -520,3 +520,26 @@ async fn describes_composite_foreign_keys() {
     ok(&conn, &format!("drop table {parent}")).await;
     conn.close().await;
 }
+
+/// EXPLAIN reports no columns when prepared; its rows must still arrive.
+#[tokio::test]
+async fn explain_streams_rows_known_only_after_execution() {
+    if !enabled() {
+        return;
+    }
+    let conn = connect_with(false).await;
+    let events = run(
+        &conn,
+        "EXPLAIN FORMAT=TREE SELECT 1",
+        QueryLimits::default(),
+    )
+    .await;
+    assert!(
+        events
+            .iter()
+            .any(|e| matches!(e, QueryEvent::Metadata(c) if c.len() == 1)),
+        "{events:?}"
+    );
+    assert_eq!(rows(&events).len(), 1, "{events:?}");
+    conn.close().await;
+}

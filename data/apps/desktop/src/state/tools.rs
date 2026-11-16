@@ -2,6 +2,7 @@
 //! tabs are not restored after a restart.
 
 use ferrumdata_application::er::ErLayout;
+use ferrumdata_application::explain::Plan;
 use ferrumdata_domain::SchemaSnapshot;
 use std::sync::Arc;
 
@@ -16,6 +17,14 @@ pub enum ToolTab {
 pub enum SnapshotLoad {
     Loading,
     Loaded(Arc<SchemaSnapshot>),
+    Failed(String),
+}
+
+/// The EXPLAIN result of a tab, shown in the results panel's Plan pane.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlanLoad {
+    Loading { analyze: bool },
+    Loaded { plan: Plan, sql: String },
     Failed(String),
 }
 
