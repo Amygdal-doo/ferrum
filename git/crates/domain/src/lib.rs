@@ -3,6 +3,7 @@
 //! Persisted types are serde (JSON) with `#[serde(default)]` on structs so
 //! older records keep loading when fields are added.
 
+mod bisect;
 mod commit;
 mod conflict;
 mod diff;
@@ -21,6 +22,7 @@ pub mod text;
 mod undo;
 mod workspace;
 
+pub use bisect::{BisectMark, BisectState, found_in_log};
 pub use commit::{Commit, CommitDetails, Oid, Stash};
 pub use conflict::{ConflictChoice, ConflictFile, ConflictSegment, PARSE_MARKER_SIZE};
 pub use diff::{DiffLine, DiffSource, FileDiff, Hunk, LineKind, SplitRow};

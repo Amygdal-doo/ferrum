@@ -122,8 +122,10 @@ pub fn commit_row(
         .items_stretch()
         .on_mouse_down(MouseButton::Right, move |event: &MouseDownEvent, _, cx| {
             let position = event.position;
-            let items = actions::for_commit(&menu_oid);
-            if let Err(error) = view.update(cx, |app, cx| app.open_menu(position, items, cx)) {
+            if let Err(error) = view.update(cx, |app, cx| {
+                let items = actions::for_commit(&menu_oid, app.bisecting());
+                app.open_menu(position, items, cx);
+            }) {
                 tracing::debug!(error = %error, "view closed");
             }
         })

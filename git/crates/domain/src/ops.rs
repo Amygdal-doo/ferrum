@@ -2,6 +2,7 @@
 //! each into one or more git invocations, using the repo's profile for
 //! identity and SSH.
 
+use crate::bisect::BisectMark;
 use crate::commit::Oid;
 use crate::rebase::RebasePlan;
 use crate::undo::Undo;
@@ -124,6 +125,19 @@ pub enum RepoOp {
         path: String,
         content: String,
     },
+    // Bisect
+    /// Starts bisecting, optionally marking a bad and a good commit right away.
+    BisectStart {
+        bad: Option<Oid>,
+        good: Option<Oid>,
+    },
+    /// Marks `rev` (default: the checked-out commit).
+    BisectMark {
+        mark: BisectMark,
+        rev: Option<Oid>,
+    },
+    /// Ends bisecting and checks out where it started.
+    BisectReset,
     // Tags
     CreateTag {
         name: String,
@@ -212,6 +226,9 @@ impl RepoOp {
             Self::TakeOurs(_) => "Taking ours".into(),
             Self::TakeTheirs(_) => "Taking theirs".into(),
             Self::Resolve { path, .. } => format!("Resolving {path}"),
+            Self::BisectStart { .. } => "Starting bisect".into(),
+            Self::BisectMark { mark, .. } => format!("Marking {}", mark.label().to_lowercase()),
+            Self::BisectReset => "Ending bisect".into(),
             Self::CreateTag { name, .. } => format!("Creating tag {name}"),
             Self::DeleteTag(t) => format!("Deleting tag {t}"),
             Self::PushTag { tag, .. } => format!("Pushing tag {tag}"),

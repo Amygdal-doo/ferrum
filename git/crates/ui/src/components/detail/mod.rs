@@ -35,12 +35,15 @@ pub fn middle_column(
         Page::PullRequests => pull_list::pull_list(app, id, cx),
         _ => empty("Loading…"),
     };
+    // Bisecting is shown on every page until reset.
+    let bisect = crate::components::bisect::bisect_banner(app, id, cx);
     // In the window the card behind supplies the background.
     let flat = app.options.compact;
     v_flex()
         .size_full()
         .min_w_0()
         .when(flat, |d| d.bg(cx.theme().colors().editor_background))
+        .children(bisect)
         .child(body)
         .into_any_element()
 }

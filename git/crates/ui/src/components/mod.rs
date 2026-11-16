@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod bisect;
 pub mod code;
 pub mod conflict;
 pub mod detail;

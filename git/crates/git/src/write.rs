@@ -249,6 +249,11 @@ impl Repo {
                 self.run(paths_cmd(self, &["add"], paths)?).await?
             }
             RepoOp::Resolve { path, content } => self.resolve(path, content).await?,
+            RepoOp::BisectStart { bad, good } => {
+                return self.bisect_start(bad.as_ref(), good.as_ref()).await;
+            }
+            RepoOp::BisectMark { mark, rev } => return self.bisect_mark(*mark, rev.as_ref()).await,
+            RepoOp::BisectReset => return self.bisect_reset().await,
             RepoOp::CreateTag {
                 name,
                 target,

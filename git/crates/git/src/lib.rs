@@ -9,6 +9,7 @@
 //! Network commands take a [`NetEnv`] built from the repository's profile so
 //! each project can push/pull with its own SSH key.
 
+mod bisect;
 mod conflict;
 mod error;
 mod history;

@@ -82,6 +82,10 @@ impl Repo {
         let mut s = parse::parse_status(&out.stdout);
         s.operation = self.operation();
         s.rebase = self.rebase_progress();
+        s.bisect = self.bisect_state().await.unwrap_or_else(|e| {
+            tracing::debug!(error = %e, "could not read the bisect state");
+            None
+        });
         Ok(s)
     }
 

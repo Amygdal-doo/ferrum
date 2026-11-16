@@ -197,6 +197,9 @@ impl GitView {
                                     | RepoOp::Merge { .. }
                                     | RepoOp::Rebase { .. }
                                     | RepoOp::InteractiveRebase(_)
+                                    | RepoOp::BisectStart { .. }
+                                    | RepoOp::BisectMark { .. }
+                                    | RepoOp::BisectReset
                                     | RepoOp::Undo(_)
                             )
                         {
@@ -232,6 +235,15 @@ impl GitView {
             },
         );
         cx.notify();
+    }
+
+    /// A bisect session is running in the active repository.
+    #[must_use]
+    pub fn bisecting(&self) -> bool {
+        self.state
+            .active
+            .and_then(|id| self.state.view(id).data)
+            .is_some_and(|d| d.snapshot.status.bisect.is_some())
     }
 
     /// Runs `op` in the active repository.
