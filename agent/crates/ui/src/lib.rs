@@ -35,6 +35,7 @@ mod live;
 mod markdown;
 mod menus;
 mod messages;
+mod opening;
 mod settings;
 mod threads;
 mod tool_card;
