@@ -9,6 +9,9 @@ mod stashes;
 mod trailers;
 mod wip;
 
+pub(crate) use pull_detail::markdown;
+pub(crate) use pull_list::unix;
+
 use crate::app::GitView;
 use crate::components::diff::diff_pane;
 use crate::components::file_panel::file_panel;

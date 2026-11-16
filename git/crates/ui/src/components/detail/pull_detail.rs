@@ -6,6 +6,7 @@ use super::pull_list::{check_color, chip, dot, review_color, unix};
 use crate::app::GitView;
 use crate::commands::pulls::open_url;
 use crate::components::now_secs;
+use crate::components::review::ReviewCtx;
 use crate::components::widgets::{empty, ghost_button, primary_button, small_button};
 use crate::state::{Dialog, Load, PrTab};
 use ferrum_ui::components::{
@@ -22,7 +23,7 @@ use gpui::{AnyElement, Context, SharedString, div, prelude::*, px};
 use std::sync::Arc;
 
 /// Basic Markdown as stacked text blocks.
-fn markdown(md: &str, cx: &mut Context<GitView>) -> AnyElement {
+pub(crate) fn markdown(md: &str, cx: &mut Context<GitView>) -> AnyElement {
     let colors = cx.theme().colors().clone();
     let items: Vec<AnyElement> = blocks(md)
         .into_iter()
@@ -346,9 +347,23 @@ fn files(app: &GitView, id: RepoId, cx: &mut Context<GitView>) -> Vec<AnyElement
                         .into_any_element(),
                 );
             }
+            // Review threads sit under their lines; a click on a line comments.
+            let review = view.prs.detail.ready().map(|d| ReviewCtx {
+                repo: id,
+                number: d.pr.number,
+                threads: Arc::new(d.threads.clone()),
+            });
             for f in &changes.files {
                 let open = view.expanded.contains(&f.path);
-                out.push(file_section(app, id, Arc::new(f.clone()), open, None, cx));
+                out.push(file_section(
+                    app,
+                    id,
+                    Arc::new(f.clone()),
+                    open,
+                    None,
+                    review.as_ref(),
+                    cx,
+                ));
             }
             out
         }

@@ -12,6 +12,7 @@ pub mod highlight;
 pub mod home;
 pub mod icons;
 pub mod menu;
+pub mod review;
 pub mod shell;
 pub mod sidebar;
 pub mod split;

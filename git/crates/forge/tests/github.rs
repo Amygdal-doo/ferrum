@@ -5,8 +5,9 @@ mod common;
 use common::Fixtures;
 use ferrumgit_domain::{RepoForge, Secret};
 use ferrumgit_forge::{
-    Api, CheckState, Forge, ForgeError, MergeMethod, NewPullRequest, PrFilter, RateLimits,
-    ReviewDecision, ReviewEvent, ReviewState, TimelineKind, client, resolve,
+    Api, CheckState, DiffSide, Forge, ForgeError, MergeMethod, NewLineComment, NewPullRequest,
+    PrDetail, PrFilter, RateLimits, ReviewDecision, ReviewEvent, ReviewState, TimelineKind, client,
+    resolve,
 };
 use std::sync::Arc;
 
@@ -266,9 +267,123 @@ fn loads_detail_with_commits_checks_and_conversation() {
                 &TimelineKind::Review(ReviewState::ChangesRequested)
             ),
             ("hubot", &TimelineKind::Review(ReviewState::Commented)),
+            (
+                "monalisa",
+                &TimelineKind::LineComment {
+                    path: "src/form.rs".into(),
+                    line: Some(7)
+                }
+            ),
+            (
+                "octocat",
+                &TimelineKind::LineComment {
+                    path: "src/login.rs".into(),
+                    line: Some(42)
+                }
+            ),
+            (
+                "octocat",
+                &TimelineKind::LineComment {
+                    path: "src/form.rs".into(),
+                    line: Some(7)
+                }
+            ),
             ("monalisa", &TimelineKind::Review(ReviewState::Approved)),
         ]
     );
+
+    // Replies join their thread; the outdated one is not on a current line.
+    let threads: Vec<(&str, &str, Option<u64>, DiffSide, usize)> = d
+        .threads
+        .iter()
+        .map(|t| {
+            (
+                t.id.as_str(),
+                t.path.as_str(),
+                t.line,
+                t.side,
+                t.comments.len(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        threads,
+        [
+            ("20", "src/login.rs", None, DiffSide::Right, 2),
+            ("23", "src/form.rs", Some(7), DiffSide::Left, 2),
+        ]
+    );
+    assert_eq!(d.threads[1].comments[1].body, "Dead code.");
+    assert!(d.threads[1].is_on("src/form.rs", Some(7), None));
+}
+
+#[test]
+fn comments_on_lines_and_replies_in_threads() {
+    let fx = Arc::new(
+        Fixtures::new(BASE, "github")
+            .on_status("POST /repos/acme/widgets/pulls/12/comments", 201, &[], "")
+            .on_status(
+                "POST /repos/acme/widgets/pulls/12/comments/23/replies",
+                201,
+                &[],
+                "",
+            ),
+    );
+    let gh = forge(fx.clone(), Arc::default());
+    let detail = PrDetail {
+        pr: ferrumgit_forge::PullRequest {
+            number: 12,
+            head_sha: "1212".into(),
+            ..Default::default()
+        },
+        ..PrDetail::default()
+    };
+    let removed = NewLineComment {
+        path: "src/form.rs".into(),
+        old_line: Some(9),
+        new_line: None,
+        body: "Keep this?".into(),
+    };
+    run(gh.line_comment(&detail, &removed)).expect("line comment");
+    let body: serde_json::Value = serde_json::from_str(
+        fx.sent_to("POST /repos/acme/widgets/pulls/12/comments")
+            .and_then(|r| r.body)
+            .as_deref()
+            .expect("body"),
+    )
+    .expect("json");
+    assert_eq!(
+        body,
+        serde_json::json!({"body": "Keep this?", "commit_id": "1212", "path": "src/form.rs", "line": 9, "side": "LEFT"})
+    );
+    run(gh.reply(12, "23", "Agreed")).expect("reply");
+    let reply: serde_json::Value = serde_json::from_str(
+        fx.sent_to("POST /repos/acme/widgets/pulls/12/comments/23/replies")
+            .and_then(|r| r.body)
+            .as_deref()
+            .expect("body"),
+    )
+    .expect("json");
+    assert_eq!(reply, serde_json::json!({"body": "Agreed"}));
+
+    // Empty text or no line: nothing is sent.
+    let before = fx.sent().len();
+    assert!(matches!(
+        run(gh.reply(12, "23", " ")),
+        Err(ForgeError::Invalid(_))
+    ));
+    assert!(matches!(
+        run(gh.line_comment(
+            &detail,
+            &NewLineComment {
+                body: "x".into(),
+                path: "a".into(),
+                ..NewLineComment::default()
+            }
+        )),
+        Err(ForgeError::Invalid(_))
+    ));
+    assert_eq!(fx.sent().len(), before);
 }
 
 #[test]

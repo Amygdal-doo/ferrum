@@ -54,6 +54,7 @@ or a specific private key). Each repository is assigned one profile (toolbar →
 | PR list: open PRs/MRs with title, number, author, branch → base, draft, labels, review decision and CI status, updated time; filter All / Mine / Review requested; open in browser | ✅ REST mapping + status aggregation tested against recorded GitHub v3 / GitLab v4 JSON fixtures; UI built, not clicked through |
 | PR detail: description (basic Markdown), conversation (comments, reviews, line comments, GitLab system notes), commits, CI checks (GitHub check runs + commit statuses, GitLab pipeline jobs), **changed files in the existing diff view** — the PR head (`refs/pull/<n>/head` / `refs/merge-requests/<n>/head`) and base are fetched into `refs/ferrumgit/pr/<n>/…` (hidden from the graph) with the repo's profile, and diffed against the merge base | ✅ fetch + merge-base diff tested end to end against a local bare remote; Markdown parser unit-tested; UI built, not clicked through |
 | PR actions: check out (same-project branch → tracking branch of the same name; fork → `pr-<n>-<branch>`; existing branch fast-forwarded), create from the current branch (title, description, base, draft; pushes first when needed), comment, review (approve / request changes / comment), **merge** with a confirmation and only the methods the project allows (head SHA must be unchanged) | ✅ checkout/create tested end to end (local bare remote + fake API); review/merge payloads fixture-tested; UI not clicked through |
+| **Inline review comments** (GitHub and GitLab): in a pull request's *Files*, existing threads sit under their lines (GitHub review comments grouped by the comment they reply to, GitLab diff discussions with their resolved state; outdated GitHub threads stay in the conversation only); a click on a line opens a composer for a new thread (GitHub `side`/`line` on the head commit, GitLab `position` from the MR's `diff_refs`, unchanged lines carry both line numbers), *Reply* answers in a thread; the existing review dialog submits comment / approve / request changes | ✅ thread grouping and request payloads fixture-tested for both forges; UI built, not clicked through |
 | API errors and rate limits: 401 explains the needed scopes, 403/404/409/422 show the forge's message; rate-limit headers are tracked per API, an exhausted limit is reported with the reset time and not retried, and lists skip per-PR status lookups when fewer than 100 requests remain | ✅ unit + fixture tested |
 | Auto-refresh when the repo changes outside the app (3 s fingerprint poll) | ⚠️ implemented, not hand-tested |
 | "One Dark" theme, resizable + persisted panels | ✅ (light theme not available yet) |
@@ -61,8 +62,8 @@ or a specific private key). Each repository is assigned one profile (toolbar →
 ## Not built yet
 Redo, and undo beyond the last commit / amend / checkout (merges, rebases, cherry-picks, resets);
 interactive rebase of merge commits (`--rebase-merges`) or of the root commit, submodules, LFS, worktrees, GPG/SSH commit signing UI (signing configured in
-git config still works), issue integrations; for pull requests: inline (per-line) review comments
-and replying to threads, editing / closing PRs, creating PRs whose head is in a fork, pagination
+git config still works), issue integrations; for pull requests: pending (batched) reviews with
+several line comments, resolving threads, multi-line comment ranges, editing / closing PRs, creating PRs whose head is in a fork, pagination
 beyond the first 50 PRs and 100 commits / comments / checks, GitHub team review requests in the
 "Review requested" filter, and the GitLab "requested changes" reviewer state (GitLab REST v4 has no
 call for it on every edition: *Request changes* withdraws your approval and posts the comment);

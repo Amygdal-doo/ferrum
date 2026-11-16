@@ -4,6 +4,7 @@
 use crate::app::GitView;
 use crate::commands::repo::HunkAction;
 use crate::components::highlight::{Token, highlight};
+use crate::components::review::{LineTarget, ReviewCtx, comment_on_click, review_notes};
 use crate::components::split::split_side;
 use crate::components::widgets::small_button;
 use ferrum_ui::components::{
@@ -79,6 +80,28 @@ pub fn code_diff(
     repo: Option<RepoId>,
     cx: &mut Context<GitView>,
 ) -> AnyElement {
+    diff_view(app, file, source, repo, None, cx)
+}
+
+/// A pull request's file: review threads under their lines, and a click on
+/// a line starts a new comment.
+pub fn reviewed_diff(
+    app: &GitView,
+    file: Arc<FileDiff>,
+    review: &ReviewCtx,
+    cx: &mut Context<GitView>,
+) -> AnyElement {
+    diff_view(app, file, DiffSource::Commit, None, Some(review), cx)
+}
+
+fn diff_view(
+    app: &GitView,
+    file: Arc<FileDiff>,
+    source: DiffSource,
+    repo: Option<RepoId>,
+    review: Option<&ReviewCtx>,
+    cx: &mut Context<GitView>,
+) -> AnyElement {
     let invisibles = !app.state.settings.hide_invisibles;
     let note = |text: &'static str| {
         div()
@@ -100,7 +123,7 @@ pub fn code_diff(
         budget -= shown;
         if shown > 0 {
             hunks.push(hunk_view(
-                app, &file.path, i, h, shown, &source, repo, invisibles, cx,
+                app, &file.path, i, h, shown, &source, repo, review, invisibles, cx,
             ));
         }
     }
@@ -138,6 +161,7 @@ fn hunk_view(
     shown: usize,
     source: &DiffSource,
     repo: Option<RepoId>,
+    review: Option<&ReviewCtx>,
     invisibles: bool,
     cx: &mut Context<GitView>,
 ) -> AnyElement {
@@ -218,58 +242,79 @@ fn hunk_view(
         }
     }
     let tokens_of = |li: usize| toks.get(li).map(Vec::as_slice).unwrap_or_default();
+    // Review: where a click on a line comments, and what sits under it.
+    let target = |line: &DiffLine| {
+        review
+            .filter(|_| line.kind != LineKind::NoNewline)
+            .map(|_| LineTarget::of(path, line))
+    };
+    let notes = |line: Option<&DiffLine>, cx: &mut Context<GitView>| match (review, line) {
+        (Some(r), Some(line)) => review_notes(app, r, &LineTarget::of(path, line), cx),
+        _ => Vec::new(),
+    };
     let lines: Vec<AnyElement> = if app.state.settings.side_by_side {
-        hunk.split_rows()
+        let mut out = Vec::new();
+        let rows = hunk
+            .split_rows()
             .into_iter()
             .filter(|r| r.left.into_iter().chain(r.right).all(|li| li < shown))
-            .enumerate()
-            .map(|(ri, row)| {
-                let mut side = |li: Option<usize>, left: bool| {
-                    let line = li.and_then(|li| hunk.lines.get(li).map(|l| (li, l)));
-                    split_side(
-                        repo,
-                        index,
-                        line,
-                        line.map(|(li, _)| tokens_of(li)).unwrap_or_default(),
-                        li.is_some_and(|li| selected.contains(&li)),
-                        editable,
-                        invisibles,
-                        left,
-                        &format!("{id_base}-row-{ri}"),
-                        &theme,
-                        cx,
-                    )
-                };
-                let (l, r) = (side(row.left, true), side(row.right, false));
+            .enumerate();
+        for (ri, row) in rows {
+            let side = |li: Option<usize>, left: bool, cx: &mut Context<GitView>| {
+                let line = li.and_then(|li| hunk.lines.get(li).map(|l| (li, l)));
+                split_side(
+                    repo,
+                    index,
+                    line,
+                    line.map(|(li, _)| tokens_of(li)).unwrap_or_default(),
+                    li.is_some_and(|li| selected.contains(&li)),
+                    editable,
+                    invisibles,
+                    left,
+                    line.and_then(|(_, l)| target(l)),
+                    &format!("{id_base}-row-{ri}"),
+                    &theme,
+                    cx,
+                )
+            };
+            let (l, r) = (side(row.left, true, cx), side(row.right, false, cx));
+            out.push(
                 h_flex()
                     .w_full()
                     .items_stretch()
                     .child(l)
                     .child(r)
-                    .into_any_element()
-            })
-            .collect()
+                    .into_any_element(),
+            );
+            let left = row.left.and_then(|li| hunk.lines.get(li));
+            let right = row.right.and_then(|li| hunk.lines.get(li));
+            out.extend(notes(left, cx));
+            // An unchanged line is one line on both sides.
+            if right != left {
+                out.extend(notes(right, cx));
+            }
+        }
+        out
     } else {
-        hunk.lines
-            .iter()
-            .take(shown)
-            .enumerate()
-            .map(|(li, line)| {
-                line_view(
-                    repo,
-                    index,
-                    li,
-                    line,
-                    tokens_of(li),
-                    selected.contains(&li),
-                    editable,
-                    invisibles,
-                    &id_base,
-                    &theme,
-                    cx,
-                )
-            })
-            .collect()
+        let mut out = Vec::new();
+        for (li, line) in hunk.lines.iter().take(shown).enumerate() {
+            out.push(line_view(
+                repo,
+                index,
+                li,
+                line,
+                tokens_of(li),
+                selected.contains(&li),
+                editable,
+                invisibles,
+                target(line),
+                &id_base,
+                &theme,
+                cx,
+            ));
+            out.extend(notes(Some(line), cx));
+        }
+        out
     };
     v_flex()
         .border_t_1()
@@ -305,6 +350,7 @@ fn line_view(
     selected: bool,
     selectable: bool,
     invisibles: bool,
+    comment: Option<LineTarget>,
     id_base: &str,
     theme: &ferrum_ui::theme::Theme,
     cx: &mut Context<GitView>,
@@ -364,6 +410,7 @@ fn line_view(
             d.cursor_pointer()
                 .on_click(cx.listener(move |app, _, _, cx| toggle_line(app, repo, hunk, index, cx)))
         })
+        .when_some(comment, |d, target| comment_on_click(d, target, cx))
         .child(
             div()
                 .flex_none()

@@ -6,8 +6,8 @@ mod common;
 use common::Fixtures;
 use ferrumgit_domain::{ForgeKind, RepoForge, Secret};
 use ferrumgit_forge::{
-    Api, CheckState, Forge, ForgeError, MergeMethod, NewPullRequest, PrFilter, ReviewDecision,
-    ReviewEvent, TimelineKind, client, resolve,
+    Api, CheckState, DiffRefs, DiffSide, Forge, ForgeError, MergeMethod, NewLineComment,
+    NewPullRequest, PrDetail, PrFilter, ReviewDecision, ReviewEvent, TimelineKind, client, resolve,
 };
 use std::sync::Arc;
 
@@ -117,6 +117,10 @@ fn loads_detail_with_jobs_notes_and_merge_options() {
                 "notes_6.json",
             )
             .on(
+                &format!("GET {P}/merge_requests/6/discussions?per_page=100"),
+                "discussions_6.json",
+            )
+            .on(
                 &format!("GET {P}/merge_requests/6/approvals"),
                 "approvals_6.json",
             )
@@ -159,6 +163,84 @@ fn loads_detail_with_jobs_notes_and_merge_options() {
             &TimelineKind::Comment,
             &TimelineKind::Event,
         ]
+    );
+
+    // Diff discussions become threads; plain comments do not.
+    let threads: Vec<(&str, Option<u64>, DiffSide, usize, bool)> = d
+        .threads
+        .iter()
+        .map(|t| (t.id.as_str(), t.line, t.side, t.comments.len(), t.resolved))
+        .collect();
+    assert_eq!(
+        threads,
+        [
+            ("d-line", Some(17), DiffSide::Left, 2, false),
+            ("d-resolved", Some(4), DiffSide::Right, 1, true),
+        ]
+    );
+    assert!(d.threads[0].is_on("src/main.rs", Some(17), None));
+    assert_eq!(
+        d.diff_refs.as_ref().map(|r| r.start_sha.as_str()),
+        Some("ssss")
+    );
+}
+
+#[test]
+fn starts_and_replies_to_discussions() {
+    let mr6 = format!("{P}/merge_requests/6");
+    let fx = Arc::new(
+        Fixtures::new(BASE, "gitlab")
+            .on_status(&format!("POST {mr6}/discussions"), 201, &[], "")
+            .on_status(
+                &format!("POST {mr6}/discussions/d-line/notes"),
+                201,
+                &[],
+                "",
+            ),
+    );
+    let gl = forge(fx.clone());
+    let mut detail = PrDetail {
+        pr: ferrumgit_forge::PullRequest {
+            number: 6,
+            ..Default::default()
+        },
+        ..PrDetail::default()
+    };
+    let unchanged = NewLineComment {
+        path: "src/main.rs".into(),
+        old_line: Some(3),
+        new_line: Some(4),
+        body: "Nit".into(),
+    };
+    // Without the diff version GitLab cannot place it.
+    assert!(matches!(
+        run(gl.line_comment(&detail, &unchanged)),
+        Err(ForgeError::Invalid(_))
+    ));
+    detail.diff_refs = Some(DiffRefs {
+        base_sha: "b".into(),
+        start_sha: "s".into(),
+        head_sha: "h".into(),
+    });
+    run(gl.line_comment(&detail, &unchanged)).expect("line comment");
+    let body: serde_json::Value = serde_json::from_str(
+        fx.sent_to(&format!("POST {mr6}/discussions"))
+            .and_then(|r| r.body)
+            .as_deref()
+            .expect("body"),
+    )
+    .expect("json");
+    assert_eq!(
+        body,
+        serde_json::json!({"body": "Nit", "position": {
+            "position_type": "text", "base_sha": "b", "start_sha": "s", "head_sha": "h",
+            "old_path": "src/main.rs", "new_path": "src/main.rs", "old_line": 3, "new_line": 4
+        }})
+    );
+    run(gl.reply(6, "d-line", "Thanks")).expect("reply");
+    assert!(
+        fx.sent_to(&format!("POST {mr6}/discussions/d-line/notes"))
+            .is_some()
     );
 }
 

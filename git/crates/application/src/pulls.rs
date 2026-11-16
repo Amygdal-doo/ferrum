@@ -11,8 +11,9 @@ use ferrumgit_forge::checkout::{
     CheckoutPlan, checkout_plan, local_base_ref, local_head_ref, sanitize_branch,
 };
 use ferrumgit_forge::{
-    Api, Forge, ForgeError, ForgeRepo, MergeMethod, NewPullRequest, PrDetail, PrFilter, PrList,
-    PullRequest, RateLimits, ReqwestTransport, ReviewEvent, Transport, client, resolve,
+    Api, Forge, ForgeError, ForgeRepo, MergeMethod, NewLineComment, NewPullRequest, PrDetail,
+    PrFilter, PrList, PullRequest, RateLimits, ReqwestTransport, ReviewEvent, Transport, client,
+    resolve,
 };
 use ferrumgit_git::CancellationToken;
 use std::collections::HashMap;
@@ -343,6 +344,31 @@ impl AppServices {
             let r = f.review(number, event, body).await;
             self.checked(f.as_ref(), r)
         }
+    }
+
+    /// Starts a review thread on a diff line of `pr`.
+    pub async fn comment_pull_request_line(
+        &self,
+        entry: &RepoEntry,
+        pr: &PrDetail,
+        comment: &NewLineComment,
+    ) -> AppResult<()> {
+        let f = self.forge_client(entry).await?;
+        let r = f.line_comment(pr, comment).await;
+        self.checked(f.as_ref(), r)
+    }
+
+    /// Replies in a review thread.
+    pub async fn reply_pull_request_thread(
+        &self,
+        entry: &RepoEntry,
+        number: u64,
+        thread: &str,
+        body: &str,
+    ) -> AppResult<()> {
+        let f = self.forge_client(entry).await?;
+        let r = f.reply(number, thread, body).await;
+        self.checked(f.as_ref(), r)
     }
 
     /// Merges on the forge if the head is still `head_sha`.

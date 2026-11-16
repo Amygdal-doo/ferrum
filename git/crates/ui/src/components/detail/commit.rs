@@ -3,9 +3,10 @@
 
 use crate::app::GitView;
 use crate::components::actions::Action;
-use crate::components::code::code_diff;
+use crate::components::code::{code_diff, reviewed_diff};
 use crate::components::graph::ref_badge;
 use crate::components::icons::Icon;
+use crate::components::review::ReviewCtx;
 use crate::components::split::layout_toggle;
 use crate::components::widgets::{danger_button, ghost_button, primary_button, small_button};
 use crate::components::{avatar_color, change_word, plural};
@@ -257,7 +258,15 @@ pub fn commit_panel(
             .iter()
             .map(|f| {
                 let open = view.expanded.contains(&f.path);
-                file_section(app, id, Arc::new(f.clone()), open, file_rev.as_ref(), cx)
+                file_section(
+                    app,
+                    id,
+                    Arc::new(f.clone()),
+                    open,
+                    file_rev.as_ref(),
+                    None,
+                    cx,
+                )
             })
             .collect()
     };
@@ -451,6 +460,7 @@ pub(super) fn file_section(
     file: Arc<FileDiff>,
     open: bool,
     rev: Option<&(Oid, Option<Oid>)>,
+    review: Option<&ReviewCtx>,
     cx: &mut Context<GitView>,
 ) -> AnyElement {
     let theme = cx.theme().clone();
@@ -561,7 +571,10 @@ pub(super) fn file_section(
                                 plural(file.deletions as usize)
                             )),
                     )
-                    .child(code_diff(app, file.clone(), DiffSource::Commit, None, cx)),
+                    .child(match review {
+                        Some(r) => reviewed_diff(app, file.clone(), r, cx),
+                        None => code_diff(app, file.clone(), DiffSource::Commit, None, cx),
+                    }),
             )
         })
         .into_any_element()

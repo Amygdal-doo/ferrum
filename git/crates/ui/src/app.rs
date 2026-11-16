@@ -78,6 +78,9 @@ pub struct GitView {
     pub(crate) width: Rc<Cell<Option<Pixels>>>,
     /// The stand-alone app's file editor (see `components::editor::pane`).
     pub(crate) editor: Option<crate::components::editor::pane::OpenEditor>,
+    /// A pull request review comment being written.
+    pub(crate) review_draft: Option<crate::components::review::ReviewDraft>,
+    pub(crate) review_subscription: Option<Subscription>,
     focus_handle: FocusHandle,
     _poll: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -251,6 +254,8 @@ impl GitView {
             active_pane: 0,
             width: Rc::default(),
             editor: None,
+            review_draft: None,
+            review_subscription: None,
             focus_handle: cx.focus_handle(),
             _poll: Self::start_polling(cx),
             _subscriptions: subscriptions,

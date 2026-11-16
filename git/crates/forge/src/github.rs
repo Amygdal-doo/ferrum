@@ -1,12 +1,14 @@
 //! GitHub REST v3 (github.com and GitHub Enterprise Server).
 
 use crate::api::{Api, encode};
-use crate::client::{Forge, PrList, STATUS_LOOKUPS, check_new, check_review_body};
+use crate::client::{
+    Forge, PrList, STATUS_LOOKUPS, check_line_comment, check_new, check_review_body,
+};
 use crate::error::ForgeResult;
 use crate::model::{
-    Check, CheckState, MergeMethod, NewPullRequest, PrCommit, PrDetail, PrFilter, PrState,
-    PullRequest, ReviewEvent, ReviewState, TimelineItem, TimelineKind, aggregate_checks,
-    review_decision, sort_by_updated,
+    Check, CheckState, DiffSide, MergeMethod, NewLineComment, NewPullRequest, PrCommit, PrDetail,
+    PrFilter, PrState, PullRequest, ReviewEvent, ReviewState, ReviewThread, ThreadComment,
+    TimelineItem, TimelineKind, aggregate_checks, review_decision, sort_by_updated,
 };
 use crate::remote::ForgeRepo;
 use crate::transport::Method;
@@ -166,6 +168,7 @@ impl Forge for GitHub {
                     body: r.body.unwrap_or_default(),
                 }),
         );
+        let threads = threads(&line_comments);
         timeline.extend(line_comments.into_iter().map(|c| TimelineItem {
             author: c.user.login,
             created_at: c.created_at,
@@ -185,6 +188,8 @@ impl Forge for GitHub {
             timeline,
             mergeable,
             merge_methods: repo.methods(),
+            threads,
+            diff_refs: None,
         })
     }
 
@@ -234,6 +239,44 @@ impl Forge for GitHub {
                 Method::Post,
                 &format!("{}/pulls/{number}/reviews", self.base()),
                 payload,
+            )
+            .await
+    }
+
+    async fn line_comment(&self, pr: &PrDetail, comment: &NewLineComment) -> ForgeResult<()> {
+        check_line_comment(comment)?;
+        let Some((side, line)) = comment.anchor() else {
+            return Ok(());
+        };
+        self.api
+            .send_unit(
+                Method::Post,
+                &format!("{}/pulls/{}/comments", self.base(), pr.pr.number),
+                json!({
+                    "body": comment.body,
+                    "commit_id": pr.pr.head_sha,
+                    "path": comment.path,
+                    "line": line,
+                    "side": match side {
+                        DiffSide::Left => "LEFT",
+                        DiffSide::Right => "RIGHT",
+                    },
+                }),
+            )
+            .await
+    }
+
+    async fn reply(&self, number: u64, thread: &str, body: &str) -> ForgeResult<()> {
+        check_review_body(ReviewEvent::Comment, body)?;
+        self.api
+            .send_unit(
+                Method::Post,
+                &format!(
+                    "{}/pulls/{number}/comments/{}/replies",
+                    self.base(),
+                    encode(thread)
+                ),
+                json!({ "body": body }),
             )
             .await
     }
@@ -366,12 +409,48 @@ struct Comment {
 #[derive(Debug, Deserialize, Default)]
 #[serde(default)]
 struct LineComment {
+    id: u64,
+    in_reply_to_id: Option<u64>,
     user: User,
     body: Option<String>,
     created_at: String,
     path: String,
     line: Option<u64>,
     original_line: Option<u64>,
+    side: Option<String>,
+}
+
+/// Groups review comments into threads by the comment they reply to
+/// (GitHub replies always point at the thread's first comment).
+fn threads(comments: &[LineComment]) -> Vec<ReviewThread> {
+    let mut sorted: Vec<&LineComment> = comments.iter().collect();
+    sorted.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+    let mut out: Vec<ReviewThread> = Vec::new();
+    for c in sorted {
+        let comment = ThreadComment {
+            id: c.id.to_string(),
+            author: c.user.login.clone(),
+            created_at: c.created_at.clone(),
+            body: c.body.clone().unwrap_or_default(),
+        };
+        let root = c.in_reply_to_id.map(|r| r.to_string());
+        match root.and_then(|r| out.iter_mut().find(|t| t.id == r)) {
+            Some(thread) => thread.comments.push(comment),
+            None => out.push(ReviewThread {
+                id: c.id.to_string(),
+                path: c.path.clone(),
+                line: c.line,
+                side: if c.side.as_deref() == Some("LEFT") {
+                    DiffSide::Left
+                } else {
+                    DiffSide::Right
+                },
+                resolved: false,
+                comments: vec![comment],
+            }),
+        }
+    }
+    out
 }
 
 #[derive(Debug, Deserialize, Default)]

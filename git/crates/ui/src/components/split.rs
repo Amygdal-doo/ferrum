@@ -3,6 +3,7 @@
 use crate::app::GitView;
 use crate::components::code::{line_text, toggle_line};
 use crate::components::highlight::Token;
+use crate::components::review::{LineTarget, comment_on_click};
 use ferrum_ui::components::{StyledTypography, h_flex};
 use ferrum_ui::theme::ActiveTheme;
 use ferrumgit_domain::{DiffLine, LineKind, RepoId};
@@ -20,6 +21,7 @@ pub fn split_side(
     selectable: bool,
     invisibles: bool,
     left: bool,
+    comment: Option<LineTarget>,
     id_base: &str,
     theme: &ferrum_ui::theme::Theme,
     cx: &mut Context<GitView>,
@@ -81,6 +83,7 @@ pub fn split_side(
             d.cursor_pointer()
                 .on_click(cx.listener(move |app, _, _, cx| toggle_line(app, repo, hunk, index, cx)))
         })
+        .when_some(comment, |d, target| comment_on_click(d, target, cx))
         .child(
             div()
                 .flex_none()
