@@ -13,15 +13,24 @@
 //! project root.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::sync::Arc;
+use std::process::{Command, Output, Stdio};
+use std::sync::{Arc, mpsc};
+use std::time::{Duration, Instant};
 
 /// Text files larger than this are not captured by a folder snapshot.
 const FILE_LIMIT: u64 = 1024 * 1024;
 /// Total bytes a folder snapshot holds at most.
 const TOTAL_LIMIT: u64 = 64 * 1024 * 1024;
 const COUNT_LIMIT: usize = 20_000;
+/// A folder snapshot gives up past this many files: such a folder is not
+/// one project (a home folder, a disk) and walking it takes minutes.
+const WALK_LIMIT: usize = 200_000;
+/// A git step of the snapshot is stopped after this long: hashing a large
+/// untracked folder that is not in `.gitignore` (build output, data,
+/// dependencies) can take many minutes, and the chat waits on it.
+const GIT_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone)]
 enum Kind {
@@ -47,32 +56,58 @@ pub struct Snapshot {
 
 impl Snapshot {
     /// A git tree when `root` is inside a repository and git works, else a
-    /// content snapshot. Blocks: run it in the background.
+    /// content snapshot. Blocks: run it in the background. Fails, rather
+    /// than taking minutes, when git is too slow or the folder too big.
     pub fn take(root: &Path) -> Result<Self, String> {
-        let root = root.canonicalize().map_err(|e| e.to_string())?;
-        if let Some(repo) = crate::fsutil::repo_root(&root)
-            && let Ok(tree) = write_tree(&repo)
-        {
+        Self::take_within(root, GIT_TIMEOUT)
+    }
+
+    fn take_within(root: &Path, timeout: Duration) -> Result<Self, String> {
+        let root = root
+            .canonicalize()
+            .map_err(|e| format!("{}: {e}", root.display()))?;
+        if let Some(repo) = crate::fsutil::repo_root(&root) {
             let prefix = root
                 .strip_prefix(&repo)
                 .unwrap_or(Path::new(""))
                 .to_path_buf();
-            return Ok(Self {
-                root,
-                kind: Kind::Git { repo, tree, prefix },
-                accepted: BTreeMap::new(),
-            });
+            match write_tree(&repo, &prefix, timeout) {
+                Ok(tree) => {
+                    return Ok(Self {
+                        root,
+                        kind: Kind::Git { repo, tree, prefix },
+                        accepted: BTreeMap::new(),
+                    });
+                }
+                // A folder snapshot of the same tree would be slower still.
+                Err(GitError::TimedOut(error)) => return Err(error),
+                Err(GitError::Failed(_)) => {}
+            }
         }
         Self::take_files(&root)
     }
 
     /// A content snapshot of the folder's text files.
     pub fn take_files(root: &Path) -> Result<Self, String> {
-        let root = root.canonicalize().map_err(|e| e.to_string())?;
+        Self::take_files_within(root, WALK_LIMIT)
+    }
+
+    fn take_files_within(root: &Path, limit: usize) -> Result<Self, String> {
+        let root = root
+            .canonicalize()
+            .map_err(|e| format!("{}: {e}", root.display()))?;
         let mut files = BTreeMap::new();
         let mut skipped = BTreeSet::new();
         let mut total = 0u64;
-        for rel in walk(&root) {
+        for (seen, rel) in walk(&root).enumerate() {
+            if seen >= limit {
+                return Err(format!(
+                    "{} holds more than {limit} files and is not a git repository, so the \
+                     agent cannot track its changes. Open the project's own folder, or make \
+                     this one a repository (git init, with a .gitignore for build output).",
+                    root.display()
+                ));
+            }
             let path = root.join(&rel);
             let size = path.metadata().map_or(u64::MAX, |m| m.len());
             if size > FILE_LIMIT || total + size > TOTAL_LIMIT || files.len() >= COUNT_LIMIT {
@@ -154,8 +189,8 @@ impl Snapshot {
     pub fn changed_paths(&self) -> Result<Vec<PathBuf>, String> {
         let mut candidates: BTreeSet<PathBuf> = self.accepted.keys().cloned().collect();
         match &self.kind {
-            Kind::Git { repo, tree, .. } => {
-                let current = write_tree(repo)?;
+            Kind::Git { repo, tree, prefix } => {
+                let current = write_tree(repo, prefix, GIT_TIMEOUT)?;
                 let output = git(repo)
                     .current_dir(&self.root)
                     .args(["diff", "--name-only", "-z", "--no-renames", "--relative"])
@@ -226,10 +261,76 @@ fn git_path(path: &Path) -> String {
         .join("/")
 }
 
-/// The whole working tree (tracked and untracked, ignored files left out)
-/// as a tree object, through a throwaway copy of the index.
-fn write_tree(repo: &Path) -> Result<String, String> {
-    let git_dir = crate::fsutil::git_dir(repo).ok_or("not a git repository")?;
+/// Why a git step failed.
+#[derive(Debug)]
+enum GitError {
+    Failed(String),
+    /// Stopped after the timeout; says what to do.
+    TimedOut(String),
+}
+
+impl From<GitError> for String {
+    fn from(error: GitError) -> Self {
+        match error {
+            GitError::Failed(e) | GitError::TimedOut(e) => e,
+        }
+    }
+}
+
+/// Runs `command` to the end, or kills it after `timeout` (`None`). The
+/// output is read on threads, so a full pipe never stalls git.
+fn output_within(mut command: Command, timeout: Duration) -> std::io::Result<Option<Output>> {
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let (tx, rx) = mpsc::channel();
+    let drain = |pipe: Option<Box<dyn Read + std::marker::Send>>, err: bool| {
+        let tx = tx.clone();
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            if let Some(mut pipe) = pipe {
+                let _ = pipe.read_to_end(&mut bytes);
+            }
+            let _ = tx.send((err, bytes));
+        });
+    };
+    drain(child.stdout.take().map(|p| Box::new(p) as _), false);
+    drain(child.stderr.take().map(|p| Box::new(p) as _), true);
+    let deadline = Instant::now() + timeout;
+    let status = loop {
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Ok(None);
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    let (mut stdout, mut stderr) = (Vec::new(), Vec::new());
+    // A process git left behind may hold a pipe open: don't wait on it.
+    for _ in 0..2 {
+        match rx.recv_timeout(Duration::from_secs(1)) {
+            Ok((false, bytes)) => stdout = bytes,
+            Ok((true, bytes)) => stderr = bytes,
+            Err(_) => break,
+        }
+    }
+    Ok(Some(Output {
+        status,
+        stdout,
+        stderr,
+    }))
+}
+
+/// The working tree (tracked and untracked, ignored files left out) as a
+/// tree object, through a throwaway copy of the index. Only `prefix` (the
+/// project inside the repository) is re-read; the rest is as in the index.
+fn write_tree(repo: &Path, prefix: &Path, timeout: Duration) -> Result<String, GitError> {
+    let git_dir = crate::fsutil::git_dir(repo)
+        .ok_or_else(|| GitError::Failed("not a git repository".into()))?;
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos());
@@ -237,25 +338,41 @@ fn write_tree(repo: &Path) -> Result<String, String> {
         std::env::temp_dir().join(format!("ferrum-agent-index-{}-{stamp}", std::process::id()));
     // The real index's stat cache saves rehashing unchanged files.
     if git_dir.join("index").is_file() {
-        std::fs::copy(git_dir.join("index"), &index).map_err(|e| e.to_string())?;
+        std::fs::copy(git_dir.join("index"), &index)
+            .map_err(|e| GitError::Failed(e.to_string()))?;
     }
-    let run = |args: &[&str]| -> Result<String, String> {
-        let output = git(repo)
-            .env("GIT_INDEX_FILE", &index)
-            .args(args)
-            .output()
-            .map_err(|e| format!("git: {e}"))?;
+    let deadline = Instant::now() + timeout;
+    let run = |args: &[&str]| -> Result<String, GitError> {
+        let mut command = git(repo);
+        command.env("GIT_INDEX_FILE", &index).args(args);
+        let left = deadline.saturating_duration_since(Instant::now());
+        let output = output_within(command, left)
+            .map_err(|e| GitError::Failed(format!("git: {e}")))?
+            .ok_or_else(|| {
+                GitError::TimedOut(format!(
+                    "Taking a git snapshot of {} took over {} s, so it was stopped. Large \
+                     untracked folders (build output, data, dependencies) are the usual \
+                     cause: add them to .gitignore, then try again.",
+                    repo.join(prefix).display(),
+                    timeout.as_secs()
+                ))
+            })?;
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
         } else {
-            Err(format!(
+            Err(GitError::Failed(format!(
                 "git {}: {}",
                 args.join(" "),
                 String::from_utf8_lossy(&output.stderr).trim()
-            ))
+            )))
         }
     };
-    let result = run(&["add", "-A", "--", "."]).and_then(|_| run(&["write-tree"]));
+    let pathspec = if prefix.as_os_str().is_empty() {
+        ".".to_string()
+    } else {
+        format!(":(literal){}", git_path(prefix))
+    };
+    let result = run(&["add", "-A", "--", &pathspec]).and_then(|_| run(&["write-tree"]));
     std::fs::remove_file(&index).ok();
     std::fs::remove_file(index.with_extension("lock")).ok();
     result
@@ -385,5 +502,56 @@ pub(crate) mod tests {
             snap.changed_paths().expect("scan"),
             [PathBuf::from("b.txt")]
         );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_command_that_never_ends_is_stopped() {
+        let mut command = Command::new("sleep");
+        command.arg("30");
+        let started = Instant::now();
+        let output = output_within(command, Duration::from_millis(200)).expect("spawn");
+        assert!(output.is_none(), "timed out");
+        assert!(started.elapsed() < Duration::from_secs(5));
+
+        let mut command = Command::new("echo");
+        command.arg("hi");
+        let output = output_within(command, Duration::from_secs(10))
+            .expect("spawn")
+            .expect("finished");
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"hi\n");
+    }
+
+    /// A git snapshot that takes too long (a big untracked folder) fails
+    /// with what to do instead of blocking the chat's opening for good.
+    #[test]
+    fn a_slow_git_snapshot_fails_with_what_to_do() {
+        if !have_git() {
+            return;
+        }
+        let dir = repo();
+        let error = Snapshot::take_within(dir.path(), Duration::ZERO).expect_err("timed out");
+        assert!(error.contains("took over"), "{error}");
+        assert!(error.contains(".gitignore"), "{error}");
+        // Nothing is left behind in the repository.
+        let status = Command::new("git")
+            .args(["status", "--porcelain"])
+            .current_dir(dir.path())
+            .output()
+            .expect("status");
+        assert!(status.status.success());
+    }
+
+    #[test]
+    fn a_huge_folder_without_git_fails_with_what_to_do() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        for i in 0..5 {
+            std::fs::write(dir.path().join(format!("{i}.txt")), "x\n").expect("write");
+        }
+        let error = Snapshot::take_files_within(dir.path(), 3).expect_err("too big");
+        assert!(error.contains("more than 3 files"), "{error}");
+        assert!(error.contains("git init"), "{error}");
+        assert!(Snapshot::take_files_within(dir.path(), 5).is_ok());
     }
 }

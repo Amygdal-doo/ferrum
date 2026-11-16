@@ -98,7 +98,13 @@ pub struct ChatView {
     pub(crate) visible: bool,
     pub(crate) window_active: bool,
     pub(crate) notifier: crate::Notifier,
+    /// Why the session did not open (see `opening`).
     pub(crate) load_error: Option<String>,
+    pub(crate) opener: crate::opening::Opener,
+    /// The configuration the session opens with (kept for Try again).
+    pub(crate) open_config: SessionConfig,
+    /// Counts opens: only the latest one's answer is shown.
+    pub(crate) open_attempt: u64,
     pub(crate) thread: Thread,
     pub(crate) busy: bool,
     pub(crate) queue: Vec<String>,
@@ -166,6 +172,22 @@ impl ChatView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        Self::build_with(
+            project,
+            options,
+            crate::opening::default_opener(),
+            window,
+            cx,
+        )
+    }
+
+    pub(crate) fn build_with(
+        project: PathBuf,
+        options: ChatOptions,
+        opener: crate::opening::Opener,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let composer = cx.new(|cx| {
             TextInput::new(window, cx)
                 .multiline(2)
@@ -195,31 +217,10 @@ impl ChatView {
         }
         let mut thread = Thread::new(project.clone(), "", config.mode);
         thread.title = "Starting…".into();
-        let open = cx.background_spawn(async move { ChatSession::new(config) });
-        let load = cx.spawn(async move |this, cx| {
-            let result = open.await;
-            this.update(cx, |this, cx| {
-                match result {
-                    Ok((session, rx)) => {
-                        this.serial = this.listen(rx, cx);
-                        this.thread = session.thread();
-                        this.threads = session.threads();
-                        this.session = Some(session);
-                        if let Some(request) = this.pending.take() {
-                            this.host_request(request, cx);
-                        }
-                        this.refresh_changes(cx);
-                    }
-                    Err(error) => this.load_error = Some(error),
-                }
-                cx.notify();
-            })
-            .ok();
-        });
         let activation = cx.observe_window_activation(window, |this, window, cx| {
             this.window_activated(window.is_window_active(), cx);
         });
-        Self {
+        let mut this = Self {
             project,
             shell,
             header_lights: false,
@@ -235,6 +236,9 @@ impl ChatView {
             window_active: window.is_window_active(),
             notifier: options_notifier,
             load_error: None,
+            opener,
+            open_config: config,
+            open_attempt: 0,
             thread,
             busy: false,
             queue: Vec::new(),
@@ -265,9 +269,11 @@ impl ChatView {
             send_after_switch: None,
             all_changed_files: false,
             placeholder_empty: Some(true),
-            tasks: vec![load],
+            tasks: Vec::new(),
             _subscriptions: vec![subscription, activation],
-        }
+        };
+        this.open_session(cx);
+        this
     }
 
     /// The session, once open.
@@ -599,18 +605,8 @@ impl ChatView {
 impl Render for ChatView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let colors = cx.theme().colors().clone();
-        let body = if let Some(error) = &self.load_error {
-            v_flex()
-                .flex_1()
-                .p_4()
-                .gap_2()
-                .child(Label::new("FerrumChat could not start").color(Color::Error))
-                .child(
-                    Label::new(error.clone())
-                        .size(LabelSize::Small)
-                        .color(Color::Muted),
-                )
-                .into_any_element()
+        let body = if let Some(error) = self.load_error.clone() {
+            self.render_load_error(&error, cx)
         } else if self.show_threads && !self.shell {
             self.render_threads(window, cx).into_any_element()
         } else {

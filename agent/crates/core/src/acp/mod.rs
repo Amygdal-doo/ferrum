@@ -17,6 +17,7 @@ pub mod bridge;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -27,6 +28,11 @@ use crate::provider::StopReason;
 pub use bridge::{AcpBridge, map_update};
 
 pub const PROTOCOL_VERSION: u64 = 1;
+
+/// How long an agent gets to start and open a session. A first run
+/// downloads it with npx, which can be slow; one that never answers (it
+/// waits for a sign-in, say) is stopped rather than left spinning.
+pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(120);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AcpAgentConfig {
@@ -157,6 +163,27 @@ impl AcpClient {
         resume: Option<&str>,
         path_env: Option<&str>,
     ) -> Result<Self, String> {
+        Self::start_within(
+            agent,
+            cwd,
+            bridge,
+            mcp_servers,
+            resume,
+            path_env,
+            HANDSHAKE_TIMEOUT,
+        )
+        .await
+    }
+
+    async fn start_within(
+        agent: &AcpAgentConfig,
+        cwd: &Path,
+        bridge: Arc<AcpBridge>,
+        mcp_servers: impl Fn(bool) -> Vec<Value>,
+        resume: Option<&str>,
+        path_env: Option<&str>,
+        timeout: Duration,
+    ) -> Result<Self, String> {
         let mut env = agent.env.clone();
         if let Some(path) = path_env {
             env.entry("PATH".into()).or_insert_with(|| path.into());
@@ -167,7 +194,18 @@ impl AcpClient {
                 .unwrap_or_else(|| agent.command.clone()),
             None => agent.command.clone(),
         };
-        let process = RpcProcess::spawn(&command, &agent.args, &env, cwd, bridge.clone())?;
+        let process = RpcProcess::spawn(&command, &agent.args, &env, cwd, bridge.clone()).map_err(
+            |error| {
+                let search = path_env
+                    .map(str::to_string)
+                    .or_else(|| std::env::var("PATH").ok())
+                    .unwrap_or_default();
+                match find_program(&agent.command, &search) {
+                    Some(_) => error,
+                    None => not_installed(agent),
+                }
+            },
+        )?;
         let failed = |e: crate::jsonrpc::RpcError, process: &RpcProcess| {
             let tail = process.stderr_tail();
             if tail.is_empty() {
@@ -176,54 +214,82 @@ impl AcpClient {
                 format!("{}: {e}\n{tail}", agent.name)
             }
         };
-        let init = process
-            .connection
-            .request(
-                "initialize",
-                json!({
-                    "protocolVersion": PROTOCOL_VERSION,
-                    "clientCapabilities": {
-                        "fs": {"readTextFile": true, "writeTextFile": true},
-                        "terminal": true,
-                    },
-                    "clientInfo": {"name": "ferrum-chat", "title": "FerrumChat", "version": env!("CARGO_PKG_VERSION")},
-                }),
-            )
-            .await
-            .map_err(|e| failed(e, &process))?;
-        let caps = &init["agentCapabilities"];
-        let load_session = caps["loadSession"].as_bool().unwrap_or(false);
-        let http = caps["mcpCapabilities"]["http"].as_bool().unwrap_or(false);
-        let cwd_text = cwd.to_string_lossy().to_string();
-        let servers = mcp_servers(http);
-        let (session_id, session) = match resume.filter(|_| load_session) {
-            Some(id) => {
-                let result = process
-                    .connection
-                    .request(
-                        "session/load",
-                        json!({"sessionId": id, "cwd": cwd_text, "mcpServers": servers}),
-                    )
-                    .await
-                    .map_err(|e| failed(e, &process))?;
-                (id.to_string(), result)
-            }
-            None => {
-                let result = process
-                    .connection
-                    .request(
-                        "session/new",
-                        json!({"cwd": cwd_text, "mcpServers": servers}),
-                    )
-                    .await
-                    .map_err(|e| failed(e, &process))?;
-                let id = result["sessionId"]
-                    .as_str()
-                    .ok_or_else(|| format!("{}: session/new returned no sessionId", agent.name))?
-                    .to_string();
-                (id, result)
-            }
+        let client_info = json!({"name": "ferrum-chat", "title": "FerrumChat", "version": env!("CARGO_PKG_VERSION")});
+        let handshake = async {
+            let init = process
+                .connection
+                .request(
+                    "initialize",
+                    json!({
+                        "protocolVersion": PROTOCOL_VERSION,
+                        "clientCapabilities": {
+                            "fs": {"readTextFile": true, "writeTextFile": true},
+                            "terminal": true,
+                        },
+                        "clientInfo": client_info,
+                    }),
+                )
+                .await
+                .map_err(|e| failed(e, &process))?;
+            let caps = &init["agentCapabilities"];
+            let load_session = caps["loadSession"].as_bool().unwrap_or(false);
+            let http = caps["mcpCapabilities"]["http"].as_bool().unwrap_or(false);
+            let cwd_text = cwd.to_string_lossy().to_string();
+            let servers = mcp_servers(http);
+            let (session_id, session) = match resume.filter(|_| load_session) {
+                Some(id) => {
+                    let result = process
+                        .connection
+                        .request(
+                            "session/load",
+                            json!({"sessionId": id, "cwd": cwd_text, "mcpServers": servers}),
+                        )
+                        .await
+                        .map_err(|e| failed(e, &process))?;
+                    (id.to_string(), result)
+                }
+                None => {
+                    let result = process
+                        .connection
+                        .request(
+                            "session/new",
+                            json!({"cwd": cwd_text, "mcpServers": servers}),
+                        )
+                        .await
+                        .map_err(|e| failed(e, &process))?;
+                    let id = result["sessionId"]
+                        .as_str()
+                        .ok_or_else(|| {
+                            format!("{}: session/new returned no sessionId", agent.name)
+                        })?
+                        .to_string();
+                    (id, result)
+                }
+            };
+            Ok::<_, String>((init, load_session, session_id, session))
         };
+        let (init, load_session, session_id, session) =
+            match tokio::time::timeout(timeout, handshake).await {
+                Ok(result) => result?,
+                Err(_) => {
+                    process.kill().await;
+                    let tail = process.stderr_tail();
+                    let line = std::iter::once(agent.command.as_str())
+                        .chain(agent.args.iter().map(String::as_str))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    let mut error = format!(
+                        "{} did not answer within {} s, so it was stopped. Check that `{line}` \
+                         runs in a terminal (it may ask you to sign in first), then try again.",
+                        agent.name,
+                        timeout.as_secs()
+                    );
+                    if !tail.is_empty() {
+                        error = format!("{error}\n{tail}");
+                    }
+                    return Err(error);
+                }
+            };
         bridge.set_session(&session_id);
         let modes = session["modes"]["availableModes"]
             .as_array()
@@ -328,6 +394,20 @@ impl AcpClient {
     }
 }
 
+/// Why `agent` could not start when its command is not found.
+fn not_installed(agent: &AcpAgentConfig) -> String {
+    let install = if agent.command == "npx" {
+        "Install Node.js (it provides npx)".to_string()
+    } else {
+        format!("Install {}", agent.command)
+    };
+    format!(
+        "{} isn't installed: `{}` was not found. {install}, or set the agent's command in \
+         ~/.ferrum/agent/agents.json, then try again.",
+        agent.name, agent.command
+    )
+}
+
 /// `program` on `path_env` (as given when it has a separator).
 pub fn find_program(program: &str, path_env: &str) -> Option<std::path::PathBuf> {
     let candidate = Path::new(program);
@@ -377,5 +457,81 @@ mod tests {
         assert!(agents[0].args.is_empty());
         assert_eq!(agents[0].env["X"], "1");
         assert_eq!(agents[2].name, "OpenCode");
+    }
+
+    fn agent(name: &str, command: &str, args: &[&str]) -> AcpAgentConfig {
+        AcpAgentConfig {
+            id: "test".into(),
+            name: name.into(),
+            command: command.into(),
+            args: args.iter().map(|a| a.to_string()).collect(),
+            env: BTreeMap::new(),
+        }
+    }
+
+    /// Starts `agent` in a scratch project with the given handshake timeout.
+    fn start(agent: &AcpAgentConfig, timeout: Duration) -> Result<AcpClient, String> {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let sandbox = crate::tools::Sandbox::new(dir.path()).expect("sandbox");
+        let snapshot = crate::snapshot::Snapshot::take_files(dir.path()).expect("snapshot");
+        let bridge = AcpBridge::new(bridge::BridgeConfig {
+            agent_id: agent.id.clone(),
+            sandbox,
+            changes: Arc::new(Mutex::new(crate::changeset::ChangeSet::new(snapshot))),
+            emit: Arc::new(|_| {}),
+            changes_updated: Arc::new(|| {}),
+            broker: Arc::new(crate::permissions::FixedBroker(
+                crate::permissions::Decision::Deny,
+            )),
+            permissions: Arc::default(),
+            mode: Arc::new(Mutex::new(Mode::Agent)),
+        });
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(AcpClient::start_within(
+            agent,
+            dir.path(),
+            bridge,
+            |_| Vec::new(),
+            None,
+            None,
+            timeout,
+        ))
+    }
+
+    #[test]
+    fn a_missing_agent_says_it_is_not_installed() {
+        let error = start(
+            &agent("Claude Code", "ferrum-no-such-agent", &[]),
+            Duration::from_secs(5),
+        )
+        .err()
+        .expect("not installed");
+        assert!(
+            error.starts_with("Claude Code isn't installed: `ferrum-no-such-agent`"),
+            "{error}"
+        );
+        assert!(error.contains("agents.json"), "{error}");
+        assert!(not_installed(&agent("Codex", "npx", &[])).contains("Install Node.js"));
+    }
+
+    /// An agent that starts but never answers `initialize` is stopped
+    /// after the timeout instead of keeping the turn spinning.
+    #[cfg(unix)]
+    #[test]
+    fn an_agent_that_never_answers_is_stopped() {
+        let started = std::time::Instant::now();
+        let error = start(
+            &agent("Sleepy", "sleep", &["600"]),
+            Duration::from_millis(300),
+        )
+        .err()
+        .expect("timed out");
+        assert!(started.elapsed() < Duration::from_secs(10));
+        assert!(error.starts_with("Sleepy did not answer within"), "{error}");
+        assert!(error.contains("`sleep 600`"), "{error}");
     }
 }

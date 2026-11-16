@@ -541,3 +541,79 @@ fn failed_turns_notify_as_their_own_event() {
     assert_eq!(ferrum_ui::notify::sound_for(crate::NEEDS_YOU_EVENT), "Ping");
     assert_eq!(ferrum_ui::notify::sound_for(crate::DONE_EVENT), "Glass");
 }
+
+/// The "Opening project" spinner always ends: an open that never answers
+/// (a git snapshot stuck on a huge untracked folder) turns into an error
+/// that says what to do, and Try again opens the chat.
+#[gpui::test]
+fn an_open_that_never_answers_ends_in_an_error(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        ferrum_ui::init_for_tests(cx);
+        crate::init(cx);
+    });
+    let project = tempfile::tempdir().expect("tempdir");
+    let home = tempfile::tempdir().expect("tempdir");
+    let root = project.path().canonicalize().expect("canonical");
+    let options = ChatOptions {
+        config: Some(SessionConfig::isolated(&root, home.path())),
+        ..Default::default()
+    };
+    let opens = Rc::new(std::cell::Cell::new(0));
+    let opener: crate::opening::Opener = Rc::new({
+        let opens = opens.clone();
+        move |config| {
+            opens.set(opens.get() + 1);
+            if opens.get() == 1 {
+                Box::pin(futures::future::pending())
+            } else {
+                (crate::opening::default_opener())(config)
+            }
+        }
+    });
+    let (view, cx) = cx.add_window_view(|window, cx| {
+        ChatView::build_with(root.clone(), options, opener, window, cx)
+    });
+    cx.run_until_parked();
+    assert!(read(&view, cx, |v| v.session().is_none()
+        && v.load_error.is_none()));
+
+    cx.executor()
+        .advance_clock(crate::opening::OPEN_TIMEOUT + Duration::from_secs(1));
+    cx.run_until_parked();
+    let error = read(&view, cx, |v| v.load_error.clone()).expect("an error, not a spinner");
+    assert!(error.contains(".gitignore"), "{error}");
+    cx.update(|window, _| window.refresh());
+    cx.run_until_parked();
+
+    view.update(cx, |v, cx| v.open_session(cx));
+    wait_until(cx, "the session", |cx| {
+        read(&view, cx, |v| v.session().is_some())
+    });
+    assert_eq!(read(&view, cx, |v| v.load_error.clone()), None);
+    assert_eq!(opens.get(), 2);
+}
+
+/// A project folder that is gone: an error with the path, not a spinner.
+#[gpui::test]
+fn a_missing_project_folder_is_an_error(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    cx.update(|cx| {
+        ferrum_ui::init_for_tests(cx);
+        crate::init(cx);
+    });
+    let home = tempfile::tempdir().expect("tempdir");
+    let root = home.path().join("gone");
+    let options = ChatOptions {
+        config: Some(SessionConfig::isolated(&root, home.path())),
+        ..Default::default()
+    };
+    let (view, cx) =
+        cx.add_window_view(|window, cx| ChatView::build(root.clone(), options, window, cx));
+    wait_until(cx, "the error", |cx| {
+        read(&view, cx, |v| v.load_error.is_some())
+    });
+    let error = read(&view, cx, |v| v.load_error.clone()).unwrap_or_default();
+    assert!(error.contains("gone"), "{error}");
+    assert!(read(&view, cx, |v| v.session().is_none()));
+}

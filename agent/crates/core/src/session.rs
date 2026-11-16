@@ -103,6 +103,7 @@ pub enum SessionEvent {
     ThreadsChanged,
 }
 
+#[derive(Clone)]
 pub struct SessionConfig {
     pub project: PathBuf,
     /// `~/.ferrum/agent` (settings, permissions, MCP config, threads).
