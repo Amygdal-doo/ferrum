@@ -550,6 +550,12 @@ impl Render for TermView {
             .when_some(self.incompatible.clone(), |area, why| {
                 area.child(self.render_incompatible(why, cx))
             })
+            .when_some(
+                self.stale_server
+                    .clone()
+                    .and_then(|stale| self.render_stale_server(stale, cx)),
+                ParentElement::child,
+            )
             .when(compact && sidebar_open, |area| {
                 area.child(self.sidebar_overlay(cx))
             });

@@ -74,6 +74,11 @@ impl FerrumEngineer {
             page = page.child(
                 row(("usage-thread", i), cx)
                     .cursor_pointer()
+                    .child(ferrumagent_ui::thread_logo(
+                        &entry.thread.agent,
+                        px(16.),
+                        cx,
+                    ))
                     .child(two_lines(
                         entry.thread.title.clone(),
                         project::project_name(&entry.project),

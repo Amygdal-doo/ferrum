@@ -3,15 +3,17 @@
 //! the transient message strip. Its public, embeddable API is in `api`.
 
 mod api;
+mod drag_scroll;
 mod ime;
 mod render;
+mod stale_server;
 
 use crate::app::{App, UiEvent};
 use crate::events::TermViewEvent;
 use crate::input::{self, Action, Shortcut};
 use crate::options::TermViewOptions;
 use crate::paint::CellMetrics;
-use crate::selection::{Cell, Selection, cell_at};
+use crate::selection::{Cell, SeenLines, Selection, cell_at};
 use ferrum_ui::TextInput;
 use ferrum_ui::gpui::{
     self, Bounds, ClipboardItem, Context, Entity, EventEmitter, FocusHandle, Focusable,
@@ -54,10 +56,19 @@ pub struct TermView {
     /// Text under the selection when the drag ended (what ⌘C copies).
     selection_text: Option<String>,
     selecting: bool,
+    /// Lines of the selected pane seen during the drag (copied on mouse-up).
+    seen: SeenLines,
+    /// Last pointer position of a selection drag, in window px.
+    drag_pointer: Option<(f32, f32)>,
+    /// The drag-autoscroll timer is running (see `drag_scroll`).
+    drag_scrolling: bool,
+    _drag_scroll: Option<Task<()>>,
     /// Blink phase of the focused pane's cursor (see `settings::Blink`).
     pub(crate) cursor_on: bool,
     /// Why the shared server can't be used (an older build is running).
     pub(crate) incompatible: Option<String>,
+    /// The shared server is older than this app (non-blocking notice).
+    pub(crate) stale_server: Option<stale_server::StaleServer>,
     /// What the sidebar's inline field does on Enter.
     pub(crate) prompt: crate::sidebar::Prompt,
     /// Terminal to put into the folder the "New folder…" prompt creates.
@@ -133,8 +144,13 @@ impl TermView {
             selection: None,
             selection_text: None,
             selecting: false,
+            seen: SeenLines::default(),
+            drag_pointer: None,
+            drag_scrolling: false,
+            _drag_scroll: None,
             cursor_on: true,
             incompatible: None,
+            stale_server: None,
             prompt: crate::sidebar::Prompt::default(),
             pending_folder_item: None,
             font_key: None,
@@ -154,6 +170,9 @@ impl TermView {
                 {
                     self.app.folders.save();
                 }
+                self.stale_server = (backend == crate::Backend::Server)
+                    .then(|| stale_server::StaleServer::check(&client))
+                    .flatten();
                 self.app.client = Some(client);
                 self.app.backend = Some(backend);
                 self.app.subscribed.clear();
@@ -187,6 +206,7 @@ impl TermView {
                 };
                 self.app.on_event(event);
                 if let Some(block) = frame {
+                    self.on_drag_frame(block);
                     self.focused_frame(block, cx);
                     cx.notify();
                     return;
@@ -200,6 +220,7 @@ impl TermView {
             }
             UiEvent::Disconnected(why) => {
                 self.incompatible = None;
+                self.stale_server = None;
                 self.app.client = None;
                 self.app.notify(format!("{why} — retrying…"));
                 self.app.connect(Duration::from_secs(2));
@@ -411,6 +432,11 @@ impl TermView {
             .map(|(block, cell)| Selection::new(block, cell));
         self.selection_text = None;
         self.selecting = self.selection.is_some();
+        self.seen.clear();
+        self.drag_pointer = Some((x, y));
+        if let Some(block) = self.selection.as_ref().map(|s| s.block) {
+            self.on_drag_frame(block);
+        }
         self.after_change(cx);
     }
 
@@ -419,26 +445,34 @@ impl TermView {
         if !self.selecting || event.pressed_button != Some(MouseButton::Left) {
             return;
         }
-        let Some(block) = self.selection.as_ref().map(|s| s.block) else {
-            return;
-        };
         let (x, y) = (f32::from(event.position.x), f32::from(event.position.y));
-        if let Some((_, head)) = self.cell_under(x, y, Some(block))
-            && let Some(selection) = self.selection.as_mut()
-            && selection.head != head
-        {
-            selection.head = head;
+        self.drag_pointer = Some((x, y));
+        if self.drag_to(x, y) {
             cx.notify();
         }
+        self.maybe_start_drag_scroll(cx);
     }
 
     fn mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, cx: &mut Context<Self>) {
         if !std::mem::take(&mut self.selecting) {
             return;
         }
+        self.drag_pointer = None;
+        if let Some(frame) = self
+            .selection
+            .as_ref()
+            .and_then(|s| self.app.frames.get(&s.block))
+        {
+            self.seen.record(frame);
+        }
         match &self.selection {
             Some(s) if !s.is_empty() => {
-                self.selection_text = self.app.frames.get(&s.block).map(|f| s.text(f));
+                let seen = &self.seen;
+                self.selection_text = self
+                    .app
+                    .frames
+                    .get(&s.block)
+                    .map(|f| s.text_from(f.cols, |line| seen.get(line)));
                 if crate::settings::get().copy_on_select
                     && let Some(text) = &self.selection_text
                 {
@@ -468,18 +502,19 @@ impl TermView {
             f32::from(metrics.cell_width),
             f32::from(metrics.cell_height),
         );
-        Some((pane.0, cell))
+        let row = self.line_at(pane.0, cell.row);
+        Some((pane.0, Cell { row, ..cell }))
     }
 
     fn clear_selection(&mut self) {
         self.selection = None;
         self.selection_text = None;
         self.selecting = false;
+        self.drag_pointer = None;
+        self.seen.clear();
     }
 
     fn scroll_wheel(&mut self, event: &ScrollEvent, _: &mut Window, _: &mut Context<Self>) {
-        // The selection is in screen cells; scrolling would move the text under it.
-        self.clear_selection();
         let cell_height = self.metrics.map_or(px(16.), |metrics| metrics.cell_height);
         self.wheel += match event.delta {
             ScrollDelta::Lines(lines) => lines.y * 3.0,

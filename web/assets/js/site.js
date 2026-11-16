@@ -1,4 +1,4 @@
-// Theme toggle, copy buttons, the home wall's pause button and mobile nav. Vanilla, no dependencies; the page works without it.
+// Theme toggle, copy buttons, the home desk's dock and mobile nav. Vanilla, no dependencies; the page works without it.
 (function () {
   var root = document.documentElement;
   root.classList.add("js");
@@ -33,16 +33,67 @@
       });
     });
 
-    // Home wall of app windows: a pause button for the motion (WCAG 2.2.2).
-    Array.prototype.forEach.call(document.querySelectorAll("[data-wall]"), function (wall) {
-      var btn = wall.querySelector("[data-wall-pause]");
-      if (!btn) return;
-      btn.addEventListener("click", function () {
-        var paused = btn.getAttribute("aria-pressed") !== "true";
-        btn.setAttribute("aria-pressed", paused ? "true" : "false");
-        btn.textContent = paused ? "Play motion" : "Pause motion";
-        wall.classList.toggle("is-paused", paused);
+    // Home desk: dock buttons switch the one app window. It steps through the
+    // Apps group every 7s until someone uses the dock, pauses on hover or
+    // focus, and never moves under reduced motion. #app-<slug> opens an app.
+    Array.prototype.forEach.call(document.querySelectorAll("[data-desk]"), function (desk) {
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var title = desk.querySelector("[data-desk-title]");
+      var buttons = Array.prototype.slice.call(desk.querySelectorAll("[data-desk-show]"));
+      var panels = {}, captions = {};
+      Array.prototype.forEach.call(desk.querySelectorAll("[data-desk-app]"), function (el) { panels[el.getAttribute("data-desk-app")] = el; });
+      Array.prototype.forEach.call(desk.querySelectorAll("[data-desk-caption]"), function (el) { captions[el.getAttribute("data-desk-caption")] = el; });
+      // The auto tour covers the buttons before the divider: the Apps group.
+      var tour = [];
+      Array.prototype.some.call(desk.querySelectorAll(".appdock > li"), function (li) {
+        if (li.classList.contains("appdock__sep")) return true;
+        var b = li.querySelector("[data-desk-show]");
+        if (b) tour.push(b.getAttribute("data-desk-show"));
+        return false;
       });
+      var current = null;
+      buttons.forEach(function (b) { if (b.getAttribute("aria-pressed") === "true") current = b.getAttribute("data-desk-show"); });
+      var outTimer = null, outPanel = null;
+
+      function show(slug) {
+        var next = panels[slug];
+        if (!next || slug === current) return;
+        var prev = panels[current];
+        buttons.forEach(function (b) { b.setAttribute("aria-pressed", b.getAttribute("data-desk-show") === slug ? "true" : "false"); });
+        Object.keys(captions).forEach(function (k) { captions[k].hidden = k !== slug; });
+        if (title) title.textContent = next.getAttribute("data-name");
+        if (outPanel) { clearTimeout(outTimer); outPanel.classList.remove("is-out"); outPanel.hidden = true; outPanel = null; }
+        next.classList.remove("is-out");
+        next.hidden = false;
+        if (prev && !reduce) {
+          next.classList.remove("is-in"); void next.offsetWidth; next.classList.add("is-in");
+          prev.classList.remove("is-in"); prev.classList.add("is-out");
+          outPanel = prev;
+          outTimer = setTimeout(function () { prev.classList.remove("is-out"); prev.hidden = true; outPanel = null; }, 260);
+        } else if (prev) {
+          prev.hidden = true;
+        }
+        current = slug;
+      }
+
+      var timer = null, stopped = reduce, held = false;
+      function tick() {
+        if (stopped || held || document.hidden) return;
+        var i = tour.indexOf(current);
+        show(tour[(i + 1) % tour.length]);
+      }
+      function stop() { stopped = true; clearInterval(timer); }
+      if (!stopped && tour.length > 1) timer = setInterval(tick, 7000);
+      desk.addEventListener("mouseenter", function () { held = true; });
+      desk.addEventListener("mouseleave", function () { held = false; });
+      desk.addEventListener("focusin", function () { held = true; });
+      desk.addEventListener("focusout", function () { held = false; });
+
+      buttons.forEach(function (b) {
+        b.addEventListener("click", function () { stop(); show(b.getAttribute("data-desk-show")); });
+      });
+      var hash = location.hash.replace(/^#app-/, "");
+      if (hash !== location.hash && panels[hash]) { stop(); show(hash); }
     });
 
     // Mobile nav: toggles .is-open on the header; closes on Escape and link click.

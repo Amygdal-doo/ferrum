@@ -20,6 +20,8 @@ type Handler = Rc<dyn Fn(&mut Window, &mut App)>;
 struct Entry {
     label: SharedString,
     icon: Option<IconName>,
+    /// An agent's or model maker's logo, after the icon.
+    logo: Option<crate::AgentLogo>,
     toggle: Option<(bool, IconPosition)>,
     action: Option<Box<dyn Action>>,
     disabled: bool,
@@ -90,6 +92,7 @@ impl ContextMenu {
         self.push_entry(Entry {
             label: label.into(),
             icon: None,
+            logo: None,
             toggle: None,
             action,
             disabled: false,
@@ -107,6 +110,7 @@ impl ContextMenu {
         self.push_entry(Entry {
             label: label.into(),
             icon: Some(icon),
+            logo: None,
             toggle: None,
             action: None,
             disabled: false,
@@ -126,6 +130,7 @@ impl ContextMenu {
         self.push_entry(Entry {
             label: label.into(),
             icon: None,
+            logo: None,
             toggle: Some((toggled, position)),
             action,
             disabled: false,
@@ -133,11 +138,20 @@ impl ContextMenu {
         })
     }
 
+    /// Leads the entry added last with `logo` (an agent or model maker's).
+    pub fn with_logo(mut self, logo: Option<crate::AgentLogo>) -> Self {
+        if let Some(Item::Entry(entry)) = self.items.last_mut() {
+            entry.logo = logo;
+        }
+        self
+    }
+
     /// A greyed-out entry that cannot be chosen.
     pub fn disabled_entry(self, label: impl Into<SharedString>) -> Self {
         self.push_entry(Entry {
             label: label.into(),
             icon: None,
+            logo: None,
             toggle: None,
             action: None,
             disabled: true,
@@ -263,6 +277,7 @@ impl ContextMenu {
                     .icon
                     .map(|icon| Icon::new(icon).size(IconSize::Small).color(Color::Muted)),
             )
+            .children(entry.logo.map(|logo| crate::agent_logo(logo, px(14.), cx)))
             .child(
                 div()
                     .flex_1()

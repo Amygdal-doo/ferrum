@@ -2,8 +2,8 @@
    components.css; the features page and demo windows in features.css. */
 
 
-/* ---------- Home: hero over the wall of app windows ----------
-   The wall is the page's one bold element; everything after it is quiet. */
+/* ---------- Home: hero over a desktop with an app window and a dock ----------
+   The desk is the page's one bold element; everything after it is quiet. */
 .page-home .hero { padding-top: var(--sp-16); }
 .hero__head { display: grid; gap: var(--sp-6) var(--sp-12); align-items: end; }
 @media (min-width: 1000px) { .hero__head { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); } }
@@ -43,41 +43,81 @@
   100% { opacity: 1; transform: none; color: var(--text); text-shadow: none; }
 }
 
-/* The wall: two rows of live app windows drifting in opposite directions.
-   Each track holds its tiles twice; moving it by half its width (plus half a
-   gap) brings the second copy exactly where the first began. */
-.wall-wrap { --wall-gap: var(--sp-4); position: relative; }
-.wall {
-  display: grid; gap: var(--wall-gap); overflow: hidden; padding-block: var(--sp-12);
-  -webkit-mask-image: linear-gradient(90deg, transparent, var(--bg) 5%, var(--bg) 95%, transparent);
-  mask-image: linear-gradient(90deg, transparent, var(--bg) 5%, var(--bg) 95%, transparent);
+/* The desk: one app window on a quiet desktop, with a dock of every app.
+   Every app's panel sits in the same grid cell, so switching never moves the
+   page; site.js crossfades between them. The window's own bar names the app,
+   so the demos' bars are hidden here. */
+.desk {
+  margin-block: var(--sp-12); padding: clamp(var(--sp-4), 4vw, var(--sp-12)) clamp(var(--sp-3), 4vw, var(--sp-12)) var(--sp-4);
+  border: var(--rule); border-radius: var(--radius-lg); background: var(--bg-elev);
+  display: flex; flex-direction: column; align-items: center;
 }
-.wall__track { display: flex; gap: var(--wall-gap); width: max-content; animation: wall-left 150s linear infinite; }
-.wall__row--2 .wall__track { animation-name: wall-right; animation-duration: 170s; }
-/* Start the first row a little in, so the two rows don't line up. */
-.wall__row--1 { margin-left: -12rem; }
-@keyframes wall-left { from { transform: translateX(0); } to { transform: translateX(calc(-50% - var(--wall-gap) / 2)); } }
-@keyframes wall-right { from { transform: translateX(calc(-50% - var(--wall-gap) / 2)); } to { transform: translateX(0); } }
-.wall__tile { flex: none; width: clamp(19rem, 30vw, 31rem); display: flex; }
-.wall__tile .demo { flex: 1; min-width: 0; box-shadow: var(--shadow), 0 24px 50px -34px color-mix(in srgb, var(--app-accent) 70%, transparent); }
-.wall__tile .demo__body { min-height: 260px; }
-.wall:hover .wall__track,
-.wall-wrap.is-paused .wall__track,
-.wall-wrap.is-paused .demo *,
-.wall-wrap.is-paused .demo *::before,
-.wall-wrap.is-paused .demo *::after { animation-play-state: paused; }
-.wall__pause {
-  position: absolute; right: var(--gutter); bottom: var(--sp-2);
-  padding: var(--sp-1) var(--sp-3); border: var(--rule); border-radius: var(--radius);
-  background: var(--bg); color: var(--text-muted); font: 500 var(--fs-xs)/1.6 var(--font-sans); cursor: pointer;
+.desk__window {
+  width: 100%; max-width: 58rem; aspect-ratio: 16 / 9;
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--bg);
+  box-shadow: var(--shadow);
 }
-.wall__pause:hover { color: var(--text); border-color: var(--border-strong); }
-html:not(.js) .wall__pause { display: none; }
-@media (prefers-reduced-motion: reduce) { .wall__pause { display: none; } }
+.desk__bar {
+  display: flex; align-items: center; height: 34px; padding: 0 14px; flex: none;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.desk__title { flex: 1; margin-right: 42px; text-align: center; font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); }
+.desk__screen { flex: 1; min-height: 0; display: grid; }
+.desk__app { grid-area: 1 / 1; min-width: 0; min-height: 0; display: flex; }
+.desk__app[hidden] { display: none; }
+.desk__app .demo { flex: 1; min-width: 0; border: 0; border-radius: 0; box-shadow: none; }
+.desk__app .demo__bar { display: none; }
+.desk__app .demo__body { min-height: 0; }
+.desk__app.is-in { animation: desk-in 250ms var(--ease) both; }
+.desk__app.is-out { animation: desk-out 250ms var(--ease) both; pointer-events: none; }
+@keyframes desk-in { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes desk-out { from { opacity: 1; } to { opacity: 0; transform: scale(1.01); } }
+
+.desk__caption { margin: var(--sp-4) 0 0; max-width: 60rem; text-align: center; font-size: var(--fs-sm); color: var(--text-muted); }
+.desk__caption a { color: var(--text); font-weight: 600; white-space: nowrap; }
+
+/* The dock: logo tiles, a dot under the app on screen, a little lift on hover. */
+.appdock {
+  list-style: none; margin: var(--sp-6) 0 0; padding: 8px 10px 10px;
+  display: flex; align-items: flex-end; gap: 6px; max-width: 100%;
+  border: 1px solid var(--border); border-radius: 18px; background: var(--surface);
+}
+.appdock__item { flex: none; }
+.appdock__sep { flex: none; align-self: stretch; width: 1px; margin: 4px 6px; background: var(--border-strong); }
+.appdock__btn, .appdock__link {
+  position: relative; display: block; padding: 0 0 8px; border: 0; background: none; cursor: pointer;
+  transform-origin: 50% 100%; transition: transform var(--dur-fast) var(--ease);
+}
+.appdock__btn img, .appdock__link img { display: block; width: 52px; height: 52px; }
+.js .appdock__link, html:not(.js) .appdock__btn { display: none; }
+.appdock__btn::after {
+  content: ""; position: absolute; left: 50%; bottom: 1px; width: 4px; height: 4px; margin-left: -2px;
+  border-radius: 50%; background: var(--text); opacity: 0; transition: opacity var(--dur-fast) var(--ease);
+}
+.appdock__btn[aria-pressed="true"] { transform: translateY(-3px); }
+.appdock__btn[aria-pressed="true"]::after { opacity: 1; }
+.appdock__btn:focus-visible, .appdock__link:focus-visible { outline-offset: 2px; border-radius: 12px; }
+@media (hover: hover) {
+  .appdock__item:hover > * { transform: translateY(-4px) scale(1.14); }
+  .appdock__item:has(+ .appdock__item:hover) > *, .appdock__item:hover + .appdock__item > * { transform: translateY(-2px) scale(1.05); }
+}
+/* The name shows above the icon on hover or focus, like a dock tooltip. */
+.appdock__name {
+  position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
+  padding: 2px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--surface-2);
+  font: 600 var(--fs-xs)/1.6 var(--font-sans); color: var(--text); white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity var(--dur-fast) var(--ease);
+}
+.appdock__item:hover .appdock__name, .appdock__btn:focus-visible .appdock__name, .appdock__link:focus-visible .appdock__name { opacity: 1; }
+
 @media (max-width: 719px) {
-  .wall__tile { width: 18rem; }
-  .wall__tile .demo__body { min-height: 240px; }
-  .wall__row--1 { margin-left: -6rem; }
+  .desk { margin-block: var(--sp-8); }
+  .desk__window { aspect-ratio: 4 / 5; }
+  /* Two rows: the apps, then the tools. */
+  .appdock { flex-wrap: wrap; justify-content: center; gap: 4px 5px; padding: 8px 8px 6px; }
+  .appdock__sep { flex-basis: 100%; width: auto; height: 1px; margin: 2px 8px; align-self: auto; background: var(--border); }
+  .appdock__btn img, .appdock__link img { width: 36px; height: 36px; }
 }
 
 /* ---------- Home: an agent at work (FerrumEngineer) ---------- */

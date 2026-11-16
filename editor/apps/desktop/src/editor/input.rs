@@ -104,28 +104,86 @@ impl EditorView {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let (Some(drag), true) = (self.drag.clone(), event.dragging()) else {
+        if self.drag.is_none() || !event.dragging() {
             if event.pressed_button.is_none() {
                 let offset = self.text_offset_under(event.position);
                 self.hover_moved(offset, cx);
             }
             return;
+        }
+        self.drag_pointer = Some(event.position);
+        self.drag_select(event.position, cx);
+        self.maybe_start_drag_scroll(cx);
+    }
+
+    /// Lines to scroll while the dragging pointer is above (negative) or
+    /// below the text, from the shared autoscroll speed.
+    fn drag_scroll_lines(&self) -> i32 {
+        let (Some(_), Some(pointer), Some(layout)) =
+            (&self.drag, self.drag_pointer, self.last_layout.as_ref())
+        else {
+            return 0;
         };
-        let Some(layout) = self.last_layout.clone() else {
+        ferrum_ui::autoscroll::lines_per_tick(
+            ferrum_ui::autoscroll::overshoot(
+                f32::from(pointer.y),
+                f32::from(layout.bounds.top()),
+                f32::from(layout.bounds.bottom()),
+            ),
+            f32::from(layout.line_height),
+        )
+    }
+
+    /// Starts the edge autoscroll timer when the drag left the text
+    /// vertically; it stops when the pointer is back, the button is up, or
+    /// the scroll position stops moving (top / bottom reached).
+    fn maybe_start_drag_scroll(&mut self, cx: &mut Context<Self>) {
+        if self.drag_scroll.is_some() || self.drag_scroll_lines() == 0 {
+            return;
+        }
+        self.drag_scroll = Some(cx.spawn(async move |this, cx| {
+            let mut last = None;
+            loop {
+                cx.background_executor()
+                    .timer(ferrum_ui::autoscroll::INTERVAL)
+                    .await;
+                match this.update(cx, |view, cx| view.drag_scroll_tick(last, cx)) {
+                    Ok(Some(at)) => last = Some(at),
+                    _ => break,
+                }
+            }
+        }));
+    }
+
+    /// One timer step: scrolls and extends the selection. `last`: where the
+    /// previous step left the (clamped) scroll position; `None` ends the timer.
+    fn drag_scroll_tick(&mut self, last: Option<Pixels>, cx: &mut Context<Self>) -> Option<Pixels> {
+        let lines = self.drag_scroll_lines();
+        let (Some(pointer), Some(layout)) = (self.drag_pointer, self.last_layout.clone()) else {
+            self.drag_scroll = None;
+            return None;
+        };
+        // Prepaint clamps `scroll_y`: unchanged since the last step = at an end.
+        if lines == 0 || last == Some(layout.scroll_y) {
+            self.drag_scroll = None;
+            return None;
+        }
+        self.scroll_y = layout.scroll_y + layout.line_height * lines as f32;
+        self.drag_select(pointer, cx);
+        Some(layout.scroll_y)
+    }
+
+    /// Extends the drag's selection to `position` (clamped into the text).
+    fn drag_select(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
+        let (Some(drag), Some(layout)) = (self.drag.clone(), self.last_layout.clone()) else {
             return;
         };
-        // Dragging past the top / bottom edge scrolls.
-        if event.position.y < layout.bounds.top() {
-            self.scroll_y -= layout.line_height;
-        } else if event.position.y > layout.bounds.bottom() {
-            self.scroll_y += layout.line_height;
-        }
-        let offset = layout.offset_at(event.position, &self.state, &self.display_map);
+        let offset = layout.offset_at(position, &self.state, &self.display_map);
         let buffer = self.state.buffer();
         let selection = match drag.mode {
             DragMode::Column => {
                 if let Some(origin) = drag.column_origin {
-                    let head = layout.display_point_at(event.position);
+                    let head = layout.display_point_at(position);
                     self.state.column_select(origin, head, &self.display_map);
                 }
                 cx.notify();
@@ -159,6 +217,8 @@ impl EditorView {
 
     pub(super) fn on_mouse_up(&mut self, _: &MouseUpEvent, _: &mut Window, _: &mut Context<Self>) {
         self.drag = None;
+        self.drag_pointer = None;
+        self.drag_scroll = None;
     }
 
     pub(super) fn on_scroll(

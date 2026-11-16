@@ -7,6 +7,7 @@ use maud::{Markup, html};
 
 use super::feature_demos::window;
 use super::project_demos::project_strip;
+use crate::components::ai_logo;
 
 /// A column or pane header: title, a hint, and the close and ⋯ controls.
 fn header(class: &str, title: &str, hint: &str) -> Markup {
@@ -39,7 +40,7 @@ pub fn vibe() -> Markup {
                     p class="ax__tool" { span class="demo__check" { "✓" } " edit_file src/cart.ts" em { "+1 −1" } }
                     p class="ax__msg" { "cartTotal() now rounds. Run the tests?" }
                     p class="ax__run" { "Run in terminal" }
-                    p class="ax__mode" { "Agent · claude-sonnet-5-5" }
+                    p class="ax__mode" { "Agent · " (ai_logo::logo("Claude")) " claude-sonnet-5-5" }
                 }
                 div class="ax__col" {
                     (header("ax__head", "Git", "main"))

@@ -17,19 +17,20 @@ use crate::view::ChatView;
 /// The logo of a thread's agent (`provider/model` or `acp:<id>`).
 pub(crate) fn agent_logo(agent: &str) -> Option<ferrum_ui::AgentLogo> {
     match AgentChoice::parse(agent)? {
-        AgentChoice::Native { model, .. } => ferrum_ui::AgentLogo::for_model(&model),
-        AgentChoice::Acp { agent } => {
-            ferrum_ui::AgentLogo::for_program(agent.split(['-', ' ']).next().unwrap_or(&agent))
+        // The model's maker (a Qwen model on Ollama shows Qwen), else the
+        // provider's own logo.
+        AgentChoice::Native { provider, model } => {
+            ferrum_ui::AgentLogo::for_provider_model(&provider, &model)
         }
+        AgentChoice::Acp { agent } => ferrum_ui::AgentLogo::for_program(&agent).or_else(|| {
+            ferrum_ui::AgentLogo::for_program(agent.split(['-', ' ']).next().unwrap_or(&agent))
+        }),
     }
 }
 
 /// A thread's agent logo, or the plain `>_` tile.
 pub fn thread_logo(agent: &str, size: Pixels, cx: &App) -> AnyElement {
-    match agent_logo(agent) {
-        Some(logo) => ferrum_ui::agent_logo(logo, size, cx).into_any_element(),
-        None => ferrum_ui::terminal_tile(size, cx).into_any_element(),
-    }
+    ferrum_ui::agent_logo_or_tile(agent_logo(agent), size, cx)
 }
 
 /// The right-hand status mark: ⚠ Needs you, a blue dot for Done (red when
@@ -208,5 +209,29 @@ impl ChatView {
             }
         }
         list
+    }
+}
+
+#[cfg(test)]
+mod logo_tests {
+    use super::agent_logo;
+    use ferrum_ui::AgentLogo::*;
+
+    #[test]
+    fn threads_show_the_model_maker_or_the_agent() {
+        assert_eq!(agent_logo("anthropic/claude-sonnet-5-5"), Some(Claude));
+        assert_eq!(agent_logo("openai/gpt-5"), Some(OpenAi));
+        assert_eq!(agent_logo("openai/gpt-5-codex"), Some(Codex));
+        assert_eq!(agent_logo("ollama/qwen3-coder:30b"), Some(Qwen));
+        assert_eq!(agent_logo("ollama/deepseek-r1:14b"), Some(DeepSeek));
+        assert_eq!(agent_logo("ollama/my-finetune"), Some(Ollama));
+        assert_eq!(agent_logo("openrouter/moonshotai/kimi-k2"), Some(Kimi));
+        assert_eq!(agent_logo("openrouter/z-ai/glm-4.6"), Some(Glm));
+        assert_eq!(agent_logo("acp:claude-code"), Some(Claude));
+        assert_eq!(agent_logo("acp:codex"), Some(Codex));
+        assert_eq!(agent_logo("acp:gemini"), Some(Gemini));
+        assert_eq!(agent_logo("acp:qwen-code"), Some(Qwen));
+        assert_eq!(agent_logo("acp:my-agent"), None);
+        assert_eq!(agent_logo("garbage"), None);
     }
 }

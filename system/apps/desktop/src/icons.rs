@@ -48,16 +48,13 @@ pub fn tech_info(system: &System, id: &str) -> Option<(String, u32, String)> {
     })
 }
 
+/// The logo of a catalogue AI technology: a model maker or provider
+/// (`claude`, `openai`, `ollama`, `qwen`…) or a coding agent (`claude-code`).
 fn agent(id: &str) -> Option<AgentLogo> {
-    Some(match id {
-        "claude" | "claude-code" => AgentLogo::Claude,
-        "openai" => AgentLogo::Codex,
-        "gemini" => AgentLogo::Gemini,
-        "deepseek" => AgentLogo::DeepSeek,
-        "kimi" => AgentLogo::Kimi,
-        "muse" => AgentLogo::Muse,
-        _ => return None,
-    })
+    if !Tech::find(id).is_some_and(|t| t.category == Category::Ai) {
+        return None;
+    }
+    AgentLogo::for_provider(id).or_else(|| AgentLogo::for_program(id))
 }
 
 /// Glyph for a kind without a technology.
@@ -154,4 +151,24 @@ pub fn icon(
                 .color(Color::Muted),
         )
         .into_any_element()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::agent;
+    use ferrum_ui::AgentLogo;
+
+    #[test]
+    fn ai_technologies_show_their_logo() {
+        assert_eq!(agent("claude"), Some(AgentLogo::Claude));
+        assert_eq!(agent("claude-code"), Some(AgentLogo::Claude));
+        assert_eq!(agent("openai"), Some(AgentLogo::OpenAi));
+        assert_eq!(agent("ollama"), Some(AgentLogo::Ollama));
+        assert_eq!(agent("qwen"), Some(AgentLogo::Qwen));
+        assert_eq!(agent("glm"), Some(AgentLogo::Glm));
+        assert_eq!(agent("mistral"), Some(AgentLogo::Mistral));
+        assert_eq!(agent("muse"), Some(AgentLogo::Muse));
+        assert_eq!(agent("vllm"), None);
+        assert_eq!(agent("postgres"), None);
+    }
 }

@@ -76,6 +76,8 @@ pub struct Client {
     pending: Pending,
     next: Arc<AtomicU64>,
     pub endpoint: Endpoint,
+    /// What the server said about itself in its `Welcome`.
+    pub server: Option<ServerInfo>,
 }
 
 impl Client {
@@ -108,13 +110,19 @@ impl Client {
             Endpoint::Tcp { token, .. } => token.clone(),
             Endpoint::Unix(_) => None,
         };
-        client
+        let mut client = client;
+        let welcome = client
             .request(Request::Hello {
                 client: name.to_owned(),
                 token,
                 protocol: PROTOCOL_VERSION,
+                version: Some(ferrumterm_protocol::build_version().to_owned()),
+                revision: Some(ferrumterm_protocol::SERVER_REVISION),
             })
             .await?;
+        if let Response::Welcome { info } = welcome {
+            client.server = Some(info);
+        }
         Ok((client, events))
     }
 
@@ -158,6 +166,7 @@ impl Client {
                 pending,
                 next: Arc::new(AtomicU64::new(1)),
                 endpoint,
+                server: None,
             },
             ev_rx,
         )
@@ -192,6 +201,17 @@ impl Client {
             .map_err(|_| ClientError::Timeout(timeout))?
     }
 
+    /// How the server compares with this build (from its `Welcome`; a
+    /// server that sent none counts as older).
+    #[must_use]
+    pub fn server_age(&self) -> ferrumterm_protocol::ServerAge {
+        self.server
+            .as_ref()
+            .map_or(ferrumterm_protocol::ServerAge::Older, |i| {
+                ferrumterm_protocol::version::compare_with_this_build(&i.version, i.revision)
+            })
+    }
+
     pub async fn info(&self) -> Result<ServerInfo, ClientError> {
         match self.request(Request::ServerInfo).await? {
             Response::Info { info } => Ok(info),
@@ -200,8 +220,34 @@ impl Client {
     }
 }
 
+/// The `fterm` that starts servers for this app: the one next to the current
+/// executable (FerrumTerm.app ships both), else the installed FerrumTerm.app's
+/// (apps that embed terminals, like FerrumIDE, don't ship one), else `PATH`.
+#[must_use]
+pub fn fterm_binary() -> PathBuf {
+    let beside = std::env::current_exe()
+        .ok()
+        .and_then(|e| e.parent().map(|d| d.join("fterm")));
+    // Where the Ferrum installer and drag-installs put FerrumTerm.app.
+    const APP: &str = "FerrumTerm.app/Contents/MacOS/fterm";
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let installed = ["/Applications/Ferrum", "/Applications"]
+        .into_iter()
+        .map(PathBuf::from)
+        .chain(
+            home.iter()
+                .flat_map(|h| [h.join("Applications/Ferrum"), h.join("Applications")]),
+        )
+        .map(|dir| dir.join(APP));
+    beside
+        .into_iter()
+        .chain(installed)
+        .find(|p| p.is_file())
+        .unwrap_or_else(|| PathBuf::from("fterm"))
+}
+
 /// Connects to the local server, starting it with `fterm server start` when
-/// nothing is listening. `fterm` is looked up next to the current executable, then on `PATH`.
+/// nothing is listening (`fterm` from [`fterm_binary`]).
 pub async fn connect_or_start(
     socket: &Path,
     name: &str,
@@ -219,11 +265,7 @@ pub async fn connect_or_start(
         }
         Err(_) => {}
     }
-    let fterm = std::env::current_exe()
-        .ok()
-        .and_then(|e| e.parent().map(|d| d.join("fterm")))
-        .filter(|p| p.is_file())
-        .unwrap_or_else(|| PathBuf::from("fterm"));
+    let fterm = fterm_binary();
     let status = tokio::process::Command::new(&fterm)
         .args(["server", "start"])
         .stdin(std::process::Stdio::null())

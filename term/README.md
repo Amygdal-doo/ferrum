@@ -24,6 +24,32 @@ notifications. Quitting FerrumTerm doesn't stop the server either: only `fterm s
 (or logging out / rebooting) ends the terminals. You can reopen
 FerrumTerm, `fterm attach` over SSH, or reach the server from another Mac on your tailnet.
 
+**After an update the old server keeps running** (like tmux), so it runs the old build's code
+until restarted. Every server reports its build: the release version (`FERRUM_VERSION` at build
+time, else the crate version) and a *server revision* (`SERVER_REVISION` in
+`crates/protocol/src/version.rs`, bumped whenever server behaviour clients rely on changes, e.g.
+agent detection or notifications). Both are in the handshake (`Welcome`) and in
+`fterm server status`. Servers from before 0.12 report neither and count as older.
+- The FerrumTerm window and the embedded panes (FerrumIDE, FerrumEngineer) show a notice when
+  the shared server has a lower revision: *"The FerrumTerm server is older than this app (server
+  X, app Y). Agent status and some features need a restart."* **Restart now** first warns
+  *"Restarting ends the programs running in all terminals (N sessions, M terminals), in every app
+  using this server."*, then stops it and starts the current build (the `fterm` next to the app,
+  else the installed FerrumTerm.app's in `/Applications[/Ferrum]` or `~/Applications[/Ferrum]`,
+  else `PATH`) and reconnects.
+  **Later** hides it until the app quits. If the server is still older after a restart, the
+  notice says the `fterm` that starts it is out of date.
+- A server with the same revision but an older release version is not flagged in the apps (nothing
+  they need is missing); `fterm server status` mentions it.
+- `fterm server status` adds a line such as *"older than this fterm (0.12.0-alpha.1 (revision 1));
+  agent status and some features need a restart: run `fterm server restart`"*, and warns when the
+  LaunchAgent (`fterm server install`) starts a binary other than this `fterm`, or one that no
+  longer exists (re-run `fterm server install`). `--json` adds `age`, `fterm_version`,
+  `fterm_revision` and `launch_agent`.
+- `fterm server restart [--yes]` stops the server (even one too old to talk to) and starts this
+  `fterm`'s build with the same TCP listeners and keep-awake mode. It asks first, saying how many
+  sessions and terminals will end, unless `--yes` (required when stdin is not a terminal).
+
 **Agents with the display off:** while any block reports `working`, the server holds
 `caffeinate -i -s` (no idle sleep, and no system sleep on AC power), so agents keep
 working with the screen off or locked. *A MacBook with its lid closed still sleeps*
@@ -34,7 +60,7 @@ override that. Use `fterm awake always` to hold the assertion permanently.
 | Area | State |
 |------|-------|
 | Persistent server: sessions → windows (tabs) → split blocks, PTYs, 10k-line scrollback | ✅ tested |
-| `fterm server start` (detached, survives the terminal closing), `stop`, `status`, `logs`, `install` (LaunchAgent: start at login, restart on crash) | ✅ start/stop/status tested; LaunchAgent written but not installed in testing |
+| `fterm server start` (detached, survives the terminal closing), `stop`, `restart`, `status` (build, revision, older-than-this-fterm and stale LaunchAgent warnings), `logs`, `install` (LaunchAgent: start at login, restart on crash) | ✅ start/stop/status tested; LaunchAgent written but not installed in testing |
 | CLI like Rex's: `new ls run split window send send-key capture kill rename focus inspect wait status events awake`, `--json`, targets by id/name/label, `$FTERM_BLOCK` default | ✅ smoke-tested end to end |
 | Program status: OSC 7501 (Rex-compatible) or `fterm status`; shown in `ls`, tabs and attach; `wait --status`; macOS notifications on done/blocked/error | ✅ tested |
 | Keep-awake while agents work (`caffeinate`), `fterm awake auto/always/never` | ✅ implemented; manual check only |
@@ -56,7 +82,8 @@ override that. Use `fterm awake always` to hold the assertion permanently.
 | Shortcuts: ⌘T tab · ⌘N session · ⌘D / ⌘⇧D split · ⌘W close · ⌘[ ⌘] pane · ⌘⇧[ ⌘⇧] / ⌘1–9 tabs · ⌘⇧S next session · ⌘B sidebar · ⌘C copy selection · ⌘V · ⌘⇧C copy screen · ⌘= ⌘- ⌘0 | ⚠️ wired, not hand-tested |
 
 Protocol version 2 (forward requests): a server started by an older build refuses new clients
-with a "protocol mismatch" message; run `fterm server stop` once and it restarts on demand.
+with a "protocol mismatch" message; run `fterm server restart` (or `fterm server stop`, and it
+restarts on demand). Compatible but older servers are flagged by revision (see above).
 
 ## Not built yet
 Selection by word/line (double/triple click), selecting into scrollback, mouse reporting to programs, OSC 8 hyperlinks, ligatures,
@@ -172,7 +199,7 @@ term.read(cx).focus_active(window, cx);
 | `cwd` | `None` | Directory for the first session and for tabs / splits / commands opened without one |
 | `compact` | `false` (`embedded()`: `true`) | 12 pt font, 28 px tab bar, scrollable tabs, sidebar drawn *over* the terminal (closes when you pick something). Usable from 320 px wide |
 | `show_sidebar` | `true` (`embedded()`: `false`) | Sidebar (agents, sessions, SSH hosts, ports) open at start; ⌘B or the tab-bar button toggles it |
-| `attach_to_server` | `true` | Use the shared `fterm` server, starting it (`fterm server start`, `fterm` next to the host binary or on `PATH`) if needed, so terminals survive the host closing and show up in FerrumTerm / `fterm attach`. If it can't be reached or started, or with `false`, a **private server runs inside the host process** (same PTYs and features; terminals end with the host) |
+| `attach_to_server` | `true` | Use the shared `fterm` server, starting it (`fterm server start`, with the `fterm` next to the host binary, else FerrumTerm.app's, else on `PATH`) if needed, so terminals survive the host closing and show up in FerrumTerm / `fterm attach`. If it can't be reached or started, or with `false`, a **private server runs inside the host process** (same PTYs and features; terminals end with the host) |
 | `session_name` | `None` | Show this server session (created when missing) instead of the first one, so the host's terminals stay apart from FerrumTerm's own. Its events are filtered to that session |
 | `standalone` | `false` | The desktop window only: sets the window title, shows the project bar, takes focus, saves the sidebar's state (embedded views only save recent agent commands), and keeps retrying the shared server instead of falling back to a private one (as before) |
 

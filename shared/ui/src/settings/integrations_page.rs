@@ -2,7 +2,7 @@
 //! command-line tool, macOS permissions and config migration.
 
 use gpui::{
-    AnyElement, App, ClipboardItem, Hsla, IntoElement, ParentElement, Styled, Window,
+    AnyElement, App, ClipboardItem, Hsla, IntoElement, ParentElement, Styled, Window, div,
     prelude::FluentBuilder, px,
 };
 
@@ -51,15 +51,9 @@ impl SettingsPage for IntegrationsPage {
         let skill = integrations::skill_installed();
         let agent_icons = h_flex().gap_1().children(Agent::ALL.map(|agent| {
             let present = found.contains(&agent);
-            icon_tile(
-                agent.icon(),
-                if present {
-                    tint(agent.tint())
-                } else {
-                    tint(0x6b717d)
-                },
-                px(22.),
-            )
+            div()
+                .when(!present, |this| this.opacity(0.4))
+                .child(crate::agent_logo(agent.logo(), px(20.), cx))
         }));
         let found_names = if found.is_empty() {
             "No coding agent found on this Mac yet.".to_owned()
@@ -188,7 +182,7 @@ impl SettingsPage for IntegrationsPage {
                     } else {
                         "Not installed."
                     })
-                    .icon(icon_tile(agent.icon(), tint(agent.tint()), px(28.)))
+                    .icon(crate::agent_logo(agent.logo(), px(24.), cx))
                     .control(
                         Button::new(("migrate-start", agent as usize), "Start…")
                             .style(ButtonStyle::Subtle)

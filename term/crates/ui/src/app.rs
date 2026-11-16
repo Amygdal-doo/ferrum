@@ -214,12 +214,19 @@ impl App {
         });
     }
 
-    /// Stops an incompatible shared server, then connects again.
+    /// Stops the shared server (even one too old to talk to), then connects
+    /// again, which starts the current build (`ferrumterm_client::fterm_binary`).
     pub fn restart_server(&self) {
         let proxy = self.proxy.clone();
+        // While connected, losing the connection already reconnects.
+        let connected = self.client.is_some();
         self.rt.spawn(async move {
             let event = match connection::restart_shared().await {
+                Ok(()) if connected => UiEvent::Message("Restarting the FerrumTerm server…".into()),
                 Ok(()) => UiEvent::Disconnected("Restarting the FerrumTerm server".into()),
+                Err(e) if connected => {
+                    UiEvent::Message(format!("could not restart the server: {e}"))
+                }
                 Err(e) => UiEvent::Incompatible(format!("could not restart the server: {e}")),
             };
             let _ = proxy.unbounded_send(event);

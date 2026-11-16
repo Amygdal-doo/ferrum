@@ -73,7 +73,20 @@ where
                     "protocol mismatch: server {PROTOCOL_VERSION}, client {protocol}; restart the server (`fterm server stop`)"
                 ),
             },
-            Request::Hello { client, .. } => {
+            Request::Hello {
+                client,
+                version,
+                revision,
+                ..
+            } => {
+                if revision.is_some_and(|r| r > ferrumterm_protocol::SERVER_REVISION) {
+                    tracing::warn!(
+                        client,
+                        client_version = version.as_deref().unwrap_or("?"),
+                        server_version = ferrumterm_protocol::build_version(),
+                        "a newer client connected; restart the server to pick up its features"
+                    );
+                }
                 if client == ferrumterm_protocol::WINDOW_CLIENT && !window {
                     window = true;
                     server.windows.fetch_add(1, Ordering::Relaxed);

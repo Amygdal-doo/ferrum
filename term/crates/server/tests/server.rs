@@ -489,3 +489,30 @@ async fn forwards_run_stop_fail_and_refuse_taken_ports() {
     );
     drop(holder);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn welcome_reports_the_build_and_revision() {
+    let h = start(false).await;
+    let welcome = h.client.server.clone().expect("welcome info kept");
+    assert_eq!(welcome.version, ferrumterm_protocol::build_version());
+    assert_eq!(welcome.revision, ferrumterm_protocol::SERVER_REVISION);
+    assert_eq!(
+        h.client.server_age(),
+        ferrumterm_protocol::ServerAge::Current
+    );
+    let info = h.client.info().await.unwrap();
+    assert_eq!(info.revision, ferrumterm_protocol::SERVER_REVISION);
+    // A client from before the version fields still gets a welcome.
+    let old = h
+        .client
+        .request(Request::Hello {
+            client: "old".into(),
+            token: None,
+            protocol: ferrumterm_protocol::PROTOCOL_VERSION,
+            version: None,
+            revision: None,
+        })
+        .await
+        .unwrap();
+    assert!(matches!(old, Response::Welcome { .. }), "{old:?}");
+}

@@ -326,23 +326,28 @@ impl TermView {
                     );
                     menu = menu.header("Agent");
                     for (title, line) in agents::PRESETS {
-                        menu = menu.icon_entry(
-                            title,
-                            IconName::Sparkle,
-                            on(Box::new(move |view, _, cx| {
-                                view.launch_agent(line, false, cx)
-                            })),
-                        );
+                        menu = menu
+                            .entry(
+                                title,
+                                None,
+                                on(Box::new(move |view, _, cx| {
+                                    view.launch_agent(line, false, cx)
+                                })),
+                            )
+                            .with_logo(ferrum_ui::AgentLogo::for_program(line));
                     }
                     for line in &recent {
                         let line = line.clone();
-                        menu = menu.entry(
-                            line.clone(),
-                            None,
-                            on(Box::new(move |view, _, cx| {
-                                view.launch_agent(&line, true, cx)
-                            })),
-                        );
+                        let logo = ferrum_ui::AgentLogo::for_program(&agents::label_for(&line));
+                        menu = menu
+                            .entry(
+                                line.clone(),
+                                None,
+                                on(Box::new(move |view, _, cx| {
+                                    view.launch_agent(&line, true, cx)
+                                })),
+                            )
+                            .with_logo(logo);
                     }
                     menu = menu.entry(
                         "Custom agent…",
@@ -356,13 +361,15 @@ impl TermView {
                         for host in &hosts {
                             for (title, line) in agents::PRESETS {
                                 let host = host.clone();
-                                menu = menu.entry(
-                                    format!("{title} on {host}"),
-                                    None,
-                                    on(Box::new(move |view, _, _| {
-                                        view.app.start_remote_agent(&host, line)
-                                    })),
-                                );
+                                menu = menu
+                                    .entry(
+                                        format!("{title} on {host}"),
+                                        None,
+                                        on(Box::new(move |view, _, _| {
+                                            view.app.start_remote_agent(&host, line)
+                                        })),
+                                    )
+                                    .with_logo(ferrum_ui::AgentLogo::for_program(line));
                             }
                         }
                     }

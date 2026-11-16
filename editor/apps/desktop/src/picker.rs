@@ -47,6 +47,8 @@ pub struct PickerItem {
     pub icon: Option<PathBuf>,
     /// Fixed icons shown after the label (icon theme samples).
     pub samples: Vec<Icon>,
+    /// An agent's logo leading the row (the Agents picker).
+    pub logo: Option<ferrum_ui::AgentLogo>,
 }
 
 impl PickerItem {
@@ -61,7 +63,14 @@ impl PickerItem {
             payload: payload.into(),
             icon: None,
             samples: Vec::new(),
+            logo: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_logo(mut self, logo: Option<ferrum_ui::AgentLogo>) -> Self {
+        self.logo = logo;
+        self
     }
 }
 
@@ -270,6 +279,9 @@ impl Picker {
                     .min_w_0()
                     .gap_2()
                     .when_some(icon, |this, icon| this.child(icon))
+                    .when_some(item.logo, |this, logo| {
+                        this.child(ferrum_ui::agent_logo(logo, px(16.), cx))
+                    })
                     .child(
                         div()
                             .min_w_0()

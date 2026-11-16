@@ -93,7 +93,8 @@ impl Server {
         let listeners = lock(&self.listeners).clone();
         let state = lock(&self.state);
         ServerInfo {
-            version: env!("CARGO_PKG_VERSION").to_owned(),
+            version: ferrumterm_protocol::build_version().to_owned(),
+            revision: ferrumterm_protocol::SERVER_REVISION,
             protocol: ferrumterm_protocol::PROTOCOL_VERSION,
             pid: std::process::id(),
             started_ms: self.started_ms,

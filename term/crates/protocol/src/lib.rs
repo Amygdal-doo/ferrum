@@ -11,6 +11,7 @@ mod frame;
 mod ids;
 mod msg;
 pub mod status;
+pub mod version;
 mod wire;
 
 pub use forward::{ForwardInfo, ForwardKind, ForwardSpec, ForwardState, forward_key};
@@ -18,6 +19,7 @@ pub use frame::{Cursor, CursorShape, Frame, Span, flags};
 pub use ids::{BlockId, SessionId, WindowId};
 pub use msg::*;
 pub use status::{OscScanner, ProgramState, ProgramStatus, StatusUpdate};
+pub use version::{SERVER_REVISION, ServerAge, build_version};
 pub use wire::{MAX_FRAME, WireError, read_msg, write_msg};
 
 /// Protocol version; bumped on incompatible changes.

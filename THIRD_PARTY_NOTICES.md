@@ -34,6 +34,21 @@ that none of them is GPL-family.
   [`shared/ui/assets/fonts/lilex/OFL.txt`](shared/ui/assets/fonts/lilex/OFL.txt)
 - Unmodified.
 
+## Agent and model logos (trademarks)
+
+- Files: `shared/ui/assets/logos/*.png` (embedded in the desktop apps) and
+  their copies in `web/assets/img/ai/`
+- Logos of Anthropic (Claude), OpenAI (ChatGPT, Codex), Google (Gemini),
+  OpenCode, Meta (Muse), DeepSeek, Moonshot AI (Kimi), Alibaba Cloud (Qwen),
+  Z.ai (GLM), Mistral AI, Ollama, Cursor, Amp and goose. Sources, dates and
+  each owner's guidelines: [`shared/ui/assets/logos/README.md`](shared/ui/assets/logos/README.md)
+- These names and logos are trademarks of their respective owners. They are
+  used only to identify compatible services and products the apps work with;
+  no endorsement by or affiliation with their owners is implied. They are not
+  covered by Ferrum's MIT / Apache-2.0 licence.
+- Changes: scaled to 128 px and cropped to the symbol; black marks also get
+  a light version for dark themes. No recolouring or redrawing.
+
 ## GPUI
 
 - Crates: `gpui`, `gpui_platform` and the Zed crates they pull in

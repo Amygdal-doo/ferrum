@@ -40,29 +40,40 @@ impl Workspace {
         let path = path_env();
         let mut items = Vec::new();
         for agent in agents(cx) {
+            let logo = ferrum_ui::AgentLogo::for_program(&agent.id)
+                .or_else(|| ferrum_ui::AgentLogo::for_program(&agent.command));
             match core_agents::locate(&agent, &path) {
                 Some(program) => {
-                    items.push(PickerItem::new(
-                        format!("Start {} in the terminal", agent.name),
-                        program.to_string_lossy().to_string(),
-                        format!("start:{}", agent.id),
-                    ));
+                    items.push(
+                        PickerItem::new(
+                            format!("Start {} in the terminal", agent.name),
+                            program.to_string_lossy().to_string(),
+                            format!("start:{}", agent.id),
+                        )
+                        .with_logo(logo),
+                    );
                     if has_file && agent.takes_prompt() {
-                        items.push(PickerItem::new(
-                            format!("Start {} with the current file / selection", agent.name),
-                            "as the first prompt",
-                            format!("context:{}", agent.id),
-                        ));
+                        items.push(
+                            PickerItem::new(
+                                format!("Start {} with the current file / selection", agent.name),
+                                "as the first prompt",
+                                format!("context:{}", agent.id),
+                            )
+                            .with_logo(logo),
+                        );
                     }
                 }
-                None => items.push(PickerItem::new(
-                    format!("Install {}", agent.name),
-                    agent
-                        .install_hint
-                        .clone()
-                        .unwrap_or_else(|| format!("`{}` not found on PATH", agent.command)),
-                    format!("install:{}", agent.id),
-                )),
+                None => items.push(
+                    PickerItem::new(
+                        format!("Install {}", agent.name),
+                        agent
+                            .install_hint
+                            .clone()
+                            .unwrap_or_else(|| format!("`{}` not found on PATH", agent.command)),
+                        format!("install:{}", agent.id),
+                    )
+                    .with_logo(logo),
+                ),
             }
         }
         Some(items)

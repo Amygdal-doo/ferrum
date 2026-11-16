@@ -434,11 +434,7 @@ impl Onboarding {
                         .items_center()
                         .justify_center()
                         .when(!present, |this| this.opacity(0.4))
-                        .child(icon_tile(
-                            agent.icon(),
-                            gpui::rgb(agent.tint()).into(),
-                            px(48.),
-                        )),
+                        .child(crate::agent_logo(agent.logo(), px(44.), cx)),
                 )
                 .selected(self.agent == Some(agent))
                 .on_click(cx.listener(move |this, _, _, cx| {

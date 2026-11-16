@@ -166,6 +166,13 @@ pub enum Request {
         client: String,
         token: Option<String>,
         protocol: u32,
+        /// The client's release version ([`crate::build_version`]); absent
+        /// from older clients.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        version: Option<String>,
+        /// The [`crate::SERVER_REVISION`] the client was built with.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        revision: Option<u32>,
     },
     ServerInfo,
     List,
@@ -317,7 +324,12 @@ impl SessionInfo {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ServerInfo {
+    /// Release version of the server's build ([`crate::build_version`]).
+    /// Servers before 0.12 sent the crate version (`0.1.0`) here.
     pub version: String,
+    /// The server's [`crate::SERVER_REVISION`]; 0 from servers that predate it.
+    #[serde(default)]
+    pub revision: u32,
     pub protocol: u32,
     pub pid: u32,
     pub started_ms: u64,
@@ -496,5 +508,60 @@ mod tests {
         });
         let json = serde_json::to_string(&e).expect("json");
         assert_eq!(serde_json::from_str::<ServerMsg>(&json).expect("parse"), e);
+    }
+
+    /// A pre-0.12 server's `Welcome` (no `revision`, crate version) still
+    /// decodes, as revision 0: older than any current client.
+    #[test]
+    fn welcome_from_an_old_server_decodes_as_revision_zero() {
+        let json = r#"{"reply":{"id":1,"res":{"type":"welcome","info":{
+            "version":"0.1.0","protocol":2,"pid":7,"started_ms":0,"socket":"/s",
+            "listeners":[],"sessions":1,"blocks":2,"clients":1,
+            "awake_mode":"auto","awake":false}}}}"#;
+        let ServerMsg::Reply {
+            res: Response::Welcome { info },
+            ..
+        } = serde_json::from_str::<ServerMsg>(json).expect("parse")
+        else {
+            panic!("not a welcome");
+        };
+        assert_eq!(info.revision, 0);
+        assert_eq!(
+            crate::version::compare_with_this_build(&info.version, info.revision),
+            crate::ServerAge::Older
+        );
+    }
+
+    /// Old servers ignore the new hello fields; new servers accept old hellos.
+    #[test]
+    fn hello_is_compatible_both_ways() {
+        let old = r#"{"id":1,"op":"hello","client":"fterm","token":null,"protocol":2}"#;
+        let msg = serde_json::from_str::<ClientMsg>(old).expect("parse");
+        assert_eq!(
+            msg.req,
+            Request::Hello {
+                client: "fterm".into(),
+                token: None,
+                protocol: 2,
+                version: None,
+                revision: None,
+            }
+        );
+        let new = ClientMsg {
+            id: 1,
+            req: Request::Hello {
+                client: "fterm".into(),
+                token: None,
+                protocol: 2,
+                version: Some("0.12.0".into()),
+                revision: Some(crate::SERVER_REVISION),
+            },
+        };
+        let json = serde_json::to_string(&new).expect("json");
+        assert!(json.contains(r#""version":"0.12.0""#), "{json}");
+        assert_eq!(
+            serde_json::from_str::<ClientMsg>(&json).expect("parse"),
+            new
+        );
     }
 }

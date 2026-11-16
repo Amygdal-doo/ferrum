@@ -13,9 +13,11 @@
 //! - `card::product_card(&Product)` (the app card), `card::app_logo(..)`,
 //!   `card::app_strip(apps, with_kind)`, `card::steps(&[(title, body)])`
 //! - `callout::render(Kind, title, body)`: note / warn / security
+//! - `ai_logo::logo(name)`, `ai_logo::strips(groups)`: agent and model-maker logos
 //! - `code::block(text)`, `code::command(cmd)`, `code::keys("⌥⌘O")`
 //! - `button::link(label, href, Variant)` / `button::disabled(..)`, `badge::status(..)`
 
+pub mod ai_logo;
 pub mod badge;
 pub mod breadcrumb;
 pub mod button;

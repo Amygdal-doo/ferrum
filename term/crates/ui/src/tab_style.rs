@@ -61,7 +61,8 @@ impl Default for TabStyle {
 }
 
 impl TabStyle {
-    /// The logo of the agent a tab runs (Claude, Codex, Gemini, OpenCode).
+    /// The logo of the agent a tab runs (Claude, Codex, Gemini, Qwen…): the
+    /// one the server sees in its foreground, else the program it started.
     #[must_use]
     pub fn agent_logo(window: &WindowInfo) -> Option<ferrum_ui::AgentLogo> {
         let block = window
@@ -69,7 +70,11 @@ impl TabStyle {
             .iter()
             .find(|b| b.id == window.focused)
             .or(window.blocks.first())?;
-        program_name(&block.command).and_then(ferrum_ui::AgentLogo::for_program)
+        block
+            .agent
+            .as_deref()
+            .and_then(ferrum_ui::AgentLogo::for_program)
+            .or_else(|| program_name(&block.command).and_then(ferrum_ui::AgentLogo::for_program))
     }
 
     /// The default for a tab nobody styled: an agent gets ✳ in orange, an

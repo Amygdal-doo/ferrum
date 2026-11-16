@@ -1,15 +1,50 @@
-//! Mouse selection inside one pane, in screen cells: drag to select (a
-//! stream from anchor to head, like other terminals), ⌘C to copy. The text
-//! is taken from the frame on mouse-up, so later output doesn't change what
-//! gets copied.
+//! Mouse selection inside one pane: drag to select (a stream from anchor to
+//! head, like other terminals), ⌘C to copy. Rows are *lines* — the screen
+//! row minus the frame's `display_offset` (0 = top of the live screen,
+//! negative = scrollback) — so a selection stays on its text while the view
+//! scrolls (dragging past the top / bottom edge autoscrolls, see
+//! `view::drag_scroll`). The text is taken on mouse-up from the lines seen
+//! during the drag, so later output doesn't change what gets copied.
 
-use ferrumterm_protocol::{BlockId, Frame};
+use ferrumterm_protocol::{BlockId, Frame, Span};
+use std::collections::BTreeMap;
 use unicode_width::UnicodeWidthChar;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Cell {
-    pub row: u16,
+    /// Line: screen row − `display_offset` when hit, see the module docs.
+    pub row: i64,
     pub col: u16,
+}
+
+/// The line shown at screen `row` of `frame`.
+#[must_use]
+pub fn line_of(frame: &Frame, row: u16) -> i64 {
+    i64::from(row) - i64::from(frame.display_offset)
+}
+
+/// Lines of one pane seen during a drag, by line number (see [`Cell::row`]):
+/// scrolled-away lines are still in the copied text.
+#[derive(Debug, Default, Clone)]
+pub struct SeenLines(BTreeMap<i64, Vec<Span>>);
+
+impl SeenLines {
+    /// Remembers every line `frame` shows.
+    pub fn record(&mut self, frame: &Frame) {
+        for (row, line) in frame.lines.iter().enumerate() {
+            let row = u16::try_from(row).unwrap_or(u16::MAX);
+            self.0.insert(line_of(frame, row), line.clone());
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    #[must_use]
+    pub fn get(&self, line: i64) -> Option<&[Span]> {
+        self.0.get(&line).map(Vec::as_slice)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,8 +57,8 @@ pub struct Selection {
 /// A pane's hit rectangle in window px: `(block, x, y, width, height)`.
 pub type PaneHit = (BlockId, f32, f32, f32, f32);
 
-/// The cell under window point `(x, y)` in `pane`, clamped to the pane (so a
-/// drag past its edge selects to the edge).
+/// The screen cell under window point `(x, y)` in `pane`, clamped to the
+/// pane (so a drag past its edge selects to the edge).
 #[must_use]
 pub fn cell_at(pane: &PaneHit, x: f32, y: f32, cell_w: f32, cell_h: f32) -> Cell {
     let (_, px, py, w, h) = *pane;
@@ -31,7 +66,7 @@ pub fn cell_at(pane: &PaneHit, x: f32, y: f32, cell_w: f32, cell_h: f32) -> Cell
     let rows = (h / cell_h).round().max(1.0);
     Cell {
         col: ((x - px) / cell_w).floor().clamp(0.0, cols - 1.0) as u16,
-        row: ((y - py) / cell_h).floor().clamp(0.0, rows - 1.0) as u16,
+        row: ((y - py) / cell_h).floor().clamp(0.0, rows - 1.0) as i64,
     }
 }
 
@@ -58,9 +93,9 @@ impl Selection {
         }
     }
 
-    /// Selected columns `start..end` on `row` of a `cols`-wide pane.
+    /// Selected columns `start..end` on line `row` of a `cols`-wide pane.
     #[must_use]
-    pub fn columns(&self, row: u16, cols: u16) -> Option<(u16, u16)> {
+    pub fn columns(&self, row: i64, cols: u16) -> Option<(u16, u16)> {
         let (start, end) = self.ordered();
         if self.is_empty() || row < start.row || row > end.row {
             return None;
@@ -70,20 +105,29 @@ impl Selection {
         (from < to).then_some((from, to.min(cols)))
     }
 
-    /// The selected text: lines joined with `\n`, trailing spaces trimmed.
+    /// The selected text of what `frame` shows.
+    #[cfg(test)]
     #[must_use]
     pub fn text(&self, frame: &Frame) -> String {
+        self.text_from(frame.cols, |line| {
+            let row = usize::try_from(line + i64::from(frame.display_offset)).ok()?;
+            frame.lines.get(row).map(Vec::as_slice)
+        })
+    }
+
+    /// The selected text: lines joined with `\n`, trailing spaces trimmed.
+    /// `line` gives a line's spans (missing lines count as empty).
+    #[must_use]
+    pub fn text_from<'a>(&self, cols: u16, line: impl Fn(i64) -> Option<&'a [Span]>) -> String {
         let (start, end) = self.ordered();
         let mut lines = Vec::new();
         for row in start.row..=end.row {
-            let Some((from, to)) = self.columns(row, frame.cols) else {
+            let Some((from, to)) = self.columns(row, cols) else {
                 continue;
             };
             let mut text = String::new();
             let mut col = 0u16;
-            for c in frame
-                .lines
-                .get(usize::from(row))
+            for c in line(row)
                 .into_iter()
                 .flatten()
                 .flat_map(|span| span.t.chars())
@@ -121,7 +165,7 @@ mod tests {
         }
     }
 
-    fn sel(anchor: (u16, u16), head: (u16, u16)) -> Selection {
+    fn sel(anchor: (i64, u16), head: (i64, u16)) -> Selection {
         Selection {
             block: BlockId(1),
             anchor: Cell {
@@ -176,5 +220,34 @@ mod tests {
             cell_at(&pane, 999.0, 0.0, 8.0, 20.0),
             Cell { row: 0, col: 9 }
         );
+    }
+
+    #[test]
+    fn lines_are_screen_rows_minus_the_scroll_offset() {
+        let mut f = frame(&["older", "old", "new"]);
+        f.display_offset = 2;
+        assert_eq!(line_of(&f, 0), -2);
+        assert_eq!(line_of(&f, 2), 0);
+        // The selection follows lines, so it reads the same text scrolled.
+        assert_eq!(sel((-2, 0), (-1, 2)).text(&f), "older\nold");
+    }
+
+    #[test]
+    fn text_spans_lines_seen_while_scrolling() {
+        let mut seen = SeenLines::default();
+        let mut top = frame(&["one", "two"]);
+        top.display_offset = 2;
+        seen.record(&top);
+        let bottom = frame(&["three", "four"]);
+        seen.record(&bottom);
+        let s = sel((-2, 0), (1, 3));
+        assert_eq!(s.text_from(10, |l| seen.get(l)), "one\ntwo\nthree\nfour");
+        // Lines never seen copy as empty instead of failing.
+        assert_eq!(
+            sel((-4, 0), (-2, 2)).text_from(10, |l| seen.get(l)),
+            "\n\none"
+        );
+        seen.clear();
+        assert_eq!(seen.get(0), None);
     }
 }

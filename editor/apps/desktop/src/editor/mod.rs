@@ -31,7 +31,7 @@ use ferrumeditor_core::highlight::HighlightSpan;
 use ferrumeditor_core::language::Language;
 use gpui::{
     App, Context, CursorStyle, EventEmitter, FocusHandle, Focusable, IntoElement, MouseButton,
-    Pixels, Render, SharedString, Subscription, Task, Window, div, prelude::*, px,
+    Pixels, Point, Render, SharedString, Subscription, Task, Window, div, prelude::*, px,
 };
 
 pub use layout::LayoutSnapshot;
@@ -128,6 +128,10 @@ pub struct EditorView {
     pub search: SearchState,
     marked_range: Option<Range<usize>>,
     drag: Option<DragState>,
+    /// Pointer of the drag in progress, for the edge autoscroll timer.
+    drag_pointer: Option<Point<Pixels>>,
+    /// Edge autoscroll timer of a selection drag (see `input`).
+    drag_scroll: Option<Task<()>>,
     last_layout: Option<LayoutSnapshot>,
     /// Widest line in chars (for horizontal scrolling), keyed by version.
     widest_line: (u64, usize),
@@ -199,6 +203,8 @@ impl EditorView {
             search: SearchState::default(),
             marked_range: None,
             drag: None,
+            drag_pointer: None,
+            drag_scroll: None,
             last_layout: None,
             widest_line: (u64::MAX, 0),
             lsp: lsp::LspState::default(),

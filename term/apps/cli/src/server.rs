@@ -1,6 +1,7 @@
-//! `fterm server …`: run, start (detached), stop, status, logs, token,
+//! `fterm server …`: run, start (detached), stop, restart, status, logs, token,
 //! install / uninstall as a macOS LaunchAgent (starts at login, restarts if it dies).
 
+use crate::server_status;
 use crate::util::Ctx;
 use clap::{Args, Subcommand};
 use ferrumterm_client::{Client, Endpoint, paths};
@@ -8,7 +9,7 @@ use ferrumterm_protocol::{AwakeMode, DEFAULT_PORT, Request};
 use ferrumterm_server::{ServerConfig, check_listen_addr};
 use std::net::SocketAddr;
 use std::os::unix::process::CommandExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::time::Duration;
 
@@ -54,7 +55,13 @@ pub enum ServerCmd {
     Start(ServeArgs),
     /// Stop the server. All programs in it are terminated.
     Stop,
-    /// Show server status.
+    /// Stop the server and start this fterm's build. All programs in it are terminated.
+    Restart {
+        /// Don't ask for confirmation.
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
+    /// Show server status (its build, and whether it is older than this fterm).
     Status,
     /// Show the server log.
     Logs {
@@ -152,37 +159,10 @@ pub async fn run(cmd: ServerCmd, ctx: &Ctx) -> Result<ExitCode, String> {
                 return Ok(ExitCode::SUCCESS);
             }
             config(&a)?;
-            let dir = paths::state_dir();
-            std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-            let log = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(paths::log_file())
-                .map_err(|e| e.to_string())?;
-            let log2 = log.try_clone().map_err(|e| e.to_string())?;
-            let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-            let child = Command::new(exe)
-                .args(["server", "run"])
-                .args(a.to_args())
-                .stdin(Stdio::null())
-                .stdout(log)
-                .stderr(log2)
-                // Own process group: closing this terminal does not take the server down.
-                .process_group(0)
-                .spawn()
-                .map_err(|e| format!("could not start the server: {e}"))?;
-            for _ in 0..50 {
-                if local().await.is_some() {
-                    println!("FerrumTerm server started (pid {})", child.id());
-                    return Ok(ExitCode::SUCCESS);
-                }
-                tokio::time::sleep(Duration::from_millis(100)).await;
-            }
-            return Err(format!(
-                "server did not come up; see {}",
-                paths::log_file().display()
-            ));
+            let pid = start_detached(&a.to_args()).await?;
+            println!("FerrumTerm server started (pid {pid})");
         }
+        ServerCmd::Restart { yes } => restart(yes, ctx).await?,
         ServerCmd::Stop => {
             match ctx.connect_existing().await {
                 Ok((c, _)) => {
@@ -204,31 +184,26 @@ pub async fn run(cmd: ServerCmd, ctx: &Ctx) -> Result<ExitCode, String> {
         ServerCmd::Status => {
             let (c, _) = ctx.connect_existing().await?;
             let info = c.info().await.map_err(|e| e.to_string())?;
+            let agent = if ctx.is_local() {
+                launch_agent_note()
+            } else {
+                None
+            };
             if ctx.json {
+                let mut v = server_status::status_json(&info);
+                if let (Some(o), Some(note)) = (v.as_object_mut(), &agent) {
+                    o.insert("launch_agent".into(), note.clone().into());
+                }
                 println!(
                     "{}",
-                    serde_json::to_string_pretty(&info).map_err(|e| e.to_string())?
+                    serde_json::to_string_pretty(&v).map_err(|e| e.to_string())?
                 );
             } else {
-                let up = (now_ms().saturating_sub(info.started_ms)) / 1000;
-                println!(
-                    "FerrumTerm server {} (pid {}), up {}h{:02}m",
-                    info.version,
-                    info.pid,
-                    up / 3600,
-                    (up % 3600) / 60
-                );
-                println!(
-                    "  sessions {}, blocks {}, clients {}",
-                    info.sessions, info.blocks, info.clients
-                );
-                println!(
-                    "  keep-awake {:?}{}",
-                    info.awake_mode,
-                    if info.awake { " (holding)" } else { "" }
-                );
-                for l in info.listeners {
-                    println!("  listening {l}");
+                for line in server_status::status_lines(&info, now_ms(), ctx.is_local()) {
+                    println!("{line}");
+                }
+                if let Some(note) = agent {
+                    println!("  {note}");
                 }
             }
         }
@@ -291,6 +266,116 @@ impl Ctx {
         }
         self.connect().await
     }
+}
+
+/// Starts `fterm server run <args>` from this executable in the background
+/// and waits for it to answer; returns its pid.
+async fn start_detached(args: &[String]) -> Result<u32, String> {
+    let dir = paths::state_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let log = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(paths::log_file())
+        .map_err(|e| e.to_string())?;
+    let log2 = log.try_clone().map_err(|e| e.to_string())?;
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let child = Command::new(exe)
+        .args(["server", "run"])
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(log)
+        .stderr(log2)
+        // Own process group: closing this terminal does not take the server down.
+        .process_group(0)
+        .spawn()
+        .map_err(|e| format!("could not start the server: {e}"))?;
+    for _ in 0..50 {
+        if local().await.is_some() {
+            return Ok(child.id());
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    Err(format!(
+        "server did not come up; see {}",
+        paths::log_file().display()
+    ))
+}
+
+/// `fterm server restart`: confirm, stop the running server (even one too
+/// old to talk to), start this build with the same listeners and keep-awake mode.
+async fn restart(yes: bool, ctx: &Ctx) -> Result<(), String> {
+    if !ctx.is_local() {
+        return Err(
+            "`fterm server restart` restarts this Mac's server; run it on the server's machine"
+                .into(),
+        );
+    }
+    let socket = paths::socket();
+    let running = local().await;
+    let info = match &running {
+        Some(c) => c.info().await.ok(),
+        None => None,
+    };
+    let live = running.is_some() || ferrumterm_client::socket_is_live(&socket).await;
+    if live {
+        let counts = info.as_ref().map(|i| (i.sessions, i.blocks));
+        if !yes && counts != Some((0, 0)) {
+            eprintln!("{}", server_status::restart_warning(counts));
+            if !confirm("Restart now? [y/N] ")? {
+                eprintln!("Not restarted.");
+                return Ok(());
+            }
+        }
+        drop(running);
+        ferrumterm_client::force_stop(&socket).await?;
+    }
+    let args = info
+        .as_ref()
+        .map(server_status::restart_args)
+        .unwrap_or_else(|| vec!["--awake".into(), "auto".into()]);
+    let pid = start_detached(&args).await?;
+    println!(
+        "FerrumTerm server {} (revision {}) {} (pid {pid})",
+        ferrumterm_protocol::build_version(),
+        ferrumterm_protocol::SERVER_REVISION,
+        if live { "restarted" } else { "started" }
+    );
+    if let Some(note) = launch_agent_note() {
+        println!("  {note}");
+    }
+    Ok(())
+}
+
+/// Asks on the terminal; refuses without one (scripts pass `--yes`).
+fn confirm(prompt: &str) -> Result<bool, String> {
+    use std::io::{BufRead, IsTerminal, Write};
+    if !std::io::stdin().is_terminal() {
+        return Err("not a terminal; pass --yes to restart without asking".into());
+    }
+    eprint!("{prompt}");
+    let _ = std::io::stderr().flush();
+    let mut answer = String::new();
+    std::io::stdin()
+        .lock()
+        .read_line(&mut answer)
+        .map_err(|e| e.to_string())?;
+    Ok(matches!(answer.trim(), "y" | "Y" | "yes" | "Yes"))
+}
+
+/// The installed LaunchAgent, when it starts a binary other than this one.
+fn launch_agent_note() -> Option<String> {
+    let plist = plist_path().ok()?;
+    let text = std::fs::read_to_string(&plist).ok()?;
+    let exe = std::env::current_exe().ok()?;
+    let exe = exe.canonicalize().unwrap_or(exe);
+    server_status::launch_agent_note(&plist, &text, &exe, Path::is_file)
+        // Compare resolved paths (symlinked installs).
+        .filter(|_| {
+            server_status::plist_program(&text)
+                .and_then(|p| Path::new(&p).canonicalize().ok())
+                .is_none_or(|p| p != exe)
+        })
 }
 
 fn now_ms() -> u64 {

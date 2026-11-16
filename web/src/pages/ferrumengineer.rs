@@ -2,9 +2,11 @@
 //! works" / "Not built yet"), the FerrumChat README (`agent/README.md`) for
 //! the chat column, and the `vibe` entry in catalog.json.
 
-use maud::{Markup, html};
+use maud::Markup;
 
 use super::product_sections::{self as sections, BulletGroup, ProductPage};
+use crate::components::ai_logo;
+use crate::components::section::Section;
 use crate::products::FERRUMENGINEER;
 
 const FEATURES: &[(&str, &str)] = &[
@@ -116,8 +118,21 @@ const PAGE: ProductPage = ProductPage {
                  outside the project folder or write into .git.",
 };
 
+fn works_with() -> Markup {
+    Section::new("works-with", "Works with")
+        .tight()
+        .render(ai_logo::strips(&[
+            ("Model providers", &["Anthropic", "OpenAI", "Ollama"]),
+            ("ACP agents", &["Claude Code", "Codex", "Gemini CLI"]),
+            (
+                "Open models, on Ollama or an OpenAI-compatible server",
+                &["Qwen", "DeepSeek", "Kimi", "GLM", "Mistral"],
+            ),
+        ]))
+}
+
 pub fn render(site_url: &str) -> Markup {
-    sections::render(site_url, &PAGE, html! {})
+    sections::render(site_url, &PAGE, works_with())
 }
 
 #[cfg(test)]

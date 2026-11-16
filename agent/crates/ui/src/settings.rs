@@ -264,7 +264,15 @@ impl ChatView {
                                 h_flex()
                                     .justify_between()
                                     .gap_1()
-                                    .child(Label::new(form.name.clone()).size(LabelSize::Small))
+                                    .child(
+                                        h_flex()
+                                            .gap_1p5()
+                                            .min_w_0()
+                                            .when_some(provider_logo(&form.id, &form.name), |this, logo| {
+                                                this.child(ferrum_ui::agent_logo(logo, px(16.), cx))
+                                            })
+                                            .child(Label::new(form.name.clone()).size(LabelSize::Small)),
+                                    )
                                     .child(Label::new(kind).size(LabelSize::XSmall).color(Color::Muted).single_line().truncate()),
                             )
                             .when(form.needs_key, |this| {
@@ -337,4 +345,9 @@ impl ChatView {
             )
             .into_any_element()
     }
+}
+
+/// A provider's logo, by id (`anthropic`, `ollama`) or else its name.
+fn provider_logo(id: &str, name: &str) -> Option<ferrum_ui::AgentLogo> {
+    ferrum_ui::AgentLogo::for_provider(id).or_else(|| ferrum_ui::AgentLogo::for_provider(name))
 }

@@ -8,6 +8,7 @@
 use maud::{Markup, html};
 
 use super::project_demos;
+use crate::components::ai_logo;
 use crate::products;
 use crate::routes::assets;
 
@@ -190,11 +191,13 @@ pub fn term() -> Markup {
                 ul {
                     li {
                         i class="term__dot term__dot--run" {}
+                        (ai_logo::logo("Claude Code"))
                         "Claude Code"
                         em class="term__state" { span { "working" } span { "done" } }
                     }
                     li {
                         i class="term__dot term__dot--wait" {}
+                        (ai_logo::logo("Codex"))
                         "Codex"
                         b class="term__badge" { "1" }
                     }

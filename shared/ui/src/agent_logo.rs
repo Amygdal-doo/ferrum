@@ -1,7 +1,14 @@
-//! Logos of the coding agents and model makers (Claude, Codex, Gemini,
-//! OpenCode, Muse, DeepSeek, Kimi), shown where one runs (FerrumTerm tabs,
-//! FerrumEngineer), and the plain `>_` tile shown for everything else. The
-//! 128-pixel PNGs live in `assets/logos/` (see the README there).
+//! Logos of the coding agents and model makers (Claude, OpenAI / Codex /
+//! ChatGPT, Gemini, OpenCode, Muse, DeepSeek, Kimi, Qwen, GLM, Mistral,
+//! Ollama, Cursor, Amp, goose), shown wherever one runs or is chosen
+//! (FerrumTerm, FerrumChat, FerrumEngineer, the editor, Settings), and the
+//! plain `>_` tile shown for everything else. The 128-pixel PNGs live in
+//! `assets/logos/` (see the README there for where each comes from); which
+//! program, provider or model gets which logo is in [`mapping`].
+
+mod mapping;
+#[cfg(test)]
+mod tests;
 
 use std::sync::{Arc, OnceLock};
 
@@ -11,16 +18,27 @@ use gpui::{ParentElement, Styled, div};
 use crate::components::{Color, Icon, IconName, IconSize};
 use crate::theme::{ActiveTheme, Appearance};
 
-/// A coding agent with a logo of its own.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A coding agent or model maker with a logo of its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AgentLogo {
     Claude,
+    /// OpenAI's Blossom: OpenAI models and ChatGPT.
+    OpenAi,
+    /// Codex (OpenAI publishes no separate Codex mark: the Blossom).
     Codex,
     Gemini,
     OpenCode,
     Muse,
     DeepSeek,
     Kimi,
+    Qwen,
+    /// GLM, by Z.ai (Zhipu AI).
+    Glm,
+    Mistral,
+    Ollama,
+    Cursor,
+    Amp,
+    Goose,
 }
 
 macro_rules! logo {
@@ -29,87 +47,83 @@ macro_rules! logo {
     };
 }
 
-/// PNG bytes in [`AgentLogo`] order, then the black logos redrawn light
-/// for dark themes (Codex, OpenCode).
-const LOGOS: [&[u8]; 9] = [
-    logo!("claude.png"),
-    logo!("openai-light.png"),
-    logo!("gemini.png"),
-    logo!("opencode-light.png"),
-    logo!("muse.png"),
-    logo!("deepseek.png"),
-    logo!("kimi.png"),
-    logo!("openai-dark.png"),
-    logo!("opencode-dark.png"),
-];
-
 impl AgentLogo {
-    /// The agent a program runs, by its name (`claude`, `/usr/bin/codex`).
-    #[must_use]
-    pub fn for_program(program: &str) -> Option<Self> {
-        let name = program.rsplit('/').next().unwrap_or(program);
-        match name.to_ascii_lowercase().as_str() {
-            "claude" | "claude-code" => Some(Self::Claude),
-            "codex" => Some(Self::Codex),
-            "gemini" => Some(Self::Gemini),
-            "opencode" => Some(Self::OpenCode),
-            "muse" => Some(Self::Muse),
-            "deepseek" => Some(Self::DeepSeek),
-            "kimi" => Some(Self::Kimi),
-            _ => None,
-        }
-    }
-
-    /// The agent behind a model id (`claude-sonnet-5-5`, `gpt-5-codex`).
-    #[must_use]
-    pub fn for_model(model: &str) -> Option<Self> {
-        let model = model.to_ascii_lowercase();
-        if model.starts_with("claude") {
-            Some(Self::Claude)
-        } else if model.starts_with("gemini") {
-            Some(Self::Gemini)
-        } else if model.starts_with("muse") || model.starts_with("llama") {
-            Some(Self::Muse)
-        } else if model.starts_with("deepseek") {
-            Some(Self::DeepSeek)
-        } else if model.starts_with("kimi") || model.starts_with("moonshot") {
-            Some(Self::Kimi)
-        } else if model.starts_with("gpt")
-            || model.contains("codex")
-            || (model.starts_with('o') && model[1..].starts_with(|c: char| c.is_ascii_digit()))
-        {
-            Some(Self::Codex)
-        } else {
-            None
-        }
-    }
+    pub const ALL: [Self; 15] = [
+        Self::Claude,
+        Self::OpenAi,
+        Self::Codex,
+        Self::Gemini,
+        Self::OpenCode,
+        Self::Muse,
+        Self::DeepSeek,
+        Self::Kimi,
+        Self::Qwen,
+        Self::Glm,
+        Self::Mistral,
+        Self::Ollama,
+        Self::Cursor,
+        Self::Amp,
+        Self::Goose,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
             Self::Claude => "Claude",
+            Self::OpenAi => "OpenAI",
             Self::Codex => "Codex",
             Self::Gemini => "Gemini",
             Self::OpenCode => "OpenCode",
             Self::Muse => "Muse",
             Self::DeepSeek => "DeepSeek",
             Self::Kimi => "Kimi",
+            Self::Qwen => "Qwen",
+            Self::Glm => "GLM",
+            Self::Mistral => "Mistral",
+            Self::Ollama => "Ollama",
+            Self::Cursor => "Cursor",
+            Self::Amp => "Amp",
+            Self::Goose => "goose",
+        }
+    }
+
+    /// PNG bytes for light themes and for dark ones: the same file unless
+    /// the mark is black (then its light version on dark themes).
+    pub fn png(self) -> (&'static [u8], &'static [u8]) {
+        let one = |bytes: &'static [u8]| (bytes, bytes);
+        match self {
+            Self::Claude => one(logo!("claude.png")),
+            Self::OpenAi | Self::Codex => (logo!("openai-light.png"), logo!("openai-dark.png")),
+            Self::Gemini => one(logo!("gemini.png")),
+            Self::OpenCode => (logo!("opencode-light.png"), logo!("opencode-dark.png")),
+            Self::Muse => one(logo!("muse.png")),
+            Self::DeepSeek => one(logo!("deepseek.png")),
+            Self::Kimi => one(logo!("kimi.png")),
+            Self::Qwen => one(logo!("qwen.png")),
+            Self::Glm => one(logo!("zai.png")),
+            Self::Mistral => one(logo!("mistral.png")),
+            Self::Ollama => (logo!("ollama-light.png"), logo!("ollama-dark.png")),
+            Self::Cursor => (logo!("cursor-light.png"), logo!("cursor-dark.png")),
+            Self::Amp => one(logo!("amp.png")),
+            Self::Goose => (logo!("goose-light.png"), logo!("goose-dark.png")),
         }
     }
 
     fn image(self, dark: bool) -> Arc<Image> {
-        static IMAGES: OnceLock<Vec<Arc<Image>>> = OnceLock::new();
+        static IMAGES: OnceLock<Vec<(Arc<Image>, Arc<Image>)>> = OnceLock::new();
         let images = IMAGES.get_or_init(|| {
-            LOGOS
+            let image =
+                |bytes: &[u8]| Arc::new(Image::from_bytes(ImageFormat::Png, bytes.to_vec()));
+            Self::ALL
                 .iter()
-                .map(|bytes| Arc::new(Image::from_bytes(ImageFormat::Png, bytes.to_vec())))
+                .map(|logo| {
+                    let (light, dark) = logo.png();
+                    (image(light), image(dark))
+                })
                 .collect()
         });
-        let index = match self {
-            Self::Codex if dark => 7,
-            Self::OpenCode if dark => 8,
-            other => other as usize,
-        };
-        images[index].clone()
+        let index = Self::ALL.iter().position(|l| *l == self).unwrap_or(0);
+        let (light, dark_image) = &images[index];
+        if dark { dark_image } else { light }.clone()
     }
 }
 
@@ -142,40 +156,10 @@ pub fn terminal_tile(size: Pixels, cx: &App) -> Div {
         )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn finds_agents_by_program_and_model() {
-        assert_eq!(
-            AgentLogo::for_program("/opt/bin/claude"),
-            Some(AgentLogo::Claude)
-        );
-        assert_eq!(AgentLogo::for_program("Codex"), Some(AgentLogo::Codex));
-        assert_eq!(AgentLogo::for_program("zsh"), None);
-        assert_eq!(
-            AgentLogo::for_model("claude-sonnet-5-5"),
-            Some(AgentLogo::Claude)
-        );
-        assert_eq!(
-            AgentLogo::for_model("gemini-3-pro"),
-            Some(AgentLogo::Gemini)
-        );
-        assert_eq!(AgentLogo::for_model("gpt-5-codex"), Some(AgentLogo::Codex));
-        assert_eq!(
-            AgentLogo::for_model("deepseek-v4"),
-            Some(AgentLogo::DeepSeek)
-        );
-        assert_eq!(AgentLogo::for_model("kimi-k3"), Some(AgentLogo::Kimi));
-        assert_eq!(AgentLogo::for_program("kimi"), Some(AgentLogo::Kimi));
-        assert_eq!(AgentLogo::for_model("muse-spark"), Some(AgentLogo::Muse));
-    }
-
-    #[test]
-    fn logos_are_png() {
-        for bytes in LOGOS {
-            assert!(bytes.starts_with(b"\x89PNG\r\n\x1a\n"));
-        }
+/// `logo` at `size`, or the `>_` tile when there is none.
+pub fn agent_logo_or_tile(logo: Option<AgentLogo>, size: Pixels, cx: &App) -> gpui::AnyElement {
+    match logo {
+        Some(logo) => agent_logo(logo, size, cx).into_any_element(),
+        None => terminal_tile(size, cx).into_any_element(),
     }
 }

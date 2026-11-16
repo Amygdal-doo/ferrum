@@ -109,7 +109,11 @@ impl FerrumEngineer {
                     cx,
                 )
                 .cursor_pointer()
-                .child(Icon::new(IconName::Pencil).color(Color::Muted))
+                .child(ferrumagent_ui::thread_logo(
+                    &entry.thread.agent,
+                    px(16.),
+                    cx,
+                ))
                 .child(two_lines(entry.thread.title.clone(), detail))
                 .on_click(cx.listener(move |this, _, window, cx| {
                     this.open_thread(&project, &id, window, cx);

@@ -162,7 +162,12 @@ pub(crate) fn paint_terminal(
                             if let Some((from, to)) = selection
                                 .as_ref()
                                 .filter(|s| s.block == pane.block)
-                                .and_then(|s| s.columns(row as u16, pane.rect.cols))
+                                .and_then(|s| {
+                                    s.columns(
+                                        crate::selection::line_of(frame, row as u16),
+                                        pane.rect.cols,
+                                    )
+                                })
                             {
                                 window.paint_quad(fill(
                                     Bounds::new(

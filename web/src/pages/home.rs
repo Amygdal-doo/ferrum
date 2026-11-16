@@ -1,10 +1,11 @@
-//! Home page, top to bottom: a hero over a moving wall of app windows, an
-//! agent making a change in FerrumEngineer, shell commands, a README with an
-//! anchor index (`home_readme`), and a closing download.
+//! Home page, top to bottom: a hero over a desktop with one app window and a
+//! dock of every app (`home_desk`), an agent making a change in
+//! FerrumEngineer, shell commands, a README with an anchor index
+//! (`home_readme`), and a closing download.
 
 use maud::{Markup, html};
 
-use super::{feature_demos, home_readme, project_demos, tool_demos};
+use super::{home_desk, home_readme, tool_demos};
 use crate::components::{
     button::{self, Variant},
     code, icons,
@@ -66,7 +67,7 @@ fn hero() -> Markup {
                     }
                 }
             }
-            (wall())
+            div class="container" { (home_desk::render()) }
             div class="container hero__foot" {
                 p class="hero__note" {
                     "The download button gets the Apple Silicon build. Intel Macs and Linux (.deb, \
@@ -88,61 +89,6 @@ fn hero() -> Markup {
                         dd { "0" }
                     }
                 }
-            }
-        }
-    }
-}
-
-/// One window on the wall: the app whose colour it glows with, and its demo.
-type Tile = (Product, fn() -> Markup);
-
-const WALL_TOP: [Tile; 7] = [
-    (products::FERRUMIDE, feature_demos::editor),
-    (products::FERRUMGIT, feature_demos::git),
-    (products::FERRUMTERM, feature_demos::term),
-    (products::FERRUMENGINEER, tool_demos::vibe),
-    (products::FERRUMDATA, feature_demos::data),
-    (products::FERRUMAPI, feature_demos::api),
-    (products::FERRUM_SYSTEM, project_demos::system),
-];
-
-const WALL_BOTTOM: [Tile; 8] = [
-    (products::FERRUMIDE, tool_demos::editor_panes),
-    (products::FERRUMKIT, feature_demos::kit),
-    (products::FERRUMCONTAINERS, feature_demos::dock),
-    (products::FERRUMPORTS, project_demos::ports),
-    (products::FERRUMVARIABLES, project_demos::env),
-    (products::FERRUM_LAUNCHER, feature_demos::launcher),
-    (products::FERRUMIDE, project_demos::logs),
-    (products::FERRUMIDE, project_demos::ci),
-];
-
-/// Two rows of live app windows drifting in opposite directions. Each row
-/// holds its tiles twice so the loop is seamless. The wall is one image to
-/// assistive tech; the pause button sits outside it. Under reduced motion
-/// base.css stops every animation and the wall is a still mosaic.
-fn wall() -> Markup {
-    let rows: [&[Tile]; 2] = [&WALL_TOP, &WALL_BOTTOM];
-    html! {
-        div class="wall-wrap" data-wall {
-            div class="wall" role="img"
-                aria-label="Live windows of every Ferrum app: FerrumIDE, FerrumGIT, FerrumTerm, \
-                            FerrumEngineer, FerrumData, FerrumAPI, FerrumSystem, FerrumKit, \
-                            FerrumContainers, FerrumPorts, FerrumVariables and FerrumLauncher" {
-                @for (i, row) in rows.iter().enumerate() {
-                    div class={ "wall__row wall__row--" (i + 1) } {
-                        div class="wall__track" {
-                            @for _ in 0..2 {
-                                @for (p, demo) in row.iter() {
-                                    div class="wall__tile" style=(p.accent_style()) { (demo()) }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            button class="wall__pause" type="button" data-wall-pause aria-pressed="false" {
-                "Pause motion"
             }
         }
     }
@@ -306,25 +252,6 @@ mod tests {
         assert!(html.contains(r#"<dd>12</dd>"#));
         assert!(html.contains(r#""@type":"Organization""#));
         assert!(html.contains(r#""@type":"WebSite""#));
-    }
-
-    #[test]
-    fn the_wall_shows_every_app_twice_and_can_pause() {
-        let html = rendered();
-        let tiles = WALL_TOP.len() + WALL_BOTTOM.len();
-        assert_eq!(html.matches(r#"class="wall__tile""#).count(), tiles * 2);
-        for p in products::ALL {
-            assert!(
-                WALL_TOP
-                    .iter()
-                    .chain(&WALL_BOTTOM)
-                    .any(|(t, _)| t.slug == p.slug),
-                "{}",
-                p.slug
-            );
-        }
-        assert!(html.contains("data-wall-pause"));
-        assert!(html.contains(r#"aria-pressed="false""#));
     }
 
     #[test]

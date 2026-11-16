@@ -213,6 +213,47 @@ async fn new_app_pages_show_their_logo_demo_and_status() {
 }
 
 #[tokio::test]
+async fn home_hero_is_one_window_over_a_dock_of_every_app() {
+    let html = get("/").await.text();
+    assert!(!html.contains("wall"));
+    assert!(!html.contains("Pause motion"));
+    assert_eq!(html.matches(r#"class="desk__window""#).count(), 1);
+    assert_eq!(html.matches(r#"class="appdock__btn""#).count(), 11);
+    assert_eq!(html.matches(r#"aria-pressed="true""#).count(), 1);
+    assert_eq!(html.matches(r#"class="desk__caption""#).count(), 11);
+    assert!(html.contains(r#"data-desk-title>FerrumIDE<"#));
+    for (slug, logo) in [
+        ("ferrumide", "editor"),
+        ("ferrumengineer", "vibe"),
+        ("ferrumgit", "git"),
+        ("ferrumterm", "term"),
+        ("ferrumapi", "api"),
+        ("ferrumcontainers", "dock"),
+        ("ferrumdata", "data"),
+        ("ferrumvariables", "env"),
+        ("ferrumports", "ports"),
+        ("ferrumkit", "kit"),
+        ("ferrum-system", "system"),
+    ] {
+        assert!(html.contains(&format!(r#"id="app-{slug}""#)), "{slug}");
+        assert!(
+            html.contains(&format!(r#"aria-controls="app-{slug}""#)),
+            "{slug}"
+        );
+        // Without JS the dock icon is a link to the app's page.
+        assert!(
+            html.contains(&format!(r#"class="appdock__link" href="/{slug}""#)),
+            "{slug}"
+        );
+        assert!(
+            html.contains(&format!("/assets/img/brand/{logo}.svg?v=")),
+            "{logo}"
+        );
+    }
+    assert!(html.contains("More about FerrumIDE</a>"));
+}
+
+#[tokio::test]
 async fn unknown_page_is_html_404() {
     for path in ["/does-not-exist", "/compare/nope", "/docs/nope"] {
         let res = get(path).await;

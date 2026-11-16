@@ -271,6 +271,24 @@ html:not(.js) .install-cmd__copy { display: none; }
   text-transform: uppercase; color: var(--text-faint);
 }
 
+/* Agent and model-maker logos (components/ai_logo.rs): the third-party
+   marks, untouched; black ones swap to their light twin on dark themes. */
+.ai-logo { display: inline-block; flex: none; width: 1em; height: 1em; vertical-align: -0.15em; object-fit: contain; }
+.ai-logo--light-only { display: none; }
+:root[data-theme="light"] .ai-logo--light-only { display: inline-block; }
+:root[data-theme="light"] .ai-logo--dark-only { display: none; }
+.ai-strips { display: grid; gap: var(--sp-2); margin-top: var(--sp-8); }
+.ai-strip {
+  list-style: none; margin: 0 0 var(--sp-4); padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-2);
+}
+.ai-strip__item {
+  display: inline-flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius); border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 60%, transparent); font-weight: 600;
+}
+.ai-strip__item .ai-logo { width: 20px; height: 20px; }
+.ai-strips__notice { margin: 0; font-size: var(--fs-xs); color: var(--text-faint); }
+
 /* ---------- Page header (components/page_header.rs) ----------
    The system's signature: a stamped display title over the temper rule.
    App pages tint the corner with the app's colour and show its logo. */

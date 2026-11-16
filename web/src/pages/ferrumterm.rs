@@ -1,9 +1,11 @@
 //! FerrumTerm product page. Claims follow the FerrumTerm README
 //! ("What works today" / "Not built yet") and nothing beyond it.
 
-use maud::{Markup, html};
+use maud::Markup;
 
 use super::product_sections::{self as sections, BulletGroup, ProductPage};
+use crate::components::ai_logo;
+use crate::components::section::Section;
 use crate::products::FERRUMTERM;
 
 const FEATURES: &[(&str, &str)] = &[
@@ -110,8 +112,29 @@ const PAGE: ProductPage = ProductPage {
                  an SSH key.",
 };
 
+/// The coding agents FerrumTerm recognises by program name
+/// (`ferrumterm_protocol::agents::KNOWN`).
+const AGENTS: &[&str] = &[
+    "Claude Code",
+    "Codex",
+    "Gemini CLI",
+    "OpenCode",
+    "Qwen Code",
+    "Cursor Agent",
+    "Amp",
+    "goose",
+    "aider",
+    "Crush",
+];
+
+fn agents() -> Markup {
+    Section::new("agents", "Agents it recognises")
+        .tight()
+        .render(ai_logo::strips(&[("Coding agents", AGENTS)]))
+}
+
 pub fn render(site_url: &str) -> Markup {
-    sections::render(site_url, &PAGE, html! {})
+    sections::render(site_url, &PAGE, agents())
 }
 
 #[cfg(test)]

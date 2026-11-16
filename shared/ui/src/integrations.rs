@@ -41,20 +41,12 @@ impl Agent {
         }
     }
 
-    pub fn icon(self) -> IconName {
+    /// The agent's logo.
+    pub fn logo(self) -> crate::AgentLogo {
         match self {
-            Self::ClaudeCode => IconName::Sparkle,
-            Self::Codex => IconName::Code,
-            Self::OpenCode => IconName::Terminal,
-        }
-    }
-
-    /// `0xRRGGBB` tile colour.
-    pub fn tint(self) -> u32 {
-        match self {
-            Self::ClaudeCode => 0xd97757,
-            Self::Codex => 0x10a37f,
-            Self::OpenCode => 0x8b8b90,
+            Self::ClaudeCode => crate::AgentLogo::Claude,
+            Self::Codex => crate::AgentLogo::Codex,
+            Self::OpenCode => crate::AgentLogo::OpenCode,
         }
     }
 

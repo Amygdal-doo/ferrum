@@ -38,16 +38,18 @@ impl ChatView {
                     }
                     let this = this.clone();
                     let choice = option.choice.clone();
-                    menu = menu.toggleable_entry(
-                        option.label.clone(),
-                        option.choice.key() == current,
-                        IconPosition::Start,
-                        None,
-                        move |_, cx| {
-                            let choice = choice.clone();
-                            this.update(cx, |view, cx| view.set_agent(choice, cx)).ok();
-                        },
-                    );
+                    menu = menu
+                        .toggleable_entry(
+                            option.label.clone(),
+                            option.choice.key() == current,
+                            IconPosition::Start,
+                            None,
+                            move |_, cx| {
+                                let choice = choice.clone();
+                                this.update(cx, |view, cx| view.set_agent(choice, cx)).ok();
+                            },
+                        )
+                        .with_logo(crate::threads::agent_logo(&option.choice.key()));
                 }
                 menu.separator().entry("Models and API keys…", None, {
                     let this = this.clone();

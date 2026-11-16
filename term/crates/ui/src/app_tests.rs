@@ -25,7 +25,7 @@ fn block(id: u32) -> BlockInfo {
     }
 }
 
-fn session(id: u32, name: &str, blocks: &[u32]) -> SessionInfo {
+pub(crate) fn session(id: u32, name: &str, blocks: &[u32]) -> SessionInfo {
     SessionInfo {
         id: SessionId(id),
         name: name.into(),
