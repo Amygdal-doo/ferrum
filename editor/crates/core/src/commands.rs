@@ -248,6 +248,12 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("editor:format-document", E, &["shift-alt-f"]),
     ("editor:show-signature-help", E, &["cmd-shift-space"]),
     ("editor:show-hover", E, &["cmd-k cmd-i"]),
+    // Agent edit: prompt, then the answer to accept (⌘Enter) or reject
+    // (Escape). ⌘K alone also opens it (see the editor's key handler: a
+    // binding for ⌘K would hide the ⌘K chords).
+    ("editor:inline-edit", E, &[]),
+    ("editor:accept-inline-edit", E, &[]),
+    ("editor:reject-inline-edit", E, &[]),
     ("editor:go-to-next-problem", E, &["f8"]),
     ("editor:go-to-previous-problem", E, &["shift-f8"]),
     // Motions

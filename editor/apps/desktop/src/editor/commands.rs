@@ -38,6 +38,9 @@ impl EditorView {
             }
             return true;
         }
+        if self.inline_edit_command(name, window, cx) {
+            return true;
+        }
         if name == "editor:rename-symbol" {
             self.start_rename(window, cx);
             return true;

@@ -1,6 +1,8 @@
 //! The completion menu under the caret, the hover popup (problems and
 //! the server's type / docs) above the word, signature help above the
-//! caret and the rename input over the symbol, drawn over the editor.
+//! caret, the rename input over the symbol and the ⌘K agent edit (its
+//! prompt, then the replaced lines with Accept / Reject), drawn over the
+//! editor.
 
 use ferrumeditor_core::lsp::Severity;
 use gpui::{
@@ -336,7 +338,126 @@ impl EditorView {
                 body.into_any_element(),
             ));
         }
+        if let Some(element) = self.render_inline_edit(layout, &theme, font_size, cx) {
+            out.push(element);
+        }
         out
+    }
+
+    fn render_inline_edit(
+        &self,
+        layout: &super::LayoutSnapshot,
+        theme: &ferrumeditor_core::theme::Theme,
+        font_size: Pixels,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let inline = self.inline.as_ref()?;
+        let surface = ui(theme, "surface");
+        let muted = ui(theme, "text_muted");
+        let buffer = self.state.buffer();
+        let note = |text: String, color| {
+            div()
+                .px_1()
+                .text_size(font_size * 0.8)
+                .text_color(color)
+                .child(text)
+        };
+        if let Some(old) = inline.reviewing() {
+            // Below the new lines (or over the first one when the end is off
+            // screen): what they replaced, and the choice.
+            let end_row = buffer.row_of(inline.range.end.saturating_sub(1).max(inline.range.start));
+            let below = layout
+                .rows
+                .iter()
+                .rfind(|r| r.buffer_row == end_row)
+                .map(|r| point(layout.text_left, r.top + layout.line_height))
+                .or_else(|| layout.point_for_offset(inline.range.start))?;
+            let removed = ui(theme, "git_deleted");
+            let lines = old.strip_suffix('\n').unwrap_or(old);
+            let shown: Vec<&str> = lines.lines().take(12).collect();
+            let more = lines.lines().count().saturating_sub(shown.len());
+            let button = |id: &'static str, label: &'static str, accent: bool| {
+                div()
+                    .id(id)
+                    .px_2()
+                    .py_0p5()
+                    .rounded_sm()
+                    .text_size(font_size * 0.85)
+                    .when(accent, |d| d.bg(ui(theme, "accent")).text_color(surface))
+                    .when(!accent, |d| d.border_1().border_color(ui(theme, "border")))
+                    .cursor_pointer()
+                    .child(label)
+            };
+            let body = div()
+                .id("inline-edit-review")
+                .occlude()
+                .max_w(px(640.))
+                .bg(surface)
+                .border_1()
+                .border_color(ui(theme, "border_focused"))
+                .rounded_md()
+                .shadow_md()
+                .p_1()
+                .flex()
+                .flex_col()
+                .gap_1()
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .children(shown.into_iter().map(|line| {
+                    div()
+                        .px_1()
+                        .font_family(SharedString::from(
+                            cx.global::<Settings>().config.font_family.clone(),
+                        ))
+                        .text_size(font_size * 0.9)
+                        .bg(removed.opacity(0.12))
+                        .text_color(removed)
+                        .child(format!("− {line}"))
+                }))
+                .when(more > 0, |d| {
+                    d.child(note(format!("… {more} more removed lines"), muted))
+                })
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap_2()
+                        .child(note(format!("Agent edit ({})", inline.model), muted))
+                        .child(button("inline-accept", "Accept ⌘↵", true).on_click(
+                            cx.listener(|this, _, window, cx| this.accept_inline_edit(window, cx)),
+                        ))
+                        .child(button("inline-reject", "Reject Esc", false).on_click(
+                            cx.listener(|this, _, window, cx| this.cancel_inline_edit(window, cx)),
+                        )),
+                );
+            return Some(popup(Anchor::TopLeft, below, body.into_any_element()));
+        }
+        let origin = layout.point_for_offset(inline.range.start)?;
+        let status = match (&inline.error, inline.running()) {
+            (Some(error), _) => note(error.clone(), ui(theme, "error")),
+            (None, true) => note(format!("Asking {}…", inline.model), muted),
+            (None, false) => note(
+                format!("Enter to ask {} · Escape to cancel", inline.model),
+                muted,
+            ),
+        };
+        let body = div()
+            .id("inline-edit-prompt")
+            .occlude()
+            .w(px(480.))
+            .bg(surface)
+            .border_1()
+            .border_color(ui(theme, "border_focused"))
+            .rounded_md()
+            .shadow_md()
+            .p_1()
+            .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+            .child(inline.input.clone())
+            .child(status);
+        Some(popup(
+            Anchor::BottomLeft,
+            point(layout.text_left - px(6.), origin.y - px(2.)),
+            body.into_any_element(),
+        ))
     }
 }
 

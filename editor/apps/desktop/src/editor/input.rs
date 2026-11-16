@@ -357,9 +357,12 @@ impl EntityInputHandler for EditorView {
         &mut self,
         range_utf16: Option<Range<usize>>,
         text: &str,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if range_utf16.is_none() && self.type_into_inline_prompt(text, window, cx) {
+            return;
+        }
         let explicit = range_utf16
             .map(|r| self.range_from_utf16(&r))
             .or(self.marked_range.take());

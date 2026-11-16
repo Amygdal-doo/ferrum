@@ -217,6 +217,8 @@ pub fn set_menus(cx: &mut App) {
             item("Format Document", "editor:format-document"),
             item("Signature Help", "editor:show-signature-help"),
             MenuItem::separator(),
+            item("Edit with Agent…", "editor:inline-edit"),
+            MenuItem::separator(),
             item("Next Problem", "editor:go-to-next-problem"),
             item("Previous Problem", "editor:go-to-previous-problem"),
             item("Problems…", "problems:show"),

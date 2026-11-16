@@ -95,6 +95,13 @@ impl Workspace {
     /// turns count as unseen ("Done") and notify.
     pub(in crate::workspace) fn sync_chat_visibility(&mut self, cx: &mut Context<Self>) {
         let shown = self.tools.layout.is_open(ToolKind::Agent);
+        // ⌘K edits use the model of the Agent pane's thread.
+        if let Some(chat) = &self.tools.chat {
+            let agent = Some(chat.read(cx).thread().agent.clone());
+            if cx.try_global::<crate::editor::PaneAgent>().map(|a| &a.0) != Some(&agent) {
+                cx.set_global(crate::editor::PaneAgent(agent));
+            }
+        }
         if let Some(chat) = self.tools.chat.clone()
             && chat.read(cx).is_visible() != shown
         {

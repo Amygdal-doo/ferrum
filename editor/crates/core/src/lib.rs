@@ -23,6 +23,7 @@ pub mod highlight;
 pub mod history;
 pub mod icons;
 pub mod images;
+pub mod inline_edit;
 pub mod keymap;
 pub mod language;
 pub mod lsp;

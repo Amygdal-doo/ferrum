@@ -50,6 +50,21 @@ impl EditorView {
                 }
             }
         }
+        // An agent edit under review: its new lines tinted.
+        if let Some(inline) = self.inline.as_ref().filter(|i| i.reviewing().is_some()) {
+            let color = ui(theme, "git_added").opacity(0.14);
+            let rows = buffer.row_of(inline.range.start)
+                ..buffer.row_of(inline.range.end.saturating_sub(1).max(inline.range.start)) + 1;
+            for row in layout.rows.iter().filter(|r| rows.contains(&r.buffer_row)) {
+                frame.backgrounds.push(fill(
+                    Bounds::new(
+                        point(frame.text_area.left(), row.top),
+                        size(frame.text_area.size.width, lh),
+                    ),
+                    color,
+                ));
+            }
+        }
         if let Some(exec) = self.debug_marks.exec_line {
             let color = ui(theme, "warning").opacity(0.18);
             for row in layout.rows.iter().filter(|r| r.buffer_row == exec) {

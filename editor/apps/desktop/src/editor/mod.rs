@@ -2,7 +2,8 @@
 //! metadata, scroll state, syntax highlights, git marks and search
 //! matches. Rendering lives in `element`, input in `input`, command
 //! dispatch in `commands`, background work in `background`, find support
-//! in `search`, code folding in `folding`, the minimap in `minimap`; language server features in `lsp`, `lsp_actions`,
+//! in `search`, code folding in `folding`, the minimap in `minimap`,
+//! ⌘K agent edits in `inline_edit`; language server features in `lsp`, `lsp_actions`,
 //! `completion` and `popups`.
 
 mod background;
@@ -11,6 +12,7 @@ mod completion;
 mod decorations;
 mod element;
 mod folding;
+mod inline_edit;
 mod input;
 mod layout;
 mod lsp;
@@ -37,6 +39,9 @@ use gpui::{
     Pixels, Point, Render, SharedString, Subscription, Task, Window, div, prelude::*, px,
 };
 
+#[cfg(test)]
+pub use inline_edit::InlineModels;
+pub use inline_edit::PaneAgent;
 pub use layout::LayoutSnapshot;
 pub use search::SearchState;
 
@@ -156,6 +161,8 @@ pub struct EditorView {
     actions: lsp_actions::LspActions,
     completion: Option<completion::CompletionMenu>,
     completion_task: Option<Task<()>>,
+    /// The ⌘K agent edit: its prompt, then its answer under review.
+    inline: Option<inline_edit::InlineEdit>,
     pub debug_marks: DebugMarks,
     _subscriptions: Vec<Subscription>,
 }
@@ -232,6 +239,7 @@ impl EditorView {
             actions: lsp_actions::LspActions::default(),
             completion: None,
             completion_task: None,
+            inline: None,
             debug_marks: DebugMarks::default(),
             _subscriptions: subscriptions,
         };
@@ -495,6 +503,7 @@ impl Render for EditorView {
             .bg(cx.theme().colors().editor_background)
             .cursor(CursorStyle::IBeam)
             .on_action(cx.listener(Self::on_run_command))
+            .on_key_down(cx.listener(Self::on_inline_edit_key))
             .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
             .on_mouse_move(cx.listener(Self::on_mouse_move))
             .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
