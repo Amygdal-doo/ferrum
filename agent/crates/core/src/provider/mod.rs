@@ -7,6 +7,7 @@ pub mod anthropic;
 pub mod mock;
 pub mod ollama;
 pub mod openai;
+pub mod ping;
 pub mod sse;
 
 use std::sync::Arc;
@@ -161,21 +162,34 @@ pub fn build(
     store: &dyn SecretStore,
 ) -> Result<Arc<dyn Provider>, ProviderError> {
     let key = if settings.needs_key() {
-        let (key, _) = secrets::resolve(store, &settings.id, settings.env_key.as_deref())
-            .ok_or_else(|| {
-                ProviderError::MissingKey(
+        let found = secrets::resolve(store, &settings.id, settings.env_key.as_deref());
+        match found {
+            Some((key, _)) => Some(key),
+            // A custom endpoint may need no key (LM Studio, vLLM…).
+            None if settings.custom => None,
+            None => {
+                return Err(ProviderError::MissingKey(
                     settings.name.clone(),
                     settings
                         .env_key
                         .clone()
                         .unwrap_or_else(|| "an env var".into()),
-                )
-            })?;
-        Some(key)
+                ));
+            }
+        }
     } else {
         None
     };
-    Ok(match settings.kind {
+    Ok(build_with_key(settings, key))
+}
+
+/// Builds the provider for `settings` with `key` (a form's key, before it
+/// is saved).
+pub fn build_with_key(
+    settings: &ProviderSettings,
+    key: Option<crate::secrets::ApiKey>,
+) -> Arc<dyn Provider> {
+    match settings.kind {
         ProviderKind::Anthropic => Arc::new(anthropic::Anthropic::new(
             &settings.id,
             &settings.base_url,
@@ -194,7 +208,7 @@ pub fn build(
             openai::Api::Responses,
         )),
         ProviderKind::Ollama => Arc::new(ollama::Ollama::new(&settings.id, &settings.base_url)),
-    })
+    }
 }
 
 /// A shared HTTP client (rustls; no proxies read from the environment

@@ -428,3 +428,48 @@ fn siblings_share_one_settings() {
     b.set_approval(Approval::AutoEdits).expect("approval");
     assert_eq!(a.settings().approval, Approval::AutoEdits);
 }
+
+#[test]
+fn models_added_by_another_app_are_offered_and_ferrum_ai_is_not_chosen() {
+    use ferrumagent_core::custom_models::{CustomKind, CustomModel};
+    use ferrumagent_core::models::ModelStore;
+    use ferrumagent_core::secrets::MemoryStore;
+    use ferrumagent_core::session::AgentChoice;
+    let project = tempfile::tempdir().expect("tempdir");
+    let home = tempfile::tempdir().expect("tempdir");
+    let mock = MockProvider::new();
+    let (session, _events) = session(project.path(), home.path(), &mock);
+    let before = session.agent();
+
+    // FerrumAI is first in the selector, disabled, and refused.
+    let options = session.agent_options();
+    assert_eq!(
+        (options[0].label.as_str(), options[0].enabled),
+        ("FerrumAI", false)
+    );
+    session.set_agent(options[0].choice.clone());
+    assert_eq!(session.agent(), before, "FerrumAI is not chosen");
+
+    // Another app (its own store on the same home) adds a model: offered here.
+    let other = ModelStore::new(
+        home.path().to_path_buf(),
+        Arc::new(MemoryStore::default()),
+        Arc::new(std::sync::Mutex::new(session.settings())),
+        None,
+        Vec::new(),
+    );
+    let model = CustomModel {
+        kind: CustomKind::Anthropic,
+        name: "Proxy".into(),
+        base_url: "https://proxy.example.com".into(),
+        model: "claude-proxy".into(),
+    };
+    other.add_custom(&model, "").expect("added");
+    let choice = AgentChoice::Native {
+        provider: "custom-proxy".into(),
+        model: "claude-proxy".into(),
+    };
+    assert!(session.agent_options().iter().any(|o| o.choice == choice));
+    session.set_agent(choice.clone());
+    assert_eq!(session.agent(), choice);
+}

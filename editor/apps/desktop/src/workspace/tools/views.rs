@@ -65,6 +65,7 @@ impl Workspace {
         let config = self.tools.chat_config.as_ref().map(|make| make(&root));
         let options = ChatOptions {
             config,
+            path_env: login_path(cx),
             ..Default::default()
         };
         let chat = ChatView::new(&root, options, window, cx);
@@ -73,7 +74,22 @@ impl Workspace {
         self.tools.chat = Some(chat);
         self.tools.chat_root = Some(root);
     }
+}
 
+/// The login shell's `PATH` the language servers use, once resolved: an
+/// app started from the Dock has a minimal one, so external agents (`npx`,
+/// `claude`, `codex`) and MCP servers would not be found (FerrumEngineer
+/// passes its own the same way).
+fn login_path(cx: &App) -> Option<String> {
+    use futures::FutureExt as _;
+    let lsp = crate::lsp_store::LspStore::global(cx)?;
+    lsp.read(cx)
+        .path_env()
+        .now_or_never()
+        .filter(|path| !path.is_empty())
+}
+
+impl Workspace {
     /// Tells each chat whether it is on screen: the current project's while
     /// the Agent pane is open. A hidden chat keeps running; its finished
     /// turns count as unseen ("Done") and notify.
