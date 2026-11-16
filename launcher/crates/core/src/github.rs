@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 
 const PER_PAGE: usize = 100;
 const MAX_PAGES: usize = 20;
-const USER_AGENT: &str = concat!("FerrumLauncher/", env!("CARGO_PKG_VERSION"));
+pub(crate) const USER_AGENT: &str = concat!("FerrumLauncher/", env!("CARGO_PKG_VERSION"));
 /// Catalog logos are small icons; anything bigger is not a logo.
 const MAX_LOGO_BYTES: usize = 1024 * 1024;
 

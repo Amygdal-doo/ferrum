@@ -1,8 +1,9 @@
 //! Settings › Launcher (in the shared Settings window, ⌘,): how often to
-//! check for updates and how many versions to keep. The menu bar and Dock
+//! check for updates, how many versions to keep and the anonymous usage
+//! count. The menu bar and Dock
 //! switches are under Interface › Window.
 
-use ferrum_ui::components::IconName;
+use ferrum_ui::components::{Button, ButtonCommon as _, ButtonStyle, Clickable as _, IconName};
 use ferrum_ui::gpui::{
     self, AnyElement, App, Global, Hsla, IntoElement, ParentElement, Styled, WeakEntity, Window,
 };
@@ -92,7 +93,16 @@ impl SettingsPage for LauncherPage {
         gpui::rgb(0xe8743b).into()
     }
     fn keywords(&self) -> &'static [&'static str] {
-        &["updates", "check", "versions", "keep"]
+        &[
+            "updates",
+            "check",
+            "versions",
+            "keep",
+            "privacy",
+            "usage",
+            "analytics",
+            "telemetry",
+        ]
     }
     fn render(&self, window: &mut Window, cx: &mut App) -> AnyElement {
         let Some(launcher) = cx
@@ -154,6 +164,36 @@ impl SettingsPage for LauncherPage {
                         "Update channels (Stable, Beta or Alpha) are set per app on its page.",
                     ),
             )
+            .child(privacy_section(settings.share_usage_counts))
             .into_any_element()
     }
+}
+
+/// Privacy: the anonymous daily usage count.
+fn privacy_section(on: bool) -> Section {
+    use ferrumlauncher_core::usage;
+    Section::new("Privacy")
+        .row(
+            Row::new("share-usage", "Share anonymous usage counts")
+                .detail(
+                    "Once a day: a random install ID, the launcher and app versions, OS and CPU \
+                     type. Nothing that identifies you, and no IP addresses are kept.",
+                )
+                .control(
+                    Switch::new("share-usage-switch", on).on_change(|on, _, cx| {
+                        if let Some(l) = launcher(cx) {
+                            l.update(cx, |l, cx| l.set_share_usage_counts(on, cx));
+                            cx.refresh_windows();
+                        }
+                    }),
+                ),
+        )
+        .row(
+            Row::new("usage-privacy", "What is sent and why").control(
+                Button::new("usage-privacy-open", "Open")
+                    .style(ButtonStyle::Subtle)
+                    .on_click(|_, _, cx| cx.open_url(usage::PRIVACY_URL)),
+            ),
+        )
+        .footnote("FERRUM_NO_ANALYTICS=1 or DO_NOT_TRACK=1 in the environment also turns it off.")
 }

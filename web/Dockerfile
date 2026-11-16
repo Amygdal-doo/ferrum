@@ -23,8 +23,10 @@ COPY --from=planner /app/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
 COPY Cargo.toml Cargo.lock ./
 COPY src ./src
-# Assets are embedded into the binary by rust-embed at compile time.
+# Assets are embedded into the binary by rust-embed at compile time, and the
+# usage-count SQL migrations by sqlx::migrate!.
 COPY assets ./assets
+COPY migrations ./migrations
 RUN cargo build --release --locked --bin web-ferrum
 
 # 3. Minimal runtime image, non-root.

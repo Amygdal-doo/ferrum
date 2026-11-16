@@ -8,13 +8,15 @@ use crate::layout::{PageMeta, page};
 use crate::site;
 
 pub const PATH: &str = "/privacy";
-pub const UPDATED: &str = "2026-11-11";
+pub const UPDATED: &str = "2026-11-16";
+/// Anchor of the usage-count section (the launcher links to it).
+pub const USAGE_COUNTS_ID: &str = "usage-counts";
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Privacy policy for this website"),
-        "What the Ferrum website stores about you (nothing: no cookies, no analytics, no \
-         accounts) and which services it involves.",
+        "What the Ferrum website stores (no cookies, no accounts), the launcher's anonymous \
+         daily install count and how to turn it off, and the services involved.",
         PATH,
         "page-privacy",
     )
@@ -35,8 +37,9 @@ pub fn render(site_url: &str) -> Markup {
                 article class="post" aria-labelledby="page-title" {
                     div class="post__body" {
                         p class="post__intro" {
-                            "This page covers this website. The Ferrum apps themselves keep their \
-                             data on your computer and contain no telemetry; see "
+                            "This page covers this website and the one count FerrumLauncher \
+                             sends. The Ferrum apps keep their data on your computer and send no \
+                             usage data of their own; see "
                             a href="/security" { "Security" } "."
                         }
                         h2 { "What we store" }
@@ -58,6 +61,45 @@ pub fn render(site_url: &str) -> Markup {
                             }
                         }
                         p { "This site sets no cookies and runs no analytics. The light or dark theme you pick is kept in your browser's local storage." }
+                        h2 id=(USAGE_COUNTS_ID) { "Usage counts from FerrumLauncher" }
+                        p {
+                            "To know how many people use Ferrum, FerrumLauncher sends one small \
+                             message to this website at most once a day (UTC). It is on by \
+                             default; the launcher says so the first time it starts. The message \
+                             holds exactly:"
+                        }
+                        ul class="post__list" {
+                            li {
+                                strong { "An install ID" } ": a random number the launcher makes \
+                                 once and keeps in its state file. It isn't derived from your \
+                                 computer or account."
+                            }
+                            li { strong { "The launcher version" } "." }
+                            li { strong { "The OS and CPU type" } ": macOS, Linux or Windows; ARM64 or x86-64." }
+                            li {
+                                strong { "The installed apps" } ": each app's id and active \
+                                 version (for example FerrumGIT 0.4.0)."
+                            }
+                        }
+                        p {
+                            "Nothing else: no names, file paths, project names, host names or \
+                             e-mail addresses. The website stores one row per install per day \
+                             and does not store your IP address or user agent with it. The \
+                             totals are public on "
+                            a href=(super::stats::PATH) { "Usage stats" } "."
+                        }
+                        p { "To turn it off, use either of these:" }
+                        ul class="post__list" {
+                            li {
+                                "In the launcher, open Settings › Launcher and switch off "
+                                strong { "Share anonymous usage counts" } " (or choose "
+                                strong { "Turn off" } " on the first-run notice)."
+                            }
+                            li {
+                                "Start the launcher with " code { "FERRUM_NO_ANALYTICS=1" } " (or "
+                                code { "DO_NOT_TRACK=1" } ") in its environment."
+                            }
+                        }
                         h2 { "Contact" }
                         @match site::CONTACT_EMAIL {
                             Some(email) => p {
@@ -88,6 +130,22 @@ mod tests {
         assert!(html.contains("no cookies"));
         for gone in ["Resend", "unsubscribe", "your email address"] {
             assert!(!html.contains(gone), "{gone}");
+        }
+    }
+
+    #[test]
+    fn explains_the_usage_count_and_how_to_turn_it_off() {
+        let html = render("https://example.test").into_string();
+        assert!(html.contains(r#"id="usage-counts""#));
+        for text in [
+            "install ID",
+            "IP address",
+            "FERRUM_NO_ANALYTICS=1",
+            "DO_NOT_TRACK=1",
+            "Share anonymous usage counts",
+            r#"href="/stats""#,
+        ] {
+            assert!(html.contains(text), "{text}");
         }
     }
 }

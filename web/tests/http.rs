@@ -53,7 +53,7 @@ async fn send_with(releases: Releases, req: Request<Body>) -> Res {
     }
 }
 
-const PAGES: [&str; 43] = [
+const PAGES: [&str; 44] = [
     "/",
     "/apps",
     "/features",
@@ -97,6 +97,7 @@ const PAGES: [&str; 43] = [
     "/about",
     "/licenses",
     "/privacy",
+    "/stats",
 ];
 
 async fn get(uri: &str) -> Res {
@@ -1021,4 +1022,79 @@ async fn apps_page_lists_every_app_and_nav_points_to_it() {
 
     let xml = get("/sitemap.xml").await.text();
     assert!(xml.contains("<loc>http://localhost:8080/apps</loc><lastmod>"));
+}
+
+fn ping_request(body: impl Into<Body>) -> Request<Body> {
+    Request::post("/api/ping")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(body.into())
+        .unwrap()
+}
+
+const VALID_PING: &str = r#"{"install_id":"0b6f1f8e-6c5a-4d43-9a1e-2f1d8e4b7c10",
+    "launcher_version":"0.9.1","os":"macos","arch":"aarch64",
+    "apps":[{"id":"git","version":"0.4.0"},{"id":"unknown","version":"1.0.0"}]}"#;
+
+#[tokio::test]
+async fn ping_without_a_database_is_accepted_and_dropped() {
+    let res = send(ping_request(VALID_PING)).await;
+    assert_eq!(res.status, StatusCode::NO_CONTENT);
+    assert_eq!(res.header(header::CACHE_CONTROL), "no-store");
+    assert!(res.body.is_empty());
+}
+
+#[tokio::test]
+async fn invalid_pings_are_rejected() {
+    for body in [
+        String::new(),
+        "not json".to_owned(),
+        r#"{"install_id":"x","launcher_version":"1","os":"macos","arch":"aarch64"}"#.to_owned(),
+        VALID_PING.replace("macos", "plan9"),
+        VALID_PING.replace("aarch64", "sparc"),
+        VALID_PING.replace("0.9.1", "<script>"),
+    ] {
+        let res = send(ping_request(body.clone())).await;
+        assert_eq!(res.status, StatusCode::BAD_REQUEST, "{body}");
+    }
+}
+
+#[tokio::test]
+async fn oversized_pings_are_rejected() {
+    let big = VALID_PING.replace("0.9.1", &"1".repeat(16 * 1024));
+    let res = send(ping_request(big)).await;
+    assert_eq!(res.status, StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn ping_only_accepts_post() {
+    let res = get("/api/ping").await;
+    assert_eq!(res.status, StatusCode::METHOD_NOT_ALLOWED);
+}
+
+#[tokio::test]
+async fn stats_page_renders_without_a_database() {
+    let res = get("/stats").await;
+    assert_eq!(res.status, StatusCode::OK);
+    let html = res.text();
+    assert!(html.contains("No counts yet"));
+    assert!(html.contains("/privacy#usage-counts"));
+    // Offline: no GitHub numbers either, and no error.
+    assert!(html.contains("can't be loaded right now"));
+    assert!(get("/").await.text().contains(r#"href="/stats""#));
+}
+
+#[tokio::test]
+async fn stats_page_shows_github_download_totals() {
+    let json = r#"[{"tag_name":"launcher-v0.9.0","assets":[
+        {"name":"FerrumLauncher-0.9.0-aarch64.dmg","browser_download_url":"u","download_count":1234}]}]"#;
+    let html = get_with(fake_releases(Ok(json)), "/stats").await.text();
+    assert!(html.contains("1,234"));
+    assert!(html.contains("FerrumLauncher"));
+}
+
+#[tokio::test]
+async fn privacy_page_explains_usage_counts() {
+    let html = get("/privacy").await.text();
+    assert!(html.contains(r#"id="usage-counts""#));
+    assert!(html.contains("FERRUM_NO_ANALYTICS=1"));
 }

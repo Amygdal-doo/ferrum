@@ -67,7 +67,7 @@ const VAULT_LIMITS: [&str; 4] = [
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("Security: signed builds and the FerrumVariables vault"),
-        "Signed builds checked against SHA-256, no telemetry, and FerrumVariables's Argon2id and \
+        "Signed builds checked against SHA-256, no app telemetry, and FerrumVariables's Argon2id and \
          XChaCha20-Poly1305 vault, with its limits stated plainly.",
         PATH,
         "page-security",
@@ -181,14 +181,21 @@ pub fn render(site_url: &str) -> Markup {
                 }
             }))
 
-            (Section::new("privacy", "No telemetry").band().render(html! {
+            (Section::new("privacy", "No telemetry, one anonymous count").band().render(html! {
                 div class="prose" {
                     p {
                         "The apps contain no analytics or telemetry. They connect to what you use \
                          them with: GitHub for releases and the CI page, and your own APIs, \
                          databases and container engine. This website sets no cookies and runs no \
-                         analytics; see "
-                        a href="/privacy" { "Privacy" } "."
+                         analytics."
+                    }
+                    p {
+                        "FerrumLauncher sends one anonymous count a day (a random install ID, \
+                         versions, OS and CPU type) so we know how many people use Ferrum. It's \
+                         on by default, announced on first start, and off with one switch in \
+                         Settings or "
+                        code { "FERRUM_NO_ANALYTICS=1" } "; see "
+                        a href="/privacy#usage-counts" { "exactly what is sent" } "."
                     }
                 }
             }))

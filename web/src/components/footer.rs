@@ -46,6 +46,7 @@ pub fn render() -> Markup {
                             li { a href="/changelog" { "Changelog" } }
                             li { a href=(updates::INDEX_PATH) { "Updates" } }
                             li { a href=(updates::FEED_PATH) { "Atom feed" } }
+                            li { a href=(crate::pages::stats::PATH) { "Usage stats" } }
                         }
                     }
                     nav class="footer-col" aria-labelledby="footer-learn" {
@@ -118,6 +119,7 @@ mod tests {
             "/faq",
             "/security",
             "/compare",
+            "/stats",
         ] {
             assert!(html.contains(&format!(r#"href="{path}""#)), "{path}");
         }

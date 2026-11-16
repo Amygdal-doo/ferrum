@@ -55,6 +55,8 @@ struct Release {
 struct Asset {
     name: String,
     browser_download_url: String,
+    #[serde(default)]
+    download_count: u64,
 }
 
 /// `launcher-v1.2.3` -> `((1, 2, 3), true)`, `toolbox-v1.2.3` ->
@@ -202,6 +204,42 @@ pub fn changelog(json: &str) -> Option<Vec<ChangelogEntry>> {
     Some(entries)
 }
 
+/// GitHub download counts of release assets (checksum files excluded).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DownloadTotals {
+    pub total: u64,
+    /// `(app id, downloads)`, most first; `toolbox` counts as `launcher`.
+    pub by_app: Vec<(String, u64)>,
+}
+
+/// Download totals over every non-draft `<app>-v<version>` release in the
+/// response. `None` if the JSON is not a release list.
+pub fn download_totals(json: &str) -> Option<DownloadTotals> {
+    let releases: Vec<Release> = serde_json::from_str(json).ok()?;
+    let mut by_app: Vec<(String, u64)> = Vec::new();
+    for r in releases.into_iter().filter(|r| !r.draft) {
+        let Some((id, _)) = split_tag(&r.tag_name) else {
+            continue;
+        };
+        let id = if id == "toolbox" { "launcher" } else { id };
+        let count: u64 = r
+            .assets
+            .iter()
+            .filter(|a| !a.name.ends_with(".sha256"))
+            .map(|a| a.download_count)
+            .sum();
+        match by_app.iter_mut().find(|(app, _)| app == id) {
+            Some((_, n)) => *n += count,
+            None => by_app.push((id.to_owned(), count)),
+        }
+    }
+    by_app.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    Some(DownloadTotals {
+        total: by_app.iter().map(|(_, n)| n).sum(),
+        by_app,
+    })
+}
+
 /// The last fetch: when to ask GitHub again, and the newest good body.
 struct Cached {
     refresh_at: Instant,
@@ -284,6 +322,11 @@ impl Releases {
         changelog(&self.body().await?)
     }
 
+    /// GitHub download totals; `None` when releases can't be loaded.
+    pub async fn download_totals(&self) -> Option<DownloadTotals> {
+        download_totals(&self.body().await?)
+    }
+
     /// Date of the newest release already in the cache, without fetching.
     pub fn newest_cached_date(&self) -> Option<String> {
         let body = self.lock().as_ref()?.body.clone()?;
@@ -320,6 +363,30 @@ mod tests {
        "assets": [{"name": "toolbox-0.3.11-linux.tar.gz",
                    "browser_download_url": "https://dl.test/0.3.11.tar.gz"}]}
     ]"#;
+
+    #[test]
+    fn totals_downloads_per_app_without_checksums() {
+        let json = r#"[
+          {"tag_name": "api-v0.9.0", "assets": [
+             {"name": "a.dmg", "browser_download_url": "u", "download_count": 5},
+             {"name": "a.dmg.sha256", "browser_download_url": "u", "download_count": 99}]},
+          {"tag_name": "toolbox-v0.3.0", "assets": [
+             {"name": "t.tar.gz", "browser_download_url": "u", "download_count": 7}]},
+          {"tag_name": "launcher-v0.6.0", "assets": [
+             {"name": "l.dmg", "browser_download_url": "u", "download_count": 3}]},
+          {"tag_name": "git-v1.0.0", "draft": true, "assets": [
+             {"name": "g.dmg", "browser_download_url": "u", "download_count": 50}]},
+          {"tag_name": "random", "assets": [
+             {"name": "r.dmg", "browser_download_url": "u", "download_count": 50}]}
+        ]"#;
+        let totals = download_totals(json).expect("a release list");
+        assert_eq!(totals.total, 15);
+        assert_eq!(
+            totals.by_app,
+            vec![("launcher".to_owned(), 10), ("api".to_owned(), 5)]
+        );
+        assert_eq!(download_totals("{}"), None);
+    }
 
     #[test]
     fn parses_launcher_and_toolbox_tags() {
