@@ -32,5 +32,6 @@ pub mod privacy;
 pub mod product_sections;
 pub mod project_demos;
 pub mod security;
+pub mod stats;
 pub mod tool_demos;
 pub mod updates;

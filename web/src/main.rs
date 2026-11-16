@@ -23,6 +23,19 @@ async fn main() -> std::io::Result<()> {
     tracing::info!(addr = %listener.local_addr()?, "web-ferrum listening");
 
     let state = AppState::new(config, Releases::github());
+    // Usage-count tables; in the background so the health check never
+    // waits on the database. Pings fail with 503 until this has run.
+    if state.usage.enabled() {
+        let usage = state.usage.clone();
+        tokio::spawn(async move {
+            match usage.migrate().await {
+                Ok(()) => tracing::info!("usage database ready"),
+                Err(err) => tracing::error!(%err, "usage database migration failed"),
+            }
+        });
+    } else {
+        tracing::info!("DATABASE_URL unset: usage pings are accepted but not stored");
+    }
     let service = router(state).into_make_service();
     axum::serve(listener, service)
         .with_graceful_shutdown(shutdown_signal())

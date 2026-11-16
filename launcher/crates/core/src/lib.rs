@@ -18,6 +18,7 @@ pub mod shared_prefs;
 pub mod shell;
 pub mod store;
 pub mod uninstall;
+pub mod usage;
 
 pub use auth::{GitHubToken, TokenSource};
 pub use catalog::{AppId, AppInfo, AppStatus, Catalog, CatalogEntry};

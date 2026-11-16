@@ -212,6 +212,9 @@ pub struct Settings {
     /// when its window is closed, so shortcuts keep working).
     #[serde(default)]
     pub menu_bar: bool,
+    /// Send the anonymous daily usage count (see [`crate::usage`]). On by
+    /// default, including for state files written before it existed.
+    pub share_usage_counts: bool,
 }
 
 /// What the user chose for one app on its page.
@@ -268,6 +271,7 @@ impl Default for Settings {
             legacy_keychain_checked: false,
             app_prefs: BTreeMap::new(),
             menu_bar: false,
+            share_usage_counts: true,
         }
     }
 }
@@ -314,6 +318,8 @@ pub struct State {
     pub releases: Vec<ReleaseInfo>,
     /// Last `catalog.json` fetched from the repo (completed from the embedded copy).
     pub catalog: Option<Catalog>,
+    /// Anonymous usage count: install id, last ping, notice shown.
+    pub usage: crate::usage::UsageState,
     /// Version of the launcher binary that is running. Not persisted: a
     /// launcher opened from a DMG install counts as installed even though
     /// this store never installed it.
@@ -330,6 +336,7 @@ impl Default for State {
             last_check: None,
             releases: Vec::new(),
             catalog: None,
+            usage: crate::usage::UsageState::default(),
             running_launcher: None,
         }
     }

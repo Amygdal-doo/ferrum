@@ -62,7 +62,8 @@ const QUESTIONS: [(&str, &str); 4] = [
     ),
     (
         "Does it phone home?",
-        "No. There is no telemetry and no Ferrum server that holds your work.",
+        "Only to be counted. The apps have no telemetry and no Ferrum server holds your work; \
+         the launcher sends one anonymous count a day, which you can turn off in Settings.",
     ),
 ];
 
@@ -209,7 +210,8 @@ fn local() -> Markup {
             p {
                 "Requests, queries, repositories, vaults and terminal sessions stay on your \
                  machine. Nothing needs an account, and the apps contain no analytics or \
-                 telemetry."
+                 telemetry. The launcher sends one anonymous daily count, "
+                a href="/privacy#usage-counts" { "and you can turn it off" } "."
             }
             p { a href="/security" { "How Ferrum handles security" } }
         },

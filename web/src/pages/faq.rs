@@ -116,9 +116,13 @@ fn faqs() -> Vec<Faq> {
             q: "Do the apps collect telemetry?",
             a: "No. The apps contain no analytics or telemetry. They connect to what you use \
                 them with: GitHub for releases and the CI page, the model provider or agent you \
-                pick for the agent chat, and your own APIs, databases and container engine. This website sets no cookies and runs no analytics."
+                pick for the agent chat, and your own APIs, databases and container engine. \
+                FerrumLauncher sends one anonymous count a day (a random install ID, versions, \
+                OS and CPU type) so we know how many people use Ferrum; turn it off in \
+                Settings › Launcher or with FERRUM_NO_ANALYTICS=1. This website sets no cookies \
+                and runs no analytics."
                 .to_owned(),
-            more: Some(("Website privacy", "/privacy")),
+            more: Some(("What the launcher sends", "/privacy#usage-counts")),
         },
         Faq {
             q: "Are the builds signed and notarized?",
@@ -167,7 +171,7 @@ pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
         Some("FAQ: open source, platforms, privacy and signing"),
         "Answers about Ferrum: free and open source (MIT or Apache-2.0), in alpha, for macOS and \
-         Linux, keeps your data local, has no telemetry, and ships signed builds.",
+         Linux, keeps your data local, has no app telemetry, and ships signed builds.",
         PATH,
         "page-faq",
     )

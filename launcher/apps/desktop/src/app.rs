@@ -65,6 +65,9 @@ pub struct FerrumLauncher {
     notice_task: Option<Task<()>>,
     /// Shown until dismissed or acted on.
     pub new_app_notice: Option<NewAppNotice>,
+    /// The one-time usage-count notice is showing.
+    pub usage_notice: bool,
+    pub(crate) usage_loop: Task<()>,
     /// The open "Uninstall …?" confirmation.
     pub uninstall_dialog: Option<crate::components::uninstall::UninstallDialog>,
     pub(crate) check_loop: Task<()>,
@@ -104,6 +107,8 @@ impl FerrumLauncher {
             notice: None,
             notice_task: None,
             new_app_notice: None,
+            usage_notice: false,
+            usage_loop: Task::ready(()),
             uninstall_dialog: None,
             check_loop: Task::ready(()),
             progress_ticker: None,
@@ -118,6 +123,8 @@ impl FerrumLauncher {
         // Apps added since the last start (e.g. by this launcher version)
         // are announced; the catalog fetch announces later ones.
         this.announce_new_apps(cx);
+        this.show_usage_notice(cx);
+        this.start_usage_pings(cx);
         this.load_logos(cx);
         this.detect_token(window, cx);
         this.start_integration(cx);
@@ -357,6 +364,7 @@ impl Render for FerrumLauncher {
             .min_h_0()
             .w_full()
             .children(self.render_new_app_notice(cx))
+            .children(self.render_usage_notice(cx))
             .child(div().flex_1().min_h_0().child(match self.page {
                 Page::Overview => self.render_overview(cx).into_any_element(),
                 Page::App => self.render_detail(window, cx).into_any_element(),

@@ -34,6 +34,7 @@ and reload without recompiling. Release builds embed the files.
 | `SITE_URL`              | see below                | Public base URL used for canonical, Open Graph, robots and sitemap URLs, e.g. `https://ferrum.dev`. A trailing `/` is ignored. |
 | `RAILWAY_PUBLIC_DOMAIN` | (set by Railway)         | Fallback when `SITE_URL` is unset: becomes `https://$RAILWAY_PUBLIC_DOMAIN`. |
 | `RUST_LOG`              | `info`                   | `tracing` env filter, e.g. `info,tower_http=debug`. |
+| `DATABASE_URL`          | unset                    | Postgres for the launcher's anonymous usage counts (`/api/ping`, `/stats`). Unset: pings get `204` and are dropped, `/stats` shows an empty state. Migrations in `migrations/` run at startup (in the background). |
 
 If neither `SITE_URL` nor `RAILWAY_PUBLIC_DOMAIN` is set, the site URL is
 `http://localhost:$PORT`.
@@ -57,6 +58,8 @@ There is no mailing list: news goes on `/updates` and its Atom feed.
 | `/updates`, `/updates/{slug}`, `/privacy` | HTML pages. Posts are Rust data in `src/updates.rs` with bodies in `src/pages/posts/`. The updates pages end with a block at `#follow` that points to the Atom feed |
 | `/updates/feed.xml` | Atom feed of every post, full HTML content with absolute links. Linked from every page's `<head>` |
 | `/healthz` | `200 ok`, `text/plain`, `no-store`, used by the Railway health check |
+| `POST /api/ping` | FerrumLauncher's anonymous daily count (`src/usage.rs`, `routes/ping.rs`). JSON `{install_id, launcher_version, os, arch, apps: [{id, version}]}`, at most 8 KiB and 64 apps; `os` is `macos`/`linux`/`windows`, `arch` `aarch64`/`x86_64`, unknown app ids are dropped. One row per install per UTC day (`ON CONFLICT DO NOTHING`), no IP or user agent stored. `204` stored or no database, `400` invalid, `413` too large, `503` database error. `no-store` |
+| `/stats` | Active installs today / 7 / 30 days, OS and CPU split, installs per app (aggregates cached 5 min), and GitHub download totals from the cached releases list. Empty state without `DATABASE_URL` |
 | `/robots.txt`, `/sitemap.xml` | The sitemap lists every page with a `lastmod`: `site::CONTENT_UPDATED` for static copy, post dates for posts, and the newest cached release for `/changelog` |
 | `/assets/*` | Embedded files. URLs from `assets::url()` carry `?v=<sha256 prefix>` and are served `immutable` for one year. Every asset has a strong ETag (`304` on `If-None-Match`) |
 | anything else | HTML 404, `no-cache` |
@@ -75,14 +78,16 @@ src/
   config.rs        env parsing (pure `Config::from_vars`, unit-tested)
   site.rs          site-wide constants and links (download, releases, upstream credits)
   products.rs      product catalogue (drives nav, cards, sitemap)
-  releases.rs      cached GitHub releases list: launcher DMG for /download/macos and /changelog entries
+  releases.rs      cached GitHub releases list: launcher DMG for /download/macos, /changelog entries, download totals
+  usage.rs         anonymous usage pings: validation, Postgres store (sqlx), cached /stats aggregates
+migrations/        sqlx migrations, embedded at build time (usage_pings, usage_ping_apps)
   seo.rs           JSON-LD builders (Organization, WebSite, BreadcrumbList, SoftwareApplication, FAQPage, BlogPosting)
   updates.rs       posts on /updates (slug, title, date, byline, summary, body fn)
   layout.rs        HTML shell: head with title, description, canonical, Open Graph, Twitter,
                    theme-color, icons, JSON-LD; nav and footer
   components/      the design system's maud components (see DESIGN.md)
   pages/           one module per page, each with `render(site_url)`; posts/ holds post bodies
-  routes/          router (mod.rs), assets, health, seo, middleware, updates
+  routes/          router (mod.rs), assets, health, ping, seo, middleware, updates
 assets/            css/, js/, img/ (embedded at compile time)
 tests/http.rs      end-to-end HTTP tests via tower::ServiceExt::oneshot (pages, redirects, feed,
                    SEO metadata and parsed JSON-LD, sitemap). Releases come from fake fetchers:
@@ -162,7 +167,12 @@ The runtime image runs as a non-root user (uid 10001), and the binary is at
    `https://tryferrum.dev` or your custom domain.
    Without it, the app falls back to `RAILWAY_PUBLIC_DOMAIN`. Do not set `PORT`.
    Railway injects it.
-4. Redeploy, then check `https://<domain>/healthz` and `https://<domain>/sitemap.xml`.
+4. For usage counts, add a PostgreSQL database to the project (*New* → *Database*
+   → *PostgreSQL*) and, in this service's *Variables*, add a reference variable
+   `DATABASE_URL` = `${{Postgres.DATABASE_URL}}` (the private-network URL). The
+   tables are created on the next start. Without it the site works and stores no
+   counts.
+5. Redeploy, then check `https://<domain>/healthz` and `https://<domain>/sitemap.xml`.
 
 On redeploy Railway sends SIGTERM, and the server drains in-flight connections
 before it exits.

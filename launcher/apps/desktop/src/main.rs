@@ -9,6 +9,7 @@ mod integration;
 mod panel;
 mod services;
 mod settings_page;
+mod usage;
 
 use ferrum_ui::AppConfig;
 use ferrum_ui::gpui::AppContext as _;

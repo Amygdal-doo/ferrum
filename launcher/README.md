@@ -364,6 +364,44 @@ Without a token, only public repositories work, and GitHub's anonymous rate
 limit (60 requests/hour) applies. The token is never written to `state.json`
 or to logs. The status bar shows which source is in use.
 
+## Anonymous usage counts
+
+To count active installs, the launcher posts one small JSON message to
+`https://tryferrum.dev/api/ping` at most once per UTC day (`crate::usage`,
+desktop `usage.rs`): at startup, then checked hourly so a launcher left in the
+menu bar still counts. In the session that shows the first-run notice, the
+first check waits an hour, so turning it off right away sends nothing. The
+body is exactly:
+
+```json
+{
+  "install_id": "0b6f1f8e-6c5a-4d43-9a1e-2f1d8e4b7c10",
+  "launcher_version": "0.9.1",
+  "os": "macos",
+  "arch": "aarch64",
+  "apps": [{ "id": "git", "version": "0.4.0" }]
+}
+```
+
+`install_id` is a random v4 UUID made before the first ping and kept in
+`state.json` (`usage.install_id`, with `usage.last_ping` and
+`usage.notice_shown`). `os` is `macos`, `linux` or `windows`; `arch` is
+`aarch64` or `x86_64`; `apps` lists each installed app's active version (the
+launcher itself is `launcher_version`). Nothing else: no paths, user or host
+names, e-mail addresses. The request has a 10 s timeout, runs off the UI
+thread, and failures are only logged at debug level (it is tried again within
+the hour).
+
+It is on by default. The first start with it on shows a one-time banner
+("Ferrum sends an anonymous daily count … Turn it off in Settings.") with
+**What is sent** and **Turn off**. Turn it off any time in **Settings ›
+Launcher › Privacy › Share anonymous usage counts**
+(`Settings::share_usage_counts`), or set `FERRUM_NO_ANALYTICS=1` or
+`DO_NOT_TRACK=1` in the launcher's environment. `FERRUM_PING_URL` sends pings
+elsewhere (tests, a local copy of the site); development builds, which have no
+release version, only ping when it is set. What the site stores:
+<https://tryferrum.dev/privacy#usage-counts>; totals: <https://tryferrum.dev/stats>.
+
 ## Local data
 
 | What | Where (macOS) |

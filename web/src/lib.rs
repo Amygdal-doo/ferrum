@@ -10,6 +10,7 @@ pub mod routes;
 pub mod seo;
 pub mod site;
 pub mod updates;
+pub mod usage;
 
 pub use config::Config;
 pub use routes::app;

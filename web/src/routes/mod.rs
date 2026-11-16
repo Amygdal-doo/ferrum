@@ -3,6 +3,7 @@
 pub mod assets;
 pub mod health;
 pub mod middleware;
+pub mod ping;
 pub mod seo;
 pub mod updates;
 
@@ -10,27 +11,32 @@ use std::sync::Arc;
 
 use axum::{
     Router,
-    extract::{Path, State},
+    extract::{DefaultBodyLimit, Path, State},
     http::{StatusCode, header},
     response::{IntoResponse, Redirect, Response},
-    routing::get,
+    routing::{get, post},
 };
 use maud::Markup;
 
-use crate::{Config, pages, products, releases::Releases, site};
+use crate::{Config, pages, products, releases::Releases, site, usage::Usage};
 
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
     /// Releases of every app (launcher download, changelog, sitemap).
     pub releases: Arc<Releases>,
+    /// Anonymous usage counts (`/api/ping`, `/stats`); stores nothing
+    /// without `DATABASE_URL`.
+    pub usage: Arc<Usage>,
 }
 
 impl AppState {
     pub fn new(config: Config, releases: Releases) -> Self {
+        let usage = Usage::from_url(config.database_url.as_deref());
         Self {
             config: Arc::new(config),
             releases: Arc::new(releases),
+            usage: Arc::new(usage),
         }
     }
 
@@ -128,6 +134,11 @@ pub fn router(state: AppState) -> Router {
         .route("/updates/{slug}", get(updates::post))
         .route(pages::privacy::PATH, get(privacy))
         .route(pages::licenses::PATH, get(licenses))
+        .route(pages::stats::PATH, get(stats))
+        .route(
+            ping::PATH,
+            post(ping::ping).layer(DefaultBodyLimit::max(crate::usage::MAX_BODY_BYTES)),
+        )
         .route("/healthz", get(health::healthz))
         .route("/robots.txt", get(seo::robots))
         .route(
@@ -156,6 +167,15 @@ async fn privacy(State(s): State<AppState>) -> Markup {
 }
 async fn licenses(State(s): State<AppState>) -> Markup {
     pages::licenses::render(s.site_url())
+}
+async fn stats(State(s): State<AppState>) -> Markup {
+    let (usage, downloads) = tokio::join!(s.usage.aggregates(), s.releases.download_totals());
+    let view = match usage {
+        Some(counts) => pages::stats::Usage::Counts(counts),
+        None if s.usage.enabled() => pages::stats::Usage::Unavailable,
+        None => pages::stats::Usage::NotCollected,
+    };
+    pages::stats::render(s.site_url(), &view, downloads.as_ref())
 }
 async fn ferrumdata(State(s): State<AppState>) -> Markup {
     pages::ferrumdata::render(s.site_url())

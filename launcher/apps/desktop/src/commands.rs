@@ -554,12 +554,13 @@ impl FerrumLauncher {
 
     /// Saves settings, then re-checks.
     pub fn apply_settings(&mut self, settings: Settings, cx: &mut Context<Self>) {
-        // The form edits these three; everything else (release repository,
+        // The form edits these four; everything else (release repository,
         // seen apps, migration flags, channels revision) stays as it is.
         let settings = Settings {
             check_interval_hours: settings.check_interval_hours,
             keep_versions: settings.keep_versions,
             menu_bar: settings.menu_bar,
+            share_usage_counts: settings.share_usage_counts,
             ..self.state.settings.clone()
         };
         let menu_bar_changed = settings.menu_bar != self.state.settings.menu_bar;

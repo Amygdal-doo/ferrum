@@ -13,6 +13,9 @@ pub struct Config {
     pub port: u16,
     /// Public base URL without trailing slash, used for canonical/OG/sitemap URLs.
     pub site_url: String,
+    /// Postgres for the anonymous usage counts (`POST /api/ping`, `/stats`).
+    /// `None` stores nothing (local dev, tests).
+    pub database_url: Option<String>,
 }
 
 /// Look up a variable, treating empty / whitespace-only values as unset.
@@ -33,6 +36,7 @@ impl Config {
     /// - `PORT`: u16, default [`DEFAULT_PORT`]; invalid values fall back to it.
     /// - `SITE_URL`: public base URL; else `https://$RAILWAY_PUBLIC_DOMAIN`;
     ///   else `http://localhost:$PORT`. A trailing `/` is stripped.
+    /// - `DATABASE_URL`: Postgres connection string; unset or empty means none.
     pub fn from_vars(get: impl Fn(&str) -> Option<String>) -> Self {
         let port = non_empty(&get, "PORT")
             .and_then(|p| p.parse().ok())
@@ -43,6 +47,7 @@ impl Config {
         Self {
             port,
             site_url: site_url.trim_end_matches('/').to_owned(),
+            database_url: non_empty(&get, "DATABASE_URL"),
         }
     }
 
@@ -74,7 +79,18 @@ mod tests {
         let c = cfg(&[]);
         assert_eq!(c.port, 8080);
         assert_eq!(c.site_url, "http://localhost:8080");
+        assert_eq!(c.database_url, None);
         assert_eq!(c, Config::default());
+    }
+
+    #[test]
+    fn reads_database_url() {
+        let c = cfg(&[("DATABASE_URL", " postgres://u:p@db.internal:5432/railway ")]);
+        assert_eq!(
+            c.database_url.as_deref(),
+            Some("postgres://u:p@db.internal:5432/railway")
+        );
+        assert_eq!(cfg(&[("DATABASE_URL", "")]).database_url, None);
     }
 
     #[test]
