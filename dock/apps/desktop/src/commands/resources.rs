@@ -56,6 +56,11 @@ impl FerrumContainers {
             PendingAction::PruneVolumes => self.prune(Section::Volumes, "volume", cx),
             PendingAction::PruneNetworks => self.prune(Section::Networks, "network", cx),
             PendingAction::RemoveContext(name) => self.remove_context(name, cx),
+            PendingAction::RestartDeployment {
+                context,
+                namespace,
+                name,
+            } => self.restart_deployment(context, namespace, name, cx),
             PendingAction::Upload {
                 container,
                 dir,
@@ -95,7 +100,7 @@ impl FerrumContainers {
                     Section::Images => e.prune_images().await,
                     Section::Volumes => e.prune_volumes().await,
                     Section::Networks => e.prune_networks().await,
-                    Section::Containers => Ok(PruneReport::default()),
+                    Section::Containers | Section::Kubernetes => Ok(PruneReport::default()),
                 }
             },
             move |app, result, cx| {
@@ -162,7 +167,7 @@ impl FerrumContainers {
                 "Removes custom networks not used by any container.".to_owned(),
                 PendingAction::PruneNetworks,
             ),
-            Section::Containers => return,
+            Section::Containers | Section::Kubernetes => return,
         };
         self.ask(
             Confirm {

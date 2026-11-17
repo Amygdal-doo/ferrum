@@ -49,6 +49,8 @@ pub struct Inputs {
     pub file_view: Entity<TextInput>,
     /// The compose file editor (YAML highlighted).
     pub compose_editor: Entity<TextInput>,
+    /// A pod's logs (read-only).
+    pub pod_logs: Entity<TextInput>,
 }
 
 /// The registry sign-in form.
@@ -196,6 +198,13 @@ impl FerrumContainers {
                 .multiline(12)
                 .borderless()
         });
+        let pod_logs = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .monospace()
+                .multiline(20)
+                .read_only(true)
+                .borderless()
+        });
         let context_name = cx.new(|cx| {
             TextInput::new(window, cx)
                 .placeholder("name, e.g. build-box")
@@ -276,6 +285,7 @@ impl FerrumContainers {
                 files_path,
                 file_view,
                 compose_editor,
+                pod_logs,
             },
             project_bar,
             log_scroll: UniformListScrollHandle::new(),

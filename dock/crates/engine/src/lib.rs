@@ -20,6 +20,7 @@ pub mod error;
 pub mod fake;
 pub mod files;
 pub mod format;
+pub mod kube;
 pub mod logmux;
 pub mod logs;
 pub mod model;

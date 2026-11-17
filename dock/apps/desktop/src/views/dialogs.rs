@@ -46,6 +46,8 @@ pub fn render(
         Dialog::History => Some(super::image_dialogs::history(app, cx)),
         Dialog::Engines => Some(super::engines::render(app, cx)),
         Dialog::Registries => Some(super::registries::render(app, cx)),
+        Dialog::Kube(picker) => Some(super::kube_dialogs::picker(app, *picker, cx)),
+        Dialog::PodLogs => Some(super::kube_dialogs::logs(app, cx)),
     }
 }
 

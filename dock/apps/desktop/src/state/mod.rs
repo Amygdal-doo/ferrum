@@ -4,6 +4,7 @@
 mod compose_tab;
 mod detail;
 mod dialogs;
+mod kube;
 
 pub use compose_tab::{ComposeEditor, ComposeRun};
 pub use detail::{DetailState, DetailTab};
@@ -11,6 +12,7 @@ pub use dialogs::{
     Confirm, Dialog, EnginePicker, LayersState, PendingAction, PullState, RegistryPreset,
     RegistryState, RunState,
 };
+pub use kube::{KubePicker, KubeState, KubeTab};
 
 use crate::project::ProjectState;
 use ferrumdock_engine::compose::{self, ComposeProject, ContainerGroup};
@@ -29,14 +31,17 @@ pub enum Section {
     Images,
     Volumes,
     Networks,
+    /// Pods, deployments and services of the kubeconfig's clusters.
+    Kubernetes,
 }
 
 impl Section {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::Containers,
         Self::Images,
         Self::Volumes,
         Self::Networks,
+        Self::Kubernetes,
     ];
 
     pub fn title(self) -> &'static str {
@@ -45,6 +50,7 @@ impl Section {
             Self::Images => "Images",
             Self::Volumes => "Volumes",
             Self::Networks => "Networks",
+            Self::Kubernetes => "Kubernetes",
         }
     }
 }
@@ -90,6 +96,7 @@ pub struct AppState {
     pub registries: RegistryState,
     /// The last `docker compose` run of each project (Compose tab output).
     pub compose_runs: HashMap<String, ComposeRun>,
+    pub kube: KubeState,
     /// Engine picked in the toolbar; tried first when (re)connecting.
     pub preferred: Option<Candidate>,
 }

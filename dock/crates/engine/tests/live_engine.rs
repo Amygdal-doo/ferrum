@@ -251,6 +251,32 @@ async fn browses_a_container_and_checks_auth() {
     assert!(refused.is_err());
 }
 
+/// Reads the kubeconfig's contexts with `kubectl config view` (local only:
+/// no cluster is contacted).
+#[tokio::test]
+#[ignore = "needs kubectl and a kubeconfig"]
+async fn reads_the_kubeconfig() {
+    let kubectl =
+        ferrumdock_engine::kube::Kubectl::detect().unwrap_or_else(|| panic!("no kubectl"));
+    let config = kubectl
+        .config()
+        .await
+        .unwrap_or_else(|e| panic!("kubectl config view: {e}"));
+    for c in &config.contexts {
+        println!(
+            "context {}{} (cluster {}, namespace {})",
+            c.name,
+            if config.current.as_deref() == Some(c.name.as_str()) {
+                " (current)"
+            } else {
+                ""
+            },
+            c.cluster,
+            config.namespace_of(&c.name)
+        );
+    }
+}
+
 /// `docker compose config` on a temporary compose file, saved and unsaved
 /// (stdin). Compose only reads it; nothing is created.
 #[tokio::test]

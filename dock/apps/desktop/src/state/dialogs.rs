@@ -19,6 +19,12 @@ pub enum PendingAction {
     PruneNetworks,
     /// `docker context rm`.
     RemoveContext(String),
+    /// `kubectl rollout restart deployment/<name>`.
+    RestartDeployment {
+        context: String,
+        namespace: String,
+        name: String,
+    },
     /// Copy the local file into the container's folder.
     Upload {
         container: String,
@@ -49,6 +55,10 @@ pub enum Dialog {
     Engines,
     /// Registry sign-in and the registries signed in to.
     Registries,
+    /// Kubernetes context or namespace picker.
+    Kube(crate::state::KubePicker),
+    /// The logs of a pod (`state.kube.logs`).
+    PodLogs,
 }
 
 /// A registry the sign-in form is filled for.

@@ -11,6 +11,8 @@ pub mod files;
 pub mod image_dialogs;
 pub mod images;
 pub mod inspect;
+pub mod kube;
+pub mod kube_dialogs;
 pub mod logs;
 pub mod registries;
 pub mod resources;
@@ -142,6 +144,10 @@ fn section(
         }
         Section::Networks => {
             let (header, list) = resources::networks(app, window, cx);
+            card(true, header, list, footer, cx)
+        }
+        Section::Kubernetes => {
+            let (header, list) = kube::render(app, window, cx);
             card(true, header, list, footer, cx)
         }
     }

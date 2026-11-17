@@ -164,6 +164,8 @@ pub fn sidebar(
             Section::Images => (IconName::Server, app.state.images.len()),
             Section::Volumes => (IconName::Folder, app.state.volumes.len()),
             Section::Networks => (IconName::Link, app.state.networks.len()),
+            // Not counted: its lists are per context and namespace.
+            Section::Kubernetes => (IconName::Cloud, 0),
         };
         let selected = app.state.section == section;
         let loaded = app.state.loaded.contains(&section);

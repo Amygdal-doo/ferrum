@@ -6,6 +6,7 @@ pub mod connection;
 pub mod containers;
 pub mod engines;
 pub mod files;
+pub mod kube;
 pub mod logs;
 pub mod project;
 pub mod registries;
