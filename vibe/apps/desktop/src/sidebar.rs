@@ -360,7 +360,8 @@ impl FerrumEngineer {
                     .child(new_task)
                     .child(self.page_row(Page::Projects, IconName::Blocks, "Projects", cx))
                     .child(self.page_row(Page::Discussions, IconName::Pencil, "Discussion", cx))
-                    .child(self.page_row(Page::Search, IconName::MagnifyingGlass, "Search", cx)),
+                    .child(self.page_row(Page::Search, IconName::MagnifyingGlass, "Search", cx))
+                    .child(self.page_row(Page::Parallel, IconName::GitGraph, "Parallel", cx)),
             )
             .child(scroll)
             .child(div().flex_none().mx_3().h(px(1.)).bg(colors.border_variant))

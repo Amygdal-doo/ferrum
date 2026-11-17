@@ -18,6 +18,7 @@ mod nav;
 mod navigate;
 mod pages;
 mod panes;
+mod parallel;
 mod shell_path;
 mod sidebar;
 mod sites;

@@ -26,6 +26,8 @@ mod checkpoints;
 mod editor_column;
 #[path = "files_tests.rs"]
 mod files;
+#[path = "parallel_tests.rs"]
+mod parallel;
 
 type Opened = Rc<RefCell<Vec<(Option<PathBuf>, PathBuf, Option<u32>)>>>;
 
@@ -350,6 +352,7 @@ fn pages_replace_the_chat_and_back_returns(cx: &mut TestAppContext) {
         Page::Automations,
         Page::Extensions,
         Page::Usage,
+        Page::Parallel,
     ] {
         update(&app, cx, |a, w, cx| a.show_page(page, w, cx));
         // Debug selectors are `&'static str`: one leaked string per page.
@@ -361,8 +364,8 @@ fn pages_replace_the_chat_and_back_returns(cx: &mut TestAppContext) {
     update(&app, cx, |a, w, cx| w.focus(a.focus_handle(), cx));
     cx.simulate_keystrokes("cmd-[");
     draw(cx);
-    assert_eq!(read(&app, cx, |a| a.page()), Page::Extensions);
-    for _ in 0..7 {
+    assert_eq!(read(&app, cx, |a| a.page()), Page::Usage);
+    for _ in 0..8 {
         update(&app, cx, |a, w, cx| a.go_back(w, cx));
     }
     assert_eq!(read(&app, cx, |a| a.page()), Page::Chat);

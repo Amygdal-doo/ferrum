@@ -300,6 +300,7 @@ impl Render for FerrumEngineer {
             })
             .child(main)
             .children(self.render_restore_prompt(cx))
+            .children(self.render_parallel_confirm(cx))
             .children(notice)
     }
 }

@@ -117,6 +117,18 @@ impl ChatView {
         self.show_changes
     }
 
+    /// Stops every running turn of this chat (the shown thread's and those
+    /// running in the background), e.g. before its folder goes away.
+    pub fn stop_all(&mut self, cx: &mut Context<Self>) {
+        if let Some(session) = &self.session {
+            session.cancel();
+        }
+        for background in &self.background {
+            background.session.cancel();
+        }
+        cx.notify();
+    }
+
     /// The session's turn checkpoints, oldest first (each turn of any of
     /// the project's threads starts one; `files` are those it wrote).
     pub fn checkpoints(&self) -> Vec<CheckpointInfo> {

@@ -119,13 +119,15 @@ impl FerrumEngineer {
     /// finished turns count as unseen ("Done") and notify.
     pub(crate) fn sync_chat_visibility(&mut self, cx: &mut Context<Self>) {
         let chat_page = self.page() == crate::nav::Page::Chat;
+        let parallel_page = self.page() == crate::nav::Page::Parallel;
         let slots: Vec<(PathBuf, Entity<ChatView>)> = self
             .chats
             .iter()
             .map(|(root, slot)| (root.clone(), slot.view.clone()))
             .collect();
         for (root, chat) in slots {
-            let shown = chat_page && self.is_current(&root);
+            let shown = (chat_page && self.is_current(&root))
+                || (parallel_page && self.parallel.is_lane(&root));
             if chat.read(cx).is_visible() != shown {
                 chat.update(cx, |chat, cx| chat.set_visible(shown, cx));
             }
@@ -179,7 +181,8 @@ impl FerrumEngineer {
                 }
                 cx.notify();
             }
-            ChatEvent::ChangesUpdated { .. } => {}
+            // A parallel run's worktree: its diff follows.
+            ChatEvent::ChangesUpdated { .. } => self.parallel_changed(project, cx),
             ChatEvent::ThreadsChanged => self.refresh_index(cx),
             // The sidebar's Needs you / Done / Working sections.
             ChatEvent::StatusChanged => cx.notify(),

@@ -36,6 +36,9 @@ impl FerrumEngineer {
             }
             _ => {}
         }
+        if page == Page::Parallel {
+            self.refresh_leftovers(cx);
+        }
         if page != Page::Chat {
             self.refresh_index(cx);
             let project = self.project.clone();

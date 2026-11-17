@@ -180,6 +180,8 @@ pub struct FerrumEngineer {
     pub(crate) index: ThreadIndex,
     pub(crate) index_task: Option<Task<()>>,
     pub(crate) pages: PageState,
+    /// Run in parallel: the task, the run and its worktrees.
+    pub(crate) parallel: crate::parallel::ParallelState,
     focus_handle: FocusHandle,
     pub(crate) git_subscriptions: Vec<Subscription>,
     _tasks: Vec<Task<()>>,
@@ -208,6 +210,7 @@ impl FerrumEngineer {
             .map(|dir| UiState::load(&dir.join("ui.json")))
             .unwrap_or_default();
         let pages = PageState::new(options.data_dir.as_deref(), window, cx);
+        let parallel = crate::parallel::ParallelState::new(window, cx);
         let mut app = Self {
             project_bar,
             project: None,
@@ -242,6 +245,7 @@ impl FerrumEngineer {
             index: ThreadIndex::default(),
             index_task: None,
             pages,
+            parallel,
             focus_handle: cx.focus_handle(),
             git_subscriptions: Vec::new(),
             _tasks: vec![crate::pages::automations::start_timer(window, cx)],
