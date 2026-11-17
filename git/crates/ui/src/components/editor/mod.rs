@@ -139,6 +139,12 @@ impl CodeEditor {
         self.state.is_dirty()
     }
 
+    /// The file being edited.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
     pub fn focus(&self, window: &mut Window, cx: &mut App) {
         window.focus(&self.focus_handle, cx);
     }

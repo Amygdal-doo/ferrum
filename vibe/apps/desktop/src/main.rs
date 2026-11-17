@@ -8,6 +8,7 @@ mod app_info;
 mod automations;
 mod chrome;
 mod columns;
+mod editor;
 mod extensions;
 mod files;
 mod layout;

@@ -1,7 +1,8 @@
 //! The cards: the Files pane, the chat (or the page open in its place),
-//! then the Git and Term panes, with the gaps between them as splitters.
-//! Panes have no header: the title row's toggles show and hide them. The
-//! chat takes files dropped on it (from the Files pane or the Finder).
+//! then the Git, Term and Editor panes, with the gaps between them as
+//! splitters. Panes have no header of ours: the title row's toggles show
+//! and hide them (the Editor's own header moves and closes it). The chat
+//! takes files dropped on it (from the Files pane or the Finder).
 
 use ferrum_ui::components::Clickable;
 use ferrum_ui::gpui::{Axis, ElementId, ExternalPaths, MouseButton, relative};
@@ -39,6 +40,15 @@ impl FerrumEngineer {
             Column::Chat => self.chat().map(|v| v.into_any_element()),
             Column::Git => self.git.clone().map(|v| v.into_any_element()),
             Column::Term => self.term.clone().map(|v| v.into_any_element()),
+            Column::Editor => {
+                let editor = self.ensure_editor(window, cx);
+                let can_move = (
+                    self.layout.can_move(Column::Editor, -1),
+                    self.layout.can_move(Column::Editor, 1),
+                );
+                editor.update(cx, |editor, _| editor.can_move = can_move);
+                Some(editor.into_any_element())
+            }
         };
         if let Some(view) = view {
             return view;

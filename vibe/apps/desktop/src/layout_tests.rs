@@ -67,8 +67,12 @@ fn bad_layouts_are_repaired() {
     let layout = serde_json::from_str::<Layout>(json)
         .expect("parse")
         .normalized();
-    // The chat comes first and is shown; the missing Git pane is added.
-    assert_eq!(layout.order(), [Column::Chat, Column::Term, Column::Git]);
+    // The chat comes first and is shown; the missing Git pane is added
+    // (shown) and the Editor (hidden).
+    assert_eq!(
+        layout.order(),
+        [Column::Chat, Column::Term, Column::Git, Column::Editor]
+    );
     assert_eq!(layout.visible(), [Column::Chat, Column::Term, Column::Git]);
     assert!(layout.slots.iter().all(|s| s.weight > 0.0));
 }
@@ -133,4 +137,54 @@ fn the_files_pane_round_trips_per_project() {
     };
     save(&file, Some(Path::new("/p")), &layout).expect("save");
     assert_eq!(load(&file, Some(Path::new("/p"))).files, layout.files);
+}
+
+#[test]
+fn panes_move_past_hidden_ones_but_never_before_the_chat() {
+    let mut layout = all_shown();
+    layout.set_visible(Column::Editor, true);
+    assert_eq!(
+        layout.visible(),
+        [Column::Chat, Column::Git, Column::Term, Column::Editor]
+    );
+    assert!(layout.move_column(Column::Editor, -1));
+    assert_eq!(
+        layout.visible(),
+        [Column::Chat, Column::Git, Column::Editor, Column::Term]
+    );
+    // Past a hidden pane: with Term hidden, the Editor swaps with Git.
+    layout.set_visible(Column::Term, false);
+    assert!(layout.can_move(Column::Editor, -1));
+    assert!(layout.move_column(Column::Editor, -1));
+    assert_eq!(
+        layout.visible(),
+        [Column::Chat, Column::Editor, Column::Git]
+    );
+    assert!(!layout.move_column(Column::Editor, -1));
+    assert!(!layout.move_column(Column::Chat, 1));
+    assert!(!layout.move_column(Column::Git, 1));
+    assert!(
+        !layout.move_column(Column::Term, 1),
+        "hidden panes don't move"
+    );
+    // Widths follow their pane.
+    let before = layout.fractions();
+    layout.move_column(Column::Git, -1);
+    let after = layout.fractions();
+    assert_eq!(after[1].0, Column::Git);
+    assert!(close(after[1].1, before[2].1));
+}
+
+#[test]
+fn layouts_saved_before_the_editor_get_it_hidden() {
+    let json = r#"{"slots":[{"column":"chat","visible":true,"weight":0.5},{"column":"git","visible":true,"weight":0.5}]}"#;
+    let layout: Layout = serde_json::from_str::<Layout>(json)
+        .expect("parse")
+        .normalized();
+    assert_eq!(
+        layout.order(),
+        [Column::Chat, Column::Git, Column::Term, Column::Editor]
+    );
+    // A missing Term is shown as before; the new Editor is not.
+    assert_eq!(layout.visible(), [Column::Chat, Column::Git, Column::Term]);
 }

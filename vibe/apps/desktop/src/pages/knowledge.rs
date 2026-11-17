@@ -75,7 +75,7 @@ pub fn create_rule(root: &Path, name: &str) -> Result<PathBuf, String> {
 }
 
 impl FerrumEngineer {
-    fn new_rule(&mut self, cx: &mut Context<Self>) {
+    fn new_rule(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(root) = self.project.clone() else {
             return;
         };
@@ -85,7 +85,7 @@ impl FerrumEngineer {
                 self.pages
                     .rule_name
                     .update(cx, |input, cx| input.set_text("", cx));
-                self.open_file(&file, Some(1), cx);
+                self.open_file(&file, Some(1), window, cx);
                 self.pages
                     .refresh(Page::Knowledge, Some(&root), &self.agent_home, None, cx);
             }
@@ -114,7 +114,7 @@ impl FerrumEngineer {
                         .style(ButtonStyle::Filled)
                         .size(ButtonSize::Compact)
                         .start_icon(Icon::new(IconName::Plus).size(IconSize::Small))
-                        .on_click(cx.listener(|this, _, _, cx| this.new_rule(cx))),
+                        .on_click(cx.listener(|this, _, window, cx| this.new_rule(window, cx))),
                 ),
         );
         page = page.child(section("In this project", cx));
@@ -139,8 +139,8 @@ impl FerrumEngineer {
                         Button::new(("open-rule", i), "Open")
                             .style(ButtonStyle::Subtle)
                             .size(ButtonSize::Compact)
-                            .on_click(cx.listener(move |this, _, _, cx| {
-                                this.open_file(&file, None, cx);
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.open_file(&file, None, window, cx);
                             })),
                     ),
             );

@@ -20,6 +20,8 @@ use crate::automations::{Automation, Schedule};
 use crate::layout::{self, Column, Layout};
 use crate::nav::Page;
 
+#[path = "editor_tests.rs"]
+mod editor_column;
 #[path = "files_tests.rs"]
 mod files;
 
@@ -145,6 +147,7 @@ fn drawn(cx: &mut VisualTestContext) -> Vec<Column> {
                 Column::Chat => "column-chat",
                 Column::Git => "column-git",
                 Column::Term => "column-term",
+                Column::Editor => "column-editor",
             };
             cx.debug_bounds(key).map(|b| (f32::from(b.left()), c))
         })
@@ -195,13 +198,14 @@ fn the_chat_is_always_shown_and_panes_toggle(cx: &mut TestAppContext) {
     assert_eq!(drawn(cx), [Column::Chat, Column::Git]);
     cx.simulate_keystrokes("cmd-alt-3");
     draw(cx);
-    assert_eq!(drawn(cx), Column::ALL);
+    let three = [Column::Chat, Column::Git, Column::Term];
+    assert_eq!(drawn(cx), three);
     assert!(read(&app, cx, |a| a.term.is_some()));
     // The chat can't be closed.
     update(&app, cx, |a, w, cx| {
         a.set_visible(Column::Chat, false, w, cx)
     });
-    assert_eq!(drawn(cx), Column::ALL);
+    assert_eq!(drawn(cx), three);
     cx.simulate_keystrokes("cmd-alt-2");
     draw(cx);
     assert_eq!(drawn(cx), [Column::Chat, Column::Term]);
@@ -239,27 +243,34 @@ fn events_from_the_chat_and_git_are_wired(cx: &mut TestAppContext) {
         (a.chat().expect("chat"), a.git.clone().expect("git"))
     });
 
-    // Files from the chat and from git open in the Editor.
+    // Files from the chat and from git open in the Editor column.
     let file = root.join("src/main.rs");
+    let readme = root.join("README.md");
+    std::fs::create_dir_all(root.join("src")).expect("mkdir");
+    std::fs::write(&file, "fn main() {}\n".repeat(10)).expect("write");
+    std::fs::write(&readme, "# A\n").expect("write");
     chat.update(cx, |_, cx| {
         cx.emit(ChatEvent::OpenFile {
             path: file.clone(),
             line: Some(7),
         });
     });
+    draw(cx);
+    assert_eq!(drawn(cx), [Column::Chat, Column::Editor]);
     git.update(cx, |_, cx| {
         cx.emit(GitViewEvent::OpenFile {
-            path: file.clone(),
+            path: readme.clone(),
             line: None,
         });
     });
-    assert_eq!(
-        *fx.opened.borrow(),
-        [
-            (Some(root.clone()), file.clone(), Some(7)),
-            (Some(root.clone()), file, None)
-        ]
-    );
+    draw(cx);
+    let editor = read(&app, cx, |a| a.editor.clone().expect("editor"));
+    editor.read_with(cx, |e, _| {
+        assert_eq!(e.paths(), [file.clone(), readme.clone()]);
+        assert_eq!(e.active_path(), Some(readme.as_path()));
+    });
+    // FerrumIDE only on request.
+    assert!(fx.opened.borrow().is_empty());
 
     // Agent changes reload the git view.
     let before = read(&app, cx, |a| a.git_refreshes);
@@ -278,7 +289,7 @@ fn events_from_the_chat_and_git_are_wired(cx: &mut TestAppContext) {
         });
     });
     draw(cx);
-    assert_eq!(drawn(cx), [Column::Chat, Column::Term]);
+    assert_eq!(drawn(cx), [Column::Chat, Column::Term, Column::Editor]);
 
     // The footer's git actions: Commit opens the Git pane; the remote
     // ones run in the background.
@@ -465,7 +476,7 @@ fn layouts_are_kept_per_project(cx: &mut TestAppContext) {
         app.set_visible(Column::Term, true, w, cx)
     });
     let layout_b = read(&app, cx, |app| app.layout.clone());
-    assert_eq!(drawn(cx), Column::ALL);
+    assert_eq!(drawn(cx), [Column::Chat, Column::Git, Column::Term]);
 
     // Back to a: its own layout returns.
     update(&app, cx, |app, w, cx| app.set_project(a.clone(), w, cx));

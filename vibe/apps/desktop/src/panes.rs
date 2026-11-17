@@ -1,7 +1,8 @@
 //! The embedded views and their wiring: a chat per project, the git view
 //! (kept while a project is open: it feeds the chat's branch line and runs
-//! its git requests), the terminal (created on first show); chat →
-//! terminal, chat → git, files → FerrumIDE.
+//! its git requests), the terminal and the editor (created on first show);
+//! chat → terminal, chat → git, files from the chat, git and the Files
+//! pane → the Editor column (→ FerrumIDE on request).
 
 use std::path::{Path, PathBuf};
 
@@ -12,6 +13,7 @@ use ferrumgit_ui::{GitView, GitViewEvent, GitViewOptions, RemoteCommand, RepoSum
 use ferrumterm_ui::{TermView, TermViewOptions};
 
 use crate::app::{ChatAction, ChatSlot, FerrumEngineer};
+use crate::editor::{EditorEvent, EditorView};
 use crate::layout::Column;
 
 impl FerrumEngineer {
@@ -25,6 +27,31 @@ impl FerrumEngineer {
         if self.layout.files.visible {
             self.ensure_files(window, cx);
         }
+        if self.layout.is_visible(Column::Editor) {
+            self.ensure_editor(window, cx);
+        }
+    }
+
+    /// The Editor column's view.
+    pub(crate) fn ensure_editor(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<EditorView> {
+        if let Some(editor) = &self.editor {
+            return editor.clone();
+        }
+        let editor = cx.new(EditorView::new);
+        let events = cx.subscribe_in(&editor, window, |this, _, event, window, cx| match event {
+            EditorEvent::OpenInIde { path, line } => this.open_in_ide(path, *line, cx),
+            EditorEvent::Move(by) => this.move_column(Column::Editor, *by, cx),
+            // Its files stay open.
+            EditorEvent::Close => this.set_visible(Column::Editor, false, window, cx),
+            EditorEvent::Error(error) => this.show_notice(Notice::error(error.clone()), cx),
+        });
+        self.editor_subscription = Some(events);
+        self.editor = Some(editor.clone());
+        editor
     }
 
     /// The Files pane on the current project.
@@ -36,8 +63,8 @@ impl FerrumEngineer {
             return;
         }
         let files = cx.new(|cx| crate::files::FilesView::new(Some(root), cx));
-        let events = cx.subscribe_in(&files, window, |this, _, event, _, cx| match event {
-            crate::files::FilesEvent::Open(path) => this.open_file(path, None, cx),
+        let events = cx.subscribe_in(&files, window, |this, _, event, window, cx| match event {
+            crate::files::FilesEvent::Open(path) => this.open_file(path, None, window, cx),
         });
         self.files_subscription = Some(events);
         self.files = Some(files);
@@ -133,7 +160,7 @@ impl FerrumEngineer {
     ) {
         let current = self.is_current(project);
         match event {
-            ChatEvent::OpenFile { path, line } => self.open_file(path, *line, cx),
+            ChatEvent::OpenFile { path, line } => self.open_file(path, *line, window, cx),
             ChatEvent::RunInTerminal { cmd, cwd } => {
                 self.run_in_terminal(cmd, Some(cwd.clone()), window, cx);
             }
@@ -143,6 +170,9 @@ impl FerrumEngineer {
                 // A hidden Files pane catches up when it is shown again.
                 if let Some(tree) = self.files.as_ref().filter(|_| self.layout.files.visible) {
                     tree.update(cx, |tree, cx| tree.refresh_in_background(cx));
+                }
+                if let Some(editor) = &self.editor {
+                    editor.update(cx, |editor, cx| editor.reload_changed(cx));
                 }
                 cx.notify();
             }
@@ -197,8 +227,8 @@ impl FerrumEngineer {
         }
         let options = GitViewOptions::embedded().without_toolbar();
         let git = GitView::new(Some(root), options, window, cx);
-        let events = cx.subscribe(&git, |this, _, event: &GitViewEvent, cx| match event {
-            GitViewEvent::OpenFile { path, line } => this.open_file(path, *line, cx),
+        let events = cx.subscribe_in(&git, window, |this, _, event, window, cx| match event {
+            GitViewEvent::OpenFile { path, line } => this.open_file(path, *line, window, cx),
             GitViewEvent::CommitCreated { .. } | GitViewEvent::RepoChanged { .. } => {}
         });
         let status = cx.observe(&git, |this, git, cx| {
@@ -275,7 +305,25 @@ impl FerrumEngineer {
         }
     }
 
-    pub(crate) fn open_file(&mut self, path: &Path, line: Option<u32>, cx: &mut Context<Self>) {
+    /// Shows `path` in the Editor column (showing the column).
+    pub(crate) fn open_file(
+        &mut self,
+        path: &Path,
+        line: Option<u32>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let editor = self.ensure_editor(window, cx);
+        if !self.layout.is_visible(Column::Editor) {
+            self.set_visible(Column::Editor, true, window, cx);
+        }
+        editor.update(cx, |editor, cx| editor.open(path, line, window, cx));
+        self.active_column = Column::Editor;
+        cx.notify();
+    }
+
+    /// Opens `path` in FerrumIDE.
+    pub(crate) fn open_in_ide(&mut self, path: &Path, line: Option<u32>, cx: &mut Context<Self>) {
         if let Err(error) = (self.open_file)(self.project.as_deref(), path, line) {
             self.show_notice(Notice::error(error), cx);
         }

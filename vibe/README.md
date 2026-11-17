@@ -34,14 +34,15 @@ cargo vibe ~/code/my-app      # ferrumvibe <folder> once installed (shell comman
 | Shared project bar: name, path, branch, the ⌥⌘O switcher and Open Folder…; buttons to open the project in FerrumIDE, FerrumGIT or FerrumTerm | ✅ rendered (shared widget) |
 | **Open a project**: File › Open Folder… (⌘O), File › Switch Project… (⌥⌘O), the sidebar's + and folders, or `ferrumvibe <folder>`. The chat, git, terminal and Files pane all follow it | ✅ tested (menu actions handled, every pane on the opened folder) |
 | **Files pane** on the far left of the cards: the project tree, folders first, read when expanded, `.gitignore` respected, `.git` hidden, names coloured by `git status` (read in the background) | ✅ model unit-tested; headless-rendered |
-| Files: click a folder to expand / collapse; double-click a file (or ↑↓ → ← and Enter) to open it in FerrumIDE; ⟳ re-reads it (also after the agent changes files); collapse all | ✅ keys and click tested; double-click not simulated |
+| Files: click a folder to expand / collapse; double-click a file (or ↑↓ → ← and Enter) to open it in the Editor column; ⟳ re-reads it (also after the agent changes files); collapse all | ✅ keys and click tested; double-click not simulated |
 | Files: shown / hidden with the top-bar toggle, ⌥⌘1 or View › Toggle Files; width resized by dragging its splitter; both saved with the layout (`files` in `layouts.json`) | ✅ tested |
 | **Drag files to the chat**: drag a file or folder (⌘-click selects several) from the Files pane, or files from the Finder, onto the chat; each becomes a context chip in the composer (✕ removes it). Project paths go by reference (`@src/main.rs`, `@src/`), text files outside the project by their content; binaries and outside folders are refused with a notice | ✅ tested with a simulated drag and a simulated Finder drop |
 | Switching project: a new chat rooted at the new folder, `GitView::set_repo`, `TermView::set_cwd` (running shells stay where they are; new tabs open in the project) | ✅ tested |
 | `ferrumvibe <folder>` opens on that folder; without one, the last project FerrumEngineer opened | ✅ argument parsing tested |
 | Chat **Run in terminal** shows the terminal column if it was closed, runs the command in a new tab there and focuses it | ✅ tested (column reopened, command queued); the command's output is not checked |
 | Chat **changes** (`ChangesUpdated`) reload the git column at once instead of at its next 3 s poll, and the chat header shows "N to review". Reopening the git column reloads it too | ⚠️ the reload is dispatched as FerrumGIT's own `Reload` action; tested that it is sent, not that the list changed |
-| **Open file** from the chat or from git diffs opens it in FerrumIDE (`ferrumeditor <project> <file>:<line>`, through `ferrum_ui::project::open_file_in_editor`). If the Editor isn't installed, a notice says so | ✅ wiring tested with a stub; launching the real Editor is not |
+| **Editor column** (⌥⌘4, View › Toggle Editor, the `</>` toggle): files opened from the chat, git diffs, the Files pane or the Knowledge page open there in tabs instead of launching FerrumIDE. Text is edited with FerrumGIT's editor (`ferrumgit_ui::CodeEditor`: FerrumIDE's buffer, undo, tree-sitter highlighting and keys, ⌘S, find; no language servers); images (png, jpg, gif, webp, bmp, svg, tiff) are drawn; binary or non-UTF-8 files are described. Closing a tab with unsaved changes asks Save / Discard / Cancel. Files without edits reload when the agent changes them | ✅ headless-tested (text, image, binary, save on close, reload) |
+| Editor header: **Open in FerrumIDE** (`ferrumeditor <project> <file>:<line>` at the cursor's line, through `ferrum_ui::project::open_file_in_editor`), Save, and ⋯ → Move Left / Move Right / Close Editor. View › Move Pane Left / Right (⌥⇧⌘← / →) move the active pane; the chat stays first. Resized like the others; shown, order and width saved per project with the layout (layouts saved before it get it hidden) | ✅ moves, close, per-project round trip and the IDE stub tested; image pixels and the drag are not checked |
 | Terminal header shows the focused pane's title | ⚠️ wired, not tested |
 | The chat gets the login shell's `PATH` (read in the background at start), so `npx`, `gemini` and MCP servers are found from a Dock launch | ✅ parser tested |
 | SSH passphrase prompts from the git column (`askpass_main` runs first in `main`) | ⚠️ wired as in FerrumGIT, not tested here |
@@ -52,8 +53,10 @@ FerrumTerm's own sessions.
 
 ## Not built yet
 
-- No editor column: files open in a separate FerrumIDE window, which is a
-  new Editor process each time.
+- The Editor column has no language servers, no split and no
+  file-system watcher (it reloads after the agent's changes); open tabs are
+  not restored after a restart, and quitting the window does not ask about
+  unsaved tabs.
 - One chat per window; switching project starts a new chat session for the
   new folder.
 - The terminal session keeps the name of the project it started in after a
@@ -73,7 +76,8 @@ FerrumTerm's own sessions.
 vibe/apps/desktop/src/
   main.rs        askpass, CLI argument, login PATH, window
   app.rs         FerrumEngineer: state, project switch, column show/hide/move/resize, layout saving
-  panes.rs       the three embedded views, created on first show, and their events
+  panes.rs       the embedded views, created on first show, and their events
+  editor/        the Editor column: tabs over ferrumgit_ui::CodeEditor, images, other files
   columns.rs     column headers (drag, ⋯ menu, close), bodies, splitters
   chrome.rs      top bar with the toggles, Render
   menus.rs       the menu bar (File › Open Folder…, View toggles)
