@@ -1,14 +1,15 @@
 //! Command blocks in the view (shell integration; see `crate::blocks`): the
 //! toolbar on the command under the pointer (collapse, copy the command or
-//! its output, run it again), the exit code chip on a failed one, and ⌘↑ /
-//! ⌘↓ between commands. The server knows every command in the scrollback
-//! (`Request::Commands`) and its output (`Request::CommandOutput`).
+//! its output, run it again), the exit code chip and "Ask agent" on a
+//! failed one (see `agent_pane`), and ⌘↑ / ⌘↓ between commands. The server
+//! knows every command in the scrollback (`Request::Commands`) and its
+//! output (`Request::CommandOutput`).
 
 use super::TermView;
 use crate::app::UiEvent;
 use crate::blocks::{self, Jump};
 use ferrum_ui::components::{
-    Button, ButtonCommon, ButtonSize, ButtonStyle, Clickable, Color, IconButton, IconName,
+    Button, ButtonCommon, ButtonSize, ButtonStyle, Clickable, Color, Icon, IconButton, IconName,
     IconSize, Label, LabelCommon, LabelSize, Tooltip, h_flex,
 };
 use ferrum_ui::gpui::{AnyElement, Context, ElementId, IntoElement, div, prelude::*, px};
@@ -325,6 +326,23 @@ impl TermView {
                     small(key("rerun"), "Run again")
                         .tooltip(Tooltip::text("Type the command again and run it"))
                         .on_click(cx.listener(move |view, _, _, cx| view.rerun(block, id, cx))),
+                )
+            })
+            // A failed command offers the agent, hovered or not.
+            .when(blocks::failed(command) && self.can_ask_agent(), |bar| {
+                bar.child(
+                    small(key("ask"), "Ask agent")
+                        .start_icon(
+                            Icon::new(IconName::Sparkle)
+                                .size(IconSize::XSmall)
+                                .color(Color::Accent),
+                        )
+                        .tooltip(Tooltip::text(
+                            "Open the Agent pane with this command, its exit code and its output",
+                        ))
+                        .on_click(cx.listener(move |view, _, window, cx| {
+                            view.ask_agent_about_command(block, id, window, cx);
+                        })),
                 )
             })
     }

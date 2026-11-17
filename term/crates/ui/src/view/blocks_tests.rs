@@ -9,6 +9,26 @@ use ferrum_ui::gpui::{
     VisualTestContext, Window, div, px, size,
 };
 use ferrumterm_protocol::{BlockId, CommandMark, Input, Request, Spawn};
+
+#[test]
+fn a_failed_commands_context_names_it_and_its_exit_code() {
+    let command = CommandMark {
+        command: "cargo test".into(),
+        exit: Some(101),
+        ..CommandMark::default()
+    };
+    let (mention, question) =
+        crate::agent_pane::failed_command_context(&command, Some("/code/app"), "error[E0425]");
+    let ferrumagent_ui::core::context::Mention::Terminal { title, text } = mention else {
+        panic!("a terminal mention");
+    };
+    assert_eq!(title, "`cargo test` exited with 101");
+    assert_eq!(
+        text,
+        "In /code/app:\n$ cargo test\nerror[E0425]\n[exit code 101]"
+    );
+    assert!(question.starts_with("`cargo test` failed with exit code 101"));
+}
 use std::time::{Duration, Instant};
 
 struct Host {
@@ -55,25 +75,34 @@ fn typed(t: &mut TermView, block: BlockId, line: &str) {
     });
 }
 
-#[gpui::test]
-fn commands_fold_copy_run_again_and_jump(cx: &mut TestAppContext) {
-    if !std::path::Path::new("/bin/zsh").exists() {
-        return;
-    }
+/// A view (with the Agent pane when `agent`) whose focused tab is an
+/// interactive zsh in the empty `home`: only FerrumTerm's integration.
+fn zsh_view<'a>(
+    cx: &'a mut TestAppContext,
+    home: &std::path::Path,
+    agent: bool,
+) -> (Entity<TermView>, &'a mut VisualTestContext, BlockId) {
     cx.executor().allow_parking();
     cx.update(|cx| {
         ferrum_ui::init_for_tests(cx);
         crate::init(cx);
+        if agent {
+            ferrumagent_ui::init(cx);
+        }
     });
-    let home = tempfile::tempdir().expect("tempdir");
-    std::fs::write(home.path().join(".zshrc"), "PS1='%# '\n").expect("zshrc");
+    std::fs::write(home.join(".zshrc"), "PS1='%# '\n").expect("zshrc");
     let options = TermViewOptions {
         show_sidebar: false,
         ..TermViewOptions::default()
     }
-    .cwd(home.path())
-    .session_name("blocks-test")
-    .attach_to_server(false);
+    .cwd(home)
+    .session_name(if agent {
+        "ask-agent-test"
+    } else {
+        "blocks-test"
+    })
+    .attach_to_server(false)
+    .agent(agent.then(|| home.join("agent")));
     let (host, cx) = cx.add_window_view(|window, cx| Host {
         term: TermView::new(options, window, cx),
     });
@@ -90,7 +119,7 @@ fn commands_fold_copy_run_again_and_jump(cx: &mut TestAppContext) {
             name: Some("zsh".into()),
             spawn: Spawn {
                 command: vec!["/bin/zsh".into(), "-i".into()],
-                env: vec![("HOME".into(), home.path().display().to_string())],
+                env: vec![("HOME".into(), home.display().to_string())],
                 ..Spawn::default()
             },
         });
@@ -103,6 +132,16 @@ fn commands_fold_copy_run_again_and_jump(cx: &mut TestAppContext) {
             && commands(t).len() == 1
     });
     let block = term.read_with(cx, |t, _| t.app.focused().expect("focused"));
+    (term, cx, block)
+}
+
+#[gpui::test]
+fn commands_fold_copy_run_again_and_jump(cx: &mut TestAppContext) {
+    if !std::path::Path::new("/bin/zsh").exists() {
+        return;
+    }
+    let home = tempfile::tempdir().expect("tempdir");
+    let (term, cx, block) = zsh_view(cx, home.path(), false);
     term.update(cx, |t, _| {
         typed(t, block, "echo one; false");
         typed(t, block, "printf 'a\\nb\\nc\\n'");
@@ -182,4 +221,44 @@ fn commands_fold_copy_run_again_and_jump(cx: &mut TestAppContext) {
     });
     term.update(cx, |t, cx| t.jump_command(Jump::Next, cx));
     wait_for(&term, cx, "the scroll back down", |t| offset(t) == 0);
+}
+
+#[gpui::test]
+fn ask_agent_attaches_a_failed_command(cx: &mut TestAppContext) {
+    if !std::path::Path::new("/bin/zsh").exists() {
+        return;
+    }
+    let home = tempfile::tempdir().expect("tempdir");
+    let (term, cx, block) = zsh_view(cx, home.path(), true);
+    term.update(cx, |t, _| {
+        typed(t, block, "echo boom; exit-code() { return 3 }; exit-code")
+    });
+    wait_for(&term, cx, "the failed command", |t| {
+        commands(t).first().is_some_and(|m| m.exit == Some(3))
+    });
+    let failed = term.read_with(cx, |t, _| commands(t)[0].clone());
+    cx.update(|window, cx| {
+        term.update(cx, |t, cx| {
+            t.ask_agent_about_command(block, failed.id, window, cx)
+        });
+    });
+    let chat = term.read_with(cx, |t, _| {
+        assert!(t.agent_shown(), "the Agent pane opens");
+        t.agent_chat().expect("a chat")
+    });
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        cx.run_until_parked();
+        let attached = chat.read_with(cx, |chat, _| chat.mentions().to_vec());
+        if let Some(ferrumagent_ui::core::context::Mention::Terminal { title, text }) =
+            attached.first()
+        {
+            assert!(title.contains("exited with 3"), "{title}");
+            assert!(text.contains("$ echo boom; exit-code"), "{text}");
+            assert!(text.contains("boom\n[exit code 3]"), "{text}");
+            break;
+        }
+        assert!(Instant::now() < deadline, "the output was never attached");
+        std::thread::sleep(Duration::from_millis(25));
+    }
 }

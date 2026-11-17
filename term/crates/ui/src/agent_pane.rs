@@ -6,7 +6,9 @@
 //! the pane opens; each folder keeps its chat. Before each message the
 //! chat learns the focused pane, its folder and its screen, and two tools
 //! read that screen and type a command into the pane (see
-//! [`crate::agent_tools`]).
+//! [`crate::agent_tools`]). "Ask agent" on a failed command block opens
+//! the pane with the command, its exit code and its output attached and a
+//! question ready to send (see [`TermView::ask_agent_about_command`]).
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -15,10 +17,11 @@ use std::time::Duration;
 
 use ferrum_ui::components::{Clickable, IconButton};
 use ferrum_ui::gpui::{App, Context, Entity, Window};
+use ferrumagent_ui::core::context::Mention;
 use ferrumagent_ui::core::host::{AppHost, HostTool};
 use ferrumagent_ui::core::session::SessionConfig;
 use ferrumagent_ui::{AgentPane, ChatEvent, ChatOptions, ChatView};
-use ferrumterm_protocol::{Input, Request};
+use ferrumterm_protocol::{BlockId, Input, Request, Response};
 use futures::StreamExt as _;
 
 use crate::agent_tools::{self, Bridge, TermCall};
@@ -33,6 +36,42 @@ const RUN_POLLS: usize = 20;
 
 const ABOUT: &str = "FerrumTerm is a terminal: tabs and split panes of shells and coding \
                      agents, sessions that keep running when the window closes, SSH hosts.";
+
+/// The context chip for a failed command (the command, where it ran, its
+/// output, its exit code) and the question to send with it.
+pub(crate) fn failed_command_context(
+    command: &ferrumterm_protocol::CommandMark,
+    cwd: Option<&str>,
+    output: &str,
+) -> (Mention, String) {
+    let code = command
+        .exit
+        .map_or_else(|| "an unknown code".to_owned(), |c| c.to_string());
+    let line = if command.command.is_empty() {
+        "the last command".to_owned()
+    } else {
+        format!("`{}`", command.command)
+    };
+    let mut text = String::new();
+    if let Some(cwd) = cwd {
+        text.push_str(&format!("In {cwd}:\n"));
+    }
+    text.push_str(&format!("$ {}\n", command.command));
+    if !output.is_empty() {
+        text.push_str(output);
+        text.push('\n');
+    }
+    text.push_str(&format!("[exit code {code}]"));
+    let mention = Mention::Terminal {
+        title: format!("{line} exited with {code}"),
+        text,
+    };
+    let question = format!(
+        "{line} failed with exit code {code} (its output is attached). What went wrong, and how \
+         do I fix it?"
+    );
+    (mention, question)
+}
 
 /// The Agent pane's state.
 pub(crate) struct AgentState {
@@ -164,6 +203,70 @@ impl TermView {
         chat
     }
 
+    /// "Ask agent" on command `id` of pane `block`: shows the Agent pane,
+    /// attaches the command, its exit code and its output (the server's
+    /// copy, scrollback included), and puts a question in the composer for
+    /// the user to send. Whatever the agent then wants to run still asks
+    /// first.
+    pub fn ask_agent_about_command(
+        &mut self,
+        block: BlockId,
+        id: u64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(command) = self
+            .app
+            .frames
+            .get(&block)
+            .and_then(|f| f.commands.iter().find(|c| c.id == id))
+            .cloned()
+        else {
+            return;
+        };
+        let Some(client) = self.app.client.clone() else {
+            return;
+        };
+        if !self.agent.pane.is_shown() {
+            self.toggle_agent(window, cx);
+        }
+        let Some(chat) = self.agent.pane.chat().cloned() else {
+            return;
+        };
+        let cwd = self
+            .app
+            .sessions
+            .iter()
+            .flat_map(|s| &s.windows)
+            .flat_map(|w| &w.blocks)
+            .find(|b| b.id == block)
+            .and_then(|b| b.cwd.clone());
+        let (tx, rx) = futures::channel::oneshot::channel();
+        self.app.rt.spawn(async move {
+            let request = Request::CommandOutput {
+                target: Some(block.to_string()),
+                command: id,
+            };
+            let output = match client.request(request).await {
+                Ok(Response::Text { text }) => text,
+                Ok(_) => String::new(),
+                Err(e) => format!("(its output could not be read: {e})"),
+            };
+            let _ = tx.send(output);
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let output = rx.await.unwrap_or_default();
+            let (mention, question) = failed_command_context(&command, cwd.as_deref(), &output);
+            let _ = this.update_in(cx, |_, window, cx| {
+                chat.update(cx, |chat, cx| {
+                    chat.add_mention(mention, cx);
+                    chat.set_draft(&question, window, cx);
+                });
+            });
+        })
+        .detach();
+    }
+
     /// The Agent toggle, for the pane header (before the account).
     pub(crate) fn agent_toggle(&self, cx: &mut Context<Self>) -> IconButton {
         ferrumagent_ui::agent_toggle("toggle-agent", self.agent.pane.is_shown())
@@ -237,6 +340,11 @@ impl TermView {
             ));
         }
         out
+    }
+
+    /// Whether "Ask agent" is offered (the view has the Agent pane).
+    pub(crate) fn can_ask_agent(&self) -> bool {
+        self.options.agent
     }
 
     /// A tool's call (see [`crate::agent_tools`]).
