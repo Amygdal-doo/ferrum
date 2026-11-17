@@ -11,8 +11,8 @@ use ferrum_ui::{AppInfo, ToggleProjectSwitcher};
 use ferrumsystem_core::demos;
 
 use crate::app::{
-    ExportAs, GenerateFromProject, NewDiagram, OpenDemo, OpenProject, Redo, TogglePanel,
-    ToggleSidebar, Undo, ZoomFit, ZoomIn, ZoomOut,
+    AskAgentToDraft, ExportAs, GenerateFromProject, NewDiagram, OpenDemo, OpenProject, Redo,
+    TogglePanel, ToggleSidebar, Undo, ZoomFit, ZoomIn, ZoomOut,
 };
 
 #[must_use]
@@ -40,6 +40,7 @@ pub fn menus(info: &AppInfo) -> Vec<Menu> {
         Menu::new("File").items([
             MenuItem::action("New Diagram", NewDiagram),
             MenuItem::action("Generate from Project Files", GenerateFromProject),
+            MenuItem::action("Ask Agent to Draft the Architecture", AskAgentToDraft),
             MenuItem::action("Open…", OpenProject),
             MenuItem::action("Switch Project…", ToggleProjectSwitcher),
             MenuItem::separator(),
@@ -98,7 +99,7 @@ mod tests {
         let menus = menus(&crate::app_info::app_info());
         let file = menu(&menus, "File");
         assert!(labels(file).contains(&"Open Demo ›".to_string()));
-        let Some(MenuItem::Submenu(demos)) = file.items.get(5) else {
+        let Some(MenuItem::Submenu(demos)) = file.items.get(6) else {
             panic!("File › Open Demo is a submenu");
         };
         assert_eq!(demos.items.len(), demos::all().len());

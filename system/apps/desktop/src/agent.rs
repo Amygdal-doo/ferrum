@@ -1,10 +1,13 @@
 //! The Agent pane: FerrumChat beside the diagram, without a project (the
-//! diagram is the subject; the agent does not edit it). Before each
-//! message it learns what is shown — the system, the selected component,
-//! the panel's tab, the flow being walked through — and the diagram tools
-//! (see [`crate::agent_tools`]) get a copy of the diagram.
+//! diagram is the subject). Before each message it learns what is shown —
+//! the system, the selected component, the panel's tab, the flow being
+//! walked through — and the read tools (see [`crate::agent_tools`]) get a
+//! copy of the diagram. Its edit tools (see [`crate::agent_write`]) ask
+//! the user first, then come here and are applied as ordinary edits.
 
 use std::rc::Rc;
+
+use futures::StreamExt as _;
 
 use ferrum_ui::prelude::*;
 use ferrumagent_ui::core::host::AppHost;
@@ -12,22 +15,44 @@ use ferrumagent_ui::core::session::SessionConfig;
 use ferrumagent_ui::{AgentPane, ChatOptions, ChatView};
 
 use crate::agent_tools;
+use crate::agent_write::{self, Bridge, SystemCall};
 use crate::app::{FerrumSystem, Source};
+
+/// The channel the edit tools call the window over, and the task that
+/// answers them for as long as the window lives.
+pub(crate) fn listen(cx: &mut Context<FerrumSystem>) -> (Bridge, Task<()>) {
+    let (bridge, mut rx) = Bridge::new();
+    let task = cx.spawn(async move |this, cx| {
+        while let Some((call, reply)) = rx.next().await {
+            match this.update(cx, |app, cx| app.agent_call(call, cx)) {
+                Ok(answer) => {
+                    let _ = reply.send(answer);
+                }
+                Err(_) => break,
+            }
+        }
+    });
+    (bridge, task)
+}
 
 const ABOUT: &str = "FerrumSystem draws a system's architecture: layers, components on any \
                      cloud, the connections between them, APIs, data, flows, reliability and \
-                     deployment. Help the user understand and improve the design.";
+                     deployment. Help the user understand and improve the design; the \
+                     system_* edit tools change the diagram once the user approves.";
 
 impl FerrumSystem {
     /// The top-right Agent toggle: shows the chat (made the first time) or
     /// hides it.
     pub fn toggle_agent(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let slot = self.agent_system.clone();
+        let bridge = self.agent_bridge.clone();
         let home = self.agent_home.clone();
         let weak = cx.weak_entity();
         self.agent.toggle(window, cx, move |window, cx| {
+            let mut tools = agent_tools::tools(&slot);
+            tools.extend(agent_write::tools(&bridge));
             let host = AppHost {
-                tools: agent_tools::tools(&slot),
+                tools,
                 ..AppHost::new("FerrumSystem", ABOUT)
             };
             let context = Rc::new(move |cx: &mut App| {
@@ -67,6 +92,9 @@ impl FerrumSystem {
             ),
             (Source::Empty, None) => "Shown: nothing; no project is open\n".to_string(),
         };
+        if let Some(brief) = &self.draft_brief {
+            out.push_str(brief);
+        }
         if self.is_empty() {
             return out;
         }
@@ -110,6 +138,110 @@ impl FerrumSystem {
             out.push('\n');
         }
         out
+    }
+}
+
+impl FerrumSystem {
+    /// Applies a call of the agent's edit tools (the user has approved it)
+    /// through [`Self::edit`]: saved, and undone with ⌘Z.
+    pub(crate) fn agent_call(
+        &mut self,
+        call: SystemCall,
+        cx: &mut Context<Self>,
+    ) -> Result<String, String> {
+        let result = match call {
+            SystemCall::Propose(draft) => self.apply_draft(*draft, cx),
+            _ if self.is_empty() => Err("No diagram is open in FerrumSystem.".into()),
+            SystemCall::Add {
+                name,
+                kind,
+                layer,
+                tech,
+                description,
+            } => self.agent_add(name, kind, layer, tech, description, cx),
+            SystemCall::Connect {
+                from,
+                to,
+                style,
+                label,
+            } => {
+                let (from, to) = (self.find(&from)?, self.find(&to)?);
+                if from == to {
+                    return Err("A component cannot connect to itself.".into());
+                }
+                self.edit(cx, |s| {
+                    s.connect(&from, &to, (None, None), style);
+                    if let Some(e) = s.edges.iter_mut().find(|e| e.from == from && e.to == to) {
+                        e.label = label;
+                    }
+                });
+                Ok(format!("Connected {from} → {to} ({}).", style.label()))
+            }
+            SystemCall::Rename { component, name } => {
+                let id = self.find(&component)?;
+                self.fields = None;
+                self.edit(cx, |s| {
+                    if let Some(n) = s.nodes.iter_mut().find(|n| n.id == id) {
+                        n.name = name.clone();
+                    }
+                });
+                Ok(format!("Renamed {id} to {name}."))
+            }
+        };
+        // The read tools see the edit at once.
+        self.agent_system
+            .set((!self.is_empty()).then(|| self.system.clone()));
+        result
+    }
+
+    /// The id of the component called `wanted` (id or name).
+    fn find(&self, wanted: &str) -> Result<String, String> {
+        let s = &self.system;
+        s.node(wanted)
+            .or_else(|| s.nodes.iter().find(|n| n.name.eq_ignore_ascii_case(wanted)))
+            .map(|n| n.id.clone())
+            .ok_or_else(|| format!("No component is called {wanted}."))
+    }
+
+    fn agent_add(
+        &mut self,
+        name: String,
+        kind: String,
+        layer: Option<String>,
+        tech: Option<String>,
+        description: String,
+        cx: &mut Context<Self>,
+    ) -> Result<String, String> {
+        let found = ferrumsystem_core::Kind::find(&kind)
+            .ok_or_else(|| format!("Unknown kind {kind:?}: see the tool's list."))?;
+        let layers = &self.system.layers;
+        let layer = match layer {
+            Some(l) if layers.iter().any(|x| x.id == l) => l,
+            Some(l) => return Err(format!("No layer {l:?}: see system_overview.")),
+            None => {
+                let usual = crate::dialogs::default_layer(found.category);
+                layers
+                    .iter()
+                    .find(|l| l.id == usual)
+                    .or(layers.first())
+                    .map(|l| l.id.clone())
+                    .ok_or("The diagram has no layers.")?
+            }
+        };
+        let tech = tech.filter(|t| crate::icons::tech_info(&self.system, t).is_some());
+        let id = self.system.new_node_id(&name);
+        let node = ferrumsystem_core::Node {
+            id: id.clone(),
+            name: name.clone(),
+            kind,
+            tech,
+            slot: Some(self.system.nodes_in(&layer).len() as f32),
+            layer: layer.clone(),
+            description,
+            ..Default::default()
+        };
+        self.edit(cx, |s| s.nodes.push(node));
+        Ok(format!("Added {name} [{id}] to layer {layer}."))
     }
 }
 

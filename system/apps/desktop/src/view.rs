@@ -8,8 +8,9 @@ use ferrum_ui::settings::widgets::Segmented;
 use ferrumsystem_core::{EdgeStyle, Provider};
 
 use crate::app::{
-    DeleteSelected, Escape, ExportAs, FerrumSystem, GenerateFromProject, KEY_CONTEXT, NewDiagram,
-    OpenDemo, OpenProject, Redo, TogglePanel, ToggleSidebar, Undo, ZoomFit, ZoomIn, ZoomOut,
+    AskAgentToDraft, DeleteSelected, Escape, ExportAs, FerrumSystem, GenerateFromProject,
+    KEY_CONTEXT, NewDiagram, OpenDemo, OpenProject, Redo, TogglePanel, ToggleSidebar, Undo,
+    ZoomFit, ZoomIn, ZoomOut,
 };
 
 const PANEL_W: f32 = 430.;
@@ -167,6 +168,18 @@ impl FerrumSystem {
                                 .on_click(
                                     cx.listener(|this, _, _, cx| this.generate_from_project(cx)),
                                 ),
+                        )
+                    })
+                    .when(self.project.is_some(), |row| {
+                        row.child(
+                            Button::new("empty-draft", "Ask agent to draft")
+                                .style(ButtonStyle::Subtle)
+                                .tooltip(Tooltip::text(
+                                    "The agent proposes a diagram from the project's files; you approve it",
+                                ))
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.ask_agent_to_draft(window, cx)
+                                })),
                         )
                     })
                     .child(
@@ -371,6 +384,9 @@ impl Render for FerrumSystem {
             .on_action(
                 cx.listener(|this, _: &GenerateFromProject, _, cx| this.generate_from_project(cx)),
             )
+            .on_action(cx.listener(|this, _: &AskAgentToDraft, window, cx| {
+                this.ask_agent_to_draft(window, cx)
+            }))
             .on_action(cx.listener(|this, _: &Redo, _, cx| this.undo(true, cx)))
             .on_action(cx.listener(|this, _: &DeleteSelected, _, cx| {
                 if this.dialog.is_none() && this.fields.is_none() {

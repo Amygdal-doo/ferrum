@@ -72,6 +72,19 @@ diagram, the same one every time for the same files:
 A project without a diagram gets this one as its `.architecture/system.json`; with a diagram,
 only the components and connections it lacks are added, as one edit (⌘Z takes it back).
 
+## Agent
+The Agent toggle (top right) opens FerrumChat beside the diagram. It knows what is shown and
+has read tools (`system_overview`, `system_component`, `system_details`) and edit tools:
+`system_add_component`, `system_connect`, `system_rename` and `system_propose_diagram`. Every
+edit asks for approval first (the chat's usual permission prompt), then goes through the same
+path as the user's own: saved into `system.json` keeping its formatting, undone with ⌘Z.
+
+**Ask agent to draft the architecture** (sidebar, the empty view, File menu) opens the chat
+with the request in the composer; while it drafts, the chat's context carries the project's
+compose / Kubernetes / package manifests (quoted) and what the importer made of them. The
+agent answers with `system_propose_diagram`; nothing is written until the user approves it.
+A project without a diagram gets it as its diagram; an existing one gains what it lacks.
+
 ## Problems
 The **Problems** tab (and the toolbar's ⚠ count) lists what the diagram itself shows to be
 wrong; click one to select its component:

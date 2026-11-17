@@ -21,6 +21,8 @@ serde.workspace = true
 # FerrumChat in the Agent pane, with the diagram tools.
 ferrumagent-ui.workspace = true
 async-trait.workspace = true
+# The agent's edit tools call the window over a channel.
+futures.workspace = true
 serde_json.workspace = true
 # Export: the diagram's SVG rendered to PNG (with text in the system fonts).
 resvg = { workspace = true, features = ["text", "system-fonts"] }
@@ -29,7 +31,6 @@ resvg = { workspace = true, features = ["text", "system-fonts"] }
 # Headless GPUI test harness (TestAppContext); no window is shown.
 gpui = { workspace = true, features = ["test-support"] }
 tempfile.workspace = true
-futures.workspace = true
 
 [lints]
 workspace = true

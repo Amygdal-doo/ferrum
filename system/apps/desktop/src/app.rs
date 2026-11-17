@@ -36,7 +36,10 @@ actions!(
         OpenProject,
         /// Generate the diagram from the project's docker-compose files,
         /// Kubernetes manifests or package manifests.
-        GenerateFromProject
+        GenerateFromProject,
+        /// Open the Agent pane asking it to draft the architecture from
+        /// the project's files (the user approves its proposal).
+        AskAgentToDraft
     ]
 );
 
@@ -225,6 +228,12 @@ pub struct FerrumSystem {
     /// The diagram the agent's tools read, set before each message.
     pub(crate) agent_system: crate::agent_tools::SystemSlot,
     pub(crate) agent_home: Option<PathBuf>,
+    /// The agent's edit tools' channel to this window (see `agent_write`).
+    pub(crate) agent_bridge: crate::agent_write::Bridge,
+    /// What the project's files say, for the agent while it drafts the
+    /// diagram (see `generate`).
+    pub(crate) draft_brief: Option<String>,
+    _agent_calls: Task<()>,
     pub(crate) focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
 }
@@ -247,6 +256,7 @@ impl FerrumSystem {
                 this.open_project(Some(path), cx);
             }),
         ];
+        let (agent_bridge, agent_calls) = crate::agent::listen(cx);
         let mut this = Self {
             project_bar,
             project: None,
@@ -281,6 +291,9 @@ impl FerrumSystem {
             agent: ferrumagent_ui::AgentPane::new(),
             agent_system: crate::agent_tools::SystemSlot::default(),
             agent_home: options.agent_home,
+            agent_bridge,
+            draft_brief: None,
+            _agent_calls: agent_calls,
             focus_handle: cx.focus_handle(),
             _subscriptions: subscriptions,
         };
@@ -431,6 +444,7 @@ impl FerrumSystem {
         self.source = source;
         self.system = system;
         self.history.clear();
+        self.draft_brief = None;
         self.selected = None;
         self.walk = None;
         self.connecting = None;
