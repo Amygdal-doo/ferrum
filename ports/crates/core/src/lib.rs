@@ -6,6 +6,7 @@
 pub mod forward;
 pub mod free;
 pub mod hints;
+pub mod history;
 pub mod kill;
 pub mod lsof;
 pub mod model;

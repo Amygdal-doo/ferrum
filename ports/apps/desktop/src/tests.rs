@@ -304,3 +304,33 @@ fn forward_reports_ssh_failure(cx: &mut TestAppContext) {
     });
     draw(cx);
 }
+
+#[gpui::test]
+fn history_records_scans_of_this_mac(cx: &mut TestAppContext) {
+    let (app, cx) = window(cx);
+    app.update(cx, |app, cx| {
+        app.apply_scan(Ok(sample()), cx);
+        // postgres stops.
+        let mut snapshot = sample();
+        snapshot.listeners.remove(1);
+        app.apply_scan(Ok(snapshot), cx);
+        let entries: Vec<_> = app.history.entries().cloned().collect();
+        assert_eq!(entries.len(), 4);
+        let postgres = entries.iter().find(|e| e.port == 5432).expect("entry");
+        assert!(!postgres.open);
+        assert!(entries.iter().filter(|e| e.port != 5432).all(|e| e.open));
+        app.show_history = true;
+        app.search
+            .update(cx, |input, cx| input.set_text("postgres", cx));
+    });
+    draw(cx);
+    app.update(cx, |app, cx| {
+        // Scans of a remote machine are not recorded.
+        app.target = Some("elsewhere".into());
+        app.apply_scan(Ok(Snapshot::default()), cx);
+        assert_eq!(app.history.entries().filter(|e| e.open).count(), 3);
+        app.clear_history(cx);
+        assert!(app.history.is_empty());
+    });
+    draw(cx);
+}

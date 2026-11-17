@@ -106,6 +106,9 @@ impl FerrumPorts {
                 if self.selected_listener().is_none() {
                     self.selected = None;
                 }
+                if self.target.is_none() {
+                    self.record_history();
+                }
             }
             Err(e) => self.error = Some(e.to_string()),
         }

@@ -8,6 +8,7 @@ use chrono::{DateTime, Local};
 use ferrum_ui::gpui::{KeyBinding, MouseButton};
 use ferrum_ui::prelude::*;
 use ferrumports_core::forward::Forward;
+use ferrumports_core::history::PortHistory;
 use ferrumports_core::{Listener, ListenerKey, Row, View, remote, table};
 use ferrumterm_net::ssh_config::ConfigHost;
 use ferrumterm_net::{Host, HostStore};
@@ -94,6 +95,12 @@ pub struct FerrumPorts {
     pub(crate) add_host: Option<Entity<TextInput>>,
     /// `ssh -L` forwards started here (stopped when the app quits).
     pub(crate) forwards: Vec<Forward>,
+    /// Which process held which port on this Mac, and when.
+    pub(crate) history: PortHistory,
+    pub(crate) history_path: Option<PathBuf>,
+    pub(crate) history_saved: Option<Instant>,
+    /// The table shows the history instead of the listeners.
+    pub(crate) show_history: bool,
     focus_handle: FocusHandle,
     _poll: Option<Task<()>>,
     pub(crate) _subscriptions: Vec<Subscription>,
@@ -144,6 +151,18 @@ impl FerrumPorts {
             }
             None => HostStore::default(),
         };
+        let history_path = options
+            .home
+            .as_deref()
+            .map(|home| home.join(".ferrum").join("ports").join("history.json"));
+        let history = match history_path.as_deref().map(PortHistory::load) {
+            Some(Ok(history)) => history,
+            Some(Err(e)) => {
+                load_error = Some(e);
+                PortHistory::default()
+            }
+            None => PortHistory::default(),
+        };
         let config_hosts = if options.home.is_some() {
             ferrumterm_net::ssh_config::load_user()
         } else {
@@ -176,6 +195,10 @@ impl FerrumPorts {
             last_scan: None,
             add_host: None,
             forwards: Vec::new(),
+            history,
+            history_path,
+            history_saved: None,
+            show_history: false,
             focus_handle: cx.focus_handle(),
             _poll: None,
             _subscriptions: subscriptions,
@@ -186,6 +209,8 @@ impl FerrumPorts {
         // ssh children would outlive the app otherwise.
         app._subscriptions.push(cx.on_app_quit(|app, _| {
             app.stop_forwards();
+            app.history.close_all();
+            app.save_history();
             async {}
         }));
         window.focus(&app.focus_handle, cx);
@@ -257,7 +282,11 @@ impl Render for FerrumPorts {
         let text = cx.theme().colors().text;
         let header = chrome::table_header(self, window, cx);
         let forwards = crate::forwards::bar(self, cx);
-        let table = crate::table::render(self, cx);
+        let table = if self.show_history {
+            crate::history::render(self, cx)
+        } else {
+            crate::table::render(self, cx)
+        };
         let detail = detail::render(self, window, cx);
         let footer = chrome::table_footer(self, cx);
         let dialog =

@@ -8,6 +8,7 @@ mod chrome;
 mod commands;
 mod detail;
 mod forwards;
+mod history;
 mod remote;
 mod table;
 #[cfg(test)]

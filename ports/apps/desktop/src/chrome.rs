@@ -105,6 +105,14 @@ pub fn table_header(
             toggle("udp", "UDP", app.udp, cx, |app, cx| app.toggle_udp(cx))
                 .tooltip(Tooltip::text("Also list bound UDP sockets")),
         )
+        .child(
+            toggle("history", "History", app.show_history, cx, |app, _| {
+                app.show_history = !app.show_history;
+            })
+            .tooltip(Tooltip::text(
+                "Which process held which port on this Mac, and when",
+            )),
+        )
         .child(div().flex_1())
         .child(
             field(cx)
