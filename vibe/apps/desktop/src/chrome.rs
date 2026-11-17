@@ -115,9 +115,9 @@ impl FerrumEngineer {
         }))
     }
 
-    /// The tasks list, the Files / Git / Terminal toggles and the Ferrum
-    /// account (Sign in / avatar), at the right of the chat's (or a page's)
-    /// header row.
+    /// The tasks list, the Files / Git / Terminal / Editor toggles and the
+    /// Ferrum account (Sign in / avatar), at the right of the chat's (or a
+    /// page's) header row. (The chat draws its own thread list toggle.)
     pub(crate) fn header_end(&self, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .flex_none()

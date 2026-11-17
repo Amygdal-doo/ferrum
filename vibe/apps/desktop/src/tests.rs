@@ -549,3 +549,34 @@ fn the_folder_argument_skips_flags_and_files() {
     );
     assert_eq!(crate::folder_argument(std::iter::empty()), None);
 }
+
+#[gpui::test]
+fn the_chat_column_shows_this_projects_threads(cx: &mut TestAppContext) {
+    let fx = Fixture::new();
+    let root = fx.path("a");
+    let id = fx.thread(&root, "Fix the build", "fix it", Mode::Agent);
+    let (app, cx) = fx.open(cx, Some(root.clone()));
+    let chat = read(&app, cx, |a| a.chat().expect("chat"));
+
+    // The chat's own list replaces the conversation in its column, with the
+    // window's controls still in its header.
+    update(&app, cx, |_, w, cx| {
+        chat.update(cx, |chat, cx| chat.toggle_thread_list(w, cx));
+    });
+    assert!(chat.read_with(cx, |c, _| c.is_thread_list_open()));
+    assert!(cx.debug_bounds("column-chat").is_some());
+
+    // Picking a thread (here from the sidebar) closes the list.
+    update(&app, cx, |a, w, cx| a.open_thread(&root, &id, w, cx));
+    assert!(!chat.read_with(cx, |c, _| c.is_thread_list_open()));
+    for _ in 0..400 {
+        if chat.read_with(cx, |c, _| c.thread().id == id) {
+            return;
+        }
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(50));
+        draw(cx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("the thread did not open");
+}

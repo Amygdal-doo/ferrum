@@ -323,10 +323,38 @@ fn shell_host_drives_threads_tasks_and_footer(cx: &mut TestAppContext) {
         "Review brief"
     );
 
+    // The thread list also opens in a shell host, in the chat column: a
+    // row is renamed in place.
+    view.update_in(cx, |v, window, cx| v.toggle_thread_list(window, cx));
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    assert!(read(&view, cx, |v| v.is_thread_list_open()));
+    view.update_in(cx, |v, window, cx| v.start_row_rename(&first, window, cx));
+    let input = read(&view, cx, |v| {
+        v.renaming_row.as_ref().map(|(_, input, _)| input.clone())
+    })
+    .expect("row title field");
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    input.update(cx, |input, cx| input.set_text("Brief review", cx));
+    view.update_in(cx, |v, window, cx| v.commit_row_rename(window, cx));
+    wait_until(cx, "the renamed row", |cx| {
+        read(&view, cx, |v| {
+            v.threads
+                .iter()
+                .any(|t| t.id == first && t.title == "Brief review")
+        })
+    });
+    assert_eq!(
+        read(&view, cx, |v| v.thread().title.clone()),
+        "Brief review"
+    );
+    assert!(read(&view, cx, |v| v.is_thread_list_open()));
+    view.update_in(cx, |v, window, cx| v.toggle_thread_list(window, cx));
+    assert!(!read(&view, cx, |v| v.is_thread_list_open()));
+
     // Copy as Markdown, then delete it.
     view.update(cx, |v, cx| v.copy_markdown(cx));
     let copied = cx.update(|_, cx| cx.read_from_clipboard().and_then(|c| c.text()));
-    assert!(copied.is_some_and(|t| t.starts_with("# Review brief")));
+    assert!(copied.is_some_and(|t| t.starts_with("# Brief review")));
     view.update(cx, |v, cx| v.delete_current_thread(cx));
     wait_until(cx, "the thread to be deleted", |cx| {
         read(&view, cx, |v| {

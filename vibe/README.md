@@ -38,6 +38,7 @@ cargo vibe ~/code/my-app      # ferrumvibe <folder> once installed (shell comman
 | Files: shown / hidden with the top-bar toggle, ⌥⌘1 or View › Toggle Files; width resized by dragging its splitter; both saved with the layout (`files` in `layouts.json`) | ✅ tested |
 | **Drag files to the chat**: drag a file or folder (⌘-click selects several) from the Files pane, or files from the Finder, onto the chat; each becomes a context chip in the composer (✕ removes it). Project paths go by reference (`@src/main.rs`, `@src/`), text files outside the project by their content; binaries and outside folders are refused with a notice | ✅ tested with a simulated drag and a simulated Finder drop |
 | Switching project: a new chat rooted at the new folder, `GitView::set_repo`, `TermView::set_cwd` (running shells stay where they are; new tabs open in the project) | ✅ tested |
+| **Several chats per project**: the chat header's threads toggle (⌥⌘J) shows the project's threads in the chat column, grouped Needs you / Done / Working / Idle: **New thread**, click to switch, ✎ renames in place, 🗑 deletes; the sidebar and ☰ list them too. Threads keep running while another is shown | ✅ headless-tested (open, rename a row, switch from the sidebar) |
 | `ferrumvibe <folder>` opens on that folder; without one, the last project FerrumEngineer opened | ✅ argument parsing tested |
 | Chat **Run in terminal** shows the terminal column if it was closed, runs the command in a new tab there and focuses it | ✅ tested (column reopened, command queued); the command's output is not checked |
 | Chat **changes** (`ChangesUpdated`) reload the git column at once instead of at its next 3 s poll, and the chat header shows "N to review". Reopening the git column reloads it too | ⚠️ the reload is dispatched as FerrumGIT's own `Reload` action; tested that it is sent, not that the list changed |
@@ -57,8 +58,7 @@ FerrumTerm's own sessions.
   file-system watcher (it reloads after the agent's changes); open tabs are
   not restored after a restart, and quitting the window does not ask about
   unsaved tabs.
-- One chat per window; switching project starts a new chat session for the
-  new folder.
+- Deleting a thread from the list does not ask first.
 - The terminal session keeps the name of the project it started in after a
   project switch.
 - No Windows build: FerrumTerm's server uses Unix sockets
