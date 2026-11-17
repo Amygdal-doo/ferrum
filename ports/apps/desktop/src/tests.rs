@@ -49,6 +49,7 @@ fn window(cx: &mut TestAppContext) -> (Entity<FerrumPorts>, &mut VisualTestConte
             Options {
                 project: None,
                 autostart: false,
+                home: None,
             },
             window,
             cx,
@@ -205,4 +206,54 @@ fn kill_stops_a_real_process(cx: &mut TestAppContext) {
             notice.message
         );
     });
+}
+
+#[gpui::test]
+fn remote_machine_lists_and_confirms_stops(cx: &mut TestAppContext) {
+    let (app, cx) = window(cx);
+    app.update(cx, |app, cx| {
+        let name = app.hosts.add_typed("deploy@10.0.0.9:2200").expect("host");
+        // Set directly: `set_target` would start a real ssh scan.
+        app.target = Some(name.clone());
+        let host = app.target_host().expect("host");
+        assert_eq!(host.address(), "deploy@10.0.0.9:2200");
+        app.apply_scan(Ok(sample()), cx);
+        let key = app.listeners[0].key();
+        app.select(key, cx);
+    });
+    draw(cx);
+    app.update(cx, |app, cx| {
+        let l = app.listeners[1].clone();
+        app.ask_kill(l, cx);
+        let dialog = app.dialog.as_ref().expect("dialog");
+        assert_eq!(
+            dialog.host.as_ref().map(|h| h.name.as_str()),
+            app.target.as_deref()
+        );
+    });
+    draw(cx);
+    app.update(cx, |app, cx| {
+        // As if a scan were running, so the refresh after the stop does
+        // not ssh to the made-up host.
+        app.scanning = true;
+        app.kill_finished(Signal::Term, Ok(()), false, cx);
+        let notice = app.notice.clone().expect("notice");
+        assert!(
+            notice.message.ends_with("on 10.0.0.9"),
+            "{}",
+            notice.message
+        );
+        // A failed ssh scan keeps the rows and shows ssh's message.
+        app.apply_scan(
+            Err(ScanError::Remote("Permission denied (publickey)".into())),
+            cx,
+        );
+        assert_eq!(app.error.as_deref(), Some("Permission denied (publickey)"));
+    });
+    draw(cx);
+    // The "Add a machine" dialog renders; Esc closes it.
+    cx.update(|window, cx| app.update(cx, |app, cx| app.open_add_host(window, cx)));
+    draw(cx);
+    cx.dispatch_action(ferrum_ui::menu::Cancel);
+    app.read_with(cx, |app, _| assert!(app.add_host.is_none()));
 }

@@ -31,6 +31,9 @@ pub enum ScanError {
         program: &'static str,
         message: String,
     },
+    /// Listing a remote host's ports over ssh failed.
+    #[error("{0}")]
+    Remote(String),
 }
 
 /// Runs `program` and returns its stdout. A non-zero exit with output is

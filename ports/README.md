@@ -4,9 +4,10 @@
 processes behind them. It is a GPUI desktop app (the UI framework of Zed, a pinned
 git dependency) built on the shared `ferrum-ui` crate. One window has the Ferrum project strip
 on top and a table of listeners below it, with a detail pane for the selected row.
-Everything runs locally: FerrumPorts reads the system with `lsof`, `ps` and `ss` and writes
-nothing except the shared recent-projects list (`~/.ferrum/projects.json`, through the
-project strip). Part of the Ferrum monorepo, with the same theme and components as
+FerrumPorts reads the system with `lsof`, `ps` and `ss`; for a remote machine it runs the
+same tools over the system `ssh`. It writes the shared recent-projects list
+(`~/.ferrum/projects.json`, through the project strip) and its own files in
+`~/.ferrum/ports/` (see "Local data"). Part of the Ferrum monorepo, with the same theme and components as
 [FerrumContainers](../dock), [FerrumKit](../kit) and [FerrumIDE](../editor).
 
 > **Status: alpha, first vertical slice.** "Tested" means automated unit tests of
@@ -30,6 +31,7 @@ project strip). Part of the Ferrum monorepo, with the same theme and components 
 | Status bar: listener count (and how many are shown), auto-refresh state and last refresh time, scan errors (e.g. `lsof` missing) and warnings | ✅ headless-rendered |
 | Empty states: scanning, nothing listening, no matches, scan failed | ✅ headless-rendered |
 | Project strip (`ProjectBar`): ⌥⌘O switcher; `ferrumports <folder>` starts with that project | ⚠️ wired |
+| **Remote machines** (machine picker at the start of the header): "Add a machine…" offers the `~/.ssh/config` aliases (FerrumTerm's parser, `ferrumterm-net`) or a typed `user@host[:port]`; the list is kept in `~/.ferrum/ports/ssh-hosts.json`. One `ssh -T -o BatchMode=yes` run per refresh (every 10 s) executes a small `sh` script: `ss -ltnpH` (Linux), else `lsof`, then `ps -A`; the existing parsers read the output. Stopping a remote process uses the same confirmation dialog ("… on prod over ssh"), sends `kill -TERM` (then offers `-KILL`) over ssh and checks once after 2 s. Keys must be in ssh-agent or the keychain: nothing can prompt for a password | ✅ command line, script and parsers tested (the script also run locally with `sh`); dialogs headless-tested. **Not run against a real remote host** |
 
 ## Known limitations
 - Without root, `lsof` on macOS only shows the sockets of your own processes. Ports held by
@@ -42,6 +44,9 @@ project strip). Part of the Ferrum monorepo, with the same theme and components 
 - There is no column sorting, no keyboard row navigation and no per-row context menu yet
   (the actions are on the row icons and in the detail pane).
 - Windows is not supported (no `lsof`/`ss`; the scan reports the missing tool).
+- Remote machines: no working directory or project for remote processes; without root,
+  `ss` shows other users' processes without a pid (a warning says so); "Is port N free?",
+  "This project" and the open-in-browser buttons are about this Mac.
 
 ## Commands
 Run from the monorepo root (`ferrum/`).
@@ -59,9 +64,15 @@ apps/desktop/      GPUI app: app.rs (root view, state, keys, project strip),
                    commands.rs (scan + polling, kill flow, row actions, port check),
                    table.rs (listener table), detail.rs (detail pane),
                    chrome.rs (toolbar, status bar, kill dialog, notices),
+                   remote.rs (machine picker, add-a-machine dialog),
                    tests.rs (headless GPUI tests)
 crates/core/       pure logic, no GPUI: model (Listener, addresses, exposure, URL),
                    lsof / ps / ss parsers, scan (runs the tools, joins the output),
                    project (cwd to project), hints (well-known ports),
-                   table (search, project filter, grouping), kill, free (port checks)
+                   table (search, project filter, grouping), kill, free (port checks),
+                   remote (hosts, the ssh script and its parsing, remote kill)
 ```
+
+## Local data
+- `~/.ferrum/ports/ssh-hosts.json`: the machines added in FerrumPorts (FerrumTerm's
+  `HostStore` format, separate from FerrumTerm's own file). `~/.ssh/config` is only read.

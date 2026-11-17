@@ -3,19 +3,21 @@
 //! background executor.
 
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::Local;
 use ferrum_ui::gpui::ClipboardItem;
 use ferrum_ui::prelude::*;
 use ferrum_ui::project::{self, FerrumApp};
 use ferrumports_core::kill::{self, KillError, Signal};
-use ferrumports_core::{Listener, ListenerKey, ScanError, ScanOptions, Snapshot};
+use ferrumports_core::{Listener, ListenerKey, ScanError, ScanOptions, Snapshot, remote};
 
 use crate::app::{FerrumPorts, KillDialog, KillStage};
 
 /// Auto-refresh interval.
 pub const POLL: Duration = Duration::from_secs(2);
+/// Auto-refresh interval for a remote machine (one ssh connection each).
+pub const REMOTE_POLL: Duration = Duration::from_secs(10);
 /// How long a signalled process gets to exit before we ask about SIGKILL.
 const EXIT_WAIT: Duration = Duration::from_millis(2000);
 const EXIT_CHECK: Duration = Duration::from_millis(200);
@@ -26,7 +28,15 @@ impl FerrumPorts {
             loop {
                 cx.background_executor().timer(POLL).await;
                 let alive = this.update(cx, |app, cx| {
-                    if !app.paused {
+                    let interval = if app.target.is_some() {
+                        REMOTE_POLL
+                    } else {
+                        POLL
+                    };
+                    let due = app
+                        .last_scan
+                        .is_none_or(|at| at.elapsed() + Duration::from_millis(100) >= interval);
+                    if !app.paused && due {
                         app.refresh(cx);
                     }
                 });
@@ -44,15 +54,33 @@ impl FerrumPorts {
         }
     }
 
-    /// Starts a scan; the result of any scan already running is ignored.
-    fn start_scan(&mut self, cx: &mut Context<Self>) {
+    /// Starts a scan of this Mac or the remote machine; the result of any
+    /// scan already running is ignored.
+    pub(crate) fn start_scan(&mut self, cx: &mut Context<Self>) {
         self.scanning = true;
         self.generation += 1;
+        self.last_scan = Some(Instant::now());
         let generation = self.generation;
         let options = ScanOptions { udp: self.udp };
+        let host = self.target_host();
+        if self.target.is_some() && host.is_none() {
+            self.apply_scan(
+                Err(ScanError::Remote(format!(
+                    "{} is no longer in the machine list",
+                    self.target.clone().unwrap_or_default()
+                ))),
+                cx,
+            );
+            return;
+        }
         cx.spawn(async move |this, cx| {
             let result = cx
-                .background_spawn(async move { ferrumports_core::scan(options) })
+                .background_spawn(async move {
+                    match host {
+                        Some(host) => remote::scan(&host, options.udp).map_err(ScanError::Remote),
+                        None => ferrumports_core::scan(options),
+                    }
+                })
                 .await;
             this.update(cx, |app, cx| {
                 if app.generation == generation {
@@ -146,6 +174,7 @@ impl FerrumPorts {
             listener,
             stage: KillStage::Term,
             busy: false,
+            host: self.target_host(),
         });
         cx.notify();
     }
@@ -164,18 +193,35 @@ impl FerrumPorts {
             KillStage::Force => Signal::Kill,
         };
         let owner = dialog.listener.user.clone();
+        let host = dialog.host.clone();
         cx.spawn(async move |this, cx| {
+            let target = host.clone();
             let result = cx
-                .background_spawn(async move { kill::send(pid, signal, owner.as_deref()) })
+                .background_spawn(async move {
+                    match target {
+                        Some(host) => remote::send(&host, pid, signal, owner.as_deref()),
+                        None => kill::send(pid, signal, owner.as_deref()),
+                    }
+                })
                 .await;
             let mut alive = result.is_ok();
-            let mut waited = Duration::ZERO;
-            while alive && waited < EXIT_WAIT {
-                cx.background_executor().timer(EXIT_CHECK).await;
-                waited += EXIT_CHECK;
-                alive = cx
-                    .background_spawn(async move { kill::is_alive(pid) })
-                    .await;
+            if let Some(host) = host {
+                if alive {
+                    // One ssh round trip after the wait instead of polling.
+                    cx.background_executor().timer(EXIT_WAIT).await;
+                    alive = cx
+                        .background_spawn(async move { remote::is_alive(&host, pid) })
+                        .await;
+                }
+            } else {
+                let mut waited = Duration::ZERO;
+                while alive && waited < EXIT_WAIT {
+                    cx.background_executor().timer(EXIT_CHECK).await;
+                    waited += EXIT_CHECK;
+                    alive = cx
+                        .background_spawn(async move { kill::is_alive(pid) })
+                        .await;
+                }
             }
             this.update(cx, |app, cx| app.kill_finished(signal, result, alive, cx))
                 .ok();
@@ -210,7 +256,12 @@ impl FerrumPorts {
                 cx,
             ),
             (Ok(()), false, _) => {
-                let message = format!("Stopped {} (pid {pid}) on port {}", l.process, l.port);
+                let on = dialog
+                    .host
+                    .as_ref()
+                    .map(|h| format!(" on {}", h.name))
+                    .unwrap_or_default();
+                let message = format!("Stopped {} (pid {pid}) on port {}{on}", l.process, l.port);
                 self.show_notice(Notice::info(message), cx);
                 self.refresh(cx);
             }

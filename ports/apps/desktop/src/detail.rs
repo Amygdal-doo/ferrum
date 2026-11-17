@@ -50,8 +50,9 @@ pub fn render(
         .collect();
 
     let url = l.url();
+    let host = app.target_host();
     let mut actions = h_flex().flex_wrap().gap_1();
-    {
+    if host.is_none() {
         let (l1, url1) = (l.clone(), url.clone());
         actions = actions
             .child(button("d-open", "Open in browser", cx, move |app, cx| {
@@ -122,6 +123,12 @@ pub fn render(
         .gap_3()
         .child(actions)
         .children(open_in)
+        .when_some(host.as_ref(), |d, host| {
+            d.child(field(
+                "Machine",
+                value(format!("{} · {} (ssh)", host.name, host.address())),
+            ))
+        })
         .child(field(
             "Command",
             div()

@@ -51,7 +51,11 @@ fn header(cx: &App) -> Div {
 pub fn render(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> AnyElement {
     let rows = app.rows(cx);
     let body = if !app.loaded {
-        empty_state("Scanning…", "Asking the system which ports are open").into_any_element()
+        let asking = match &app.target {
+            Some(host) => format!("Asking {host} over ssh which ports are open"),
+            None => "Asking the system which ports are open".to_string(),
+        };
+        empty_state("Scanning…", asking).into_any_element()
     } else if app.listeners.is_empty() && app.error.is_some() {
         empty_state(
             "Could not list ports",
@@ -140,6 +144,8 @@ fn listener_row(
         .when_some(l.hint(), |d, hint| d.child(text(hint.short, Color::Muted)));
     let open = l.clone();
     let kill = l.clone();
+    // A remote listener's URL is not reachable as localhost.
+    let local = app.target.is_none();
     h_flex()
         .id(("listener", index))
         .px_3()
@@ -175,15 +181,17 @@ fn listener_row(
                 .flex_none()
                 .w(px(ACTIONS_WIDTH))
                 .justify_end()
-                .child(
-                    IconButton::new(("open", index), IconName::ArrowUpRight)
-                        .icon_size(IconSize::Small)
-                        .tooltip(Tooltip::text(format!("Open {}", l.url())))
-                        .on_click(cx.listener(move |app, _, _, cx| {
-                            cx.stop_propagation();
-                            app.open_in_browser(&open, cx);
-                        })),
-                )
+                .when(local, |d| {
+                    d.child(
+                        IconButton::new(("open", index), IconName::ArrowUpRight)
+                            .icon_size(IconSize::Small)
+                            .tooltip(Tooltip::text(format!("Open {}", l.url())))
+                            .on_click(cx.listener(move |app, _, _, cx| {
+                                cx.stop_propagation();
+                                app.open_in_browser(&open, cx);
+                            })),
+                    )
+                })
                 .child(
                     IconButton::new(("kill", index), IconName::Trash)
                         .icon_size(IconSize::Small)

@@ -3293,6 +3293,7 @@ name = "ferrumports-core"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "ferrumterm-net",
  "tempfile",
  "thiserror 2.0.21",
 ]
@@ -3305,6 +3306,7 @@ dependencies = [
  "ferrum-account-ui",
  "ferrum-ui",
  "ferrumports-core",
+ "ferrumterm-net",
  "gpui",
 ]
 
