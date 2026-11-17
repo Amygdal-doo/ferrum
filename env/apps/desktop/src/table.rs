@@ -102,11 +102,43 @@ impl EnvApp {
             Some(key) => format!("Share key {}", key.fingerprint()),
             None => "No share key: set one up".to_string(),
         };
+        let team_tooltip = match project.members.len() {
+            0 => "Team keys: add teammates' public keys".to_string(),
+            n => format!("Team keys ({n} members)"),
+        };
         row.child(tabs)
             .when(unlocked.environment().is_some(), |row| {
                 row.child(self.env_actions(cx))
             })
             .child(div().w(px(1.)).h(px(16.)).mx_1().bg(colors.border_variant))
+            .child(icon_button(
+                "team",
+                IconName::Person,
+                team_tooltip,
+                cx,
+                |this, window, cx| this.open_team(window, cx),
+            ))
+            .child(icon_button(
+                "sync",
+                if project.sync.is_some() {
+                    IconName::Cloud
+                } else {
+                    IconName::RotateCw
+                },
+                match &project.sync {
+                    Some(state) => format!("Synced through {}", state.folder.display()),
+                    None => "Sync through a shared folder…".to_string(),
+                },
+                cx,
+                |this, window, cx| this.open_sync(window, cx),
+            ))
+            .child(icon_button(
+                "leak-scan",
+                IconName::Warning,
+                "Scan the folder and git history for leaked secrets…",
+                cx,
+                |this, window, cx| this.open_leak_scan(window, cx),
+            ))
             .child(icon_button(
                 "share-key",
                 IconName::Hash,

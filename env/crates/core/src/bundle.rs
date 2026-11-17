@@ -1,6 +1,5 @@
-//! Share bundles: some or all environments of a project, sealed with the
-//! project's [`ShareKey`] and wrapped in a text armor that survives chat
-//! and email:
+//! Share bundles: some or all environments of a project, sealed and
+//! wrapped in a text armor that survives chat and email:
 //!
 //! ```text
 //! -----BEGIN FERRUMENV BUNDLE-----
@@ -11,12 +10,20 @@
 //! -----END FERRUMENV BUNDLE-----
 //! ```
 //!
-//! The base64 body is a JSON envelope {format, version, project,
-//! key_fingerprint, nonce, ciphertext}. The ciphertext is XChaCha20-Poly1305
-//! over the JSON [`BundleContents`], with `ferrumenv-bundle\0v1\0<project>`
-//! as associated data, so the format version and project name can't be
-//! swapped. The key itself is never part of a bundle. A `.fenv` file holds
-//! the same text.
+//! Two formats, both read:
+//!
+//! - **v1, share key** ([`seal`]): the base64 body is a JSON envelope
+//!   {format, version, project, key_fingerprint, nonce, ciphertext}. The
+//!   ciphertext is XChaCha20-Poly1305 under the project's [`ShareKey`] over
+//!   the JSON [`BundleContents`], with `ferrumenv-bundle\0v1\0<project>` as
+//!   associated data, so the format version and project name can't be
+//!   swapped. The key itself is never part of a bundle.
+//! - **v2, team members' public keys** ([`seal_for`]): the envelope holds
+//!   the sender's public key and one stanza per recipient instead of a key
+//!   fingerprint; see [`crate::recipients`]. The armor shows `From:` (the
+//!   sender's fingerprint) instead of `Key:`.
+//!
+//! A `.fenv` file holds the same text.
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -25,7 +32,9 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
 use crate::crypto;
+use crate::identity::{Identity, PublicKey};
 use crate::model::Environment;
+use crate::recipients::{self, Stanza};
 use crate::share_key::ShareKey;
 use crate::{Error, Result};
 
@@ -34,6 +43,8 @@ pub const END: &str = "-----END FERRUMENV BUNDLE-----";
 pub const FILE_EXTENSION: &str = "fenv";
 const FORMAT: &str = "ferrumenv-bundle";
 const VERSION: u32 = 1;
+/// Encrypted to team members' public keys.
+const RECIPIENTS_VERSION: u32 = 2;
 
 /// What a bundle carries (encrypted).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,7 +62,15 @@ struct Envelope {
     format: String,
     version: u32,
     project: String,
+    /// v1 only.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     key_fingerprint: String,
+    /// v2 only: the sender's public key (base64).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    sender: String,
+    /// v2 only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    recipients: Vec<Stanza>,
     nonce: String,
     ciphertext: String,
 }
@@ -60,26 +79,61 @@ fn aad(project: &str) -> Vec<u8> {
     format!("{FORMAT}\0v{VERSION}\0{project}").into_bytes()
 }
 
-/// Seals `contents` with `key` and returns the armored text.
+/// Seals `contents` with `key` (format v1) and returns the armored text.
 pub fn seal(contents: &BundleContents, key: &ShareKey) -> Result<String> {
-    let plaintext =
-        Zeroizing::new(serde_json::to_vec(contents).map_err(|e| Error::Invalid(e.to_string()))?);
+    let plaintext = to_json(contents)?;
     let (nonce, ciphertext) = crypto::seal(key.as_bytes(), &plaintext, &aad(&contents.project))?;
     let envelope = Envelope {
         format: FORMAT.into(),
         version: VERSION,
         project: contents.project.clone(),
         key_fingerprint: key.fingerprint(),
+        sender: String::new(),
+        recipients: Vec::new(),
         nonce: STANDARD.encode(nonce),
         ciphertext: STANDARD.encode(ciphertext),
     };
-    let json = serde_json::to_vec(&envelope).map_err(|e| Error::Invalid(e.to_string()))?;
+    let header = format!("Key: {}", envelope.key_fingerprint);
+    armor(&envelope, &header)
+}
+
+/// Seals `contents` from `sender` to each of `recipients` (format v2).
+/// Include the sender's own public key to be able to read it back.
+pub fn seal_for(
+    contents: &BundleContents,
+    sender: &Identity,
+    recipients: &[PublicKey],
+) -> Result<String> {
+    let plaintext = to_json(contents)?;
+    let sealed = recipients::seal(FORMAT, &contents.project, &plaintext, sender, recipients)?;
+    let envelope = Envelope {
+        format: FORMAT.into(),
+        version: RECIPIENTS_VERSION,
+        project: contents.project.clone(),
+        key_fingerprint: String::new(),
+        sender: STANDARD.encode(sealed.sender.as_bytes()),
+        recipients: sealed.stanzas,
+        nonce: STANDARD.encode(sealed.nonce),
+        ciphertext: STANDARD.encode(sealed.ciphertext),
+    };
+    let header = format!("From: {}", sealed.sender.fingerprint());
+    armor(&envelope, &header)
+}
+
+fn to_json(contents: &BundleContents) -> Result<Zeroizing<Vec<u8>>> {
+    Ok(Zeroizing::new(
+        serde_json::to_vec(contents).map_err(|e| Error::Invalid(e.to_string()))?,
+    ))
+}
+
+fn armor(envelope: &Envelope, header: &str) -> Result<String> {
+    let json = serde_json::to_vec(envelope).map_err(|e| Error::Invalid(e.to_string()))?;
     let body = STANDARD.encode(json);
     let mut out = String::with_capacity(body.len() + 200);
     out.push_str(BEGIN);
     out.push('\n');
-    out.push_str(&format!("Project: {}\n", printable(&contents.project)));
-    out.push_str(&format!("Key: {}\n\n", envelope.key_fingerprint));
+    out.push_str(&format!("Project: {}\n", printable(&envelope.project)));
+    out.push_str(&format!("{header}\n\n"));
     for chunk in body.as_bytes().chunks(64) {
         out.push_str(&String::from_utf8_lossy(chunk));
         out.push('\n');
@@ -98,7 +152,11 @@ fn printable(text: &str) -> String {
 /// A parsed but still encrypted bundle.
 pub struct SealedBundle {
     pub project: String,
+    /// The share key's fingerprint (v1); empty for a v2 bundle.
     pub key_fingerprint: String,
+    /// Who sealed it (v2); `None` for a share-key bundle.
+    pub sender: Option<PublicKey>,
+    recipients: Vec<Stanza>,
     nonce: Vec<u8>,
     ciphertext: Vec<u8>,
 }
@@ -108,6 +166,7 @@ impl std::fmt::Debug for SealedBundle {
         f.debug_struct("SealedBundle")
             .field("project", &self.project)
             .field("key_fingerprint", &self.key_fingerprint)
+            .field("sender", &self.sender)
             .finish_non_exhaustive()
     }
 }
@@ -136,7 +195,7 @@ pub fn parse(text: &str) -> Result<SealedBundle> {
     if envelope.format != FORMAT {
         return Err(Error::BadBundle("unknown format".into()));
     }
-    if envelope.version != VERSION {
+    if envelope.version != VERSION && envelope.version != RECIPIENTS_VERSION {
         return Err(Error::BadBundle(format!(
             "made by a different FerrumVariables version (bundle format {})",
             envelope.version
@@ -147,19 +206,40 @@ pub fn parse(text: &str) -> Result<SealedBundle> {
             .decode(field)
             .map_err(|_| Error::BadBundle("the text is damaged".into()))
     };
+    let sender = if envelope.version == RECIPIENTS_VERSION {
+        if envelope.recipients.is_empty() {
+            return Err(Error::BadBundle("it has no recipients".into()));
+        }
+        let key = PublicKey::from_bytes(&decode(&envelope.sender)?)
+            .map_err(|_| Error::BadBundle("the sender's key is damaged".into()))?;
+        Some(key)
+    } else {
+        None
+    };
     Ok(SealedBundle {
         nonce: decode(&envelope.nonce)?,
         ciphertext: decode(&envelope.ciphertext)?,
         project: envelope.project,
         key_fingerprint: envelope.key_fingerprint,
+        sender,
+        recipients: envelope.recipients,
     })
 }
 
 impl SealedBundle {
-    /// Decrypts with `key`. A key with a different fingerprint is reported
-    /// as [`Error::KeyMismatch`]; any other failure as
+    /// Encrypted to team members' public keys (v2), not a share key.
+    #[must_use]
+    pub fn is_for_recipients(&self) -> bool {
+        self.sender.is_some()
+    }
+
+    /// Decrypts a v1 bundle with `key`. A key with a different fingerprint
+    /// is reported as [`Error::KeyMismatch`]; any other failure as
     /// [`Error::BundleDecrypt`].
     pub fn open(&self, key: &ShareKey) -> Result<BundleContents> {
+        if self.is_for_recipients() {
+            return Err(Error::NeedsIdentity);
+        }
         let yours = key.fingerprint();
         if yours != self.key_fingerprint {
             return Err(Error::KeyMismatch {
@@ -180,6 +260,35 @@ impl SealedBundle {
             return Err(Error::BundleDecrypt);
         }
         Ok(contents)
+    }
+
+    /// Decrypts a v2 bundle addressed to `me`. Returns the contents and
+    /// the sender's public key, authenticated: check it against the
+    /// project's members before trusting the contents.
+    pub fn open_as(&self, me: &Identity) -> Result<(BundleContents, PublicKey)> {
+        let Some(sender) = self.sender else {
+            return Err(Error::BadBundle(
+                "it is encrypted with a share key, not to team members".into(),
+            ));
+        };
+        let nonce: [u8; crypto::NONCE_LEN] = self
+            .nonce
+            .as_slice()
+            .try_into()
+            .map_err(|_| Error::BundleDecrypt)?;
+        let sealed = recipients::Sealed {
+            sender,
+            stanzas: self.recipients.clone(),
+            nonce,
+            ciphertext: self.ciphertext.clone(),
+        };
+        let plaintext = recipients::open(FORMAT, &self.project, &sealed, me)?;
+        let contents: BundleContents =
+            serde_json::from_slice(&plaintext).map_err(|_| Error::BundleDecrypt)?;
+        if contents.project != self.project {
+            return Err(Error::BundleDecrypt);
+        }
+        Ok((contents, sender))
     }
 }
 
@@ -244,6 +353,8 @@ mod tests {
         let renamed = SealedBundle {
             project: "other".into(),
             key_fingerprint: sealed.key_fingerprint.clone(),
+            sender: None,
+            recipients: Vec::new(),
             nonce: sealed.nonce.clone(),
             ciphertext: sealed.ciphertext.clone(),
         };
@@ -257,5 +368,56 @@ mod tests {
         assert!(matches!(parse(cut), Err(Error::BadBundle(_))));
         let garbled = armored.replacen("Key:", "Key:\n@@@@", 1);
         assert!(matches!(parse(&garbled), Err(Error::BadBundle(_))));
+    }
+
+    #[test]
+    fn team_bundles_open_for_members_only() {
+        let alice = Identity::generate().expect("id");
+        let bob = Identity::generate().expect("id");
+        let eve = Identity::generate().expect("id");
+        let to = [
+            alice.public_key().expect("pk"),
+            bob.public_key().expect("pk"),
+        ];
+        let original = contents();
+        let armored = seal_for(&original, &alice, &to).expect("seal");
+        assert!(armored.contains("Project: shop"));
+        let from = format!("From: {}", alice.public_key().expect("pk").fingerprint());
+        assert!(armored.contains(&from));
+        assert!(!armored.contains("sk_live_abc"));
+        assert!(!armored.contains("STRIPE_KEY"));
+
+        let sealed = parse(&armored).expect("parse");
+        assert!(sealed.is_for_recipients());
+        assert!(sealed.key_fingerprint.is_empty());
+        let (opened, sender) = sealed.open_as(&bob).expect("bob opens");
+        assert_eq!(opened, original);
+        assert_eq!(sender, alice.public_key().expect("pk"));
+        assert_eq!(sealed.open_as(&alice).expect("alice opens").0, original);
+        assert!(matches!(sealed.open_as(&eve), Err(Error::NotARecipient(_))));
+        // A share key can't open it, and a v1 bundle needs one.
+        let key = ShareKey::generate().expect("key");
+        assert!(matches!(sealed.open(&key), Err(Error::NeedsIdentity)));
+        let v1 = parse(&seal(&original, &key).expect("seal")).expect("parse");
+        assert!(!v1.is_for_recipients());
+        assert!(v1.open_as(&bob).is_err());
+        assert_eq!(v1.open(&key).expect("v1 still opens"), original);
+    }
+
+    #[test]
+    fn team_bundle_tampering_is_detected() {
+        let alice = Identity::generate().expect("id");
+        let bob = Identity::generate().expect("id");
+        let armored =
+            seal_for(&contents(), &alice, &[bob.public_key().expect("pk")]).expect("seal");
+        let mut renamed = parse(&armored).expect("parse");
+        renamed.project = "other".into();
+        assert!(matches!(renamed.open_as(&bob), Err(Error::BundleDecrypt)));
+        let mut flipped = parse(&armored).expect("parse");
+        flipped.ciphertext[0] ^= 1;
+        assert!(matches!(flipped.open_as(&bob), Err(Error::BundleDecrypt)));
+        let mut forged = parse(&armored).expect("parse");
+        forged.sender = Some(Identity::generate().expect("id").public_key().expect("pk"));
+        assert!(matches!(forged.open_as(&bob), Err(Error::BundleDecrypt)));
     }
 }

@@ -10,8 +10,10 @@ use ferrumenv_core::crypto::KdfParams;
 use ferrumenv_core::store::{self, Session};
 use ferrumenv_core::{Result as CoreResult, Vault};
 
+use crate::dialogs::Dialog;
 use crate::lock_screen::LockForm;
 use crate::secrets::{CLIPBOARD_CLEAR_AFTER, ClipboardGuard};
+use crate::sync::SYNC_POLL;
 use crate::unlocked::Unlocked;
 
 actions!(ferrum_env, [Lock, NewVariable, OpenSettings, ToggleSidebar]);
@@ -73,6 +75,7 @@ pub struct EnvApp {
     /// The project sidebar of the unlocked vault is shown (⌘B).
     pub(crate) sidebar_open: bool,
     _ticker: Task<()>,
+    _sync_poller: Task<()>,
 }
 
 impl EnvApp {
@@ -94,6 +97,15 @@ impl EnvApp {
                 }
             }
         });
+        let sync_poller = cx.spawn_in(window, async move |this, cx| {
+            loop {
+                cx.background_executor().timer(SYNC_POLL).await;
+                let alive = this.update_in(cx, |this, window, cx| this.poll_sync(window, cx));
+                if alive.is_err() {
+                    break;
+                }
+            }
+        });
         let this = Self {
             config,
             screen,
@@ -104,6 +116,7 @@ impl EnvApp {
             focus_handle: cx.focus_handle(),
             sidebar_open: true,
             _ticker: ticker,
+            _sync_poller: sync_poller,
         };
         this.form.focus(window, cx);
         this
@@ -255,7 +268,12 @@ impl EnvApp {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.vault().is_some_and(|u| u.dialog.is_some()) {
+        if self
+            .vault()
+            .is_some_and(|u| matches!(u.dialog, Some(Dialog::SyncConflicts(_))))
+        {
+            self.snooze_conflicts(window, cx);
+        } else if self.vault().is_some_and(|u| u.dialog.is_some()) {
             self.close_dialog(window, cx);
         } else {
             cx.propagate();

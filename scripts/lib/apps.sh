@@ -43,7 +43,7 @@ ferrum_app() {
       APP_NAME="FerrumPorts"; APP_BINARIES="ferrumports"; DEB_PACKAGE="ferrumports"
       APP_SUMMARY="Listening ports and the processes behind them" ;;
     env)
-      APP_NAME="FerrumVariables"; APP_BINARIES="ferrumenv"; DEB_PACKAGE="ferrumenv"
+      APP_NAME="FerrumVariables"; APP_BINARIES="ferrumenv fenv"; DEB_PACKAGE="ferrumenv"
       APP_SUMMARY="Password-locked vault for project environment variables" ;;
     launcher)
       APP_NAME="FerrumLauncher"; APP_BINARIES="ferrum-launcher"; DEB_PACKAGE="ferrum-launcher"

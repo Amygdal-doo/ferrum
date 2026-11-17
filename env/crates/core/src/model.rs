@@ -8,11 +8,15 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
+use crate::identity::{Identity, Member, PublicKey};
 use crate::share_key::ShareKey;
+use crate::sync::SyncState;
 use crate::{Error, Result};
 
-/// Current vault format version (inside the ciphertext).
-pub const VAULT_VERSION: u32 = 1;
+/// Current vault format version (inside the ciphertext). 2 added the
+/// identity and project members: older builds refuse such a vault instead
+/// of dropping the private key on their next save.
+pub const VAULT_VERSION: u32 = 2;
 /// Environments a new project starts with.
 pub const DEFAULT_ENVIRONMENTS: [&str; 3] = ["development", "staging", "production"];
 /// Auto-lock choices offered in settings, in minutes.
@@ -136,6 +140,13 @@ pub struct Project {
     pub path: Option<PathBuf>,
     #[serde(default)]
     pub share_key: Option<ShareKey>,
+    /// Teammates whose public keys bundles are encrypted to (you are
+    /// always added as a recipient too).
+    #[serde(default)]
+    pub members: Vec<Member>,
+    /// The shared folder team bundles are synced through.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync: Option<SyncState>,
     #[serde(default)]
     pub environments: Vec<Environment>,
     pub created_at: DateTime<Utc>,
@@ -151,6 +162,8 @@ impl Project {
             name: name.into(),
             path,
             share_key: None,
+            members: Vec::new(),
+            sync: None,
             environments: DEFAULT_ENVIRONMENTS
                 .iter()
                 .map(|n| Environment::new(*n))
@@ -204,6 +217,48 @@ impl Project {
     pub fn touch(&mut self) {
         self.updated_at = Utc::now();
     }
+
+    /// Adds a teammate's key. Names and keys are unique; your own key is
+    /// refused (you are always a recipient).
+    pub fn add_member(&mut self, name: &str, key: PublicKey, me: Option<&PublicKey>) -> Result<()> {
+        let name = clean_name(name, "member")?;
+        if me == Some(&key) {
+            return Err(Error::Invalid(
+                "That is your own key: you always receive your bundles.".into(),
+            ));
+        }
+        if let Some(other) = self.member(&key) {
+            return Err(Error::Invalid(format!(
+                "That key is already in the team as {}",
+                other.name
+            )));
+        }
+        if self
+            .members
+            .iter()
+            .any(|m| m.name.eq_ignore_ascii_case(&name))
+        {
+            return Err(Error::Invalid(format!("{name} is already in the team")));
+        }
+        self.members.push(Member {
+            name,
+            public_key: key,
+        });
+        Ok(())
+    }
+
+    #[must_use]
+    pub fn member(&self, key: &PublicKey) -> Option<&Member> {
+        self.members.iter().find(|m| m.public_key == *key)
+    }
+
+    /// Everyone a team bundle goes to: you first, then the members.
+    #[must_use]
+    pub fn recipients(&self, me: &PublicKey) -> Vec<PublicKey> {
+        std::iter::once(*me)
+            .chain(self.members.iter().map(|m| m.public_key))
+            .collect()
+    }
 }
 
 fn clean_name(name: &str, what: &str) -> Result<String> {
@@ -240,6 +295,9 @@ pub struct Vault {
     pub version: u32,
     #[serde(default)]
     pub settings: Settings,
+    /// Your key pair for team bundles; created on first use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub identity: Option<Identity>,
     #[serde(default)]
     pub projects: Vec<Project>,
 }
@@ -249,12 +307,23 @@ impl Default for Vault {
         Self {
             version: VAULT_VERSION,
             settings: Settings::default(),
+            identity: None,
             projects: Vec::new(),
         }
     }
 }
 
 impl Vault {
+    /// Your identity, generated when the vault has none yet (the caller
+    /// saves the vault).
+    pub fn ensure_identity(&mut self) -> Result<&Identity> {
+        let identity = match self.identity.take() {
+            Some(identity) => identity,
+            None => Identity::generate()?,
+        };
+        Ok(self.identity.insert(identity))
+    }
+
     /// Adds a project (names are unique, case-insensitively) and returns
     /// its index.
     pub fn add_project(&mut self, name: &str, path: Option<PathBuf>) -> Result<usize> {
@@ -399,6 +468,44 @@ mod tests {
         let text = format!("{env:?}");
         assert!(text.contains("TOKEN"));
         assert!(!text.contains("s3cr3t-value"));
+    }
+
+    #[test]
+    fn team_members() {
+        let mut vault = Vault::default();
+        let me = vault
+            .ensure_identity()
+            .expect("identity")
+            .public_key()
+            .expect("pk");
+        let again = vault
+            .ensure_identity()
+            .expect("identity")
+            .public_key()
+            .expect("pk");
+        assert_eq!(me, again, "generated once");
+        let ana = Identity::generate().expect("id").public_key().expect("pk");
+        let bo = Identity::generate().expect("id").public_key().expect("pk");
+        let i = vault.add_project("shop", None).expect("project");
+        let p = &mut vault.projects[i];
+        assert!(p.add_member("Me", me, Some(&me)).is_err());
+        p.add_member(" Ana ", ana, Some(&me)).expect("ana");
+        assert!(p.add_member("Ana 2", ana, Some(&me)).is_err());
+        assert!(p.add_member("ana", bo, Some(&me)).is_err());
+        p.add_member("Bo", bo, Some(&me)).expect("bo");
+        assert_eq!(p.member(&ana).expect("member").name, "Ana");
+        assert_eq!(p.recipients(&me), vec![me, ana, bo]);
+
+        // Identity and members survive a round trip; old vaults load.
+        let json = serde_json::to_string(&vault).expect("ser");
+        let back: Vault = serde_json::from_str(&json).expect("de");
+        assert_eq!(back, vault);
+        let old: Vault = serde_json::from_str(
+            r#"{"version":1,"projects":[{"id":"x","name":"a","created_at":"2026-01-01T00:00:00Z","updated_at":"2026-01-01T00:00:00Z"}]}"#,
+        )
+        .expect("old vault");
+        assert!(old.identity.is_none());
+        assert!(old.projects[0].members.is_empty());
     }
 
     #[test]

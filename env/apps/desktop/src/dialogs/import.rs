@@ -1,14 +1,15 @@
 //! Importing a bundle: paste the armored text (or open a `.fenv` file),
-//! decrypt it with the project's stored key or one typed in, preview the
-//! added / changed / removed keys per environment, then import.
+//! decrypt it (a team bundle with your own key pair; a share-key bundle
+//! with the project's stored key or one typed in), preview the added /
+//! changed / removed keys per environment, then import.
 
 use ferrum_ui::components::Checkbox;
 use ferrum_ui::gpui::PathPromptOptions;
 use ferrum_ui::prelude::*;
-use ferrumenv_core::ShareKey;
 use ferrumenv_core::bundle::{self, BundleContents};
 use ferrumenv_core::diff::{self, ChangeKind, EnvironmentPlan};
 use ferrumenv_core::model::Project;
+use ferrumenv_core::{PublicKey, ShareKey};
 use zeroize::Zeroizing;
 
 use super::{Dialog, input};
@@ -27,11 +28,32 @@ pub(crate) struct ImportBundleDialog {
 pub(crate) struct Preview {
     pub(crate) contents: BundleContents,
     pub(crate) plans: Vec<EnvironmentPlan>,
-    pub(crate) key: ShareKey,
+    /// The share key used (share-key bundles only).
+    pub(crate) key: Option<ShareKey>,
+    /// Who sealed a team bundle.
+    pub(crate) sender: Option<Sender>,
     /// The vault project of the same name, if any.
     pub(crate) target: Option<usize>,
     /// The key used differs from the one stored for the project.
     pub(crate) replaces_key: bool,
+}
+
+/// The authenticated sender of a team bundle, as known to this vault.
+pub(crate) struct Sender {
+    pub(crate) key: PublicKey,
+    /// The member name in the target project; `None` for a stranger.
+    pub(crate) name: Option<String>,
+    pub(crate) is_me: bool,
+}
+
+impl Sender {
+    pub(crate) fn describe(&self) -> String {
+        match (&self.name, self.is_me) {
+            (_, true) => "From you".to_string(),
+            (Some(name), _) => format!("From {name} ({})", self.key.fingerprint()),
+            (None, _) => format!("From an unknown key {}", self.key.fingerprint()),
+        }
+    }
 }
 
 impl EnvApp {
@@ -105,6 +127,28 @@ impl EnvApp {
             };
             let sealed = bundle::parse(d.text.read(cx).text()).map_err(|e| e.to_string())?;
             let target = u.vault.project_by_name(&sealed.project);
+            if sealed.is_for_recipients() {
+                let identity = u.vault.identity.as_ref().ok_or(
+                    "This bundle is encrypted to team members' keys, and you have no key pair yet: send your public key (Team keys) to the sender first.",
+                )?;
+                let (contents, from) = sealed.open_as(identity).map_err(|e| e.to_string())?;
+                let me = identity.public_key().map_err(|e| e.to_string())?;
+                let empty = Project::new(contents.project.clone(), None);
+                let current = target.map_or(&empty, |i| &u.vault.projects[i]);
+                let sender = Sender {
+                    key: from,
+                    name: current.member(&from).map(|m| m.name.clone()),
+                    is_me: from == me,
+                };
+                return Ok(Preview {
+                    plans: diff::plan_import(current, &contents),
+                    contents,
+                    key: None,
+                    sender: Some(sender),
+                    target,
+                    replaces_key: false,
+                });
+            }
             let stored = target.and_then(|i| u.vault.projects[i].share_key.clone());
             let typed = Zeroizing::new(d.key.read(cx).text().trim().to_string());
             let key = if typed.is_empty() {
@@ -125,7 +169,8 @@ impl EnvApp {
             Ok(Preview {
                 contents,
                 plans,
-                key,
+                key: Some(key),
+                sender: None,
                 target,
                 replaces_key,
             })
@@ -163,7 +208,9 @@ impl EnvApp {
             };
             let project = &mut u.vault.projects[index];
             let stats = diff::apply_import(project, &preview.contents, remove_missing);
-            project.share_key = Some(preview.key.clone());
+            if let Some(key) = &preview.key {
+                project.share_key = Some(key.clone());
+            }
             Ok((index, stats))
         });
         if let Some((index, stats)) = done {
@@ -222,8 +269,22 @@ impl EnvApp {
             list = list.child(render_plan(plan, d.remove_missing));
         }
         let remove_missing = d.remove_missing;
+        let stranger = preview
+            .sender
+            .as_ref()
+            .is_some_and(|s| s.name.is_none() && !s.is_me);
         modal
             .child(Label::new(summary))
+            .when_some(preview.sender.as_ref(), |m, sender| {
+                m.child(muted(sender.describe()))
+            })
+            .when(stranger, |m| {
+                m.child(
+                    Label::new("This key is not in the project's team. Import only if you trust it: check its fingerprint with the sender.")
+                        .size(LabelSize::Small)
+                        .color(Color::Warning),
+                )
+            })
             .when(!c.note.is_empty(), |m| m.child(muted(format!("Note: {}", c.note))))
             .when(preview.replaces_key, |m| {
                 m.child(

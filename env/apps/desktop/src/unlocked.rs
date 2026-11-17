@@ -18,6 +18,7 @@ use ferrum_ui::components::Clickable;
 
 use crate::app::{EnvApp, Lock, OpenSettings, ToggleSidebar};
 use crate::dialogs::Dialog;
+use crate::sync::SyncMemo;
 use crate::widgets::{icon_button, muted};
 
 pub(crate) struct Unlocked {
@@ -34,6 +35,7 @@ pub(crate) struct Unlocked {
     pub dialog_error: Option<SharedString>,
     pub dialog_subscriptions: Vec<Subscription>,
     pub auto_lock: AutoLock,
+    pub sync: SyncMemo,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -70,6 +72,7 @@ impl Unlocked {
             dialog_error: None,
             dialog_subscriptions: Vec::new(),
             auto_lock,
+            sync: SyncMemo::default(),
             _subscriptions: subscriptions,
         }
     }

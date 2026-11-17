@@ -24,6 +24,14 @@ pub enum Error {
     KeyMismatch { bundle: String, yours: String },
     #[error("Could not decrypt the bundle: wrong share key, or the bundle was modified.")]
     BundleDecrypt,
+    #[error("Invalid public key: {0}")]
+    PublicKey(String),
+    #[error(
+        "This bundle is not encrypted to your key. Ask the sender to add your public key ({0}) to the project's team."
+    )]
+    NotARecipient(String),
+    #[error("This bundle is encrypted to team members' public keys, not with a share key.")]
+    NeedsIdentity,
     #[error("{0}")]
     Invalid(String),
     #[error("Key derivation failed: {0}")]

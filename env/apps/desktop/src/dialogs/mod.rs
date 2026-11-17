@@ -6,9 +6,12 @@
 mod compare;
 mod dotenv;
 mod import;
+mod leaks;
 mod project;
 mod settings;
 mod share;
+mod sync;
+mod team;
 mod variable;
 
 use ferrum_ui::prelude::*;
@@ -19,9 +22,12 @@ use crate::widgets::{error_text, primary_button};
 pub(crate) use compare::CompareDialog;
 pub(crate) use dotenv::{ExportDotenvDialog, ImportDotenvDialog};
 pub(crate) use import::ImportBundleDialog;
+pub(crate) use leaks::LeakScanDialog;
 pub(crate) use project::{EnvironmentNameDialog, NewProjectDialog};
 pub(crate) use settings::SettingsDialog;
 pub(crate) use share::{ShareDialog, ShareKeyDialog};
+pub(crate) use sync::{SyncConflictsDialog, SyncDialog};
+pub(crate) use team::TeamDialog;
 pub(crate) use variable::VariableDialog;
 
 pub(crate) enum Dialog {
@@ -31,6 +37,10 @@ pub(crate) enum Dialog {
     Confirm(ConfirmAction),
     ShareKey(ShareKeyDialog),
     Share(ShareDialog),
+    Team(TeamDialog),
+    Sync(SyncDialog),
+    SyncConflicts(SyncConflictsDialog),
+    LeakScan(LeakScanDialog),
     ImportBundle(ImportBundleDialog),
     ImportDotenv(ImportDotenvDialog),
     ExportDotenv(ExportDotenvDialog),
@@ -135,6 +145,10 @@ impl EnvApp {
             Dialog::Confirm(action) => self.run_confirmed(*action, window, cx),
             Dialog::ShareKey(_) => self.submit_received_key(cx),
             Dialog::Share(_) => self.create_bundle(cx),
+            Dialog::Team(_) => self.add_member(cx),
+            Dialog::Sync(_) => self.sync_now(window, cx),
+            Dialog::SyncConflicts(_) => self.resolve_conflicts(window, cx),
+            Dialog::LeakScan(_) => self.close_dialog(window, cx),
             Dialog::ImportBundle(d) => {
                 if d.preview.is_some() {
                     self.import_bundle(window, cx);
@@ -163,6 +177,10 @@ impl EnvApp {
             Dialog::Confirm(action) => self.render_confirm(*action, cx),
             Dialog::ShareKey(d) => self.render_share_key(d, cx),
             Dialog::Share(d) => self.render_share(d, cx),
+            Dialog::Team(d) => self.render_team(d, cx),
+            Dialog::Sync(_) => self.render_sync(cx),
+            Dialog::SyncConflicts(d) => self.render_sync_conflicts(d, cx),
+            Dialog::LeakScan(d) => self.render_leak_scan(d, cx),
             Dialog::ImportBundle(d) => self.render_import_bundle(d, cx),
             Dialog::ImportDotenv(d) => self.render_import_dotenv(d, cx),
             Dialog::ExportDotenv(d) => self.render_export_dotenv(d, cx),

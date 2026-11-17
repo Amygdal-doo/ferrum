@@ -11,8 +11,34 @@ shared `ferrum-ui` crate. Part of the Ferrum monorepo, sibling of [FerrumKit](..
 
 ```bash
 cargo env-ui                       # or: cargo run -p ferrumenv-desktop  (binary: ferrumenv)
-cargo test -p ferrumenv-core -p ferrumenv-desktop
+cargo run -p ferrumenv-cli -- list # the fenv CLI
+cargo test -p ferrumenv-core -p ferrumenv-desktop -p ferrumenv-cli
 ```
+
+## `fenv` (CLI)
+
+```bash
+fenv run --project shop --env dev -- npm start   # variables injected into npm's environment
+fenv run -- cargo run                            # project = the one linked to this folder,
+                                                 # env = development
+fenv list                                        # projects and environment sizes
+fenv list --project shop --env staging           # variable names only
+fenv list --project shop --env staging --show    # KEY=value lines (values on purpose)
+fenv scan [--project shop] [--no-history]        # leaked secrets; exits 1 on findings
+```
+
+`fenv run` never writes a `.env` file: the variables are added to the command's environment
+(over inherited ones of the same name) and, on Unix, `fenv` then *execs* the command, so no
+process keeps the decrypted vault and the command's exit status is passed through. `--env`
+takes a name or a unique prefix (`dev` → `development`).
+
+**Unlocking.** `fenv` asks for the master password on the terminal (echo off, raw mode) and
+unlocks the vault file itself, read-only; the derived key is dropped right after. For scripts,
+`--password-stdin` reads it from the first line of stdin; `--vault PATH` (or `FENV_VAULT`)
+picks another vault. It deliberately does **not** talk to the running app over a socket: that
+would be simpler to use, but any process running as you could then read every secret without
+knowing the password, and the app would need an IPC server to secure. A prompt keeps the
+password as the only way in.
 
 ## What it does
 
@@ -37,6 +63,33 @@ cargo test -p ferrumenv-core -p ferrumenv-desktop
   pasted text or a file, uses the stored key (or one typed in), previews per environment what is
   added / changed / removed (key names only), and imports, optionally removing keys the bundle
   lacks. A bundle of an unknown project creates it and stores the key.
+- **Team keys (no shared password).** Your vault holds an X25519 key pair, created on first
+  use. *Team keys* (person icon) shows your public key (`fepk1_…`, not secret: copy it to
+  teammates) with a 96-bit fingerprint like `3f9a-07c2-11ab-9e00-4c1d-d2e7`, and lists the
+  project's members (name + public key; add, remove). *Share…* then encrypts **to the team
+  members' keys** (the default when the project has members or no share key) or with the share
+  key. Importing a team bundle uses your own key and shows who sent it ("From Ana", or a warning
+  for a key that is not in the project's team). Share-key bundles keep working unchanged.
+- **Sync through a shared folder.** *Sync* (↻ icon) links a project to a folder your team
+  shares (Dropbox, iCloud Drive, a git checkout…). The app keeps one team bundle there,
+  `<project>.fenv`, encrypted to you and the members; every 2 s while unlocked (and no dialog is
+  open) it merges files that changed and rewrites the bundle when the vault differs, so edits
+  go out within seconds. Merges are three-way against the last synced state: a key changed on one
+  side takes that side; a key changed differently on both sides opens **Sync conflicts**, which
+  shows both versions (masked until revealed) to choose from. *Later* (or Escape) puts them aside,
+  and nothing is written to the folder until they are resolved (*Sync now*). Conflict copies made
+  by the sync service (`shop (… conflicted copy).fenv`, `shop 2.fenv`, `shop.sync-conflict-…`)
+  are merged too, every difference being a choice. Bundles from a key that is neither yours nor a
+  member's are ignored with a notice.
+- **Secret leak warning.** *Scan for leaked secrets* (⚠ icon, or `fenv scan`) looks for the
+  project's stored secret values (variables marked secret, 8+ characters) in its folder (files
+  git would track: `.gitignore`d files such as `.env` are expected to hold them) and in every line
+  ever added under that folder in its git history (`git log --all -p`). It reports the file (and
+  line, or commit) and the variable name, then guidance: rotate the value, read it from the
+  environment instead, and only then consider rewriting history. Nothing is rewritten.
+  Values are compared by hash: the scan holds only each value's length, a 64-bit rolling hash
+  (to find candidates) and SHA-256 (to confirm), never prints a value, and runs git with external
+  diff and textconv drivers disabled. Values that span lines are only found in the working tree.
 - **.env interop.** Import a project folder's `.env`, `.env.local`, `.env.production`, … (`.env`
   → development, `.env.<name>` → `<name>`; comments, `export `, single / double / backtick
   quotes, escapes and multi-line quoted values). Write an environment to a `.env` file (asks
@@ -47,8 +100,9 @@ cargo test -p ferrumenv-core -p ferrumenv-desktop
 
 | Path | What |
 | --- | --- |
-| `crates/core` (`ferrumenv-core`) | No UI. `model` (vault data), `crypto` (Argon2id, XChaCha20-Poly1305), `store` (vault file, `Session`), `share_key`, `bundle`, `dotenv`, `diff`, `lock` (auto-lock timing), `password` (rules, strength) |
-| `apps/desktop` (`ferrumenv-desktop`, binary `ferrumenv`) | GPUI app: `app` (root, lock state, timer, clipboard), `lock_screen`, `unlocked` (strip, sidebar, status bar), `table`, `dialogs/*`, `tests.rs` |
+| `crates/core` (`ferrumenv-core`) | No UI. `model` (vault data), `crypto` (Argon2id, XChaCha20-Poly1305), `store` (vault file, `Session`), `share_key`, `identity` (X25519 key pair, public keys, members), `recipients` (team-bundle sealing), `bundle`, `sync` (shared folder, three-way merge), `leaks` (secret scan), `dotenv`, `diff`, `lock` (auto-lock timing), `password` (rules, strength) |
+| `apps/cli` (`ferrumenv-cli`, binary `fenv`) | `fenv run` / `list` / `scan`: `select` (project by name or folder, environment by prefix), `password` (terminal prompt) |
+| `apps/desktop` (`ferrumenv-desktop`, binary `ferrumenv`) | GPUI app: `app` (root, lock state, timer, clipboard), `lock_screen`, `unlocked` (strip, sidebar, status bar), `table`, `sync` (folder poll), `dialogs/*`, `tests.rs` |
 
 ## Security model
 
@@ -82,6 +136,32 @@ failure as "wrong key or modified". Anyone holding the share key can read *and* 
 for that project: it is a shared secret for the team, exchanged once out of band, and rotating
 it is the way to cut someone off for future bundles.
 
+**Team bundles** (format v2) are encrypted to public keys instead, in the style of age's X25519
+recipients and HPKE's authenticated mode, using X25519 and HKDF-SHA256 from `aws-lc-rs` (already
+linked into every Ferrum app through rustls) and the same XChaCha20-Poly1305:
+- A random 256-bit file key seals the contents; the associated data binds the format, the
+  project name and the sender's public key `S`.
+- Per recipient `R`: a fresh ephemeral key `e` (public `E`) and the sender's private key `s` give
+  `HKDF-SHA256(salt = E‖S‖R, ikm = X25519(e,R)‖X25519(s,R), info = "ferrumenv-bundle-recipient-v2")`,
+  which seals the file key with SHA-256 of the payload (nonce ‖ ciphertext) as associated data.
+- The static `X25519(s,R)` term authenticates the sender: only the holder of `s` can make a
+  bundle that `R` opens as coming from `S`, so the app can name the sender and warn about
+  strangers. Binding the payload hash into each stanza stops one recipient from swapping the
+  contents while reusing the sender's stanzas for the others.
+- Public keys with a low-order point (all-zero shared secret) are refused; typos are caught by a
+  4-byte checksum; the private key lives only inside the encrypted vault. The vault format is
+  now version 2, so an older build refuses the vault instead of dropping the key on save.
+- Removing a member stops future bundles from reaching them; like with any shared secret, what
+  they already received stays readable to them. The armor shows the project name and the
+  sender's fingerprint; recipients' public keys are in the envelope (not secret).
+
+**Sync folders** only ever receive team bundles, written atomically (a temp file of ciphertext in
+the same folder, then a rename) with mode 0600. Variable names and values never touch the folder;
+the file name and armor show the project name and the sender's fingerprint. A file is merged only
+if it decrypts for you and its authenticated sender is you or a project member, so someone who can
+merely write to the folder can't inject values. The last synced state and the hashes of merged
+files are kept in the (encrypted) vault.
+
 **In memory.** Variables, share keys, the session key and decrypted buffers wipe themselves on
 drop (`zeroize`), and `Debug` output never contains values. Locking (⌘L, auto-lock) drops the
 whole unlocked state: vault, session key, open dialogs. Values are never logged.
@@ -97,6 +177,5 @@ whole unlocked state: vault, session key, open dialogs. Values are never logged.
 
 ## Not built yet
 
-Undo, drag-and-drop of `.fenv` / `.env` files, per-variable history, a CLI (`ferrumenv run --
-cmd` to inject variables), opening `.fenv` files from Finder, OS keychain / Touch ID unlock,
-public-key (per-person) sharing instead of one shared project key.
+Undo, drag-and-drop of `.fenv` / `.env` files, per-variable history,
+opening `.fenv` files from Finder, OS keychain / Touch ID unlock.
