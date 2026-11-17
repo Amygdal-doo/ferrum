@@ -28,6 +28,12 @@ pub enum Shortcut {
     ScrollPageDown,
     ToggleSidebar,
     Copy,
+    /// Opens the find bar (see `view::find`).
+    Find,
+    /// The next match up (older output).
+    FindNext,
+    /// The next match down (newer output).
+    FindPrevious,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +94,9 @@ fn shortcut(key: &str, shift: bool) -> Option<Shortcut> {
         ("0", false) => Shortcut::FontReset,
         ("s", true) => Shortcut::NextSession,
         ("b", false) => Shortcut::ToggleSidebar,
+        ("f", false) => Shortcut::Find,
+        ("g", false) => Shortcut::FindNext,
+        ("g", true) => Shortcut::FindPrevious,
         ("pageup", _) => Shortcut::ScrollPageUp,
         ("pagedown", _) => Shortcut::ScrollPageDown,
         (digit, false) if digit.len() == 1 && digit != "0" => {

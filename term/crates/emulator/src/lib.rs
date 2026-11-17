@@ -5,6 +5,7 @@
 
 pub mod keys;
 mod palette;
+mod search;
 mod snapshot;
 
 /// Default palette, so embedders can map emulator colours onto their own theme.
@@ -16,7 +17,7 @@ use alacritty_terminal::term::test::TermSize;
 use alacritty_terminal::term::{Config, Term, TermMode};
 use alacritty_terminal::vte::ansi::Processor;
 use ferrumterm_protocol::status::{OscScanner, StatusUpdate, parse_osc_body};
-use ferrumterm_protocol::{Frame, Input};
+use ferrumterm_protocol::{FindMatch, Frame, Input};
 use std::sync::{Arc, Mutex, PoisonError};
 
 /// Scrollback lines kept per block.
@@ -154,6 +155,18 @@ impl Terminal {
         snapshot::capture(&self.term, scrollback)
     }
 
+    /// Searches the screen and scrollback: the matches, oldest first, and
+    /// whether there were more than [`search::MAX_MATCHES`]. `Err` explains
+    /// an invalid regex.
+    pub fn find(
+        &self,
+        query: &str,
+        case_sensitive: bool,
+        regex: bool,
+    ) -> Result<(Vec<FindMatch>, bool), String> {
+        search::find(&self.term, query, case_sensitive, regex)
+    }
+
     /// Bytes to send to the PTY for `input`, honouring the program's modes
     /// (application cursor keys, bracketed paste). Unknown key specs yield `None`.
     #[must_use]
@@ -228,6 +241,34 @@ mod tests {
         t.scroll(None);
         t.resize(30, 5);
         assert_eq!((t.cols(), t.rows()), (30, 5));
+    }
+
+    #[test]
+    fn finds_in_scrollback_across_wraps_and_wide_characters() {
+        let mut t = Terminal::new(10, 3);
+        t.feed(b"Error one\r\nok\r\n");
+        // Wraps after ten cells: "abcdefERRO" / "R here".
+        t.feed(b"abcdefERROR here\r\n\xe4\xb8\xad error\r\nlast");
+        let (found, truncated) = t.find("error", false, false).expect("find");
+        assert!(!truncated);
+        let at = |m: &FindMatch| (m.line, m.col, m.end_line, m.end_col);
+        let places: Vec<_> = found.iter().map(at).collect();
+        // "中" is two cells wide, so "error" after it starts at column 3.
+        assert_eq!(places, [(0, 0, 0, 5), (2, 6, 3, 1), (4, 3, 4, 8)]);
+        // The screen's top row is line `history - display_offset`.
+        let f = t.frame();
+        assert_eq!(f.history, 3);
+        assert_eq!(f.line_text(1), "\u{4e2d} error");
+        let (found, _) = t.find("error", true, false).expect("find");
+        assert_eq!(found.len(), 1, "case sensitive: only the last one");
+        let (found, _) = t.find("o[nk]", true, true).expect("regex");
+        assert_eq!(
+            found.iter().map(at).collect::<Vec<_>>(),
+            [(0, 6, 0, 8), (1, 0, 1, 2)]
+        );
+        assert!(t.find("(", false, true).is_err(), "invalid regex");
+        assert_eq!(t.find("(", false, false).expect("plain").0.len(), 0);
+        assert!(t.find("", false, false).expect("empty").0.is_empty());
     }
 
     #[test]

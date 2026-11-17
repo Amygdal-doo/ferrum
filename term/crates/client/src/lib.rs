@@ -212,6 +212,14 @@ impl Client {
             })
     }
 
+    /// The server's [`ferrumterm_protocol::SERVER_REVISION`] (0 when it did
+    /// not say). Requests it does not know end the connection, so check
+    /// this before sending newer ones.
+    #[must_use]
+    pub fn server_revision(&self) -> u32 {
+        self.server.as_ref().map_or(0, |i| i.revision)
+    }
+
     pub async fn info(&self) -> Result<ServerInfo, ClientError> {
         match self.request(Request::ServerInfo).await? {
             Response::Info { info } => Ok(info),

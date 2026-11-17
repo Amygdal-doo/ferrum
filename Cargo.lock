@@ -3334,6 +3334,7 @@ dependencies = [
  "alacritty_terminal",
  "base64 0.22.1",
  "ferrumterm-protocol",
+ "regex",
 ]
 
 [[package]]

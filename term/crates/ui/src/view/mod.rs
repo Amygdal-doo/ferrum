@@ -4,6 +4,9 @@
 
 mod api;
 mod drag_scroll;
+mod find;
+#[cfg(test)]
+mod find_tests;
 mod ime;
 mod render;
 mod stale_server;
@@ -79,6 +82,11 @@ pub struct TermView {
     pub(crate) git: Option<crate::git_pane::GitPane>,
     /// FerrumChat beside the terminal (see `agent_pane`).
     pub(crate) agent: crate::agent_pane::AgentState,
+    /// The find bar, while open (see `find`).
+    pub(crate) find: Option<find::FindBar>,
+    /// Top-left of the painted panes in window px (from the last paint),
+    /// for overlays positioned over a pane.
+    pub(crate) canvas_origin: (f32, f32),
     _blink: Task<()>,
     _message_timer: Option<Task<()>>,
     _events: Task<()>,
@@ -159,6 +167,8 @@ impl TermView {
             font_key: None,
             git: None,
             agent,
+            find: None,
+            canvas_origin: (0., 0.),
             _blink: blink,
             _message_timer: None,
             _events: events,
@@ -212,6 +222,7 @@ impl TermView {
                 if let Some(block) = frame {
                     self.on_drag_frame(block);
                     self.focused_frame(block, cx);
+                    self.find_on_frame(block, cx);
                     cx.notify();
                     return;
                 }
@@ -237,6 +248,10 @@ impl TermView {
             UiEvent::IntoFolder(item, folder) => self.move_to_folder(&item, Some(folder)),
             UiEvent::Ports(result) => self.on_ports_result(result),
             UiEvent::Killed(outcome) => self.on_killed(outcome, cx),
+            UiEvent::Found(generation, block, found) => {
+                self.on_found(generation, block, found, cx);
+                return;
+            }
         }
         self.after_change(cx);
     }
@@ -405,6 +420,21 @@ impl TermView {
     fn key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         // Keys typed into the sidebar's text field are not for the terminal.
         if !self.focus_handle.is_focused(window) {
+            let in_find = self
+                .find
+                .as_ref()
+                .is_some_and(|bar| bar.focused(window, cx));
+            if in_find {
+                match event.keystroke.key.as_str() {
+                    "escape" => self.close_find(window, cx),
+                    "enter" if event.keystroke.modifiers.shift => {
+                        self.find_step(crate::find::Step::Newer, cx);
+                    }
+                    _ => return,
+                }
+                cx.stop_propagation();
+                return;
+            }
             if event.keystroke.key == "escape" {
                 if self.dialog.is_some() {
                     self.close_dialog(window, cx);

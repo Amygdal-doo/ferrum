@@ -114,6 +114,7 @@ pub(crate) fn paint_terminal(
     let cursor_on = view.cursor_on;
     let settings = crate::settings::get();
     let selection = view.selection.clone().filter(|s| !s.is_empty());
+    let search = view.find.as_ref().map(|bar| bar.search.clone());
     let theme = cx.theme();
     let colors = Colors {
         foreground: theme.colors().terminal_foreground,
@@ -121,6 +122,7 @@ pub(crate) fn paint_terminal(
         divider: theme.colors().border,
         accent: theme.colors().text_accent,
         background: theme.colors().terminal_background,
+        found: theme.status().warning,
     };
 
     let cell_width = metrics.cell_width;
@@ -176,6 +178,29 @@ pub(crate) fn paint_terminal(
                                     ),
                                     colors.accent.opacity(0.3),
                                 ));
+                            }
+                            if let Some(search) =
+                                search.as_ref().filter(|s| s.block == Some(pane.block))
+                            {
+                                for (from, to, current) in
+                                    search.row_highlights(frame, row as u16, pane.rect.cols)
+                                {
+                                    let found = Bounds::new(
+                                        row_origin + point(cell_width * f32::from(from), px(0.)),
+                                        size(cell_width * f32::from(to - from), cell_height),
+                                    );
+                                    window.paint_quad(fill(
+                                        found,
+                                        colors.found.opacity(if current { 0.65 } else { 0.28 }),
+                                    ));
+                                    if current {
+                                        window.paint_quad(gpui::outline(
+                                            found,
+                                            colors.found,
+                                            gpui::BorderStyle::Solid,
+                                        ));
+                                    }
+                                }
                             }
                             paint_row(line, row_origin, &metrics, font, &colors, window, cx);
                         }
@@ -234,6 +259,7 @@ pub(crate) fn paint_terminal(
     entity.update(cx, |view, _| {
         view.app.panes = pane_hits;
         view.cursor_bounds = cursor_bounds;
+        view.canvas_origin = (f32::from(bounds.origin.x), f32::from(bounds.origin.y));
     });
 }
 
@@ -244,6 +270,8 @@ struct Colors {
     divider: Hsla,
     accent: Hsla,
     background: Hsla,
+    /// Find bar matches.
+    found: Hsla,
 }
 
 fn paint_backgrounds(

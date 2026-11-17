@@ -37,6 +37,13 @@ pub enum UiEvent {
     IntoFolder(String, u64),
     Ports(crate::ssh::PortsResult),
     Killed(crate::ssh::KillOutcome),
+    /// The answer to a find bar search: (its number, the pane, the
+    /// matches and whether there were more, or the error).
+    Found(
+        u64,
+        BlockId,
+        Result<(Vec<ferrumterm_protocol::FindMatch>, bool), String>,
+    ),
 }
 
 pub type UiSender = futures::channel::mpsc::UnboundedSender<UiEvent>;
@@ -569,8 +576,13 @@ impl App {
                     self.subscribed.clear();
                 }
             }
-            // The view owns the GPUI clipboard: it pastes (calling `paste`) and copies selections.
-            Shortcut::Paste | Shortcut::Copy => {}
+            // The view owns the GPUI clipboard (it pastes, calling `paste`,
+            // and copies selections) and the find bar.
+            Shortcut::Paste
+            | Shortcut::Copy
+            | Shortcut::Find
+            | Shortcut::FindNext
+            | Shortcut::FindPrevious => {}
             Shortcut::CopyScreen => {
                 let Some(c) = self.client.clone() else { return };
                 let proxy = self.proxy.clone();

@@ -14,3 +14,4 @@ workspace = true
 ferrumterm-protocol.workspace = true
 alacritty_terminal.workspace = true
 base64.workspace = true
+regex.workspace = true

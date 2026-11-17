@@ -516,3 +516,45 @@ async fn welcome_reports_the_build_and_revision() {
         .unwrap();
     assert!(matches!(old, Response::Welcome { .. }), "{old:?}");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn find_searches_the_scrollback() {
+    let h = start(false).await;
+    let c = &h.client;
+    let Response::Created { block, .. } = c
+        .request(Request::NewSession {
+            name: None,
+            spawn: sh(
+                "i=1; while [ $i -le 200 ]; do echo row-$i; i=$((i+1)); done; echo needle-x; cat",
+            ),
+        })
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    let target = block.to_string();
+    eventually(c, &target, "needle-x").await;
+    let find = |query: &str, regex: bool| Request::Find {
+        target: Some(target.clone()),
+        query: query.into(),
+        case_sensitive: false,
+        regex,
+    };
+    // Far back in the scrollback: rows 1, 10..19 and 100..199.
+    let Response::Found { matches, truncated } = c.request(find("ROW-1", false)).await.unwrap()
+    else {
+        panic!()
+    };
+    assert!(!truncated);
+    assert_eq!(matches.len(), 111);
+    let first = matches[0];
+    assert_eq!((first.line, first.col, first.end_col), (0, 0, 5));
+    let Response::Found { matches, .. } = c.request(find(r"needle-\w", true)).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].line, 200);
+    let err = c.request(find("(", true)).await.unwrap_err().to_string();
+    assert!(err.contains("unclosed"), "{err}");
+}

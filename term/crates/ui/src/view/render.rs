@@ -554,6 +554,7 @@ impl Render for TermView {
             .w_full()
             .bg(colors.terminal_background)
             .child(panes_area)
+            .children(self.render_find_bar(cx))
             .when_some(self.incompatible.clone(), |area, why| {
                 area.child(self.render_incompatible(why, cx))
             })

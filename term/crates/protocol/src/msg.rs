@@ -200,6 +200,16 @@ pub enum Request {
         target: Option<String>,
         scrollback: bool,
     },
+    /// Search the screen and scrollback for `query` (plain text, or a regex
+    /// with `regex`); answered with [`Response::Found`]. Server revision 3.
+    Find {
+        target: Option<String>,
+        query: String,
+        #[serde(default)]
+        case_sensitive: bool,
+        #[serde(default)]
+        regex: bool,
+    },
     Inspect {
         target: String,
     },
@@ -279,6 +289,18 @@ pub struct BlockInfo {
     /// sees it: the started program or the terminal's foreground process.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
+}
+
+/// A match of [`Request::Find`]. Lines count from the oldest scrollback
+/// line (0), so row `r` of a [`Frame`] is line `history - display_offset + r`.
+/// Columns are cells; the end is exclusive, and a match across a wrapped
+/// line ends on a later line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FindMatch {
+    pub line: u32,
+    pub col: u16,
+    pub end_line: u32,
+    pub end_col: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -371,6 +393,11 @@ pub enum Response {
     },
     Text {
         text: String,
+    },
+    /// `Find`'s matches, oldest first; `truncated` when there were more.
+    Found {
+        matches: Vec<FindMatch>,
+        truncated: bool,
     },
     Inspected {
         item: Inspected,
