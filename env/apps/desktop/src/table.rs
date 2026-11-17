@@ -119,6 +119,20 @@ impl EnvApp {
                 |this, window, cx| this.open_team(window, cx),
             ))
             .child(icon_button(
+                "sync",
+                if project.sync.is_some() {
+                    IconName::Cloud
+                } else {
+                    IconName::RotateCw
+                },
+                match &project.sync {
+                    Some(state) => format!("Synced through {}", state.folder.display()),
+                    None => "Sync through a shared folder…".to_string(),
+                },
+                cx,
+                |this, window, cx| this.open_sync(window, cx),
+            ))
+            .child(icon_button(
                 "share-key",
                 IconName::Hash,
                 key_tooltip,

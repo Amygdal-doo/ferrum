@@ -7,6 +7,8 @@
 //!   exchanged between developers.
 //! - [`identity`] and [`recipients`]: per-person X25519 keys, so bundles
 //!   can be encrypted to each team member instead of a shared key.
+//! - [`sync`]: keeping a project in step through a shared folder of team
+//!   bundles, with three-way merges and explicit conflicts.
 //! - [`dotenv`]: `.env` parsing, writing and `.gitignore` checks.
 //! - [`diff`]: comparing environments and previewing imports.
 //! - [`lock`] and [`password`]: auto-lock timing and password strength.
@@ -27,6 +29,7 @@ pub mod password;
 pub mod recipients;
 pub mod share_key;
 pub mod store;
+pub mod sync;
 
 pub use error::{Error, Result};
 pub use fsutil::write_private;

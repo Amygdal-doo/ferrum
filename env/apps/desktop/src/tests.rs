@@ -685,3 +685,160 @@ fn team_bundles_use_public_keys(cx: &mut TestAppContext) {
     eve.update(cx, |a, cx| a.preview_bundle(cx));
     assert!(dialog_error(&eve, cx).contains("not encrypted to your key"));
 }
+
+fn set_var(app: &Entity<EnvApp>, key: &str, value: &str, cx: &mut VisualTestContext) {
+    let var = Variable::new(key, value);
+    app.update(cx, |a, cx| {
+        a.change(cx, |u| {
+            u.environment_mut().ok_or("env")?.upsert(var);
+            Ok(())
+        })
+        .expect("changed");
+    });
+}
+
+fn var_value(app: &Entity<EnvApp>, key: &str, cx: &mut VisualTestContext) -> Option<String> {
+    with_vault(app, cx, |u| {
+        u.environment()
+            .and_then(|e| e.get(key))
+            .map(|v| v.value.clone())
+    })
+}
+
+fn poll(app: &Entity<EnvApp>, cx: &mut VisualTestContext) {
+    app.update_in(cx, |a, window, cx| a.poll_sync(window, cx));
+}
+
+fn folder_text(folder: &Path) -> String {
+    std::fs::read_dir(folder)
+        .expect("list")
+        .filter_map(|e| e.ok())
+        .map(|e| std::fs::read_to_string(e.path()).expect("read"))
+        .collect()
+}
+
+#[gpui::test]
+fn projects_sync_through_a_shared_folder(cx: &mut TestAppContext) {
+    init(cx);
+    let dir = tempfile::tempdir().expect("tempdir");
+    let folder = dir.path().join("Dropbox");
+    std::fs::create_dir(&folder).expect("folder");
+    let (alice, mut acx) = open(cx, &dir.path().join("alice.json"));
+    let (bob, mut bcx) = open(cx, &dir.path().join("bob.json"));
+    submit_password(&alice, PASSWORD, PASSWORD, &mut acx);
+    submit_password(&bob, PASSWORD, PASSWORD, &mut bcx);
+    let alice_key = public_key_of(&alice, &mut acx);
+    let bob_key = public_key_of(&bob, &mut bcx);
+
+    let (acx, bcx) = (&mut acx, &mut bcx);
+    add_project(
+        &alice,
+        "shop",
+        "development",
+        &[("API_KEY", "a-secret-1")],
+        acx,
+    );
+    assert_eq!(add_member(&alice, "Bob", &bob_key, acx), "");
+    alice.update_in(acx, |a, window, cx| a.close_dialog(window, cx));
+    alice.update_in(acx, |a, window, cx| {
+        a.set_sync_folder(folder.clone(), window, cx)
+    });
+    assert!(folder.join("shop.fenv").is_file());
+
+    // Bob links his "shop" to the same folder and gets Alice's variables.
+    add_project(&bob, "shop", "development", &[], bcx);
+    assert_eq!(add_member(&bob, "Alice", &alice_key, bcx), "");
+    bob.update_in(bcx, |a, window, cx| a.close_dialog(window, cx));
+    bob.update_in(bcx, |a, window, cx| {
+        a.set_sync_folder(folder.clone(), window, cx)
+    });
+    assert_eq!(
+        var_value(&bob, "API_KEY", bcx).as_deref(),
+        Some("a-secret-1")
+    );
+
+    // A change on one side reaches the other on the next poll.
+    set_var(&alice, "API_KEY", "a-secret-2", acx);
+    poll(&alice, acx);
+    poll(&bob, bcx);
+    assert_eq!(
+        var_value(&bob, "API_KEY", bcx).as_deref(),
+        Some("a-secret-2")
+    );
+    set_var(&bob, "BOB_ONLY", "b-secret-3", bcx);
+    poll(&bob, bcx);
+    poll(&alice, acx);
+    assert_eq!(
+        var_value(&alice, "BOB_ONLY", acx).as_deref(),
+        Some("b-secret-3")
+    );
+    // Nothing plaintext in the folder, and no ping-pong once in step.
+    let text = folder_text(&folder);
+    for secret in ["a-secret", "b-secret", "API_KEY", "BOB_ONLY"] {
+        assert!(!text.contains(secret), "{secret} leaked");
+    }
+    poll(&bob, bcx);
+    poll(&alice, acx);
+    assert_eq!(folder_text(&folder), text);
+
+    // Both change the same key: Bob sees both versions and chooses.
+    set_var(&alice, "API_KEY", "from-alice", acx);
+    set_var(&bob, "API_KEY", "from-bob", bcx);
+    poll(&alice, acx);
+    let alices_file = folder_text(&folder);
+    poll(&bob, bcx);
+    let conflicts = with_vault(&bob, bcx, |u| match &u.dialog {
+        Some(Dialog::SyncConflicts(d)) => d
+            .merged
+            .conflicts
+            .iter()
+            .map(|c| {
+                (
+                    c.key.clone(),
+                    c.mine.as_ref().map(|v| v.value.clone()),
+                    c.theirs.as_ref().map(|v| v.value.clone()),
+                )
+            })
+            .collect::<Vec<_>>(),
+        _ => panic!("no conflict dialog"),
+    });
+    assert_eq!(
+        conflicts,
+        [(
+            "API_KEY".to_string(),
+            Some("from-bob".to_string()),
+            Some("from-alice".to_string())
+        )]
+    );
+    // Nothing was written while undecided.
+    assert_eq!(folder_text(&folder), alices_file);
+    // "Later" puts it aside: further polls and edits don't touch the folder.
+    bcx.simulate_keystrokes("escape");
+    assert!(with_vault(&bob, bcx, |u| u.dialog.is_none()));
+    set_var(&bob, "OTHER", "x", bcx);
+    poll(&bob, bcx);
+    assert!(with_vault(&bob, bcx, |u| u.dialog.is_none()));
+    assert_eq!(folder_text(&folder), alices_file);
+
+    // Sync now brings the conflict back; keep Alice's version.
+    bob.update_in(bcx, |a, window, cx| a.open_sync(window, cx));
+    bob.update_in(bcx, |a, window, cx| a.sync_now(window, cx));
+    bob.update(bcx, |a, cx| {
+        if let Some(Dialog::SyncConflicts(d)) = a.dialog_mut() {
+            d.take_theirs = vec![true];
+        }
+        cx.notify();
+    });
+    bob.update_in(bcx, |a, window, cx| a.submit_dialog(window, cx));
+    assert_eq!(
+        var_value(&bob, "API_KEY", bcx).as_deref(),
+        Some("from-alice")
+    );
+    assert_eq!(var_value(&bob, "OTHER", bcx).as_deref(), Some("x"));
+    poll(&alice, acx);
+    assert_eq!(var_value(&alice, "OTHER", acx).as_deref(), Some("x"));
+    assert_eq!(
+        var_value(&alice, "API_KEY", acx).as_deref(),
+        Some("from-alice")
+    );
+}

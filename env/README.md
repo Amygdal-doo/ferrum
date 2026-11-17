@@ -44,6 +44,17 @@ cargo test -p ferrumenv-core -p ferrumenv-desktop
   members' keys** (the default when the project has members or no share key) or with the share
   key. Importing a team bundle uses your own key and shows who sent it ("From Ana", or a warning
   for a key that is not in the project's team). Share-key bundles keep working unchanged.
+- **Sync through a shared folder.** *Sync* (↻ icon) links a project to a folder your team
+  shares (Dropbox, iCloud Drive, a git checkout…). The app keeps one team bundle there,
+  `<project>.fenv`, encrypted to you and the members; every 2 s while unlocked (and no dialog is
+  open) it merges files that changed and rewrites the bundle when the vault differs, so edits
+  go out within seconds. Merges are three-way against the last synced state: a key changed on one
+  side takes that side; a key changed differently on both sides opens **Sync conflicts**, which
+  shows both versions (masked until revealed) to choose from. *Later* (or Escape) puts them aside,
+  and nothing is written to the folder until they are resolved (*Sync now*). Conflict copies made
+  by the sync service (`shop (… conflicted copy).fenv`, `shop 2.fenv`, `shop.sync-conflict-…`)
+  are merged too, every difference being a choice. Bundles from a key that is neither yours nor a
+  member's are ignored with a notice.
 - **.env interop.** Import a project folder's `.env`, `.env.local`, `.env.production`, … (`.env`
   → development, `.env.<name>` → `<name>`; comments, `export `, single / double / backtick
   quotes, escapes and multi-line quoted values). Write an environment to a `.env` file (asks
@@ -54,8 +65,8 @@ cargo test -p ferrumenv-core -p ferrumenv-desktop
 
 | Path | What |
 | --- | --- |
-| `crates/core` (`ferrumenv-core`) | No UI. `model` (vault data), `crypto` (Argon2id, XChaCha20-Poly1305), `store` (vault file, `Session`), `share_key`, `identity` (X25519 key pair, public keys, members), `recipients` (team-bundle sealing), `bundle`, `dotenv`, `diff`, `lock` (auto-lock timing), `password` (rules, strength) |
-| `apps/desktop` (`ferrumenv-desktop`, binary `ferrumenv`) | GPUI app: `app` (root, lock state, timer, clipboard), `lock_screen`, `unlocked` (strip, sidebar, status bar), `table`, `dialogs/*`, `tests.rs` |
+| `crates/core` (`ferrumenv-core`) | No UI. `model` (vault data), `crypto` (Argon2id, XChaCha20-Poly1305), `store` (vault file, `Session`), `share_key`, `identity` (X25519 key pair, public keys, members), `recipients` (team-bundle sealing), `bundle`, `sync` (shared folder, three-way merge), `dotenv`, `diff`, `lock` (auto-lock timing), `password` (rules, strength) |
+| `apps/desktop` (`ferrumenv-desktop`, binary `ferrumenv`) | GPUI app: `app` (root, lock state, timer, clipboard), `lock_screen`, `unlocked` (strip, sidebar, status bar), `table`, `sync` (folder poll), `dialogs/*`, `tests.rs` |
 
 ## Security model
 
@@ -107,6 +118,13 @@ linked into every Ferrum app through rustls) and the same XChaCha20-Poly1305:
 - Removing a member stops future bundles from reaching them; like with any shared secret, what
   they already received stays readable to them. The armor shows the project name and the
   sender's fingerprint; recipients' public keys are in the envelope (not secret).
+
+**Sync folders** only ever receive team bundles, written atomically (a temp file of ciphertext in
+the same folder, then a rename) with mode 0600. Variable names and values never touch the folder;
+the file name and armor show the project name and the sender's fingerprint. A file is merged only
+if it decrypts for you and its authenticated sender is you or a project member, so someone who can
+merely write to the folder can't inject values. The last synced state and the hashes of merged
+files are kept in the (encrypted) vault.
 
 **In memory.** Variables, share keys, the session key and decrypted buffers wipe themselves on
 drop (`zeroize`), and `Debug` output never contains values. Locking (⌘L, auto-lock) drops the

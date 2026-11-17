@@ -10,6 +10,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::identity::{Identity, Member, PublicKey};
 use crate::share_key::ShareKey;
+use crate::sync::SyncState;
 use crate::{Error, Result};
 
 /// Current vault format version (inside the ciphertext). 2 added the
@@ -143,6 +144,9 @@ pub struct Project {
     /// always added as a recipient too).
     #[serde(default)]
     pub members: Vec<Member>,
+    /// The shared folder team bundles are synced through.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sync: Option<SyncState>,
     #[serde(default)]
     pub environments: Vec<Environment>,
     pub created_at: DateTime<Utc>,
@@ -159,6 +163,7 @@ impl Project {
             path,
             share_key: None,
             members: Vec::new(),
+            sync: None,
             environments: DEFAULT_ENVIRONMENTS
                 .iter()
                 .map(|n| Environment::new(*n))

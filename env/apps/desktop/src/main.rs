@@ -8,6 +8,7 @@ mod app_info;
 mod dialogs;
 mod lock_screen;
 mod secrets;
+mod sync;
 mod table;
 mod unlocked;
 mod widgets;
