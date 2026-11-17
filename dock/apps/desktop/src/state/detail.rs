@@ -4,6 +4,7 @@ use super::LOG_CAPACITY;
 use ferrumdock_engine::ContainerDetail;
 use ferrumdock_engine::compose::ComposeProject;
 use ferrumdock_engine::compose_ps::ServiceStatus;
+use ferrumdock_engine::files::{DirListing, FileContent, FileEntry};
 use ferrumdock_engine::logs::{LogBuffer, Since};
 use ferrumdock_engine::shell::Shell;
 
@@ -15,6 +16,42 @@ pub enum DetailTab {
     Stats,
     /// `docker compose ps` of a project.
     Services,
+    /// The container's file system.
+    Files,
+}
+
+/// The Files tab: the folder shown and the file open in the viewer.
+pub struct FilesState {
+    /// The folder listed (absolute).
+    pub path: String,
+    pub listing: Option<Result<DirListing, String>>,
+    pub loading: bool,
+    /// The file in the viewer (its path), and what was read.
+    pub preview: Option<(String, Option<Result<FileContent, String>>)>,
+    /// A download or upload is running (what, for the status line).
+    pub transfer: Option<String>,
+}
+
+impl Default for FilesState {
+    fn default() -> Self {
+        Self {
+            path: "/".to_owned(),
+            listing: None,
+            loading: false,
+            preview: None,
+            transfer: None,
+        }
+    }
+}
+
+impl FilesState {
+    /// The entry named `name` of the current listing.
+    pub fn entry(&self, name: &str) -> Option<&FileEntry> {
+        match &self.listing {
+            Some(Ok(listing)) => listing.entries.iter().find(|e| e.name == name),
+            _ => None,
+        }
+    }
 }
 
 /// The key of a compose project's panel in [`DetailState::id`].
@@ -52,6 +89,7 @@ pub struct DetailState {
     pub shell: Shell,
     pub shells: Option<Vec<Shell>>,
     pub services: Option<Result<Vec<ServiceStatus>, String>>,
+    pub files: FilesState,
     /// Container refreshes that may still miss the container before the
     /// panel closes (a just-created one can be absent from an older poll).
     pub grace: u8,
@@ -79,6 +117,7 @@ impl DetailState {
             shell: Shell::default(),
             shells: None,
             services: None,
+            files: FilesState::default(),
             grace: 0,
         }
     }
@@ -171,6 +210,27 @@ mod tests {
         detail.search.clear();
         detail.refilter();
         assert!(detail.search_error.is_none() && detail.matches.is_none());
+    }
+
+    #[test]
+    fn files_start_at_the_root_and_find_entries() {
+        use ferrumdock_engine::archive::EntryKind;
+        let mut files = DetailState::new("1".into()).files;
+        assert_eq!(files.path, "/");
+        assert!(files.entry("etc").is_none());
+        files.listing = Some(Ok(DirListing {
+            path: "/".into(),
+            entries: vec![FileEntry {
+                name: "etc".into(),
+                kind: EntryKind::Dir,
+                size: 0,
+                mode: 0o755,
+                mtime: 0,
+                link: None,
+            }],
+            partial: false,
+        }));
+        assert!(files.entry("etc").is_some_and(|e| e.kind == EntryKind::Dir));
     }
 
     #[test]

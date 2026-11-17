@@ -4,6 +4,7 @@
 pub mod connection;
 pub mod containers;
 pub mod engines;
+pub mod files;
 pub mod logs;
 pub mod project;
 pub mod registries;

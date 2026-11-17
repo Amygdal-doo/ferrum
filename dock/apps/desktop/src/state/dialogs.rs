@@ -19,6 +19,12 @@ pub enum PendingAction {
     PruneNetworks,
     /// `docker context rm`.
     RemoveContext(String),
+    /// Copy the local file into the container's folder.
+    Upload {
+        container: String,
+        dir: String,
+        local: std::path::PathBuf,
+    },
     ComposeDown(ComposeProject),
 }
 

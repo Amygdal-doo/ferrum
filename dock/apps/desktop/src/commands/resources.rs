@@ -56,6 +56,11 @@ impl FerrumContainers {
             PendingAction::PruneVolumes => self.prune(Section::Volumes, "volume", cx),
             PendingAction::PruneNetworks => self.prune(Section::Networks, "network", cx),
             PendingAction::RemoveContext(name) => self.remove_context(name, cx),
+            PendingAction::Upload {
+                container,
+                dir,
+                local,
+            } => self.upload_file(container, dir, local, cx),
         }
         cx.notify();
     }

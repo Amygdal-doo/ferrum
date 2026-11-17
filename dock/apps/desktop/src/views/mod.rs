@@ -6,6 +6,7 @@ pub mod containers;
 pub mod detail;
 pub mod dialogs;
 pub mod engines;
+pub mod files;
 pub mod image_dialogs;
 pub mod images;
 pub mod inspect;

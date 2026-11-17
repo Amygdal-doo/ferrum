@@ -1,18 +1,19 @@
 //! In-memory [`Engine`] for tests: behaves like a small Docker engine
 //! (state transitions, 404/409 errors, prune semantics) and records calls.
 
+use crate::archive::{EntryKind, TarEvent, TarReader};
 use crate::create::CreateSpec;
 use crate::engine::{Engine, EngineStream};
 use crate::error::{EngineError, EngineResult};
 use crate::model::{
     COMPOSE_PROJECT, COMPOSE_SERVICE, Container, ContainerAction, ContainerDetail, ContainerState,
-    EngineInfo, Image, ImageLayer, Labels, LogChunk, LogOptions, Network, PruneReport, PullEvent,
-    Stats, Volume,
+    EngineInfo, ExecOutput, Image, ImageLayer, Labels, LogChunk, LogOptions, Network, PruneReport,
+    PullEvent, Stats, Volume,
 };
 use crate::registry::{AuthOutcome, RegistryAuth};
 use async_trait::async_trait;
 use futures::StreamExt;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 #[derive(Debug, Default)]
@@ -32,11 +33,110 @@ pub struct FakeState {
     pub registry_accounts: HashMap<String, (String, String)>,
     /// Repositories (`ghcr.io/org/app`) that refuse anonymous pulls.
     pub private_repos: Vec<String>,
+    /// Container file systems: id → absolute path → (kind, file data or link target).
+    pub files: HashMap<String, BTreeMap<String, (EntryKind, Vec<u8>)>>,
+    /// Every archive download, `<id> <path>`.
+    pub archive_requests: Vec<String>,
+    /// Containers without `sh` (distroless): an exec of it exits 127.
+    pub no_shell: Vec<String>,
+    /// Every exec, `<id> <first argument>`.
+    pub execs: Vec<String>,
     /// Every mutating call, e.g. `remove container web force=true`.
     pub calls: Vec<String>,
 }
 
 impl FakeState {
+    /// What [`crate::files::LIST_SCRIPT`] would print for `dir`, or exit 2.
+    fn list_output(&self, id: &str, dir: &str) -> ExecOutput {
+        let fs = self.files.get(id).cloned().unwrap_or_default();
+        let dir = crate::files::normalize(dir);
+        if dir != "/" && fs.get(&dir).is_none_or(|(k, _)| *k != EntryKind::Dir) {
+            return ExecOutput {
+                exit_code: Some(2),
+                ..ExecOutput::default()
+            };
+        }
+        let mut stdout = Vec::new();
+        for (path, (kind, data)) in &fs {
+            if crate::files::parent(path) != dir || path == &dir {
+                continue;
+            }
+            let (t, link) = match kind {
+                EntryKind::Dir => ("d", String::new()),
+                EntryKind::File => ("f", String::new()),
+                EntryKind::Symlink => ("l", String::from_utf8_lossy(data).into_owned()),
+                EntryKind::Other => ("o", String::new()),
+            };
+            let mode = match kind {
+                EntryKind::Dir => "755",
+                EntryKind::Symlink => "777",
+                _ => "644",
+            };
+            let name = crate::files::base_name(path);
+            stdout.extend_from_slice(
+                format!("{t}\t{} {mode} 1700000000\t{link}\t{name}\0", data.len()).as_bytes(),
+            );
+        }
+        ExecOutput {
+            stdout,
+            stderr: String::new(),
+            exit_code: Some(0),
+        }
+    }
+
+    /// The archive the engine would send for `path`: the entry itself,
+    /// named by its last part (`./` for `/`), then everything below it.
+    fn archive_of(&self, id: &str, path: &str) -> EngineResult<Vec<u8>> {
+        if !self.containers.iter().any(|c| c.id == id) {
+            return Err(not_found("container", id));
+        }
+        let path = crate::files::normalize(path);
+        let fs = self.files.get(id).cloned().unwrap_or_default();
+        let (root_name, prefix) = if path == "/" {
+            ("./".to_owned(), "/".to_owned())
+        } else {
+            let (kind, _) = fs.get(&path).ok_or_else(|| EngineError::Api {
+                status: 404,
+                message: format!("Could not find the file {path} in container {id}"),
+            })?;
+            let name = crate::files::base_name(&path);
+            let name = if *kind == EntryKind::Dir {
+                format!("{name}/")
+            } else {
+                name
+            };
+            (name, format!("{path}/"))
+        };
+        let base = root_name.trim_end_matches('/').to_owned();
+        let mut names: Vec<(String, EntryKind, Vec<u8>)> = Vec::new();
+        if path == "/" {
+            names.push((root_name, EntryKind::Dir, Vec::new()));
+        } else if let Some((kind, data)) = fs.get(&path) {
+            names.push((root_name, *kind, data.clone()));
+        }
+        for (p, (kind, data)) in fs.range(prefix.clone()..) {
+            let Some(rel) = p.strip_prefix(&prefix) else {
+                break;
+            };
+            let name = if base == "." {
+                format!("./{rel}")
+            } else {
+                format!("{base}/{rel}")
+            };
+            let name = if *kind == EntryKind::Dir {
+                format!("{name}/")
+            } else {
+                name
+            };
+            names.push((name, *kind, data.clone()));
+        }
+        let entries: Vec<(&str, EntryKind, &[u8])> = names
+            .iter()
+            .map(|(n, k, d)| (n.as_str(), *k, d.as_slice()))
+            .collect();
+        Ok(crate::archive::build(&entries))
+    }
+
     /// Whether a registry account matches `auth`.
     fn accepts(&self, auth: &RegistryAuth) -> bool {
         self.registry_accounts
@@ -95,6 +195,15 @@ fn conflict(message: String) -> EngineError {
 impl FakeEngine {
     pub fn state(&self) -> MutexGuard<'_, FakeState> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Adds files to container `id`: (absolute path, kind, data or link target).
+    pub fn add_files(&self, id: &str, files: &[(&str, EntryKind, &[u8])]) {
+        let mut s = self.state();
+        let fs = s.files.entry(id.to_owned()).or_default();
+        for (path, kind, data) in files {
+            fs.insert((*path).to_owned(), (*kind, data.to_vec()));
+        }
     }
 
     /// Makes every call fail like a stopped engine.
@@ -292,6 +401,89 @@ impl Engine for FakeEngine {
         c.image = image;
         s.containers.push(c);
         Ok(id)
+    }
+
+    fn archive(&self, id: &str, path: &str) -> EngineStream<Vec<u8>> {
+        let mut s = self.state();
+        s.archive_requests.push(format!("{id} {path}"));
+        match s.archive_of(id, path) {
+            // Sent in small pieces, like a socket would.
+            Ok(tar) => {
+                futures::stream::iter(tar.chunks(700).map(|c| Ok(c.to_vec())).collect::<Vec<_>>())
+                    .boxed()
+            }
+            Err(error) => futures::stream::once(async move { Err(error) }).boxed(),
+        }
+    }
+
+    async fn put_archive(&self, id: &str, dir: &str, tar: Vec<u8>) -> EngineResult<()> {
+        let mut s = self.guard()?;
+        if !s.containers.iter().any(|c| c.id == id) {
+            return Err(not_found("container", id));
+        }
+        let dir = crate::files::normalize(dir);
+        let fs = s.files.entry(id.to_owned()).or_default();
+        if dir != "/" && fs.get(&dir).is_none_or(|(k, _)| *k != EntryKind::Dir) {
+            return Err(EngineError::Api {
+                status: 404,
+                message: format!("Could not find the file {dir} in container {id}"),
+            });
+        }
+        let mut files: Vec<(String, EntryKind, Vec<u8>)> = Vec::new();
+        TarReader::default()
+            .push(&tar, &mut |event| match event {
+                TarEvent::Entry(e) => files.push((e.name, e.kind, Vec::new())),
+                TarEvent::Data(d) => {
+                    if let Some(last) = files.last_mut() {
+                        last.2.extend_from_slice(d);
+                    }
+                }
+            })
+            .map_err(|e| EngineError::Api {
+                status: 400,
+                message: e,
+            })?;
+        let mut uploaded = Vec::new();
+        for (name, kind, data) in files {
+            let path = crate::files::join(&dir, &name);
+            fs.insert(path.clone(), (kind, data));
+            uploaded.push(path);
+        }
+        for path in uploaded {
+            s.calls.push(format!("upload {id} {path}"));
+        }
+        Ok(())
+    }
+
+    async fn exec_capture(&self, id: &str, cmd: &[String]) -> EngineResult<ExecOutput> {
+        let mut s = self.guard()?;
+        s.execs
+            .push(format!("{id} {}", cmd.first().map_or("", String::as_str)));
+        let container = s
+            .containers
+            .iter()
+            .find(|c| c.id == id)
+            .ok_or_else(|| not_found("container", id))?;
+        if !container.state.is_up() {
+            return Err(conflict(format!("Container {id} is not running")));
+        }
+        if s.no_shell.iter().any(|c| c == id) {
+            return Ok(ExecOutput {
+                stdout: Vec::new(),
+                stderr: "exec: \"sh\": executable file not found in $PATH".into(),
+                exit_code: Some(127),
+            });
+        }
+        let listing = cmd
+            .get(2)
+            .is_some_and(|script| script == crate::files::LIST_SCRIPT);
+        Ok(match cmd.get(4) {
+            Some(dir) if listing => s.list_output(id, dir),
+            _ => ExecOutput {
+                exit_code: Some(0),
+                ..ExecOutput::default()
+            },
+        })
     }
 
     async fn images(&self) -> EngineResult<Vec<Image>> {

@@ -21,9 +21,12 @@ monorepo, alongside [FerrumAPI](../api), [FerrumGIT](../git), [FerrumData](../da
 > contexts, containers, stats, inspect, logs, images, image history, volumes with sizes,
 > networks, `docker compose ps`, compose files of a project folder) were also checked against
 > a real Docker Desktop 29.4.1 engine (API 1.54, Compose 5.1.3) with an `#[ignore]`d
-> integration test. **No call that changes anything (start/stop/remove/create/run/tag/pull/
-> prune/compose up/down) has run against a real engine**, `docker exec` (shell detection and
-> open shell) has never run, and the GUI has **never been launched**. It compiles and passes
+> integration test, and so were the Files tab's listing (exec and archive) and file reading,
+> and a registry `/auth` with made-up credentials (refused, as expected). **No call that
+> changes anything (start/stop/remove/create/run/tag/pull/prune/compose up/down, upload,
+> sign-in that stores credentials, `docker context` changes) has run against a real engine**,
+> the shell actions of `docker exec` (shell detection and open shell) have never run, and the
+> GUI has **never been launched**. It compiles and passes
 > clippy, and that is all that is known about the UI so far.
 
 ## What works today
@@ -52,6 +55,7 @@ monorepo, alongside [FerrumAPI](../api), [FerrumGIT](../git), [FerrumData](../da
 | **Run container** (Containers "Run…", or ▶ on an image): image, name, ports (`[ip:][host:]container[/tcp\|udp\|sctp]`), environment (one `KEY=VALUE` per line), volumes (`source:/path[:ro\|rw]`, `~/` expanded), command (shell-style quoting), restart policy (no / always / unless-stopped / on-failure), Detached. Creates with bollard, pulls first when the engine says the image is missing (progress shown), then starts. Without Detached the new container's live logs open (there is no interactive attach). Invalid fields are reported by name | ⚠️ form parsing, the API body (JSON), and create → pull → retry → start are unit-tested against the fake. bollard create/start never run against a real engine |
 | Open shell: choice of **auto / bash / zsh / sh** in the detail panel. Every choice falls back to `sh` inside the container (`sh -c 'command -v bash … && exec bash; exec sh'`). The available shells are detected with `docker exec <id> sh -c 'command -v …'` and the missing ones disabled. On Linux without FerrumTerm, the first of `x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal`, `alacritty`, `kitty`, `wezterm`, `xterm` on `PATH` is used | ⚠️ commands, detection parsing and the Linux terminal choice unit-tested. Detection and launching never run (Linux never tried at all) |
 | Logs: **Save…** writes the visible lines (search applied) as plain text (ANSI stripped, `[stderr]` marked, timestamps when shown) through the system save dialog, defaulting to `~/Downloads/<name>-<date>.log`. **Regex** toggle (case-insensitive; an invalid pattern is shown in red and hides nothing). **Since** 5m / 1h / 24h / all (re-requests the logs with `since=`) | ✅ export, regex search, since maths and file names unit-tested; the `since` option passed to the engine is checked against the fake. UI and save dialog compiled only |
+| **Files tab** (container detail): browse the container's file system from `/` (folders first, size, `drwxr-xr-x` mode, age, link targets; click a folder or a link to a folder to open it, type a path, ↑ for the parent), view a text file (first 1 MiB; binary files are detected), **Download…** a file to this Mac (save dialog, `~/Downloads/<name>`), **Upload…** a local file into the folder shown (file picker, then a confirm that names the target path and says an existing file is replaced; up to 512 MiB, permissions kept). Reads, downloads and uploads use the Engine API's archive endpoints (`GET`/`PUT /containers/{id}/archive`, a streaming tar reader and a one-file tar writer, no `docker cp`). Folder listings of a running container use one `exec` of a POSIX `sh` script that prints machine-readable records (kind, size, mode, mtime, link, name; no `ls` output parsing), because the archive of a folder holds everything below it and Docker keeps building it after the reader gives up (a cancelled archive of `/` held the next archive call for 30 s). Stopped containers and images without `sh` are listed from the archive (at most 64 MiB / 5 000 entries, marked when partial) | ✅ tar reading (any chunking, GNU and PAX long names, links, corrupt headers) and writing, the listing records, both listing paths and their fallbacks, viewing, download and upload unit-tested against the fake engine's in-memory file systems. Live check listed `/` and `/etc` of a real container (exec and archive agree) and read `/etc/hosts`. Download and upload never run against a real engine (an upload changes the container). UI compiled only |
 | Stats tab: CPU and memory sparklines of the last ~2 minutes (2 s samples while the Containers list is shown), network in/out and disk read/write totals with per-second rates. Network sums every interface; block I/O sums `read`/`write` for cgroup v1 and v2 | ✅ history, rates (counter resets give 0), sparkline scaling and the stats conversion unit-tested. Network/block I/O not live-checked (no container was running). UI compiled only |
 | Images: **Tag…** (`repository[:tag]`, lowercase repository, a missing tag means latest, digests refused) and **History** (layers, newest first: size, age, instruction, total) | ⚠️ tag validation and both calls tested against the fake. History live-checked on a real image. Tag never run for real |
 | **Registries** (Images › Registries…, or from the Pull dialog): sign in to Docker Hub, GHCR, Amazon ECR (username `AWS`, the token from `aws ecr get-login-password`) or any registry. The engine checks the credentials first (`POST /auth`, like `docker login`); they are then stored the way `docker login` stores them: through the credential helper named in `~/.docker/config.json` (`credHelpers`, then `credsStore`, then the platform's `docker-credential-osxkeychain` when installed), with the helper protocol (`docker-credential-<name> store/get/erase/list`). Without any helper they go to the OS keychain (service "FerrumContainers registries"; the `docker` CLI does not see those). Secrets are never written to a file; inline `auths` left by an older `docker login` are read for pulls and removed on Sign out. Pulls (and Run's pull) send the stored credentials of the image's registry | ⚠️ store choice, helper protocol (in-memory backend), inline `auths`, the `/auth` body and answer, and private pulls (fake engine with private repositories) are unit-tested. Never run against a real registry, helper or keychain. UI compiled only |
@@ -83,7 +87,7 @@ TLS (`DOCKER_CERT_PATH`) engines, so TLS Docker contexts are listed but cannot b
 `ssh://` engines whose Docker socket is not `/var/run/docker.sock` (rootless Docker), and SSH
 logins that need a password prompt. The picked engine is not remembered across launches. Run
 options beyond the dialog (networks, labels, user, entrypoint, resource limits, `--rm`,
-interactive `-it` attach), editing or renaming containers, `docker cp`, file browser, port
+interactive `-it` attach), editing or renaming containers, downloading or uploading whole folders, port
 forwarding UI. Compose: profiles, `.env` selection, per-service actions, `pull`/`build`, and
 compose files outside the project root or in subfolders. Windows terminals. Stats history
 beyond ~2 minutes or while another section is shown. Image push and build. Volume browsing, and volume
@@ -122,9 +126,9 @@ RUST_LOG=debug cargo run -p ferrumdock-desktop     # verbose logs (ids and opera
 apps/desktop/        GPUI app (binary `ferrumdock`): app.rs (root view, project bar, keys),
                      state/{mod,detail,dialogs} (plain state + row grouping), project.rs (open folder scope),
                      services.rs (Tokio runtime),
-                     commands/{connection,containers,engines,logs,project,registries,resources,run},
+                     commands/{connection,containers,engines,files,logs,project,registries,resources,run},
                      views/{chrome,containers,compose_rows,detail,logs,stats,services,inspect,images,
-                     resources,dialogs,run_dialog,image_dialogs,engines,registries,widgets}
+                     resources,dialogs,run_dialog,image_dialogs,engines,files,registries,widgets}
 crates/engine/       ferrumdock-engine, no UI: Engine trait (engine.rs) + bollard impl (docker.rs, convert.rs),
                      FakeEngine (fake.rs), socket detection (endpoint.rs), Docker contexts (context.rs),
                      formatting (format.rs), stats maths + history (stats.rs), log buffer, search, export,
@@ -132,7 +136,7 @@ crates/engine/       ferrumdock-engine, no UI: Engine trait (engine.rs) + bollar
                      pull references/progress (pull.rs), compose grouping + `docker compose` (compose.rs),
                      `compose ps` (compose_ps.rs), project folders + compose files (project.rs),
                      run form + create body (create.rs), docker CLI lookup (cli.rs), open-shell plans and
-                     shell choice (shell.rs), UI policies incl. run, tag and sign-in (ops.rs), SSH tunnels (tunnel.rs), raw `/system/df` GET and `/auth` POST (rawhttp.rs),
+                     shell choice (shell.rs), tar reader/writer (archive.rs), container files (files.rs), UI policies incl. run, tag and sign-in (ops.rs), SSH tunnels (tunnel.rs), raw `/system/df` GET and `/auth` POST (rawhttp.rs),
                      registry keys + config.json (registry.rs), credential helpers / keychain (credentials.rs)
 ```
 

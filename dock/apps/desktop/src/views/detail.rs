@@ -114,12 +114,14 @@ pub fn render(
             .child(tab_button("Logs", DetailTab::Logs, tab, cx))
             .child(tab_button("Inspect", DetailTab::Inspect, tab, cx))
             .child(tab_button("Stats", DetailTab::Stats, tab, cx))
+            .child(tab_button("Files", DetailTab::Files, tab, cx))
     };
     let content = match tab {
         DetailTab::Logs => super::logs::render(app, window, cx),
         DetailTab::Inspect => super::inspect::render(app, cx),
         DetailTab::Stats => super::stats::render(app, cx),
         DetailTab::Services => super::services::render(app, cx),
+        DetailTab::Files => super::files::render(app, cx),
     };
     v_flex()
         .size_full()

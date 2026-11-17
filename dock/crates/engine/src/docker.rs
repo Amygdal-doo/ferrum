@@ -6,8 +6,8 @@ use crate::endpoint::Endpoint;
 use crate::engine::{Engine, EngineStream};
 use crate::error::{EngineError, EngineResult};
 use crate::model::{
-    Container, ContainerAction, ContainerDetail, EngineInfo, Image, ImageLayer, LogChunk,
-    LogOptions, LogStream, Network, PruneReport, PullEvent, Stats, Volume,
+    Container, ContainerAction, ContainerDetail, EngineInfo, ExecOutput, Image, ImageLayer,
+    LogChunk, LogOptions, LogStream, Network, PruneReport, PullEvent, Stats, Volume,
 };
 use crate::rawhttp;
 use crate::registry::{AuthOutcome, RegistryAuth};
@@ -24,6 +24,8 @@ use std::sync::Arc;
 /// Seconds before a request without a response fails (streams are not cut).
 const TIMEOUT_SECS: u64 = 30;
 const DF_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+/// Output kept from one `exec` (the rest is read and dropped).
+const EXEC_OUTPUT_LIMIT: usize = 16 << 20;
 /// The engine contacts the registry, which can be slow.
 const AUTH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(45);
 
@@ -265,6 +267,58 @@ impl Engine for DockerEngine {
             tracing::warn!(%warning, "create container");
         }
         Ok(created.id)
+    }
+
+    fn archive(&self, id: &str, path: &str) -> EngineStream<Vec<u8>> {
+        let options = q::DownloadFromContainerOptionsBuilder::new()
+            .path(path)
+            .build();
+        self.docker
+            .download_from_container(id, Some(options))
+            .map_ok(|bytes| bytes.to_vec())
+            .map_err(EngineError::from)
+            .boxed()
+    }
+
+    async fn put_archive(&self, id: &str, dir: &str, tar: Vec<u8>) -> EngineResult<()> {
+        let options = q::UploadToContainerOptionsBuilder::new().path(dir).build();
+        self.docker
+            .upload_to_container(id, Some(options), bollard::body_full(tar.into()))
+            .await?;
+        Ok(())
+    }
+
+    async fn exec_capture(&self, id: &str, cmd: &[String]) -> EngineResult<ExecOutput> {
+        use bollard::exec::{CreateExecOptions, StartExecResults};
+        let options = CreateExecOptions {
+            cmd: Some(cmd.to_vec()),
+            attach_stdout: Some(true),
+            attach_stderr: Some(true),
+            ..CreateExecOptions::default()
+        };
+        let exec = self.docker.create_exec(id, options).await?;
+        let mut out = ExecOutput::default();
+        if let StartExecResults::Attached { mut output, .. } =
+            self.docker.start_exec(&exec.id, None).await?
+        {
+            while let Some(message) = output.next().await {
+                match message? {
+                    LogOutput::StdOut { message } | LogOutput::Console { message } => {
+                        if out.stdout.len() < EXEC_OUTPUT_LIMIT {
+                            out.stdout.extend_from_slice(&message);
+                        }
+                    }
+                    LogOutput::StdErr { message } => {
+                        if out.stderr.len() < EXEC_OUTPUT_LIMIT {
+                            out.stderr.push_str(&String::from_utf8_lossy(&message));
+                        }
+                    }
+                    LogOutput::StdIn { .. } => {}
+                }
+            }
+        }
+        out.exit_code = self.docker.inspect_exec(&exec.id).await?.exit_code;
+        Ok(out)
     }
 
     async fn images(&self) -> EngineResult<Vec<Image>> {

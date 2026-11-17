@@ -4,6 +4,7 @@
 //! `docker compose` / "open shell" launchers. No UI code lives here.
 
 pub mod ansi;
+pub mod archive;
 pub mod cli;
 pub mod compose;
 pub mod compose_ps;
@@ -16,6 +17,7 @@ pub mod endpoint;
 pub mod engine;
 pub mod error;
 pub mod fake;
+pub mod files;
 pub mod format;
 pub mod logmux;
 pub mod logs;

@@ -43,6 +43,10 @@ pub struct Inputs {
     /// New `ssh://` Docker context in the engine picker.
     pub context_name: Entity<TextInput>,
     pub context_host: Entity<TextInput>,
+    /// The folder shown in the Files tab (editable).
+    pub files_path: Entity<TextInput>,
+    /// The file viewer (read-only).
+    pub file_view: Entity<TextInput>,
 }
 
 /// The registry sign-in form.
@@ -171,6 +175,19 @@ impl FerrumContainers {
         });
         let run = RunInputs::new(window, cx);
         let registry = RegistryInputs::new(window, cx);
+        let files_path = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("/path/in/the/container")
+                .monospace()
+                .borderless()
+        });
+        let file_view = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .monospace()
+                .multiline(8)
+                .read_only(true)
+                .borderless()
+        });
         let context_name = cx.new(|cx| {
             TextInput::new(window, cx)
                 .placeholder("name, e.g. build-box")
@@ -210,6 +227,11 @@ impl FerrumContainers {
                     app.sign_in(cx);
                 }
             }),
+            cx.subscribe(&files_path, |app: &mut Self, _, event, cx| {
+                if *event == TextInputEvent::Submit {
+                    app.submit_files_path(cx);
+                }
+            }),
             cx.subscribe(&context_host, |app: &mut Self, _, event, cx| {
                 if *event == TextInputEvent::Submit {
                     app.add_ssh_context(cx);
@@ -238,6 +260,8 @@ impl FerrumContainers {
                 registry,
                 context_name,
                 context_host,
+                files_path,
+                file_view,
             },
             project_bar,
             log_scroll: UniformListScrollHandle::new(),

@@ -6,8 +6,8 @@ use crate::create::CreateSpec;
 use crate::endpoint::Candidate;
 use crate::error::{EngineError, EngineResult};
 use crate::model::{
-    Container, ContainerAction, ContainerDetail, EngineInfo, Image, ImageLayer, LogChunk,
-    LogOptions, Network, PruneReport, PullEvent, Stats, Volume,
+    Container, ContainerAction, ContainerDetail, EngineInfo, ExecOutput, Image, ImageLayer,
+    LogChunk, LogOptions, Network, PruneReport, PullEvent, Stats, Volume,
 };
 use crate::registry::{AuthOutcome, RegistryAuth};
 use async_trait::async_trait;
@@ -31,6 +31,14 @@ pub trait Engine: Send + Sync + 'static {
     fn logs(&self, id: &str, options: LogOptions) -> EngineStream<LogChunk>;
     /// Creates (does not start) a container; returns its id. 404 when the image is missing.
     async fn create_container(&self, spec: &CreateSpec) -> EngineResult<String>;
+    /// `GET /containers/{id}/archive?path=`: `path` (and everything below
+    /// it) as an uncompressed tar stream. 404 when the path does not exist.
+    fn archive(&self, id: &str, path: &str) -> EngineStream<Vec<u8>>;
+    /// `PUT /containers/{id}/archive?path=`: extracts `tar` into the folder `dir`.
+    async fn put_archive(&self, id: &str, dir: &str, tar: Vec<u8>) -> EngineResult<()>;
+    /// Runs `cmd` in the running container `id` (no TTY, no input) and
+    /// collects its output. 409 when the container is not running.
+    async fn exec_capture(&self, id: &str, cmd: &[String]) -> EngineResult<ExecOutput>;
 
     async fn images(&self) -> EngineResult<Vec<Image>>;
     /// Pulls `reference` (a missing tag means `latest`), signed in with
