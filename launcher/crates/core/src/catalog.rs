@@ -404,7 +404,7 @@ static BUILTIN: [Builtin; 12] = [
         // The id, binary and data stay `env`/`ferrumenv`, so FerrumEnv
         // installs update in place.
         binary: "ferrumenv",
-        extra_binaries: &[],
+        extra_binaries: &["fenv"],
         bundle_name: "FerrumVariables",
         former_names: &["FerrumEnv"],
         icon: "Lock",
@@ -1135,6 +1135,10 @@ mod tests {
         assert_eq!(
             AppInfo::builtin(AppId::TERM).map(|i| i.extra_binaries),
             Some(vec!["fterm".to_string()])
+        );
+        assert_eq!(
+            AppInfo::builtin(AppId::ENV).map(|i| i.extra_binaries),
+            Some(vec!["fenv".to_string()])
         );
         assert!(AppInfo::builtin(AppId::new("unknownapp").expect("id")).is_none());
     }

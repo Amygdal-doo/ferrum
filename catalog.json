@@ -196,7 +196,9 @@
       "summary": "A password-locked vault for your projects' .env files, shared encrypted between developers.",
       "description": "Password-locked vault for project environment variables, shared encrypted between developers.",
       "binary": "ferrumenv",
-      "extra_binaries": [],
+      "extra_binaries": [
+        "fenv"
+      ],
       "bundle_name": "FerrumVariables",
       "icon": "Lock",
       "logo": "https://raw.githubusercontent.com/Amygdal-doo/ferrum-releases/main/logos/env.png",

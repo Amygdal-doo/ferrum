@@ -10,7 +10,7 @@ license.workspace = true
 [dependencies]
 base64.workspace = true
 chrono.workspace = true
-image.workspace = true
+image = { workspace = true, features = ["png"] }
 jsonschema.workspace = true
 md-5.workspace = true
 percent-encoding.workspace = true

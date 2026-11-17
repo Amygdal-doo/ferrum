@@ -240,7 +240,6 @@ jsonschema = { version = "0.61", default-features = false }
 # QR codes (MIT OR Apache-2.0), drawn to PNG with `image` (already in the
 # graph through GPUI; PNG codec only).
 qrcode = { version = "0.14", default-features = false }
-image = { version = "0.25", default-features = false, features = ["png"] }
 # FerrumAPI protocols: WSDL / OData $metadata parsing, WebSocket, gRPC
 roxmltree = "0.21"
 tokio-tungstenite = { version = "0.29", default-features = false }

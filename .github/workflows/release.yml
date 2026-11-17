@@ -72,7 +72,7 @@ jobs:
             vibe) package=ferrumvibe-desktop; binaries="ferrumvibe" ;;
             system) package=ferrumsystem-desktop; binaries="ferrumsystem" ;;
             ports)   package=ferrumports-desktop;   binaries="ferrumports" ;;
-            env)     package=ferrumenv-desktop;     binaries="ferrumenv" ;;
+            env)     package="ferrumenv-desktop ferrumenv-cli"; binaries="ferrumenv fenv" ;;
             launcher) package=ferrumlauncher-desktop; binaries="ferrum-launcher" ;;
             toolbox) echo "::error::toolbox-v* is the Ferrum Toolbox 0.5.0 bridge; build it with scripts/package-bridge.sh"; exit 1 ;;
             ide) echo "::error::the Zed-based Ferrum IDE (ide-v*) is no longer released; FerrumIDE (editor-v*) is the suite's code editor"; exit 1 ;;
