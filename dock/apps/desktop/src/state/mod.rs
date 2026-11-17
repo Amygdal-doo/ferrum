@@ -5,7 +5,10 @@ mod detail;
 mod dialogs;
 
 pub use detail::{DetailState, DetailTab};
-pub use dialogs::{Confirm, Dialog, EnginePicker, LayersState, PendingAction, PullState, RunState};
+pub use dialogs::{
+    Confirm, Dialog, EnginePicker, LayersState, PendingAction, PullState, RegistryPreset,
+    RegistryState, RunState,
+};
 
 use crate::project::ProjectState;
 use ferrumdock_engine::compose::{self, ComposeProject, ContainerGroup};
@@ -82,6 +85,7 @@ pub struct AppState {
     pub run: RunState,
     pub layers: Option<LayersState>,
     pub engines: EnginePicker,
+    pub registries: RegistryState,
     /// Engine picked in the toolbar; tried first when (re)connecting.
     pub preferred: Option<Endpoint>,
 }

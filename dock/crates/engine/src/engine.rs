@@ -9,6 +9,7 @@ use crate::model::{
     Container, ContainerAction, ContainerDetail, EngineInfo, Image, ImageLayer, LogChunk,
     LogOptions, Network, PruneReport, PullEvent, Stats, Volume,
 };
+use crate::registry::{AuthOutcome, RegistryAuth};
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 use std::collections::HashMap;
@@ -32,8 +33,12 @@ pub trait Engine: Send + Sync + 'static {
     async fn create_container(&self, spec: &CreateSpec) -> EngineResult<String>;
 
     async fn images(&self) -> EngineResult<Vec<Image>>;
-    /// Pulls `reference` (a missing tag means `latest`).
-    fn pull(&self, reference: &str) -> EngineStream<PullEvent>;
+    /// Pulls `reference` (a missing tag means `latest`), signed in with
+    /// `auth` when given (a private registry).
+    fn pull(&self, reference: &str, auth: Option<RegistryAuth>) -> EngineStream<PullEvent>;
+    /// `docker login`'s check: the engine signs in to the registry with
+    /// `auth`. Nothing is stored; an error means the credentials were refused.
+    async fn check_auth(&self, auth: &RegistryAuth) -> EngineResult<AuthOutcome>;
     async fn remove_image(&self, id: &str) -> EngineResult<()>;
     /// Adds the reference `repo:tag` to image `id`.
     async fn tag_image(&self, id: &str, repo: &str, tag: &str) -> EngineResult<()>;

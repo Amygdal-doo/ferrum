@@ -10,8 +10,10 @@ use crate::model::{
     LogOptions, LogStream, Network, PruneReport, PullEvent, Stats, Volume,
 };
 use crate::rawhttp;
+use crate::registry::{AuthOutcome, RegistryAuth};
 use async_trait::async_trait;
 use bollard::Docker;
+use bollard::auth::DockerCredentials;
 use bollard::container::LogOutput;
 use bollard::query_parameters as q;
 use futures::{StreamExt, TryStreamExt};
@@ -20,6 +22,8 @@ use std::collections::HashMap;
 /// Seconds before a request without a response fails (streams are not cut).
 const TIMEOUT_SECS: u64 = 30;
 const DF_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+/// The engine contacts the registry, which can be slow.
+const AUTH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(45);
 
 #[derive(Clone)]
 pub struct DockerEngine {
@@ -55,6 +59,64 @@ impl DockerEngine {
 
 fn label_filter(key: &str, value: &str) -> Option<HashMap<String, Vec<String>>> {
     Some(HashMap::from([(key.to_owned(), vec![value.to_owned()])]))
+}
+
+/// The `X-Registry-Auth` credentials of a pull: an identity token, or user and password.
+fn credentials(auth: &RegistryAuth) -> DockerCredentials {
+    if auth.is_identity_token() {
+        DockerCredentials {
+            identitytoken: Some(auth.secret.clone()),
+            serveraddress: Some(auth.server.clone()),
+            ..DockerCredentials::default()
+        }
+    } else {
+        DockerCredentials {
+            username: Some(auth.username.clone()),
+            password: Some(auth.secret.clone()),
+            serveraddress: Some(auth.server.clone()),
+            ..DockerCredentials::default()
+        }
+    }
+}
+
+/// The `POST /auth` body (the engine's `AuthConfig`).
+fn auth_body(auth: &RegistryAuth) -> serde_json::Value {
+    if auth.is_identity_token() {
+        serde_json::json!({ "identitytoken": auth.secret, "serveraddress": auth.server })
+    } else {
+        serde_json::json!({
+            "username": auth.username,
+            "password": auth.secret,
+            "serveraddress": auth.server,
+        })
+    }
+}
+
+/// `200 {"Status","IdentityToken"}`, or the engine's error message (401 for bad credentials).
+fn parse_auth_response(status: u16, body: &[u8]) -> EngineResult<AuthOutcome> {
+    let value: serde_json::Value = serde_json::from_slice(body).unwrap_or_default();
+    let text = |key: &str| {
+        value
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+    };
+    if status == 200 {
+        return Ok(AuthOutcome {
+            status: text("Status").unwrap_or_else(|| "Login Succeeded".to_owned()),
+            identity_token: text("IdentityToken"),
+        });
+    }
+    let message = text("message").unwrap_or_else(|| {
+        let raw = String::from_utf8_lossy(body).trim().to_owned();
+        if raw.is_empty() {
+            format!("the engine answered {status}")
+        } else {
+            raw
+        }
+    });
+    Err(EngineError::Api { status, message })
 }
 
 #[async_trait]
@@ -173,7 +235,7 @@ impl Engine for DockerEngine {
         Ok(list.into_iter().map(convert::image).collect())
     }
 
-    fn pull(&self, reference: &str) -> EngineStream<PullEvent> {
+    fn pull(&self, reference: &str, auth: Option<RegistryAuth>) -> EngineStream<PullEvent> {
         let Some((image, tag)) = crate::pull::split_reference(reference) else {
             let error = EngineError::Api {
                 status: 400,
@@ -186,10 +248,17 @@ impl Engine for DockerEngine {
             .tag(&tag)
             .build();
         self.docker
-            .create_image(Some(options), None, None)
+            .create_image(Some(options), None, auth.as_ref().map(credentials))
             .map_ok(convert::pull_event)
             .map_err(EngineError::from)
             .boxed()
+    }
+
+    async fn check_auth(&self, auth: &RegistryAuth) -> EngineResult<AuthOutcome> {
+        let body = auth_body(auth).to_string();
+        let (status, response) =
+            rawhttp::post_json(&self.endpoint, "/auth", body.as_bytes(), AUTH_TIMEOUT).await?;
+        parse_auth_response(status, &response)
     }
 
     async fn remove_image(&self, id: &str) -> EngineResult<()> {
@@ -294,5 +363,57 @@ impl Engine for DockerEngine {
             deleted: r.networks_deleted.unwrap_or_default(),
             reclaimed: 0,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn auth(username: &str) -> RegistryAuth {
+        RegistryAuth {
+            server: "ghcr.io".into(),
+            username: username.into(),
+            secret: "s3cret".into(),
+        }
+    }
+
+    #[test]
+    fn sends_a_password_or_an_identity_token() {
+        let body = auth_body(&auth("me"));
+        assert_eq!(body["username"], "me");
+        assert_eq!(body["password"], "s3cret");
+        assert_eq!(body["serveraddress"], "ghcr.io");
+        let token = auth_body(&auth(crate::registry::TOKEN_USERNAME));
+        assert_eq!(token["identitytoken"], "s3cret");
+        assert!(token.get("password").is_none());
+        let creds = credentials(&auth(crate::registry::TOKEN_USERNAME));
+        assert_eq!(creds.identitytoken.as_deref(), Some("s3cret"));
+        assert!(creds.password.is_none());
+    }
+
+    #[test]
+    fn reads_the_auth_answer() {
+        let ok = parse_auth_response(200, br#"{"Status":"Login Succeeded","IdentityToken":""}"#);
+        assert_eq!(
+            ok,
+            Ok(AuthOutcome {
+                status: "Login Succeeded".into(),
+                identity_token: None
+            })
+        );
+        let token = parse_auth_response(200, br#"{"Status":"ok","IdentityToken":"tok"}"#);
+        assert_eq!(
+            token.ok().and_then(|o| o.identity_token).as_deref(),
+            Some("tok")
+        );
+        let refused = parse_auth_response(
+            401,
+            br#"{"message":"login attempt to https://ghcr.io/v2/ failed with status: 401 Unauthorized"}"#,
+        );
+        assert!(
+            matches!(refused, Err(EngineError::Api { status: 401, message }) if message.contains("401 Unauthorized"))
+        );
+        assert!(parse_auth_response(500, b"").is_err_and(|e| e.to_string().contains("500")));
     }
 }

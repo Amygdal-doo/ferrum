@@ -53,6 +53,7 @@ monorepo, alongside [FerrumAPI](../api), [FerrumGIT](../git), [FerrumData](../da
 | Logs: **Save…** writes the visible lines (search applied) as plain text (ANSI stripped, `[stderr]` marked, timestamps when shown) through the system save dialog, defaulting to `~/Downloads/<name>-<date>.log`. **Regex** toggle (case-insensitive; an invalid pattern is shown in red and hides nothing). **Since** 5m / 1h / 24h / all (re-requests the logs with `since=`) | ✅ export, regex search, since maths and file names unit-tested; the `since` option passed to the engine is checked against the fake. UI and save dialog compiled only |
 | Stats tab: CPU and memory sparklines of the last ~2 minutes (2 s samples while the Containers list is shown), network in/out and disk read/write totals with per-second rates. Network sums every interface; block I/O sums `read`/`write` for cgroup v1 and v2 | ✅ history, rates (counter resets give 0), sparkline scaling and the stats conversion unit-tested. Network/block I/O not live-checked (no container was running). UI compiled only |
 | Images: **Tag…** (`repository[:tag]`, lowercase repository, a missing tag means latest, digests refused) and **History** (layers, newest first: size, age, instruction, total) | ⚠️ tag validation and both calls tested against the fake. History live-checked on a real image. Tag never run for real |
+| **Registries** (Images › Registries…, or from the Pull dialog): sign in to Docker Hub, GHCR, Amazon ECR (username `AWS`, the token from `aws ecr get-login-password`) or any registry. The engine checks the credentials first (`POST /auth`, like `docker login`); they are then stored the way `docker login` stores them: through the credential helper named in `~/.docker/config.json` (`credHelpers`, then `credsStore`, then the platform's `docker-credential-osxkeychain` when installed), with the helper protocol (`docker-credential-<name> store/get/erase/list`). Without any helper they go to the OS keychain (service "FerrumContainers registries"; the `docker` CLI does not see those). Secrets are never written to a file; inline `auths` left by an older `docker login` are read for pulls and removed on Sign out. Pulls (and Run's pull) send the stored credentials of the image's registry | ⚠️ store choice, helper protocol (in-memory backend), inline `auths`, the `/auth` body and answer, and private pulls (fake engine with private repositories) are unit-tested. Never run against a real registry, helper or keychain. UI compiled only |
 | Keyboard: ⌘R refresh (or retry while offline), ⌘F filter, ⌥⌘O project switcher, Esc closes the dialog or the detail panel | ⚠️ compiled only |
 
 ### Open shell and FerrumTerm
@@ -84,8 +85,7 @@ options beyond the dialog (networks, labels, user, entrypoint, resource limits, 
 interactive `-it` attach), editing or renaming containers, `docker cp`, file browser, port
 forwarding UI. Compose: profiles, `.env` selection, per-service actions, `pull`/`build`, and
 compose files outside the project root or in subfolders. Windows terminals. Stats history
-beyond ~2 minutes or while another section is shown. Image push, build and registry login
-(pulls are anonymous, so private registries fail). Volume browsing, and volume
+beyond ~2 minutes or while another section is shown. Image push and build. Volume browsing, and volume
 backup/export. Network create and connect/disconnect. Dangling-only vs all-unused choice for
 image prune. A light theme. Persisted settings (window size, detail width, collapsed groups,
 picked engine, project scope). FerrumContainers is not in the project bar's "open in" buttons of the
@@ -121,9 +121,9 @@ RUST_LOG=debug cargo run -p ferrumdock-desktop     # verbose logs (ids and opera
 apps/desktop/        GPUI app (binary `ferrumdock`): app.rs (root view, project bar, keys),
                      state/{mod,detail,dialogs} (plain state + row grouping), project.rs (open folder scope),
                      services.rs (Tokio runtime),
-                     commands/{connection,containers,engines,logs,project,resources,run},
+                     commands/{connection,containers,engines,logs,project,registries,resources,run},
                      views/{chrome,containers,compose_rows,detail,logs,stats,services,inspect,images,
-                     resources,dialogs,run_dialog,image_dialogs,engines,widgets}
+                     resources,dialogs,run_dialog,image_dialogs,engines,registries,widgets}
 crates/engine/       ferrumdock-engine, no UI: Engine trait (engine.rs) + bollard impl (docker.rs, convert.rs),
                      FakeEngine (fake.rs), socket detection (endpoint.rs), Docker contexts (context.rs),
                      formatting (format.rs), stats maths + history (stats.rs), log buffer, search, export,
@@ -131,7 +131,8 @@ crates/engine/       ferrumdock-engine, no UI: Engine trait (engine.rs) + bollar
                      pull references/progress (pull.rs), compose grouping + `docker compose` (compose.rs),
                      `compose ps` (compose_ps.rs), project folders + compose files (project.rs),
                      run form + create body (create.rs), docker CLI lookup (cli.rs), open-shell plans and
-                     shell choice (shell.rs), UI policies incl. run and tag (ops.rs), raw `/system/df` GET (rawhttp.rs)
+                     shell choice (shell.rs), UI policies incl. run and tag (ops.rs), raw `/system/df` GET and `/auth` POST (rawhttp.rs),
+                     registry keys + config.json (registry.rs), credential helpers / keychain (credentials.rs)
 ```
 
 Engine access goes through the `Engine` trait (`SharedEngine = Arc<dyn Engine>`), so the
@@ -144,4 +145,6 @@ fails on some engines, so volume sizes come from a small HTTP/1.0 GET in `rawhtt
 ## Local data
 FerrumContainers's own settings are not stored yet. Opening a project adds it to the shared Ferrum
 recent-projects list, `~/.ferrum/projects.json` (written by `ferrum-ui`'s project bar, like the
-other apps). "Save…" in the log view writes only where you choose.
+other apps). "Save…" in the log view writes only where you choose. Registry sign-in stores
+credentials in the Docker credential helper or the OS keychain (never in a file), and Sign out
+may remove that registry's entry from `auths` in `~/.docker/config.json` (as `docker logout` does).

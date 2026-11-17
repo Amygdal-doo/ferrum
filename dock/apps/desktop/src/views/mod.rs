@@ -10,6 +10,7 @@ pub mod image_dialogs;
 pub mod images;
 pub mod inspect;
 pub mod logs;
+pub mod registries;
 pub mod resources;
 pub mod run_dialog;
 pub mod services;

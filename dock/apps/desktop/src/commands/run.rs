@@ -77,7 +77,8 @@ impl FerrumContainers {
         };
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<PullProgress>();
         let producer = self.services.spawn(async move {
-            ops::run_container(&engine, &spec, |p| {
+            let auth = ferrumdock_engine::credentials::for_reference(&spec.image).await;
+            ops::run_container(&engine, &spec, auth, |p| {
                 let _ = tx.send(p.clone());
             })
             .await

@@ -9,6 +9,7 @@ use crate::model::{
     EngineInfo, Image, ImageLayer, Labels, LogChunk, LogOptions, Network, PruneReport, PullEvent,
     Stats, Volume,
 };
+use crate::registry::{AuthOutcome, RegistryAuth};
 use async_trait::async_trait;
 use futures::StreamExt;
 use std::collections::HashMap;
@@ -27,8 +28,21 @@ pub struct FakeState {
     /// Options of every `logs` call, in order.
     pub log_requests: Vec<(String, LogOptions)>,
     pub pull_events: Vec<PullEvent>,
+    /// Accounts the fake's registries accept: store key → (username, secret).
+    pub registry_accounts: HashMap<String, (String, String)>,
+    /// Repositories (`ghcr.io/org/app`) that refuse anonymous pulls.
+    pub private_repos: Vec<String>,
     /// Every mutating call, e.g. `remove container web force=true`.
     pub calls: Vec<String>,
+}
+
+impl FakeState {
+    /// Whether a registry account matches `auth`.
+    fn accepts(&self, auth: &RegistryAuth) -> bool {
+        self.registry_accounts
+            .get(&auth.server)
+            .is_some_and(|(user, secret)| *user == auth.username && *secret == auth.secret)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -284,9 +298,22 @@ impl Engine for FakeEngine {
         Ok(self.guard()?.images.clone())
     }
 
-    fn pull(&self, reference: &str) -> EngineStream<PullEvent> {
+    fn pull(&self, reference: &str, auth: Option<RegistryAuth>) -> EngineStream<PullEvent> {
         let mut s = self.state();
-        s.calls.push(format!("pull {reference}"));
+        s.calls.push(match &auth {
+            Some(a) => format!("pull {reference} as {}@{}", a.username, a.server),
+            None => format!("pull {reference}"),
+        });
+        let repo = crate::pull::split_reference(reference).map_or_else(String::new, |(r, _)| r);
+        if s.private_repos.contains(&repo) && !auth.as_ref().is_some_and(|a| s.accepts(a)) {
+            let error = EngineError::Api {
+                status: 404,
+                message: format!(
+                    "pull access denied for {repo}, repository does not exist or may require 'docker login'"
+                ),
+            };
+            return futures::stream::once(async move { Err(error) }).boxed();
+        }
         let events = s.pull_events.clone();
         let tag = with_tag(reference);
         if events.iter().all(|e| e.error.is_none())
@@ -302,6 +329,26 @@ impl Engine for FakeEngine {
             });
         }
         futures::stream::iter(events.into_iter().map(Ok)).boxed()
+    }
+
+    async fn check_auth(&self, auth: &RegistryAuth) -> EngineResult<AuthOutcome> {
+        let mut s = self.guard()?;
+        s.calls
+            .push(format!("auth {} {}", auth.server, auth.username));
+        if s.accepts(auth) {
+            Ok(AuthOutcome {
+                status: "Login Succeeded".into(),
+                identity_token: None,
+            })
+        } else {
+            Err(EngineError::Api {
+                status: 401,
+                message: format!(
+                    "login attempt to {} failed with status: 401 Unauthorized",
+                    auth.server
+                ),
+            })
+        }
     }
 
     async fn remove_image(&self, id: &str) -> EngineResult<()> {

@@ -6,6 +6,7 @@ pub mod containers;
 pub mod engines;
 pub mod logs;
 pub mod project;
+pub mod registries;
 pub mod resources;
 pub mod run;
 pub mod vm;

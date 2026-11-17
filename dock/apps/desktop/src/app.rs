@@ -39,6 +39,37 @@ pub struct Inputs {
     pub run: RunInputs,
     /// New reference in the tag dialog.
     pub tag: Entity<TextInput>,
+    pub registry: RegistryInputs,
+}
+
+/// The registry sign-in form.
+pub struct RegistryInputs {
+    pub server: Entity<TextInput>,
+    pub username: Entity<TextInput>,
+    /// Masked; cleared after every attempt.
+    pub secret: Entity<TextInput>,
+}
+
+impl RegistryInputs {
+    fn new(window: &mut Window, cx: &mut Context<FerrumContainers>) -> Self {
+        let server = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("registry.example.com:5000")
+                .monospace()
+                .with_text("docker.io")
+        });
+        let username = cx.new(|cx| TextInput::new(window, cx).placeholder("username"));
+        let secret = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("password or token")
+                .masked(true)
+        });
+        Self {
+            server,
+            username,
+            secret,
+        }
+    }
 }
 
 /// The run dialog's text fields.
@@ -136,6 +167,7 @@ impl FerrumContainers {
                 .monospace()
         });
         let run = RunInputs::new(window, cx);
+        let registry = RegistryInputs::new(window, cx);
         let project_bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx).inline(true));
         let subscriptions = vec![
             cx.subscribe(&filter, |app: &mut Self, input, event, cx| {
@@ -160,6 +192,11 @@ impl FerrumContainers {
                     app.submit_tag(cx);
                 }
             }),
+            cx.subscribe(&registry.secret, |app: &mut Self, _, event, cx| {
+                if *event == TextInputEvent::Submit {
+                    app.sign_in(cx);
+                }
+            }),
             cx.subscribe(&run.image, |app: &mut Self, _, event, cx| {
                 if *event == TextInputEvent::Submit {
                     app.submit_run(cx);
@@ -180,6 +217,7 @@ impl FerrumContainers {
                 pull,
                 run,
                 tag,
+                registry,
             },
             project_bar,
             log_scroll: UniformListScrollHandle::new(),
