@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use ferrum_ui::gpui::{KeyBinding, Point};
 use ferrum_ui::prelude::*;
+use ferrumsystem_core::history::History;
 use ferrumsystem_core::runtime::{Container, Pod};
 use ferrumsystem_core::{EdgeStyle, Provider, Side, System, demos, store};
 
@@ -21,6 +22,10 @@ actions!(
         ZoomFit,
         Escape,
         DeleteSelected,
+        /// Undo the last edit of the diagram.
+        Undo,
+        /// Redo the edit last undone.
+        Redo,
         /// Show or hide the left sidebar.
         ToggleSidebar,
         /// Show or hide the right panel (overview, APIs, data, …).
@@ -49,6 +54,8 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-0", ZoomFit, context),
         KeyBinding::new("escape", Escape, context),
         KeyBinding::new("backspace", DeleteSelected, context),
+        KeyBinding::new("cmd-z", Undo, context),
+        KeyBinding::new("cmd-shift-z", Redo, context),
         KeyBinding::new("cmd-b", ToggleSidebar, context),
         KeyBinding::new("alt-cmd-b", TogglePanel, context),
         KeyBinding::new("cmd-n", NewDiagram, context),
@@ -150,6 +157,10 @@ pub struct Live {
     pub containers: Option<Result<Vec<Container>, String>>,
 }
 
+/// A state to undo to: the system and, for a project, its `system.json`
+/// text then (put back as it was when nothing else changed the file).
+pub(crate) type Snapshot = (System, Option<String>);
+
 pub struct FerrumSystem {
     pub(crate) project_bar: Entity<ProjectBar>,
     pub(crate) project: Option<PathBuf>,
@@ -157,6 +168,8 @@ pub struct FerrumSystem {
     pub(crate) project_has_system: bool,
     pub(crate) source: Source,
     pub(crate) system: System,
+    /// The edits of the system shown, to undo (cleared when another is shown).
+    pub(crate) history: History<Snapshot>,
     pub(crate) demos: Vec<System>,
     pub(crate) prefs: UiPrefs,
     prefs_file: Option<PathBuf>,
@@ -225,6 +238,7 @@ impl FerrumSystem {
             project_has_system: false,
             source: Source::Empty,
             system: System::default(),
+            history: History::default(),
             demos: demos::all(),
             prefs,
             prefs_file: options.prefs_file,
@@ -401,6 +415,7 @@ impl FerrumSystem {
     fn show(&mut self, source: Source, system: System, cx: &mut Context<Self>) {
         self.source = source;
         self.system = system;
+        self.history.clear();
         self.selected = None;
         self.walk = None;
         self.connecting = None;
@@ -440,16 +455,78 @@ impl FerrumSystem {
         }
     }
 
-    /// Applies an edit and saves it (demos change only in memory; with
-    /// nothing shown there is nothing to edit).
+    /// Applies an edit, saves it and lets it be undone (demos change only
+    /// in memory; with nothing shown there is nothing to edit). An edit
+    /// that changes nothing writes nothing.
     pub fn edit(&mut self, cx: &mut Context<Self>, f: impl FnOnce(&mut System)) {
+        self.edit_grouped(None, cx, f);
+    }
+
+    /// [`Self::edit`], where edits of one `group` in a row (typing into a
+    /// field) undo as one.
+    pub fn edit_grouped(
+        &mut self,
+        group: Option<&str>,
+        cx: &mut Context<Self>,
+        f: impl FnOnce(&mut System),
+    ) {
         if self.is_empty() {
             return;
         }
+        let before = self.system.clone();
         f(&mut self.system);
+        if self.system == before {
+            return;
+        }
+        let text = self.file_text();
+        self.history.record((before, text), group);
+        self.persist(None, cx);
+    }
+
+    /// The project's `system.json` as it is now (`None` for a demo).
+    fn file_text(&self) -> Option<String> {
+        match &self.source {
+            Source::Project(path) => store::read_text(path),
+            Source::Demo(_) | Source::Empty => None,
+        }
+    }
+
+    /// Undoes the last edit (`redo` false) or redoes the one undone last.
+    pub fn undo(&mut self, redo: bool, cx: &mut Context<Self>) {
+        let current = (self.system.clone(), self.file_text());
+        let restored = if redo {
+            self.history.redo(current)
+        } else {
+            self.history.undo(current)
+        };
+        let Some((system, text)) = restored else {
+            return;
+        };
+        self.system = system;
+        // The Component tab's fields show the restored text.
+        self.fields = None;
+        if let Some(id) = &self.selected
+            && self.system.node(id).is_none()
+        {
+            self.select(None, cx);
+        }
+        self.edge_menu = None;
+        self.persist(text, cx);
+    }
+
+    /// Saves the system shown: into the project's `system.json` (keeping
+    /// its formatting; `text`, the file as it was, when it says just that),
+    /// or into the demo in memory.
+    fn persist(&mut self, text: Option<String>, cx: &mut Context<Self>) {
         match &self.source {
             Source::Project(path) => {
-                if let Err(e) = store::save(path, &self.system) {
+                let same =
+                    |t: &String| serde_json::from_str::<System>(t).is_ok_and(|s| s == self.system);
+                let result = match text.filter(same) {
+                    Some(text) => store::restore_text(path, &text),
+                    None => store::save_edit(path, &self.system),
+                };
+                if let Err(e) = result {
                     self.say(Notice::error(e.to_string()), cx);
                 }
             }
@@ -480,6 +557,7 @@ impl FerrumSystem {
     }
 
     pub fn select(&mut self, id: Option<String>, cx: &mut Context<Self>) {
+        self.history.seal();
         self.selected = id;
         self.fields = None;
         if self.selected.is_some() {

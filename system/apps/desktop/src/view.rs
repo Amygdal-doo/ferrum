@@ -8,8 +8,8 @@ use ferrum_ui::settings::widgets::Segmented;
 use ferrumsystem_core::{EdgeStyle, Provider};
 
 use crate::app::{
-    DeleteSelected, Escape, FerrumSystem, KEY_CONTEXT, NewDiagram, OpenDemo, OpenProject,
-    TogglePanel, ToggleSidebar, ZoomFit, ZoomIn, ZoomOut,
+    DeleteSelected, Escape, FerrumSystem, KEY_CONTEXT, NewDiagram, OpenDemo, OpenProject, Redo,
+    TogglePanel, ToggleSidebar, Undo, ZoomFit, ZoomIn, ZoomOut,
 };
 
 const PANEL_W: f32 = 430.;
@@ -211,6 +211,20 @@ impl FerrumSystem {
             )
             .child(cloud)
             .child(div().flex_1())
+            .child(
+                IconButton::new("undo", IconName::Undo)
+                    .icon_size(IconSize::Small)
+                    .disabled(!self.history.can_undo())
+                    .tooltip(Tooltip::text("Undo (⌘Z)"))
+                    .on_click(cx.listener(|this, _, _, cx| this.undo(false, cx))),
+            )
+            .child(
+                IconButton::new("redo", IconName::RotateCw)
+                    .icon_size(IconSize::Small)
+                    .disabled(!self.history.can_redo())
+                    .tooltip(Tooltip::text("Redo (⇧⌘Z)"))
+                    .on_click(cx.listener(|this, _, _, cx| this.undo(true, cx))),
+            )
             .when(connecting, |row| {
                 row.child(
                     Button::new("edge-style", style.label())
@@ -329,6 +343,8 @@ impl Render for FerrumSystem {
                 cx.listener(|this, _: &OpenProject, window, cx| this.open_folder(window, cx)),
             )
             .on_action(cx.listener(|this, a: &OpenDemo, _, cx| this.show_demo(a.index, cx)))
+            .on_action(cx.listener(|this, _: &Undo, _, cx| this.undo(false, cx)))
+            .on_action(cx.listener(|this, _: &Redo, _, cx| this.undo(true, cx)))
             .on_action(cx.listener(|this, _: &DeleteSelected, _, cx| {
                 if this.dialog.is_none() && this.fields.is_none() {
                     this.delete_selected(cx)

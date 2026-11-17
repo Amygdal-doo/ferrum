@@ -104,39 +104,52 @@ impl FerrumSystem {
         let item = make("", "Add an item inside, then Enter", 1, window, cx);
         let id = node.id.clone();
         let mut subs = Vec::new();
-        let field = |f: fn(&mut Node, String)| {
+        // Typing into one field undoes as one edit.
+        let field = |name: &str, f: fn(&mut Node, String)| {
             let id = id.clone();
+            let group = format!("{id}:{name}");
             move |this: &mut Self,
                   input: Entity<TextInput>,
                   event: &TextInputEvent,
                   cx: &mut Context<Self>| {
                 if *event == TextInputEvent::Changed {
                     let text = input.read(cx).text().to_owned();
-                    this.edit_node(&id, cx, |n| f(n, text));
+                    let id = id.clone();
+                    this.edit_grouped(Some(&group), cx, |s| {
+                        if let Some(n) = s.nodes.iter_mut().find(|n| n.id == id) {
+                            f(n, text);
+                        }
+                    });
                 }
             }
         };
         let opt = |t: String| Some(t).filter(|t| !t.trim().is_empty());
         subs.push(cx.subscribe(
             &name,
-            field(|n, t| {
+            field("name", |n, t| {
                 if !t.trim().is_empty() {
                     n.name = t;
                 }
             }),
         ));
-        subs.push(cx.subscribe(&description, field(|n, t| n.description = t)));
+        subs.push(cx.subscribe(&description, field("description", |n, t| n.description = t)));
         subs.push(cx.subscribe(
             &above,
-            field(move |n, t| n.style.above = Some(t).filter(|t| !t.trim().is_empty())),
+            field("above", move |n, t| {
+                n.style.above = Some(t).filter(|t| !t.trim().is_empty())
+            }),
         ));
         subs.push(cx.subscribe(
             &below,
-            field(move |n, t| n.style.below = Some(t).filter(|t| !t.trim().is_empty())),
+            field("below", move |n, t| {
+                n.style.below = Some(t).filter(|t| !t.trim().is_empty())
+            }),
         ));
         subs.push(cx.subscribe(
             &body,
-            field(move |n, t| n.style.body = Some(t).filter(|t| !t.trim().is_empty())),
+            field("body", move |n, t| {
+                n.style.body = Some(t).filter(|t| !t.trim().is_empty())
+            }),
         ));
         let _ = opt;
         let item_id = id.clone();

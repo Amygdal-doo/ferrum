@@ -40,6 +40,18 @@ banking, Atlas Knowledge — RAG assistant, Swift Courier — delivery tracking)
 in memory; *Start from this demo* (sidebar, when the project has no diagram) saves it as the
 project's diagram.
 
+## Editing
+Everything is edited with the mouse: **Add** (toolbar or the Add tab), drag a card to another
+place or layer, drag from a card's side handle onto another card to connect them (or
+**Connect**, then click two cards), and the **Component** tab for the name, description,
+look, deployment and connections. ⌫ or *Delete component* removes one.
+
+Each edit is saved into `.architecture/system.json` at once, rewriting only the values that
+changed: the file's indentation, key order and any fields FerrumSystem does not know stay as
+they were. Opening a project writes nothing. ⌘Z / ⇧⌘Z (Edit › Undo / Redo, or the toolbar's
+arrows) undo and redo the edits; typing in one field undoes as one step, and undo puts the file
+back exactly as it was.
+
 ## Preferences
 `~/.ferrum/ferrumsystem/ui.json` (`$FERRUM_HOME` overrides `~/.ferrum`):
 
@@ -58,6 +70,7 @@ file to see the demo open by itself again.
 | ⌘B / ⌥⌘B | Toggle sidebar / right panel |
 | ⌘= / ⌘- / ⌘0 | Zoom in / out / fit |
 | ⌫ | Delete the selected component |
+| ⌘Z / ⇧⌘Z | Undo / redo an edit of the diagram |
 | Esc | Cancel connect / close dialog / clear selection |
 
 ## Commands
