@@ -84,6 +84,9 @@ pub struct GitView {
     /// Model for AI drafts this session (`provider/model`); `None` = the
     /// agent's default model.
     pub(crate) ai_model: Option<String>,
+    /// A host's markers above the history, under their section title (see
+    /// [`GitView::set_history_markers`]).
+    pub(crate) markers: Option<(gpui::SharedString, Vec<crate::embed::HistoryMarker>)>,
     focus_handle: FocusHandle,
     _poll: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -260,6 +263,7 @@ impl GitView {
             review_draft: None,
             review_subscription: None,
             ai_model: None,
+            markers: None,
             focus_handle: cx.focus_handle(),
             _poll: Self::start_polling(cx),
             _subscriptions: subscriptions,

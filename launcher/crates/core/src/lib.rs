@@ -6,6 +6,7 @@
 //! drives these APIs from a tokio runtime.
 
 pub mod auth;
+pub mod auto_update;
 pub mod catalog;
 pub mod github;
 pub mod install;
@@ -17,6 +18,7 @@ pub mod self_update;
 pub mod shared_prefs;
 pub mod shell;
 pub mod store;
+pub mod synced;
 pub mod uninstall;
 pub mod usage;
 
@@ -26,6 +28,7 @@ pub use github::{DownloadProgress, GitHubClient};
 pub use platform::Platform;
 pub use release::{Asset, Channel, ReleaseInfo, UpdateChannel, current_target};
 pub use store::{AppPrefs, InstalledVersion, Paths, Settings, State};
+pub use synced::SyncedSettings;
 
 #[derive(Debug, thiserror::Error)]
 pub enum LauncherError {

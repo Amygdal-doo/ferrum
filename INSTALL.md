@@ -268,9 +268,12 @@ Zed, so no other repository access is needed. See
     of the App Store Connect `.p8`), `NOTARY_API_KEY_ID` and
     `NOTARY_API_ISSUER`. The release workflow signs and notarizes when they
     exist.
-- **Self-update** needs write access to the folder the launcher is in (an
-  admin user's `/Applications` is fine). Otherwise the button opens the
-  release page instead.
+- **Self-update** on macOS needs write access to the folder the launcher is
+  in (an admin user's `/Applications` is fine). On Windows and Linux a
+  launcher installed with the setup.exe or the `.deb` downloads and opens the
+  new installer (untested on real Windows and Linux machines, see
+  [launcher/README.md](launcher/README.md#windows-and-linux-what-is-and-isnt-verified)).
+  Otherwise the button opens the release page instead.
 - **Windows:** the builds have only been compiled in CI, not tested by hand
   yet. FerrumTerm has no Windows build. Executables carry no embedded icon; the
   shortcuts use `<app>.ico`. SmartScreen warns because nothing is signed.

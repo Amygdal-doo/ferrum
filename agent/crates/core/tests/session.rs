@@ -106,6 +106,23 @@ fn agent_reads_edits_with_permission_and_checkpoints_restore() {
         "ONE\ntwo\n"
     );
 
+    // The same by checkpoint (as a host's history markers do).
+    let checkpoints = session.checkpoints();
+    assert_eq!(checkpoints.len(), 1);
+    assert_eq!(checkpoints[0].label, "Fix @a.txt please");
+    assert_eq!(checkpoints[0].files, [Path::new("a.txt").to_path_buf()]);
+    session
+        .restore_to_checkpoint(checkpoints[0].id)
+        .expect("restore by checkpoint");
+    assert_eq!(
+        std::fs::read_to_string(root.join("a.txt")).expect("read"),
+        "one\ntwo\n"
+    );
+    assert!(session.checkpoints().is_empty());
+    assert!(session.restore_to_checkpoint(checkpoints[0].id).is_err());
+    session.undo_restore().expect("undo");
+    assert_eq!(session.checkpoints(), checkpoints);
+
     // Persisted, and reopened from the list.
     let threads = session.threads();
     assert_eq!(threads.len(), 1);

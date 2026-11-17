@@ -1,5 +1,6 @@
 pub mod detail;
 pub mod logo;
+pub mod notes;
 pub mod onboarding;
 pub mod overview;
 pub mod uninstall;

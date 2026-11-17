@@ -323,8 +323,13 @@ On every start (each step is a no-op once done):
   catalog, the **Stable | Beta | Alpha** update channel, the **Launch**,
   **Install / Update to vX** and **Uninstall** buttons, then a list of every
   version with its channel, date, size, downloads and an active/installed
-  marker, and **Install**, **Activate** or **Remove** buttons. Click a row to
-  see that release's notes.
+  marker, and **Install**, **Activate** or **Remove** buttons. The release
+  notes beside it show the latest release and the installed version (one
+  block when they are the same), rendered as Markdown with
+  `ferrum_ui::markdown` (FerrumChat's renderer); the installed version's notes
+  come from its GitHub release while it is listed, else from the copy saved at
+  install time. Click a row to see only that release's notes, again to go
+  back.
 - **Uninstall** (the app page's red button, or **Uninstall…** in a row's
   right-click menu on the overview and in the menu bar panel) asks first, then
   removes every installed version, the `~/Applications/Ferrum` copy (or the
@@ -336,6 +341,20 @@ On every start (each step is a no-op once done):
   download at once.
 - **Check for updates** runs on startup and then every *N* hours (Settings).
   A notice appears when new versions are found.
+- **Download updates in the background** (Settings › Launcher, off by
+  default): after each check, every app update is downloaded and installed
+  beside the active version (checksum verified like any install) and
+  *staged* (`AppState::staged` in `state.json`, kept by pruning). An app that
+  isn't running switches to it at once; a running one keeps its version and
+  shows **Restart to update** on its row and page, which asks first, then asks
+  the app to quit (Apple Events on macOS, `SIGTERM` on Linux, `taskkill`
+  without `/F` on Windows, so it can still ask about unsaved work), waits up to
+  30 s, switches and reopens it. Staged apps found not running when the window
+  becomes active or after a check switch then. Running is read from the
+  process list by the main executable's name (`ps`, `tasklist`;
+  `ferrumlauncher_core::auto_update`). The launcher's own update keeps its
+  **Update Launcher** button. FerrumTerm's `fterm` server is not counted as
+  running FerrumTerm.
 - **Activating** a version points `~/.ferrum/bin/<binary>` at it (for
   FerrumTerm, `fterm` too). On macOS it also publishes the version's bundle
   as `~/Applications/Ferrum/<App>.app`, an APFS clone rather than a
@@ -421,6 +440,22 @@ holds `.cmd` launchers instead of symlinks, and the active version gets a
 Start Menu shortcut under **Ferrum**. `state.json` is written atomically
 (temp file + rename).
 
+### Settings that would sync
+
+The Ferrum account has no settings API yet, so nothing is synced. The
+settings that should follow the user to another machine are already one
+document, `SyncedSettings` (`crates/core/src/synced.rs`, `format: 1`):
+the release repository, check interval, versions to keep, background
+updates, the menu bar icon, usage counts and each app's update channel.
+`State::synced_settings` reads it and `State::apply_synced_settings`
+adopts one (each valid field present replaces the local value; a newer
+`format` is refused). Everything else stays on the machine: installed and
+active versions, staged updates, global shortcuts, the apps already
+announced, migration markers, the usage install id, and the shell commands
+and Dock icons, which live in `~/.ferrum/preferences.json` with every
+Ferrum app. A sync only needs to store this document per account and call
+those two functions; `state.json`'s format is unchanged.
+
 ## Install safety
 
 - When a release has a `.sha256` file, the download is checked against it,
@@ -449,8 +484,33 @@ Start Menu shortcut under **Ferrum**. `state.json` is written atomically
   macOS `.app` in a folder the user can write to (an admin's
   `/Applications`, or `~/Applications`). A detached script waits for the
   launcher to quit, swaps the bundle (rolling back if the move fails) and
-  reopens it. Elsewhere the button opens the release page instead.
+  reopens it. On Windows and Linux a launcher installed by its installer
+  (`%LOCALAPPDATA%\Programs\Ferrum\…` from the setup.exe, `/opt/ferrum/launcher`
+  from the `.deb`) downloads the new release's
+  `FerrumLauncher-<v>-x86_64-setup.exe` or `ferrum-launcher_<v>_amd64.deb`
+  (checked against its `.sha256`) and opens it: the setup wizard, after which
+  the launcher quits so Inno Setup can replace it, or the desktop's package
+  installer (`xdg-open`). Anything else (an archive, `cargo run`, a release
+  without that installer) opens the release page.
 - Windows builds are compiled in CI but haven't been tested by hand;
   FerrumTerm has no Windows build (Unix sockets). Start Menu shortcuts are
   created through PowerShell; if that fails the install still succeeds and
   the launcher logs a warning.
+
+### Windows and Linux: what is and isn't verified
+
+| Path | Windows (x86_64) | Linux (x86_64) | Verified by |
+| --- | --- | --- | --- |
+| App installs and updates | the `.zip` (`.exe` files at the root), `.cmd` shims, Start Menu shortcut | the `.tar.gz`, symlinks, `.desktop` entry and icon | unit tests on macOS with `Platform::Windows` / `Platform::Linux` paths (asset choice, zip and tar unpacking, shims, entries) |
+| Checksums | `.sha256` beside each asset | same | unit tests |
+| Is the app running? Quit it ("Restart to update") | `tasklist`, `taskkill` (no `/F`) | `ps`, `SIGTERM` | output parsing unit-tested; the commands were only run on macOS |
+| Launcher self-update | runs the Inno Setup `setup.exe` (per user, `CloseApplications=yes`), then quits | opens the `.deb` with `xdg-open` | installer naming and install-location rules unit-tested |
+
+**Not tested on a real Windows or Linux machine**, by hand or in CI: the
+launcher has only been run on macOS. In particular untested: the setup.exe
+replacing a running launcher, `xdg-open` handing a `.deb` to a package
+installer (desktops without one just fail to open it, and the notice says
+so), and `taskkill`/`SIGTERM` letting an app ask about unsaved work. The
+`.deb` and setup.exe are only used for the launcher itself; other apps are
+installed from their archives. No AppImage or MSI is published, so neither is
+supported.

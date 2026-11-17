@@ -1,6 +1,7 @@
-//! The thread list (replaces the chat column while open), in sections by
-//! status: Needs you, Done, Working, Idle. Each row: the agent's logo,
-//! title, project and agent, time since its last change and a status mark.
+//! The thread list (replaces the chat column while open): New thread on
+//! top, then the threads in sections by status: Needs you, Done, Working,
+//! Idle. Each row: the agent's logo, title (renamed in place), project and
+//! agent, time since its last change, a status mark, Rename and Delete.
 
 use std::time::Duration;
 
@@ -109,29 +110,41 @@ impl ChatView {
         } else {
             thread.title.clone()
         };
-        let (id, delete_id) = (thread.id.clone(), thread.id.clone());
+        let (id, delete_id, rename_id) = (thread.id.clone(), thread.id.clone(), thread.id.clone());
         let key = gpui::ElementId::Name(format!("chat-thread-{}", thread.id).into());
         let delete_key = gpui::ElementId::Name(format!("chat-thread-delete-{}", thread.id).into());
+        let rename_key = gpui::ElementId::Name(format!("chat-thread-rename-{}", thread.id).into());
+        let title_field = self
+            .renaming_row
+            .as_ref()
+            .filter(|(renamed, _, _)| *renamed == thread.id)
+            .map(|(_, input, _)| input.clone());
+        let title = match title_field {
+            Some(input) => div()
+                .px_1()
+                .rounded(px(4.))
+                .border_1()
+                .border_color(cx.theme().colors().border_focused)
+                .child(input)
+                .into_any_element(),
+            None => Label::new(title)
+                .size(LabelSize::Small)
+                .single_line()
+                .truncate()
+                .into_any_element(),
+        };
         ListItem::new(key)
             .rounded()
             .toggle_state(current)
             .start_slot(thread_logo(&thread.agent, px(16.), cx))
             .child(
-                v_flex()
-                    .min_w_0()
-                    .child(
-                        Label::new(title)
-                            .size(LabelSize::Small)
-                            .single_line()
-                            .truncate(),
-                    )
-                    .child(
-                        Label::new(subtitle)
-                            .size(LabelSize::XSmall)
-                            .color(Color::Muted)
-                            .single_line()
-                            .truncate(),
-                    ),
+                v_flex().min_w_0().child(title).child(
+                    Label::new(subtitle)
+                        .size(LabelSize::XSmall)
+                        .color(Color::Muted)
+                        .single_line()
+                        .truncate(),
+                ),
             )
             .end_slot(
                 h_flex()
@@ -139,6 +152,14 @@ impl ChatView {
                     .gap_1()
                     .child(Label::new(ago).size(LabelSize::XSmall).color(Color::Muted))
                     .child(status_indicator(entry, cx))
+                    .child(
+                        IconButton::new(rename_key, IconName::Pencil)
+                            .icon_size(IconSize::XSmall)
+                            .tooltip(Tooltip::text("Rename thread"))
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.start_row_rename(&rename_id, window, cx);
+                            })),
+                    )
                     .child(
                         IconButton::new(delete_key, IconName::Trash)
                             .icon_size(IconSize::XSmall)
@@ -149,6 +170,10 @@ impl ChatView {
                     ),
             )
             .on_click(cx.listener(move |this, _, window, cx| {
+                // A click into the row's title field is not a switch.
+                if this.renaming_row.as_ref().is_some_and(|(r, _, _)| *r == id) {
+                    return;
+                }
                 this.switch_to(Target::Open(id.clone()), cx);
                 this.show_threads = false;
                 this.refocus(window, cx);
@@ -176,7 +201,19 @@ impl ChatView {
             .min_h_0()
             .overflow_y_scroll()
             .p_1()
-            .gap_0p5();
+            .gap_0p5()
+            .child(
+                h_flex().px_1().pt_1().pb_0p5().child(
+                    Button::new("chat-thread-list-new", "New thread")
+                        .style(ButtonStyle::Subtle)
+                        .size(ButtonSize::Compact)
+                        .start_icon(Icon::new(IconName::Plus).size(IconSize::Small))
+                        .tooltip(Tooltip::text("New thread (⌘⌥N)"))
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.new_thread(&crate::actions::NewThread, window, cx)
+                        })),
+                ),
+            );
         if threads.is_empty() {
             list = list.child(
                 div().p_4().child(

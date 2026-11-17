@@ -3,8 +3,9 @@
 //! the thread commands of the header's ⋯ menu (rename, delete, copy).
 
 use ferrum_ui::{Notice, TextInput, TextInputEvent};
+use ferrumagent_core::changeset::{CheckpointId, CheckpointInfo};
 use ferrumagent_core::modes::Mode;
-use ferrumagent_core::session::McpServerStatus;
+use ferrumagent_core::session::{ChatSession, McpServerStatus};
 use gpui::{AppContext as _, ClipboardItem, Context, Window};
 
 use crate::live::Target;
@@ -89,6 +90,61 @@ impl ChatView {
         self.open_settings(window, cx);
     }
 
+    /// Shows or hides the project's thread list in place of the
+    /// conversation (also in a shell host: New, switch, rename, delete;
+    /// the header's toggle and ⌥⌘J do the same).
+    pub fn toggle_thread_list(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.toggle_threads(&crate::actions::ToggleThreads, window, cx);
+    }
+
+    pub fn is_thread_list_open(&self) -> bool {
+        self.show_threads
+    }
+
+    /// Shows or hides the review of everything the agent changed since the
+    /// session started (accept or reject each hunk, file, or all), rescanning
+    /// the disk when it opens.
+    pub fn toggle_review(&mut self, cx: &mut Context<Self>) {
+        self.show_changes = !self.show_changes;
+        if self.show_changes {
+            self.show_threads = false;
+            self.refresh_changes(cx);
+        }
+        cx.notify();
+    }
+
+    pub fn is_review_open(&self) -> bool {
+        self.show_changes
+    }
+
+    /// Stops every running turn of this chat (the shown thread's and those
+    /// running in the background), e.g. before its folder goes away.
+    pub fn stop_all(&mut self, cx: &mut Context<Self>) {
+        if let Some(session) = &self.session {
+            session.cancel();
+        }
+        for background in &self.background {
+            background.session.cancel();
+        }
+        cx.notify();
+    }
+
+    /// The session's turn checkpoints, oldest first (each turn of any of
+    /// the project's threads starts one; `files` are those it wrote).
+    pub fn checkpoints(&self) -> Vec<CheckpointInfo> {
+        self.session
+            .as_ref()
+            .map(ChatSession::checkpoints)
+            .unwrap_or_default()
+    }
+
+    /// Puts the files back as they were before checkpoint `id`'s turn, off
+    /// the UI thread; the review then offers "Undo restore" until the next
+    /// turn. A running turn must be stopped first (a notice says so).
+    pub fn restore_to_checkpoint(&mut self, id: CheckpointId, cx: &mut Context<Self>) {
+        self.run_blocking(cx, move |s| s.restore_to_checkpoint(id).map(|_| ()));
+    }
+
     /// The MCP servers' state after the first turn connected them.
     pub fn mcp_status(&self) -> &[McpServerStatus] {
         &self.mcp_status
@@ -161,6 +217,64 @@ impl ChatView {
             match self.session.clone() {
                 Some(session) => match session.rename_thread(&self.thread.id, &title) {
                     Ok(()) => self.thread.title = title,
+                    Err(e) => self.show_notice(Notice::error(e), cx),
+                },
+                None => self.show_notice(Notice::error("The chat is still starting."), cx),
+            }
+        }
+        self.refocus(window, cx);
+        cx.notify();
+    }
+
+    /// Renames thread `id` from its row in the thread list.
+    pub(crate) fn start_row_rename(
+        &mut self,
+        id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(title) = self
+            .threads
+            .iter()
+            .find(|t| t.id == id)
+            .map(|t| t.title.clone())
+            .or_else(|| (self.thread.id == id).then(|| self.thread.title.clone()))
+        else {
+            return;
+        };
+        let input = cx.new(|cx| TextInput::new(window, cx).borderless().with_text(&title));
+        let subscription = cx.subscribe_in(&input, window, |this, _, event, window, cx| {
+            if matches!(event, TextInputEvent::Submit | TextInputEvent::Blurred) {
+                this.commit_row_rename(window, cx);
+            }
+        });
+        input.update(cx, |input, cx| {
+            input.select_range(0..title.len(), cx);
+            input.focus(window, cx);
+        });
+        self.renaming_row = Some((id.to_string(), input, subscription));
+        cx.notify();
+    }
+
+    pub(crate) fn commit_row_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some((id, input, _)) = self.renaming_row.take() else {
+            return;
+        };
+        let title = input.read(cx).text().trim().to_string();
+        let old = self
+            .threads
+            .iter()
+            .find(|t| t.id == id)
+            .map(|t| t.title.clone());
+        if !title.is_empty() && old.as_deref() != Some(title.as_str()) {
+            match self.session.clone() {
+                Some(session) => match session.rename_thread(&id, &title) {
+                    Ok(()) => {
+                        if self.thread.id == id {
+                            self.thread.title = title;
+                        }
+                        self.threads = session.threads();
+                    }
                     Err(e) => self.show_notice(Notice::error(e), cx),
                 },
                 None => self.show_notice(Notice::error("The chat is still starting."), cx),

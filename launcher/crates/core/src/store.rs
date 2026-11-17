@@ -215,6 +215,11 @@ pub struct Settings {
     /// Send the anonymous daily usage count (see [`crate::usage`]). On by
     /// default, including for state files written before it existed.
     pub share_usage_counts: bool,
+    /// Download app updates in the background after each check; each app
+    /// switches to its new version when it isn't running (see
+    /// [`State::staged_update`]). Off by default.
+    #[serde(default)]
+    pub auto_update: bool,
 }
 
 /// What the user chose for one app on its page.
@@ -272,6 +277,7 @@ impl Default for Settings {
             app_prefs: BTreeMap::new(),
             menu_bar: false,
             share_usage_counts: true,
+            auto_update: false,
         }
     }
 }
@@ -293,6 +299,10 @@ pub struct AppState {
     pub active: Option<Version>,
     /// Which releases updates follow.
     pub channel: UpdateChannel,
+    /// An update downloaded in the background, waiting for the app to quit
+    /// before it becomes active (see [`State::staged_update`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub staged: Option<Version>,
 }
 
 impl AppState {
@@ -684,6 +694,14 @@ impl State {
             )));
         }
         state.active = Some(version.clone());
+        // Activating the staged update (or anything newer) finishes it.
+        if state
+            .staged
+            .as_ref()
+            .is_some_and(|staged| staged <= version)
+        {
+            state.staged = None;
+        }
         link_active(paths, &info, version)
     }
 
@@ -865,6 +883,9 @@ impl State {
             std::fs::remove_dir_all(&dir)?;
         }
         state.installed.retain(|v| &v.version != version);
+        if state.staged.as_ref() == Some(version) {
+            state.staged = None;
+        }
         if is_active {
             state.active = None;
             unlink(paths, &info)?;
@@ -873,7 +894,7 @@ impl State {
     }
 
     /// Versions `prune` would delete: everything beyond the newest
-    /// `keep_versions`, never the active one.
+    /// `keep_versions`, never the active one nor a staged update.
     #[must_use]
     pub fn prune_candidates(&self, app: AppId) -> Vec<Version> {
         let keep = self.settings.keep_versions as usize;
@@ -890,6 +911,11 @@ impl State {
         {
             kept.pop();
             kept.push(active.clone());
+        }
+        if let Some(staged) = self.staged_update(app)
+            && !kept.contains(&staged)
+        {
+            kept.push(staged);
         }
         versions.into_iter().filter(|v| !kept.contains(v)).collect()
     }

@@ -15,6 +15,7 @@ pub mod dock;
 pub mod integrations;
 pub mod keymap;
 pub mod mac_notifications;
+pub mod markdown;
 pub mod menu;
 pub mod menus;
 mod modal;

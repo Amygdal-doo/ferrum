@@ -36,6 +36,9 @@ impl FerrumEngineer {
             }
             _ => {}
         }
+        if page == Page::Parallel {
+            self.refresh_leftovers(cx);
+        }
         if page != Page::Chat {
             self.refresh_index(cx);
             let project = self.project.clone();
@@ -98,6 +101,21 @@ impl FerrumEngineer {
         };
         self.history.visit(Location::Page(Page::Chat));
         self.chat_action(&project, ChatAction::StartTask(mode, prompt), window, cx);
+        self.focus_chat(window, cx);
+        cx.notify();
+    }
+
+    /// The chat's review of everything its agent changed since the session
+    /// started, per hunk (shown or hidden).
+    pub fn review_changes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(chat) = self.chat() else {
+            self.show_notice(Notice::error("Open a project folder first."), cx);
+            return;
+        };
+        if self.page() != Page::Chat {
+            self.show_page(Page::Chat, window, cx);
+        }
+        chat.update(cx, |chat, cx| chat.toggle_review(cx));
         self.focus_chat(window, cx);
         cx.notify();
     }

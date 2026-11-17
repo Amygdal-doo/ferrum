@@ -1,24 +1,27 @@
 //! The pane layout, without pixels: the Files pane on the far left (shown
-//! or not, its width in px), the chat (always shown) and the FerrumGIT and
-//! FerrumTerm panes beside it, which are shown, in what order and how wide.
-//! Saved per project in `~/.ferrum/vibe/layouts.json`.
+//! or not, its width in px), the chat (always shown, always first) and the
+//! FerrumGIT, FerrumTerm and Editor panes beside it, which are shown, in
+//! what order and how wide. Saved per project in
+//! `~/.ferrum/vibe/layouts.json`.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-/// One of the three columns.
+/// One of the columns.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Column {
     Chat,
     Git,
     Term,
+    /// Files opened from the chat, git or the Files pane.
+    Editor,
 }
 
 impl Column {
-    pub const ALL: [Column; 3] = [Column::Chat, Column::Git, Column::Term];
+    pub const ALL: [Column; 4] = [Column::Chat, Column::Git, Column::Term, Column::Editor];
 
     /// The pane's name (tooltips, the toggles).
     #[must_use]
@@ -27,6 +30,7 @@ impl Column {
             Column::Chat => "FerrumChat",
             Column::Git => "FerrumGIT",
             Column::Term => "FerrumTerm",
+            Column::Editor => "Editor",
         }
     }
 
@@ -37,6 +41,7 @@ impl Column {
             Column::Chat => "chat",
             Column::Git => "git",
             Column::Term => "term",
+            Column::Editor => "editor",
         }
     }
 
@@ -128,6 +133,10 @@ impl Default for Layout {
                     visible: false,
                     ..slot(Column::Term, 0.25)
                 },
+                Slot {
+                    visible: false,
+                    ..slot(Column::Editor, 0.35)
+                },
             ],
             files: FilesPane::default(),
         }
@@ -136,7 +145,8 @@ impl Default for Layout {
 
 impl Layout {
     /// Repairs a layout read from disk: drops duplicates, appends missing
-    /// columns, replaces unusable weights, puts the chat first and shown.
+    /// columns (the Editor hidden: layouts saved before it existed), replaces
+    /// unusable weights, puts the chat first and shown.
     #[must_use]
     pub fn normalized(mut self) -> Self {
         let mut seen = Vec::new();
@@ -149,7 +159,7 @@ impl Layout {
             if !seen.contains(&column) {
                 self.slots.push(Slot {
                     column,
-                    visible: true,
+                    visible: column != Column::Editor,
                     weight: 1.0 / 3.0,
                 });
             }
@@ -222,6 +232,36 @@ impl Layout {
             .filter(|s| s.visible)
             .map(|s| (s.column, s.weight / total.max(f32::EPSILON)))
             .collect()
+    }
+
+    /// Moves `column` one place left (`-1`) or right (`1`) among the shown
+    /// columns, past hidden ones; the chat stays first. Returns whether it
+    /// moved.
+    pub fn move_column(&mut self, column: Column, by: isize) -> bool {
+        if column == Column::Chat {
+            return false;
+        }
+        let visible = self.visible();
+        let Some(at) = visible.iter().position(|c| *c == column) else {
+            return false;
+        };
+        let Some(other) = at
+            .checked_add_signed(by)
+            .and_then(|to| visible.get(to))
+            .copied()
+            .filter(|c| *c != Column::Chat)
+        else {
+            return false;
+        };
+        let (a, b) = (self.index(column), self.index(other));
+        self.slots.swap(a, b);
+        true
+    }
+
+    /// Whether `column` can move `by` places (see [`Layout::move_column`]).
+    #[must_use]
+    pub fn can_move(&self, column: Column, by: isize) -> bool {
+        self.clone().move_column(column, by)
     }
 
     /// The shown column right of `column`.

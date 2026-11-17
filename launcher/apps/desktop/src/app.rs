@@ -58,6 +58,9 @@ pub struct FerrumLauncher {
     pub logos: HashMap<AppId, Arc<Image>>,
     /// The `.app` this process runs from; `None` for unbundled builds.
     pub running_bundle: Option<std::path::PathBuf>,
+    /// Installed by its Windows or Linux installer (updates through the
+    /// next one, see `installer_update`).
+    pub from_installer: bool,
     pub token_source: Option<TokenSource>,
     pub onboarding: Option<Entity<Onboarding>>,
     pub(crate) onboarding_subscription: Option<Subscription>,
@@ -70,6 +73,15 @@ pub struct FerrumLauncher {
     pub(crate) usage_loop: Task<()>,
     /// The open "Uninstall …?" confirmation.
     pub uninstall_dialog: Option<crate::components::uninstall::UninstallDialog>,
+    /// Installs started by "Download updates in the background": staged
+    /// when done instead of activated.
+    pub background_downloads: std::collections::HashSet<AppId>,
+    /// Apps "Restart to update" is waiting on to quit.
+    pub quitting: std::collections::HashSet<AppId>,
+    /// Staged updates the user was told about ("ready: Restart to update").
+    pub ready_told: std::collections::HashSet<(AppId, Version)>,
+    /// The open "Quit … to update?" confirmation.
+    pub restart_dialog: Option<AppId>,
     pub(crate) check_loop: Task<()>,
     progress_ticker: Option<Task<()>>,
     pub focus_handle: FocusHandle,
@@ -101,6 +113,7 @@ impl FerrumLauncher {
             self_update: None,
             logos: HashMap::new(),
             running_bundle: ferrumlauncher_core::self_update::running_bundle(),
+            from_installer: ferrumlauncher_core::self_update::running_from_installer(),
             token_source: None,
             onboarding: None,
             onboarding_subscription: None,
@@ -110,6 +123,10 @@ impl FerrumLauncher {
             usage_notice: false,
             usage_loop: Task::ready(()),
             uninstall_dialog: None,
+            background_downloads: Default::default(),
+            quitting: Default::default(),
+            ready_told: Default::default(),
+            restart_dialog: None,
             check_loop: Task::ready(()),
             progress_ticker: None,
             focus_handle: cx.focus_handle(),
@@ -133,6 +150,8 @@ impl FerrumLauncher {
         let activation = cx.observe_window_activation(window, |this, window, cx| {
             if window.is_window_active() {
                 this.reload_shared_prefs(cx);
+                // An app with a staged update may have quit meanwhile.
+                this.apply_staged_updates(cx);
             }
         });
         this.keep_subscription(activation);
@@ -227,7 +246,7 @@ impl FerrumLauncher {
             .state
             .update_for(AppId::LAUNCHER)
             .map(|release| (release.version.clone(), release.html_url.clone()));
-        let self_updatable = self.running_bundle.is_some();
+        let self_updatable = self.can_update_itself();
         ferrum_ui::title_row("title-row", true, window)
             .gap_1()
             .child(div().flex_none().w(px(8.)))
@@ -235,8 +254,9 @@ impl FerrumLauncher {
             // same as ⌘,.
             .child(ferrum_ui::settings_button("settings"))
             // A bundled launcher swaps itself for the new version and
-            // restarts; otherwise (cargo run, Windows, Linux) the release
-            // page has the installer.
+            // restarts, an installed one on Windows or Linux runs the new
+            // installer; otherwise (cargo run, an archive) the release page
+            // has the installer.
             .when_some(launcher_update, |this, (version, url)| {
                 let updating = self.self_update.is_some();
                 let button = Button::new(
@@ -384,6 +404,9 @@ impl Render for FerrumLauncher {
                     if this.uninstall_dialog.is_some() && event.keystroke.key == "escape" {
                         this.close_uninstall_dialog(cx);
                     }
+                    if this.restart_dialog.is_some() && event.keystroke.key == "escape" {
+                        this.close_restart_dialog(cx);
+                    }
                 }),
             )
             .text_color(colors.text)
@@ -400,6 +423,9 @@ impl Render for FerrumLauncher {
                 this.child(onboarding)
             })
             .when_some(self.render_uninstall_dialog(cx), |this, dialog| {
+                this.child(dialog)
+            })
+            .when_some(self.render_restart_dialog(cx), |this, dialog| {
                 this.child(dialog)
             })
             .when_some(self.notice.as_ref(), |this, notice| {

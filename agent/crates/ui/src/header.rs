@@ -1,6 +1,7 @@
-//! The header: the thread's title (renamed in place) and its ⋯ menu
-//! (rename, delete, copy as Markdown); outside a shell host also the
-//! thread list toggle, the changes, new-thread and settings buttons.
+//! The header: the thread list toggle, the thread's title (renamed in
+//! place), its ⋯ menu (rename, delete, copy as Markdown) and the session's
+//! changes to review; outside a shell host also the new-thread and
+//! settings buttons.
 
 use ferrum_ui::components::ContextMenu;
 use ferrum_ui::prelude::*;
@@ -156,6 +157,36 @@ impl ChatView {
             })
             // `title_row` already leaves room for the traffic lights.
             .when(shell && !lights, |this| this.pl_3())
+            .when(shell, |this| {
+                this.child(
+                    div()
+                        .relative()
+                        .child(
+                            ferrum_ui::title_button(
+                                "chat-threads",
+                                IconName::ThreadsSidebarLeftOpen,
+                                "This project's threads (⌥⌘J)",
+                            )
+                            .toggle_state(self.show_threads)
+                            .on_click(cx.listener(
+                                |this, _, window, cx| {
+                                    this.toggle_threads(&ToggleThreads, window, cx)
+                                },
+                            )),
+                        )
+                        .when_some(attention, |this, color| {
+                            this.child(
+                                div()
+                                    .absolute()
+                                    .top(px(2.))
+                                    .right(px(2.))
+                                    .size(px(6.))
+                                    .rounded_full()
+                                    .bg(color),
+                            )
+                        }),
+                )
+            })
             .child(title)
             .child(
                 PopoverMenu::new("chat-thread-menu")
@@ -167,7 +198,7 @@ impl ChatView {
                     .anchor(Anchor::TopRight)
                     .menu(self.thread_menu(cx)),
             )
-            .when(changes > 0 && !shell, |this| {
+            .when(changes > 0, |this| {
                 this.child(
                     Button::new("chat-changes", format!("{changes} changed"))
                         .label_size(LabelSize::XSmall)

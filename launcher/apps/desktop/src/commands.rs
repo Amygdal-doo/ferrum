@@ -189,6 +189,10 @@ impl FerrumLauncher {
                         }
                         this.state.record_releases(releases);
                         this.persist(cx);
+                        if this.state.settings.auto_update {
+                            this.download_updates_in_background(cx);
+                        }
+                        this.apply_staged_updates(cx);
                         let updates = this.state.updates();
                         let fresh: Vec<_> =
                             updates.iter().filter(|u| !before.contains(u)).collect();
@@ -349,6 +353,11 @@ impl FerrumLauncher {
                         this.persist(cx);
                         this.finish_self_update(&version, cx);
                     }
+                    Ok(record) if this.background_downloads.remove(&app) => {
+                        let version = record.version.clone();
+                        this.state.record_install(app, record);
+                        this.stage_downloaded(app, version, cx);
+                    }
                     Ok(record) => {
                         let name = this.state.info(app).name;
                         let version = record.version.clone();
@@ -368,7 +377,11 @@ impl FerrumLauncher {
                         );
                     }
                     Err(e) if e.contains("cancelled") => {
+                        this.background_downloads.remove(&app);
                         this.notify_user("Download cancelled.", false, cx)
+                    }
+                    Err(e) if this.background_downloads.remove(&app) => {
+                        this.notify_user(format!("Background update failed: {e}"), true, cx)
                     }
                     Err(e) => this.notify_user(format!("Install failed: {e}"), true, cx),
                 }
@@ -391,8 +404,13 @@ impl FerrumLauncher {
     }
 
     /// Downloads `version` of the launcher, then swaps it for the running
-    /// bundle and restarts (see [`Self::finish_self_update`]).
+    /// bundle and restarts (see [`Self::finish_self_update`]). Without a
+    /// bundle it goes through the installer (`installer_update`).
     pub fn update_launcher(&mut self, version: Version, cx: &mut Context<Self>) {
+        if self.running_bundle.is_none() {
+            self.update_launcher_with_installer(version, cx);
+            return;
+        }
         self.self_update = Some(version.clone());
         // Not activated: that would publish a second copy into
         // ~/Applications/Ferrum next to the one being replaced.
@@ -554,18 +572,20 @@ impl FerrumLauncher {
 
     /// Saves settings, then re-checks.
     pub fn apply_settings(&mut self, settings: Settings, cx: &mut Context<Self>) {
-        // The form edits these four; everything else (release repository,
+        // The form edits these five; everything else (release repository,
         // seen apps, migration flags, channels revision) stays as it is.
         let settings = Settings {
             check_interval_hours: settings.check_interval_hours,
             keep_versions: settings.keep_versions,
             menu_bar: settings.menu_bar,
             share_usage_counts: settings.share_usage_counts,
+            auto_update: settings.auto_update,
             ..self.state.settings.clone()
         };
         let menu_bar_changed = settings.menu_bar != self.state.settings.menu_bar;
         let interval_changed =
             settings.check_interval_hours != self.state.settings.check_interval_hours;
+        let auto_update_on = settings.auto_update && !self.state.settings.auto_update;
         self.state.settings = settings;
         if menu_bar_changed {
             self.refresh_menu_bar(cx);
@@ -585,6 +605,9 @@ impl FerrumLauncher {
             self.restart_check_loop(cx);
         } else {
             self.check_for_updates(false, cx);
+        }
+        if auto_update_on {
+            self.download_updates_in_background(cx);
         }
         cx.notify();
     }

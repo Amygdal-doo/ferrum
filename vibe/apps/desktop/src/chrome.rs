@@ -9,8 +9,9 @@ use ferrum_ui::gpui::{Axis, DragMoveEvent, MouseButton};
 use ferrum_ui::prelude::*;
 
 use crate::app::{
-    FerrumEngineer, GoBack, GoForward, KEY_CONTEXT, NewDiscussion, NewTask, OpenFolder, ShowSearch,
-    ToggleFiles, ToggleGit, ToggleSidebar, ToggleTerm,
+    FerrumEngineer, GoBack, GoForward, KEY_CONTEXT, MovePaneLeft, MovePaneRight, NewDiscussion,
+    NewTask, OpenFolder, ReviewChanges, ShowSearch, ToggleEditor, ToggleFiles, ToggleGit,
+    ToggleSidebar, ToggleTerm,
 };
 use crate::layout::Column;
 use crate::nav::{MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, Page};
@@ -114,9 +115,9 @@ impl FerrumEngineer {
         }))
     }
 
-    /// The tasks list, the Files / Git / Terminal toggles and the Ferrum
-    /// account (Sign in / avatar), at the right of the chat's (or a page's)
-    /// header row.
+    /// The tasks list, the Files / Git / Terminal / Editor toggles and the
+    /// Ferrum account (Sign in / avatar), at the right of the chat's (or a
+    /// page's) header row. (The chat draws its own thread list toggle.)
     pub(crate) fn header_end(&self, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .flex_none()
@@ -125,6 +126,7 @@ impl FerrumEngineer {
             .child(self.files_toggle(cx))
             .child(self.pane_toggle(Column::Git, IconName::GitBranch, "⌥⌘2", cx))
             .child(self.pane_toggle(Column::Term, IconName::Terminal, "⌥⌘3", cx))
+            .child(self.pane_toggle(Column::Editor, IconName::Code, "⌥⌘4", cx))
             .children(
                 ferrum_account_ui::account_button(cx)
                     .map(|account| div().flex_none().pl_1().child(account)),
@@ -248,6 +250,18 @@ impl Render for FerrumEngineer {
             .on_action(cx.listener(|this, _: &ToggleTerm, window, cx| {
                 this.toggle(Column::Term, window, cx);
             }))
+            .on_action(cx.listener(|this, _: &ToggleEditor, window, cx| {
+                this.toggle(Column::Editor, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ReviewChanges, window, cx| {
+                this.review_changes(window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &MovePaneLeft, _, cx| {
+                this.move_column(this.active_column, -1, cx);
+            }))
+            .on_action(cx.listener(|this, _: &MovePaneRight, _, cx| {
+                this.move_column(this.active_column, 1, cx);
+            }))
             .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| this.toggle_sidebar(cx)))
             .on_action(cx.listener(|this, _: &NewTask, window, cx| {
                 this.start_task(ferrumagent_ui::core::Mode::Agent, None, window, cx);
@@ -285,6 +299,8 @@ impl Render for FerrumEngineer {
                     ))
             })
             .child(main)
+            .children(self.render_restore_prompt(cx))
+            .children(self.render_parallel_confirm(cx))
             .children(notice)
     }
 }

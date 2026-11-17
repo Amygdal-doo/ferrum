@@ -1,16 +1,17 @@
-//! A small markdown renderer for streamed assistant text: headings,
-//! paragraphs, bullet and numbered lists, block quotes, rules, fenced code
-//! blocks (with a copy button), and inline `code`, **bold**, *italic* and
-//! [links](…). Incomplete markup while streaming renders as plain text.
+//! A small markdown renderer, shared by FerrumChat's streamed assistant
+//! text and FerrumLauncher's release notes: headings, paragraphs, bullet
+//! and numbered lists, block quotes, rules, fenced code blocks (with a copy
+//! button), and inline `code`, **bold**, *italic* and [links](…).
+//! Incomplete markup while streaming renders as plain text.
 
 use std::ops::Range;
 
-use ferrum_ui::prelude::*;
-use ferrum_ui::theme::theme_settings;
+use crate::prelude::*;
+use crate::theme::theme_settings;
 use gpui::{ClipboardItem, FontStyle, FontWeight, HighlightStyle, StyledText};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum MdBlock {
+pub enum MdBlock {
     Heading(usize, String),
     Paragraph(String),
     Item {
@@ -26,7 +27,7 @@ pub(crate) enum MdBlock {
     Rule,
 }
 
-pub(crate) fn parse(text: &str) -> Vec<MdBlock> {
+pub fn parse(text: &str) -> Vec<MdBlock> {
     let mut blocks = Vec::new();
     let mut paragraph = String::new();
     let mut code: Option<(String, String)> = None;
@@ -115,7 +116,7 @@ fn list_marker(line: &str) -> Option<(String, &str)> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Inline {
+pub enum Inline {
     Code,
     Bold,
     Italic,
@@ -123,7 +124,7 @@ pub(crate) enum Inline {
 }
 
 /// Plain text with styled ranges (markers removed).
-pub(crate) fn inline(text: &str) -> (String, Vec<(Range<usize>, Inline)>) {
+pub fn inline(text: &str) -> (String, Vec<(Range<usize>, Inline)>) {
     let mut out = String::new();
     let mut spans = Vec::new();
     let mut rest = text;
@@ -211,7 +212,7 @@ fn styled(text: &str, cx: &App) -> StyledText {
 }
 
 /// Renders `text` as markdown; `id` keeps element ids unique.
-pub(crate) fn render(id: impl Into<SharedString>, text: &str, cx: &App) -> AnyElement {
+pub fn render(id: impl Into<SharedString>, text: &str, cx: &App) -> AnyElement {
     let id: SharedString = id.into();
     let colors = cx.theme().colors();
     let mono = theme_settings(cx).buffer_font.family.clone();

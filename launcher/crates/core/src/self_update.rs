@@ -3,11 +3,116 @@
 //! A running bundle can't overwrite itself, so the swap is done by a small
 //! detached shell script that waits for this process to exit, moves the new
 //! bundle into place (keeping the old one until the move succeeded) and opens
-//! it again. Only macOS bundles are swapped; elsewhere the caller falls back
-//! to the release page.
+//! it again. Only macOS bundles are swapped.
+//!
+//! On Windows and Linux a launcher installed from its installer updates
+//! through the new release's installer instead: [`download_installer`]
+//! fetches it (checksum verified when a `.sha256` is published) and
+//! [`open_installer`] starts it: the per-user Inno Setup wizard on Windows
+//! (it closes the running launcher itself, `CloseApplications=yes`), the
+//! desktop's package installer for the `.deb` on Linux. Copies run from an
+//! archive (or `cargo run`) fall back to the release page.
 
-use crate::{LauncherError, Result};
+use crate::github::{DownloadProgress, GitHubClient};
+use crate::platform::Platform;
+use crate::release::ReleaseInfo;
+use crate::store::Paths;
+use crate::{LauncherError, Result, install};
 use std::path::{Path, PathBuf};
+use tokio_util::sync::CancellationToken;
+
+/// Whether the launcher at `executable` was put there by its installer, so
+/// the next installer replaces it: the `.deb`'s `/opt/ferrum/launcher/` on
+/// Linux, Inno Setup's `%LOCALAPPDATA%\Programs\Ferrum\` on Windows.
+#[must_use]
+pub fn installed_by_installer(
+    platform: Platform,
+    executable: &Path,
+    local_app_data: Option<&Path>,
+) -> bool {
+    match platform {
+        Platform::Linux => executable.starts_with("/opt/ferrum/launcher"),
+        Platform::Windows => local_app_data
+            .is_some_and(|base| executable.starts_with(base.join("Programs").join("Ferrum"))),
+        Platform::MacOs | Platform::Other => false,
+    }
+}
+
+/// [`installed_by_installer`] for this process.
+#[must_use]
+pub fn running_from_installer() -> bool {
+    let Ok(executable) = std::env::current_exe() else {
+        return false;
+    };
+    let local = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    installed_by_installer(Platform::current(), &executable, local.as_deref())
+}
+
+/// Downloads `release`'s installer for `platform` into the downloads
+/// folder under its own name and verifies it. Returns its path.
+pub async fn download_installer(
+    client: &GitHubClient,
+    paths: &Paths,
+    release: &ReleaseInfo,
+    platform: Platform,
+    progress: DownloadProgress,
+    cancel: CancellationToken,
+) -> Result<PathBuf> {
+    let (installer, checksum) = release.launcher_installer(platform).ok_or_else(|| {
+        LauncherError::Invalid(format!(
+            "launcher {} has no installer for this platform",
+            release.version
+        ))
+    })?;
+    let destination = paths.downloads_dir().join(&installer.name);
+    let actual = client
+        .download_to(installer, &destination, progress, cancel)
+        .await?;
+    let verified = match checksum {
+        Some(checksum) => match client.download_text(checksum).await {
+            Ok(text) => install::verify_checksum(&installer.name, &text, &actual),
+            Err(e) => Err(e),
+        },
+        None => {
+            tracing::warn!(asset = %installer.name, "installer has no .sha256; not verified");
+            Ok(())
+        }
+    };
+    if let Err(e) = verified {
+        tokio::fs::remove_file(&destination).await.ok();
+        return Err(e);
+    }
+    Ok(destination)
+}
+
+/// Starts the downloaded installer detached. On Windows the caller should
+/// quit right after, so the setup can replace the launcher's files.
+pub fn open_installer(platform: Platform, installer: &Path) -> Result<()> {
+    let mut command = match platform {
+        // `/SP-` skips "This will install…"; the wizard still shows.
+        Platform::Windows => {
+            let mut command = std::process::Command::new(installer);
+            command.arg("/SP-");
+            command
+        }
+        Platform::Linux => {
+            let mut command = std::process::Command::new("xdg-open");
+            command.arg(installer);
+            command
+        }
+        Platform::MacOs | Platform::Other => {
+            return Err(LauncherError::Invalid(
+                "installers are only used on Windows and Linux".into(),
+            ));
+        }
+    };
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null());
+    command.spawn()?;
+    Ok(())
+}
 
 /// The `.app` bundle the current executable runs from, if any. `cargo run`
 /// builds aren't bundled and return `None`.
@@ -119,6 +224,41 @@ mod tests {
             bundle_containing(Path::new("/repo/target/release/ferrum-launcher")),
             None
         );
+    }
+
+    #[test]
+    fn only_installer_copies_update_through_the_installer() {
+        let local = Path::new("C:/Users/me/AppData/Local");
+        assert!(installed_by_installer(
+            Platform::Windows,
+            &local.join("Programs/Ferrum/FerrumLauncher/ferrum-launcher.exe"),
+            Some(local),
+        ));
+        assert!(!installed_by_installer(
+            Platform::Windows,
+            Path::new("C:/Users/me/Downloads/launcher/ferrum-launcher.exe"),
+            Some(local),
+        ));
+        assert!(!installed_by_installer(
+            Platform::Windows,
+            Path::new("C:/x/ferrum-launcher.exe"),
+            None
+        ));
+        assert!(installed_by_installer(
+            Platform::Linux,
+            Path::new("/opt/ferrum/launcher/ferrum-launcher"),
+            None
+        ));
+        assert!(!installed_by_installer(
+            Platform::Linux,
+            Path::new("/home/me/ferrum/ferrum-launcher"),
+            None
+        ));
+        assert!(!installed_by_installer(
+            Platform::MacOs,
+            Path::new("/opt/ferrum/launcher/ferrum-launcher"),
+            None
+        ));
     }
 
     #[test]

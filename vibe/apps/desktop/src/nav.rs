@@ -20,6 +20,8 @@ pub enum Page {
     Automations,
     Extensions,
     Usage,
+    /// The same task for several agents in git worktrees.
+    Parallel,
 }
 
 impl Page {
@@ -35,6 +37,7 @@ impl Page {
             Page::Automations => "Automations",
             Page::Extensions => "Extensions",
             Page::Usage => "Usage",
+            Page::Parallel => "Parallel",
         }
     }
 }

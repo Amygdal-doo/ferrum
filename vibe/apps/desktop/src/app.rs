@@ -26,6 +26,10 @@ actions!(
         ToggleFiles,
         ToggleGit,
         ToggleTerm,
+        ToggleEditor,
+        ReviewChanges,
+        MovePaneLeft,
+        MovePaneRight,
         OpenFolder,
         ToggleSidebar,
         NewTask,
@@ -50,6 +54,11 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-alt-1", ToggleFiles, None),
         KeyBinding::new("cmd-alt-2", ToggleGit, None),
         KeyBinding::new("cmd-alt-3", ToggleTerm, None),
+        KeyBinding::new("cmd-alt-4", ToggleEditor, None),
+        // The chat's own ⌥⌘R wins while it has focus.
+        KeyBinding::new("cmd-alt-r", ReviewChanges, context),
+        KeyBinding::new("cmd-alt-shift-left", MovePaneLeft, context),
+        KeyBinding::new("cmd-alt-shift-right", MovePaneRight, context),
         KeyBinding::new("cmd-\\", ToggleSidebar, context),
         KeyBinding::new("cmd-b", ToggleSidebar, context),
         KeyBinding::new("cmd-n", NewTask, context),
@@ -91,7 +100,7 @@ pub struct Options {
     pub chat_options: ChatOptionsFn,
     /// Terminals in the shared `fterm` server (else a private one).
     pub term_attach_to_server: bool,
-    /// Opens a file from the chat, git or a page.
+    /// Opens a file in FerrumIDE (the Editor column's Open in FerrumIDE).
     pub open_file: OpenFileFn,
 }
 
@@ -141,6 +150,9 @@ pub struct FerrumEngineer {
     pub(crate) term: Option<Entity<TermView>>,
     /// The Files pane, created when first shown with a project open.
     pub(crate) files: Option<Entity<crate::files::FilesView>>,
+    /// The Editor column, created when a file is first opened or it is shown.
+    pub(crate) editor: Option<Entity<crate::editor::EditorView>>,
+    pub(crate) editor_subscription: Option<Subscription>,
     pub(crate) files_subscription: Option<Subscription>,
     /// The project's head, mirrored into the chat's footer.
     pub(crate) git_summary: Option<RepoSummary>,
@@ -148,6 +160,11 @@ pub struct FerrumEngineer {
     pub(crate) pending_changes: usize,
     /// Times the git pane was asked to reload (the chat changed files).
     pub(crate) git_refreshes: usize,
+    /// "Restore to here…" on a checkpoint in the git history, waiting for
+    /// confirmation.
+    pub(crate) restore_prompt: Option<crate::checkpoints::RestorePrompt>,
+    /// Reads the chat's checkpoints for the git column.
+    pub(crate) checkpoints_task: Option<Task<()>>,
     pub(crate) notice: Option<Notice>,
     notice_task: Option<Task<()>>,
     save_task: Option<Task<()>>,
@@ -165,6 +182,8 @@ pub struct FerrumEngineer {
     pub(crate) index: ThreadIndex,
     pub(crate) index_task: Option<Task<()>>,
     pub(crate) pages: PageState,
+    /// Run in parallel: the task, the run and its worktrees.
+    pub(crate) parallel: crate::parallel::ParallelState,
     focus_handle: FocusHandle,
     pub(crate) git_subscriptions: Vec<Subscription>,
     _tasks: Vec<Task<()>>,
@@ -193,6 +212,7 @@ impl FerrumEngineer {
             .map(|dir| UiState::load(&dir.join("ui.json")))
             .unwrap_or_default();
         let pages = PageState::new(options.data_dir.as_deref(), window, cx);
+        let parallel = crate::parallel::ParallelState::new(window, cx);
         let mut app = Self {
             project_bar,
             project: None,
@@ -206,9 +226,13 @@ impl FerrumEngineer {
             term: None,
             files: None,
             files_subscription: None,
+            editor: None,
+            editor_subscription: None,
             git_summary: None,
             pending_changes: 0,
             git_refreshes: 0,
+            restore_prompt: None,
+            checkpoints_task: None,
             notice: None,
             notice_task: None,
             save_task: None,
@@ -224,6 +248,7 @@ impl FerrumEngineer {
             index: ThreadIndex::default(),
             index_task: None,
             pages,
+            parallel,
             focus_handle: cx.focus_handle(),
             git_subscriptions: Vec::new(),
             _tasks: vec![crate::pages::automations::start_timer(window, cx)],
@@ -285,6 +310,7 @@ impl FerrumEngineer {
         }
         self.reload_recent();
         self.ensure_views(window, cx);
+        self.sync_checkpoints(cx);
         self.pages.project_changed(&path, cx);
         self.refresh_index(cx);
         cx.notify();
@@ -314,8 +340,18 @@ impl FerrumEngineer {
             }
             if visible {
                 self.active_column = column;
-            } else if self.active_column == column {
-                self.active_column = Column::Chat;
+            } else {
+                // Keys keep working: focus left inside a hidden pane
+                // reaches no handler.
+                let focused = self
+                    .column_focus(column, cx)
+                    .is_some_and(|h| h.contains_focused(window, cx));
+                if focused {
+                    self.focus_chat(window, cx);
+                }
+                if self.active_column == column {
+                    self.active_column = Column::Chat;
+                }
             }
             self.save_layout(cx);
             cx.notify();
@@ -374,6 +410,15 @@ impl FerrumEngineer {
         chat.update(cx, |chat, cx| chat.add_context_paths(paths, cx));
         self.focus_chat(window, cx);
         cx.notify();
+    }
+
+    /// Moves `column` one place left (`-1`) or right (`1`) among the shown
+    /// panes (the chat stays first).
+    pub fn move_column(&mut self, column: Column, by: isize, cx: &mut Context<Self>) {
+        if self.layout.move_column(column, by) {
+            self.save_layout(cx);
+            cx.notify();
+        }
     }
 
     pub fn toggle(&mut self, column: Column, window: &mut Window, cx: &mut Context<Self>) {
@@ -437,18 +482,27 @@ impl FerrumEngineer {
         cx.notify();
     }
 
+    /// The focus handle of `column`'s view, once created.
+    fn column_focus(&self, column: Column, cx: &App) -> Option<FocusHandle> {
+        match column {
+            Column::Chat => self.chat().map(|v| v.focus_handle(cx)),
+            Column::Git => self.git.as_ref().map(|v| v.focus_handle(cx)),
+            Column::Term => self.term.as_ref().map(|v| v.focus_handle(cx)),
+            // The view itself: the active tab's editor is inside it.
+            Column::Editor => self
+                .editor
+                .as_ref()
+                .map(|v| v.read(cx).focus_handle.clone()),
+        }
+    }
+
     /// Marks the pane whose view has focus as the active one (it stays
     /// active when focus leaves the panes).
     pub(crate) fn follow_focus(&mut self, window: &Window, cx: &App) {
-        let views = [
-            (Column::Chat, self.chat().map(|v| v.focus_handle(cx))),
-            (Column::Git, self.git.as_ref().map(|v| v.focus_handle(cx))),
-            (Column::Term, self.term.as_ref().map(|v| v.focus_handle(cx))),
-        ];
-        if let Some((column, _)) = views.into_iter().find(|(column, handle)| {
+        if let Some(column) = Column::ALL.into_iter().find(|column| {
             self.layout.is_visible(*column)
-                && handle
-                    .as_ref()
+                && self
+                    .column_focus(*column, cx)
                     .is_some_and(|h| h.contains_focused(window, cx))
         }) {
             self.active_column = column;

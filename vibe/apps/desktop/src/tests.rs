@@ -20,8 +20,14 @@ use crate::automations::{Automation, Schedule};
 use crate::layout::{self, Column, Layout};
 use crate::nav::Page;
 
+#[path = "checkpoints_tests.rs"]
+mod checkpoints;
+#[path = "editor_tests.rs"]
+mod editor_column;
 #[path = "files_tests.rs"]
 mod files;
+#[path = "parallel_tests.rs"]
+mod parallel;
 
 type Opened = Rc<RefCell<Vec<(Option<PathBuf>, PathBuf, Option<u32>)>>>;
 
@@ -96,6 +102,14 @@ impl Fixture {
         cx: &'a mut TestAppContext,
         project: Option<PathBuf>,
     ) -> (Entity<FerrumEngineer>, &'a mut VisualTestContext) {
+        self.open_with(cx, self.options(project))
+    }
+
+    fn open_with<'a>(
+        &self,
+        cx: &'a mut TestAppContext,
+        options: Options,
+    ) -> (Entity<FerrumEngineer>, &'a mut VisualTestContext) {
         cx.executor().allow_parking();
         let git_data = self.path("git-data");
         cx.update(|cx| {
@@ -106,7 +120,6 @@ impl Fixture {
             ferrumterm_ui::init(cx);
             crate::app::bind_keys(cx);
         });
-        let options = self.options(project);
         let (app, cx) = cx.add_window_view(|window, cx| FerrumEngineer::new(options, window, cx));
         cx.simulate_resize(size(px(1500.), px(900.)));
         draw(cx);
@@ -145,6 +158,7 @@ fn drawn(cx: &mut VisualTestContext) -> Vec<Column> {
                 Column::Chat => "column-chat",
                 Column::Git => "column-git",
                 Column::Term => "column-term",
+                Column::Editor => "column-editor",
             };
             cx.debug_bounds(key).map(|b| (f32::from(b.left()), c))
         })
@@ -195,13 +209,14 @@ fn the_chat_is_always_shown_and_panes_toggle(cx: &mut TestAppContext) {
     assert_eq!(drawn(cx), [Column::Chat, Column::Git]);
     cx.simulate_keystrokes("cmd-alt-3");
     draw(cx);
-    assert_eq!(drawn(cx), Column::ALL);
+    let three = [Column::Chat, Column::Git, Column::Term];
+    assert_eq!(drawn(cx), three);
     assert!(read(&app, cx, |a| a.term.is_some()));
     // The chat can't be closed.
     update(&app, cx, |a, w, cx| {
         a.set_visible(Column::Chat, false, w, cx)
     });
-    assert_eq!(drawn(cx), Column::ALL);
+    assert_eq!(drawn(cx), three);
     cx.simulate_keystrokes("cmd-alt-2");
     draw(cx);
     assert_eq!(drawn(cx), [Column::Chat, Column::Term]);
@@ -239,27 +254,34 @@ fn events_from_the_chat_and_git_are_wired(cx: &mut TestAppContext) {
         (a.chat().expect("chat"), a.git.clone().expect("git"))
     });
 
-    // Files from the chat and from git open in the Editor.
+    // Files from the chat and from git open in the Editor column.
     let file = root.join("src/main.rs");
+    let readme = root.join("README.md");
+    std::fs::create_dir_all(root.join("src")).expect("mkdir");
+    std::fs::write(&file, "fn main() {}\n".repeat(10)).expect("write");
+    std::fs::write(&readme, "# A\n").expect("write");
     chat.update(cx, |_, cx| {
         cx.emit(ChatEvent::OpenFile {
             path: file.clone(),
             line: Some(7),
         });
     });
+    draw(cx);
+    assert_eq!(drawn(cx), [Column::Chat, Column::Editor]);
     git.update(cx, |_, cx| {
         cx.emit(GitViewEvent::OpenFile {
-            path: file.clone(),
+            path: readme.clone(),
             line: None,
         });
     });
-    assert_eq!(
-        *fx.opened.borrow(),
-        [
-            (Some(root.clone()), file.clone(), Some(7)),
-            (Some(root.clone()), file, None)
-        ]
-    );
+    draw(cx);
+    let editor = read(&app, cx, |a| a.editor.clone().expect("editor"));
+    editor.read_with(cx, |e, _| {
+        assert_eq!(e.paths(), [file.clone(), readme.clone()]);
+        assert_eq!(e.active_path(), Some(readme.as_path()));
+    });
+    // FerrumIDE only on request.
+    assert!(fx.opened.borrow().is_empty());
 
     // Agent changes reload the git view.
     let before = read(&app, cx, |a| a.git_refreshes);
@@ -278,7 +300,7 @@ fn events_from_the_chat_and_git_are_wired(cx: &mut TestAppContext) {
         });
     });
     draw(cx);
-    assert_eq!(drawn(cx), [Column::Chat, Column::Term]);
+    assert_eq!(drawn(cx), [Column::Chat, Column::Term, Column::Editor]);
 
     // The footer's git actions: Commit opens the Git pane; the remote
     // ones run in the background.
@@ -330,6 +352,7 @@ fn pages_replace_the_chat_and_back_returns(cx: &mut TestAppContext) {
         Page::Automations,
         Page::Extensions,
         Page::Usage,
+        Page::Parallel,
     ] {
         update(&app, cx, |a, w, cx| a.show_page(page, w, cx));
         // Debug selectors are `&'static str`: one leaked string per page.
@@ -341,8 +364,8 @@ fn pages_replace_the_chat_and_back_returns(cx: &mut TestAppContext) {
     update(&app, cx, |a, w, cx| w.focus(a.focus_handle(), cx));
     cx.simulate_keystrokes("cmd-[");
     draw(cx);
-    assert_eq!(read(&app, cx, |a| a.page()), Page::Extensions);
-    for _ in 0..7 {
+    assert_eq!(read(&app, cx, |a| a.page()), Page::Usage);
+    for _ in 0..8 {
         update(&app, cx, |a, w, cx| a.go_back(w, cx));
     }
     assert_eq!(read(&app, cx, |a| a.page()), Page::Chat);
@@ -465,7 +488,7 @@ fn layouts_are_kept_per_project(cx: &mut TestAppContext) {
         app.set_visible(Column::Term, true, w, cx)
     });
     let layout_b = read(&app, cx, |app| app.layout.clone());
-    assert_eq!(drawn(cx), Column::ALL);
+    assert_eq!(drawn(cx), [Column::Chat, Column::Git, Column::Term]);
 
     // Back to a: its own layout returns.
     update(&app, cx, |app, w, cx| app.set_project(a.clone(), w, cx));
@@ -537,4 +560,112 @@ fn the_folder_argument_skips_flags_and_files() {
         None
     );
     assert_eq!(crate::folder_argument(std::iter::empty()), None);
+}
+
+#[gpui::test]
+fn the_chat_column_shows_this_projects_threads(cx: &mut TestAppContext) {
+    let fx = Fixture::new();
+    let root = fx.path("a");
+    let id = fx.thread(&root, "Fix the build", "fix it", Mode::Agent);
+    let (app, cx) = fx.open(cx, Some(root.clone()));
+    let chat = read(&app, cx, |a| a.chat().expect("chat"));
+
+    // The chat's own list replaces the conversation in its column, with the
+    // window's controls still in its header.
+    update(&app, cx, |_, w, cx| {
+        chat.update(cx, |chat, cx| chat.toggle_thread_list(w, cx));
+    });
+    assert!(chat.read_with(cx, |c, _| c.is_thread_list_open()));
+    assert!(cx.debug_bounds("column-chat").is_some());
+
+    // Picking a thread (here from the sidebar) closes the list.
+    update(&app, cx, |a, w, cx| a.open_thread(&root, &id, w, cx));
+    assert!(!chat.read_with(cx, |c, _| c.is_thread_list_open()));
+    for _ in 0..400 {
+        if chat.read_with(cx, |c, _| c.thread().id == id) {
+            return;
+        }
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(50));
+        draw(cx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("the thread did not open");
+}
+
+/// `git` in `root` with a fixed author.
+fn git_in(root: &Path, args: &[&str]) {
+    let ok = std::process::Command::new("git")
+        .args(["-c", "user.name=T", "-c", "user.email=t@e.x"])
+        .args(args)
+        .current_dir(root)
+        .status()
+        .expect("git")
+        .success();
+    assert!(ok, "git {args:?}");
+}
+
+/// Waits until `chat` has opened its session (and so its snapshot).
+fn wait_for_session(chat: &Entity<ferrumagent_ui::ChatView>, cx: &mut VisualTestContext) {
+    for _ in 0..400 {
+        if chat.read_with(cx, |c, _| c.session().is_some()) {
+            return;
+        }
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(50));
+        draw(cx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("the chat's session did not open");
+}
+
+#[gpui::test]
+fn the_sessions_changes_are_reviewed_hunk_by_hunk(cx: &mut TestAppContext) {
+    let fx = Fixture::new();
+    let root = fx.path("a");
+    let lines: Vec<String> = (1..=20).map(|i| format!("line {i}")).collect();
+    std::fs::write(root.join("f.txt"), lines.join("\n") + "\n").expect("write");
+    git_in(&root, &["init", "-q"]);
+    git_in(&root, &["add", "."]);
+    git_in(&root, &["commit", "-q", "-m", "one"]);
+    let (app, cx) = fx.open(cx, Some(root.clone()));
+    let chat = read(&app, cx, |a| a.chat().expect("chat"));
+    wait_for_session(&chat, cx);
+
+    // Two changes far apart since the session started: two hunks.
+    let mut changed = lines.clone();
+    changed[1] = "line 2 (agent)".into();
+    changed[17] = "line 18 (agent)".into();
+    std::fs::write(root.join("f.txt"), changed.join("\n") + "\n").expect("write");
+
+    // View › Review Agent Changes (⌥⌘R from anywhere in the window).
+    update(&app, cx, |a, w, cx| a.review_changes(w, cx));
+    assert!(chat.read_with(cx, |c, _| c.is_review_open()));
+    let mut change = None;
+    for _ in 0..400 {
+        change = chat.read_with(cx, |c, _| c.pending_changes().first().cloned());
+        if change.is_some() {
+            break;
+        }
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(50));
+        draw(cx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let change = change.expect("the change to review");
+    assert_eq!(change.hunks.len(), 2);
+
+    // Keep the first hunk, undo the second.
+    let session = chat.read_with(cx, |c, _| c.session().cloned().expect("session"));
+    session
+        .accept_hunk(&change.path, change.hunks[0].id, change.current_hash)
+        .expect("accept");
+    let change = session.changes().expect("changes").remove(0);
+    assert_eq!(change.hunks.len(), 1);
+    session
+        .reject_hunk(&change.path, change.hunks[0].id, change.current_hash)
+        .expect("reject");
+    let text = std::fs::read_to_string(root.join("f.txt")).expect("read");
+    assert!(text.contains("line 2 (agent)") && text.contains("line 18\n"));
+    assert!(session.changes().expect("changes").is_empty());
 }

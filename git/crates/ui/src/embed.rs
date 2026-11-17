@@ -100,6 +100,18 @@ impl Default for GitViewOptions {
     }
 }
 
+/// A host's marker above the history's commits: a working-tree state that
+/// is not a commit (FerrumEngineer's agent checkpoints). See
+/// [`crate::GitView::set_history_markers`] and [`RestoreMarker`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HistoryMarker {
+    /// The host's id, returned in [`RestoreMarker`].
+    pub id: u64,
+    pub title: String,
+    /// One muted line under the title ("2 files · 14:05").
+    pub detail: String,
+}
+
 /// Emitted by a [`crate::GitView`]; subscribe with `cx.subscribe`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GitViewEvent {
@@ -115,6 +127,17 @@ pub enum GitViewEvent {
         amend: bool,
     },
 }
+
+/// "Restore to here…" on the host's [`HistoryMarker`] `id`: the host asks
+/// for confirmation, then restores. A separate event type, so hosts that
+/// show no markers match [`GitViewEvent`] as before; subscribe with
+/// `cx.subscribe(&git, |_, _, event: &RestoreMarker, _| …)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RestoreMarker {
+    pub id: u64,
+}
+
+impl gpui::EventEmitter<RestoreMarker> for crate::GitView {}
 
 /// Background services shared by every `GitView` of the process: one Tokio
 /// runtime and one SQLite store, created on first use.

@@ -187,6 +187,7 @@ impl FerrumEngineer {
             Page::Automations => self.automations_page(window, cx),
             Page::Extensions => self.extensions_page(cx),
             Page::Usage => self.usage_page(cx),
+            Page::Parallel => self.parallel_page(cx),
         }
     }
 }

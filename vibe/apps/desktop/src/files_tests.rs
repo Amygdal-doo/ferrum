@@ -135,15 +135,17 @@ fn enter_opens_the_selected_file_in_the_editor(cx: &mut TestAppContext) {
     // ↓ selects `src`, → expands it, ↓ selects main.rs, Enter opens it.
     cx.simulate_keystrokes("down right down enter");
     draw(cx);
-    assert_eq!(
-        *fx.opened.borrow(),
-        [(Some(root.clone()), root.join("src/main.rs"), None)]
-    );
+    let editor = read(&app, cx, |a| a.editor.clone().expect("editor"));
+    let main = root.join("src/main.rs");
+    let open = |cx: &mut VisualTestContext| editor.read_with(cx, |e, _| e.paths());
+    assert_eq!(open(cx), std::slice::from_ref(&main));
     // Enter on a folder folds it instead.
+    cx.update(|window, cx| window.focus(&tree.focus_handle(cx), cx));
     cx.simulate_keystrokes("up enter");
     draw(cx);
     assert!(!row_names(&tree, cx).contains(&"main.rs".to_string()));
-    assert_eq!(fx.opened.borrow().len(), 1);
+    assert_eq!(open(cx), [main]);
+    assert!(fx.opened.borrow().is_empty());
 }
 
 #[gpui::test]

@@ -6,8 +6,10 @@
 mod app;
 mod app_info;
 mod automations;
+mod checkpoints;
 mod chrome;
 mod columns;
+mod editor;
 mod extensions;
 mod files;
 mod layout;
@@ -16,6 +18,7 @@ mod nav;
 mod navigate;
 mod pages;
 mod panes;
+mod parallel;
 mod shell_path;
 mod sidebar;
 mod sites;

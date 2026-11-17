@@ -3,8 +3,10 @@
 
 mod app;
 mod app_info;
+mod auto_update;
 mod commands;
 mod components;
+mod installer_update;
 mod integration;
 mod panel;
 mod services;

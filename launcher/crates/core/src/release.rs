@@ -218,6 +218,29 @@ impl ReleaseInfo {
     }
 }
 
+impl ReleaseInfo {
+    /// The launcher's installer for people on `platform`, and its optional
+    /// `.sha256`: the Inno Setup `setup.exe` on Windows, the `.deb` on Linux
+    /// (Debian orders `~` like semver's `-`). macOS swaps the bundle instead
+    /// (see [`crate::self_update`]); other apps never use installers.
+    #[must_use]
+    pub fn launcher_installer(&self, platform: Platform) -> Option<(&Asset, Option<&Asset>)> {
+        let version = &self.version;
+        let name = match platform {
+            Platform::Windows => format!("FerrumLauncher-{version}-x86_64-setup.exe"),
+            Platform::Linux => format!(
+                "ferrum-launcher_{}_amd64.deb",
+                version.to_string().replace('-', "~")
+            ),
+            Platform::MacOs | Platform::Other => return None,
+        };
+        let installer = self.assets.iter().find(|asset| asset.name == name)?;
+        let checksum_name = format!("{name}.sha256");
+        let checksum = self.assets.iter().find(|asset| asset.name == checksum_name);
+        Some((installer, checksum))
+    }
+}
+
 /// GitHub's release JSON (only the fields we use).
 #[derive(Debug, Deserialize)]
 pub(crate) struct GitHubRelease {
@@ -540,6 +563,34 @@ mod tests {
             .assets_for("aarch64-apple-darwin")
             .expect("fallback");
         assert_eq!(archive.name, "api-0.2.0-aarch64-apple-darwin.tar.gz");
+    }
+
+    #[test]
+    fn finds_the_launchers_own_installers() {
+        let asset = |name: &str| Asset {
+            name: name.into(),
+            size: 1,
+            url: format!("https://api.github.com/{name}"),
+            download_count: 0,
+        };
+        let mut release = parse_releases(RELEASES_JSON).expect("parse").remove(0);
+        release.version = Version::parse("0.7.0-beta.1").expect("version");
+        release.assets = vec![
+            asset("launcher-0.7.0-beta.1-x86_64-pc-windows-msvc.zip"),
+            asset("FerrumLauncher-0.7.0-beta.1-x86_64-setup.exe"),
+            asset("FerrumLauncher-0.7.0-beta.1-x86_64-setup.exe.sha256"),
+            asset("ferrum-launcher_0.7.0~beta.1_amd64.deb"),
+            asset("FerrumLauncher-0.7.0-beta.1-aarch64.dmg"),
+        ];
+        let (setup, checksum) = release
+            .launcher_installer(Platform::Windows)
+            .expect("setup.exe");
+        assert_eq!(setup.name, "FerrumLauncher-0.7.0-beta.1-x86_64-setup.exe");
+        assert!(checksum.is_some());
+        let (deb, checksum) = release.launcher_installer(Platform::Linux).expect("deb");
+        assert_eq!(deb.name, "ferrum-launcher_0.7.0~beta.1_amd64.deb");
+        assert!(checksum.is_none());
+        assert!(release.launcher_installer(Platform::MacOs).is_none());
     }
 
     #[test]

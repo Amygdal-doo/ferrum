@@ -1,8 +1,9 @@
 //! What a host app drives without the toolbar: the head's summary for its
-//! status line, remote operations, the branch drawer and the commit form.
+//! status line, remote operations, the branch drawer, the commit form and
+//! markers above the history.
 
 use crate::app::GitView;
-use crate::embed::{RemoteCommand, RepoSummary};
+use crate::embed::{HistoryMarker, RemoteCommand, RepoSummary};
 use crate::state::Page;
 use ferrumgit_domain::RepoOp;
 use gpui::{Context, Window};
@@ -84,6 +85,28 @@ impl GitView {
             self.set_page(id, page, cx);
         }
         cx.notify();
+    }
+
+    /// Shows `markers` (newest first) under `title` above the history's
+    /// commits, each with "Restore to here…" ([`crate::RestoreMarker`]).
+    /// An empty list hides them.
+    pub fn set_history_markers(
+        &mut self,
+        title: impl Into<gpui::SharedString>,
+        markers: Vec<HistoryMarker>,
+        cx: &mut Context<Self>,
+    ) {
+        let markers = Some((title.into(), markers)).filter(|(_, m)| !m.is_empty());
+        if self.markers != markers {
+            self.markers = markers;
+            cx.notify();
+        }
+    }
+
+    /// The markers shown above the history.
+    #[must_use]
+    pub fn history_markers(&self) -> &[HistoryMarker] {
+        self.markers.as_ref().map_or(&[], |(_, m)| m.as_slice())
     }
 
     /// Shows the working copy and puts the cursor in the commit summary.

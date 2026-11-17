@@ -148,6 +148,8 @@ pub struct ChatView {
     pub(crate) git_status: Option<GitStatus>,
     /// The header's title field while renaming.
     pub(crate) renaming: Option<(Entity<TextInput>, Subscription)>,
+    /// A thread list row's title field while renaming that thread.
+    pub(crate) renaming_row: Option<(String, Entity<TextInput>, Subscription)>,
     /// A host call waiting for the session to open.
     pub(crate) pending: Option<crate::host::HostRequest>,
     /// A started task's prompt, sent when its thread is switched to.
@@ -326,6 +328,7 @@ impl ChatView {
             mcp_status: Vec::new(),
             git_status: None,
             renaming: None,
+            renaming_row: None,
             pending: None,
             send_after_switch: None,
             all_changed_files: false,
@@ -582,6 +585,7 @@ impl ChatView {
 
     fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
         let closed_overlay = self.settings.take().is_some()
+            || self.renaming_row.take().is_some()
             || std::mem::take(&mut self.show_threads)
             || self.renaming.take().is_some();
         if self.picker.take().is_some() {
@@ -626,7 +630,7 @@ impl ChatView {
     /// Keeps keyboard focus inside the chat when the composer is hidden
     /// (thread list, settings sheet) and returns it to the composer after.
     pub(crate) fn refocus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.renaming.is_some() {
+        if self.renaming.is_some() || self.renaming_row.is_some() {
             // The title field keeps focus.
         } else if self.show_threads || self.settings.is_some() {
             window.focus(&self.focus, cx);
@@ -704,7 +708,7 @@ impl Render for ChatView {
         let colors = cx.theme().colors().clone();
         let body = if let Some(error) = self.load_error.clone() {
             self.render_load_error(&error, cx)
-        } else if self.show_threads && !self.shell {
+        } else if self.show_threads {
             self.render_threads(window, cx).into_any_element()
         } else {
             v_flex()
