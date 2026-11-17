@@ -3,6 +3,7 @@
 //! turn, copy / retry and the summary of changed files; the plan-ready
 //! card.
 
+use ferrum_ui::markdown;
 use ferrum_ui::prelude::*;
 use ferrumagent_core::modes::Mode;
 use ferrumagent_core::provider::Role;
@@ -10,7 +11,6 @@ use ferrumagent_core::thread::{Block, PlanEntry, ThreadMessage};
 use gpui::{Context, Window};
 
 use crate::actions::*;
-use crate::markdown;
 use crate::view::ChatView;
 
 impl ChatView {

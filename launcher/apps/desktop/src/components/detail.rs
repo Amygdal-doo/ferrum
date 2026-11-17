@@ -72,13 +72,8 @@ impl FerrumLauncher {
         let rows = self.version_rows(app);
         let downloading = self.downloads.contains_key(&app);
 
-        let notes_release = self
-            .selected_release
-            .as_ref()
-            .and_then(|v| rows.iter().find(|row| &row.version == v))
-            .and_then(|row| row.release.clone())
-            .or_else(|| latest.clone());
-        let installed_notes = self
+        // The picked row's install record, else the active version's.
+        let installed = self
             .selected_release
             .as_ref()
             .or(active.as_ref())
@@ -88,8 +83,16 @@ impl FerrumLauncher {
                     .installed
                     .into_iter()
                     .find(|installed| &installed.version == v)
-            })
-            .map(|installed| (installed.version.clone(), installed.notes));
+            });
+        let releases: Vec<ReleaseInfo> =
+            self.state.releases_for(app).into_iter().cloned().collect();
+        let notes = super::notes::sections(
+            self.selected_release.as_ref(),
+            &releases,
+            latest.as_ref(),
+            installed.as_ref(),
+        );
+        let notes = self.render_notes(notes, cx);
 
         let actions = self.render_actions(app, active.clone(), latest.clone(), cx);
         let open_from = self.render_open_from(app, window, cx);
@@ -155,7 +158,7 @@ impl FerrumLauncher {
                             .h_full()
                             .overflow_y_scroll()
                             .child(section_header("Release notes"))
-                            .child(self.render_notes(notes_release, installed_notes)),
+                            .child(notes),
                     ),
             )
     }
@@ -619,47 +622,12 @@ impl FerrumLauncher {
                         )
                     }),
             )
+            // A second click returns to the latest and installed notes.
             .on_click(cx.listener(move |this, _, _, cx| {
-                this.selected_release = Some(version.clone());
+                this.selected_release =
+                    (this.selected_release.as_ref() != Some(&version)).then(|| version.clone());
                 cx.notify();
             }))
             .into_any_element()
-    }
-
-    fn render_notes(
-        &self,
-        release: Option<ReleaseInfo>,
-        installed_notes: Option<(Version, String)>,
-    ) -> impl IntoElement {
-        let (title, notes, link) = match (release, installed_notes) {
-            (Some(release), _) => (
-                format!("{} — {}", release.tag, release.title),
-                release.notes,
-                Some(release.html_url).filter(|url| !url.is_empty()),
-            ),
-            (None, Some((version, notes))) => (format!("v{version} (installed)"), notes, None),
-            (None, None) => (String::new(), String::new(), None),
-        };
-        let notes = if notes.trim().is_empty() && !title.is_empty() {
-            "No release notes.".to_string()
-        } else {
-            notes
-        };
-        v_flex()
-            .gap_2()
-            .px_3()
-            .pb_4()
-            .when(!title.is_empty(), |this| {
-                this.child(Label::new(title).size(LabelSize::Small).color(Color::Muted))
-            })
-            .child(div().w_full().text_sm().child(notes))
-            .when_some(link, |this, url| {
-                this.child(
-                    Button::new("open-release", "Open on GitHub")
-                        .style(ButtonStyle::Subtle)
-                        .start_icon(Icon::new(IconName::ArrowUpRight))
-                        .on_click(move |_, _, cx| cx.open_url(&url)),
-                )
-            })
     }
 }

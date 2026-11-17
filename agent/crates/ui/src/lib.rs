@@ -39,7 +39,6 @@ mod footer;
 mod header;
 mod host;
 mod live;
-mod markdown;
 mod menus;
 mod messages;
 mod opening;

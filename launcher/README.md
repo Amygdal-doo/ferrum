@@ -323,8 +323,13 @@ On every start (each step is a no-op once done):
   catalog, the **Stable | Beta | Alpha** update channel, the **Launch**,
   **Install / Update to vX** and **Uninstall** buttons, then a list of every
   version with its channel, date, size, downloads and an active/installed
-  marker, and **Install**, **Activate** or **Remove** buttons. Click a row to
-  see that release's notes.
+  marker, and **Install**, **Activate** or **Remove** buttons. The release
+  notes beside it show the latest release and the installed version (one
+  block when they are the same), rendered as Markdown with
+  `ferrum_ui::markdown` (FerrumChat's renderer); the installed version's notes
+  come from its GitHub release while it is listed, else from the copy saved at
+  install time. Click a row to see only that release's notes, again to go
+  back.
 - **Uninstall** (the app page's red button, or **Uninstall…** in a row's
   right-click menu on the overview and in the menu bar panel) asks first, then
   removes every installed version, the `~/Applications/Ferrum` copy (or the
