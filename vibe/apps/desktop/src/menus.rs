@@ -10,8 +10,8 @@ use ferrum_ui::menus::{
 use ferrum_ui::{AppInfo, ToggleProjectSwitcher};
 
 use crate::app::{
-    MovePaneLeft, MovePaneRight, NewDiscussion, NewTask, OpenFolder, ToggleEditor, ToggleFiles,
-    ToggleGit, ToggleSidebar, ToggleTerm,
+    MovePaneLeft, MovePaneRight, NewDiscussion, NewTask, OpenFolder, ReviewChanges, ToggleEditor,
+    ToggleFiles, ToggleGit, ToggleSidebar, ToggleTerm,
 };
 
 #[must_use]
@@ -36,6 +36,8 @@ pub fn menus(info: &AppInfo) -> Vec<Menu> {
             MenuItem::action("Toggle Editor", ToggleEditor),
             MenuItem::action("Move Pane Left", MovePaneLeft),
             MenuItem::action("Move Pane Right", MovePaneRight),
+            MenuItem::separator(),
+            MenuItem::action("Review Agent Changes", ReviewChanges),
             MenuItem::separator(),
             MenuItem::action("Larger Text", LargerText),
             MenuItem::action("Smaller Text", SmallerText),

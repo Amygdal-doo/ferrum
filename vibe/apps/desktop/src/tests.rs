@@ -580,3 +580,80 @@ fn the_chat_column_shows_this_projects_threads(cx: &mut TestAppContext) {
     }
     panic!("the thread did not open");
 }
+
+/// `git` in `root` with a fixed author.
+fn git_in(root: &Path, args: &[&str]) {
+    let ok = std::process::Command::new("git")
+        .args(["-c", "user.name=T", "-c", "user.email=t@e.x"])
+        .args(args)
+        .current_dir(root)
+        .status()
+        .expect("git")
+        .success();
+    assert!(ok, "git {args:?}");
+}
+
+/// Waits until `chat` has opened its session (and so its snapshot).
+fn wait_for_session(chat: &Entity<ferrumagent_ui::ChatView>, cx: &mut VisualTestContext) {
+    for _ in 0..400 {
+        if chat.read_with(cx, |c, _| c.session().is_some()) {
+            return;
+        }
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(50));
+        draw(cx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    panic!("the chat's session did not open");
+}
+
+#[gpui::test]
+fn the_sessions_changes_are_reviewed_hunk_by_hunk(cx: &mut TestAppContext) {
+    let fx = Fixture::new();
+    let root = fx.path("a");
+    let lines: Vec<String> = (1..=20).map(|i| format!("line {i}")).collect();
+    std::fs::write(root.join("f.txt"), lines.join("\n") + "\n").expect("write");
+    git_in(&root, &["init", "-q"]);
+    git_in(&root, &["add", "."]);
+    git_in(&root, &["commit", "-q", "-m", "one"]);
+    let (app, cx) = fx.open(cx, Some(root.clone()));
+    let chat = read(&app, cx, |a| a.chat().expect("chat"));
+    wait_for_session(&chat, cx);
+
+    // Two changes far apart since the session started: two hunks.
+    let mut changed = lines.clone();
+    changed[1] = "line 2 (agent)".into();
+    changed[17] = "line 18 (agent)".into();
+    std::fs::write(root.join("f.txt"), changed.join("\n") + "\n").expect("write");
+
+    // View › Review Agent Changes (⌥⌘R from anywhere in the window).
+    update(&app, cx, |a, w, cx| a.review_changes(w, cx));
+    assert!(chat.read_with(cx, |c, _| c.is_review_open()));
+    let mut change = None;
+    for _ in 0..400 {
+        change = chat.read_with(cx, |c, _| c.pending_changes().first().cloned());
+        if change.is_some() {
+            break;
+        }
+        cx.executor()
+            .advance_clock(std::time::Duration::from_millis(50));
+        draw(cx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let change = change.expect("the change to review");
+    assert_eq!(change.hunks.len(), 2);
+
+    // Keep the first hunk, undo the second.
+    let session = chat.read_with(cx, |c, _| c.session().cloned().expect("session"));
+    session
+        .accept_hunk(&change.path, change.hunks[0].id, change.current_hash)
+        .expect("accept");
+    let change = session.changes().expect("changes").remove(0);
+    assert_eq!(change.hunks.len(), 1);
+    session
+        .reject_hunk(&change.path, change.hunks[0].id, change.current_hash)
+        .expect("reject");
+    let text = std::fs::read_to_string(root.join("f.txt")).expect("read");
+    assert!(text.contains("line 2 (agent)") && text.contains("line 18\n"));
+    assert!(session.changes().expect("changes").is_empty());
+}

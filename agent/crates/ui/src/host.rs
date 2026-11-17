@@ -100,6 +100,22 @@ impl ChatView {
         self.show_threads
     }
 
+    /// Shows or hides the review of everything the agent changed since the
+    /// session started (accept or reject each hunk, file, or all), rescanning
+    /// the disk when it opens.
+    pub fn toggle_review(&mut self, cx: &mut Context<Self>) {
+        self.show_changes = !self.show_changes;
+        if self.show_changes {
+            self.show_threads = false;
+            self.refresh_changes(cx);
+        }
+        cx.notify();
+    }
+
+    pub fn is_review_open(&self) -> bool {
+        self.show_changes
+    }
+
     /// The MCP servers' state after the first turn connected them.
     pub fn mcp_status(&self) -> &[McpServerStatus] {
         &self.mcp_status

@@ -1,6 +1,7 @@
 //! The header: the thread list toggle, the thread's title (renamed in
-//! place) and its ⋯ menu (rename, delete, copy as Markdown); outside a
-//! shell host also the changes, new-thread and settings buttons.
+//! place), its ⋯ menu (rename, delete, copy as Markdown) and the session's
+//! changes to review; outside a shell host also the new-thread and
+//! settings buttons.
 
 use ferrum_ui::components::ContextMenu;
 use ferrum_ui::prelude::*;
@@ -197,7 +198,7 @@ impl ChatView {
                     .anchor(Anchor::TopRight)
                     .menu(self.thread_menu(cx)),
             )
-            .when(changes > 0 && !shell, |this| {
+            .when(changes > 0, |this| {
                 this.child(
                     Button::new("chat-changes", format!("{changes} changed"))
                         .label_size(LabelSize::XSmall)

@@ -10,8 +10,8 @@ use ferrum_ui::prelude::*;
 
 use crate::app::{
     FerrumEngineer, GoBack, GoForward, KEY_CONTEXT, MovePaneLeft, MovePaneRight, NewDiscussion,
-    NewTask, OpenFolder, ShowSearch, ToggleEditor, ToggleFiles, ToggleGit, ToggleSidebar,
-    ToggleTerm,
+    NewTask, OpenFolder, ReviewChanges, ShowSearch, ToggleEditor, ToggleFiles, ToggleGit,
+    ToggleSidebar, ToggleTerm,
 };
 use crate::layout::Column;
 use crate::nav::{MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, Page};
@@ -252,6 +252,9 @@ impl Render for FerrumEngineer {
             }))
             .on_action(cx.listener(|this, _: &ToggleEditor, window, cx| {
                 this.toggle(Column::Editor, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &ReviewChanges, window, cx| {
+                this.review_changes(window, cx);
             }))
             .on_action(cx.listener(|this, _: &MovePaneLeft, _, cx| {
                 this.move_column(this.active_column, -1, cx);

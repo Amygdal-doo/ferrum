@@ -27,6 +27,7 @@ actions!(
         ToggleGit,
         ToggleTerm,
         ToggleEditor,
+        ReviewChanges,
         MovePaneLeft,
         MovePaneRight,
         OpenFolder,
@@ -54,6 +55,8 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-alt-2", ToggleGit, None),
         KeyBinding::new("cmd-alt-3", ToggleTerm, None),
         KeyBinding::new("cmd-alt-4", ToggleEditor, None),
+        // The chat's own ⌥⌘R wins while it has focus.
+        KeyBinding::new("cmd-alt-r", ReviewChanges, context),
         KeyBinding::new("cmd-alt-shift-left", MovePaneLeft, context),
         KeyBinding::new("cmd-alt-shift-right", MovePaneRight, context),
         KeyBinding::new("cmd-\\", ToggleSidebar, context),

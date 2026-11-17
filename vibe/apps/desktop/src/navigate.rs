@@ -102,6 +102,21 @@ impl FerrumEngineer {
         cx.notify();
     }
 
+    /// The chat's review of everything its agent changed since the session
+    /// started, per hunk (shown or hidden).
+    pub fn review_changes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(chat) = self.chat() else {
+            self.show_notice(Notice::error("Open a project folder first."), cx);
+            return;
+        };
+        if self.page() != Page::Chat {
+            self.show_page(Page::Chat, window, cx);
+        }
+        chat.update(cx, |chat, cx| chat.toggle_review(cx));
+        self.focus_chat(window, cx);
+        cx.notify();
+    }
+
     /// FerrumChat's own settings (models, keys, agents).
     pub fn chat_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(project) = self.project.clone() {

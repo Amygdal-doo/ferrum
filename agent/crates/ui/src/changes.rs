@@ -162,7 +162,7 @@ impl ChatView {
                     .child(
                         div().flex_1().min_w(px(120.)).child(
                             Label::new(format!(
-                                "{} file{} changed  +{additions} −{deletions}",
+                                "{} file{} changed since the session started  +{additions} −{deletions}",
                                 self.changes.len(),
                                 if self.changes.len() == 1 { "" } else { "s" }
                             ))
