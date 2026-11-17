@@ -3,8 +3,8 @@
 Offline developer utilities in the style of DevUtils / DevToys, written in Rust: a native
 GPUI desktop app (the UI framework of Zed, a pinned git dependency) built on the shared
 `ferrum-ui` crate. One window: a searchable list of tools on the left, the selected tool on
-the right. Everything runs locally — FerrumKit makes no network requests and writes nothing
-to disk. Part of the Ferrum monorepo, sibling of [FerrumAPI](../api), [FerrumGIT](../git),
+the right. Everything runs locally — FerrumKit makes no network requests and writes only
+its input history and saved inputs (see "Local data"). Part of the Ferrum monorepo, sibling of [FerrumAPI](../api), [FerrumGIT](../git),
 [FerrumData](../data) and [FerrumIDE](../editor), with the same theme and components.
 
 > **Status: alpha — first vertical slice.** See "What works" below; nothing beyond that list
@@ -16,6 +16,7 @@ to disk. Part of the Ferrum monorepo, sibling of [FerrumAPI](../api), [FerrumGIT
 |------|-------|
 | Member of the Ferrum monorepo workspace, pinned toolchain, workspace lints | ✅ |
 | Shell: tool sidebar with search (name + keywords, all terms must match), ⌘K / Ctrl+K focuses search, Enter opens the first match; each tool keeps its last input in memory for the session; copy buttons with a "Copied" toast | ⚠️ filter unit-tested; UI wired (not hand-tested) |
+| **History and saved inputs** (clock button in the tool header, ⌘Y): the last 20 inputs per tool, recorded after a 1.5 s pause in typing (one entry per editing session), click to restore; save the current input under a name; delete entries or clear. A per-tool **Keep history** toggle; off by default for the JWT decoder, and turning it off deletes that tool's history. Stores the text of the input fields, not modes or toggles | ✅ store unit-tested; panel headless-tested |
 | **JSON / YAML / TOML**: format (2/4 spaces, tab), minify, validate with error line + column; JSON ⇄ YAML ⇄ TOML (key order kept; TOML errors for non-table roots and `null`); "use output as input" | ✅ tested |
 | **Base64**: encode / decode text, standard (padded) or URL-safe (unpadded); decode ignores whitespace and missing padding; non-UTF-8 results reported as binary | ✅ tested |
 | **JWT decoder**: header and payload pretty-printed, `alg`, `exp`/`iat`/`nbf` as UTC + local dates + relative time, Expired / Not yet valid / Not expired / No exp badge; accepts a `Bearer ` prefix; detects JWE. **Decode only — signatures are not verified** (stated in the UI) | ✅ tested |
@@ -31,7 +32,7 @@ to disk. Part of the Ferrum monorepo, sibling of [FerrumAPI](../api), [FerrumGIT
 | **Line tools**: sort A→Z / Z→A / ignoring case, reverse, dedupe (keeps first), trim, remove empty, shuffle; in place with undo; live counts (lines, non-empty, unique, words, chars, bytes) | ✅ tested |
 
 ## Not built yet
-Persistence of inputs between launches; file input / drag-and-drop (all tools take pasted
+Remembering modes and toggles (history keeps only the text fields); file input / drag-and-drop (all tools take pasted
 text); Base64 of binary files and images; JWT signature verification and encoding; hashing
 files, HMAC, other algorithms (SHA-3, BLAKE3, CRC32); regex replace and other regex engines
 (PCRE/JavaScript syntax); character-level (intra-line) diff and side-by-side diff view; JSON
@@ -57,13 +58,17 @@ cargo fmt --all
 
 ## Layout
 ```
-apps/desktop/            GPUI app: app.rs (root view: search, sidebar, tool host, ⌘K),
+apps/desktop/            GPUI app: app.rs (root view: search, sidebar, tool host, ⌘K,
+                         recording history), history.rs (history / saved inputs panel),
                          widgets.rs (fields, copy button, choice buttons, value rows),
-                         tools/ (one view per tool)
+                         tools/ (one view per tool; the KitTool trait names its input fields)
 crates/core/             pure, unit-tested tool logic, no GPUI: catalog (tool list + search),
                          data_format (JSON/YAML/TOML), base64, jwt, url_tool, timestamp, ids,
-                         hash, regex_tool, diff, number_base, color, case, lines
+                         hash, regex_tool, diff, number_base, color, case, lines,
+                         store (history and saved inputs)
 ```
 
 ## Local data
-None. Inputs live in memory while the app runs and are gone when it quits.
+`~/.ferrum/kit/inputs.json` (mode 0600): per tool, the last 20 inputs, the saved inputs and
+the Keep history choice. Delete the file to forget everything. Inputs not recorded (a tool
+with history off) live in memory only while the app runs.

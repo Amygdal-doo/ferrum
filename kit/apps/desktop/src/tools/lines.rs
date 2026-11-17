@@ -100,3 +100,9 @@ impl Render for LinesTool {
         )
     }
 }
+
+impl super::KitTool for LinesTool {
+    fn inputs(&self) -> Vec<Entity<TextInput>> {
+        vec![self.input.clone()]
+    }
+}

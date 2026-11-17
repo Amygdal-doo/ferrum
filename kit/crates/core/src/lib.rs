@@ -1,7 +1,8 @@
 //! FerrumKit core: every tool of the FerrumKit desktop app as pure functions.
 //!
-//! Nothing here touches the network, the file system or the UI; inputs are
-//! strings, outputs are strings or small structs. The GPUI shell in
+//! Nothing here touches the network or the UI, and only [`store`] (saved
+//! inputs and history) touches the file system; inputs are strings,
+//! outputs are strings or small structs. The GPUI shell in
 //! `kit/apps/desktop` only wires these to text fields.
 
 // Tests unwrap freely; production code must not.
@@ -19,6 +20,7 @@ pub mod jwt;
 pub mod lines;
 pub mod number_base;
 pub mod regex_tool;
+pub mod store;
 pub mod timestamp;
 pub mod url_tool;
 

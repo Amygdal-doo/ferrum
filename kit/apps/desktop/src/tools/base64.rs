@@ -123,3 +123,14 @@ impl Render for Base64Tool {
         )
     }
 }
+
+impl super::KitTool for Base64Tool {
+    fn inputs(&self) -> Vec<Entity<TextInput>> {
+        vec![self.input.clone()]
+    }
+
+    fn rerun(&mut self, cx: &mut Context<Self>) {
+        self.run(cx);
+        cx.notify();
+    }
+}

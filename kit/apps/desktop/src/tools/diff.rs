@@ -129,3 +129,14 @@ impl Render for DiffTool {
         )
     }
 }
+
+impl super::KitTool for DiffTool {
+    fn inputs(&self) -> Vec<Entity<TextInput>> {
+        vec![self.left.clone(), self.right.clone()]
+    }
+
+    fn rerun(&mut self, cx: &mut Context<Self>) {
+        self.run(cx);
+        cx.notify();
+    }
+}

@@ -174,3 +174,14 @@ impl Render for RegexTool {
         )
     }
 }
+
+impl super::KitTool for RegexTool {
+    fn inputs(&self) -> Vec<Entity<TextInput>> {
+        vec![self.pattern.clone(), self.flags.clone(), self.text.clone()]
+    }
+
+    fn rerun(&mut self, cx: &mut Context<Self>) {
+        self.run(cx);
+        cx.notify();
+    }
+}

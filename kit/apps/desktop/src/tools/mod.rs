@@ -1,5 +1,6 @@
 //! One view per tool. Each view owns its inputs, so switching tools keeps
-//! what was typed for the rest of the session.
+//! what was typed for the rest of the session; history and saved inputs
+//! (see [`ferrumkit_core::store`]) keep them across launches.
 
 mod base64;
 mod case;
@@ -15,18 +16,64 @@ mod regex;
 mod timestamp;
 mod url;
 
+use std::rc::Rc;
+
 use crate::app::FerrumKit;
 use crate::widgets::KitEvent;
 use ferrum_ui::gpui::AnyView;
 use ferrum_ui::prelude::*;
 use ferrumkit_core::Tool;
 
+/// What the root needs from a tool view besides drawing it.
+pub trait KitTool: Render + EventEmitter<KitEvent> {
+    /// The fields holding the tool's input, in a fixed order: history and
+    /// saved inputs store their text.
+    fn inputs(&self) -> Vec<Entity<TextInput>>;
+
+    /// Recomputes the result after the inputs were replaced.
+    fn rerun(&mut self, cx: &mut Context<Self>) {
+        cx.notify();
+    }
+}
+
+/// A tool view with its fields, independent of its type.
+#[derive(Clone)]
+pub struct ToolView {
+    pub view: AnyView,
+    inputs: Vec<Entity<TextInput>>,
+    rerun: Rc<dyn Fn(&mut App)>,
+}
+
+impl ToolView {
+    /// The text of the input fields.
+    pub fn values(&self, cx: &App) -> Vec<String> {
+        self.inputs
+            .iter()
+            .map(|input| input.read(cx).text().to_string())
+            .collect()
+    }
+
+    /// Puts `values` into the input fields (missing ones are cleared) and
+    /// recomputes the result.
+    pub fn restore(&self, values: &[String], cx: &mut App) {
+        for (i, input) in self.inputs.iter().enumerate() {
+            let text = values.get(i).cloned().unwrap_or_default();
+            input.update(cx, |input, cx| input.set_text(text, cx));
+        }
+        (self.rerun)(cx);
+    }
+
+    pub fn inputs(&self) -> &[Entity<TextInput>] {
+        &self.inputs
+    }
+}
+
 /// Creates the view for `tool` and forwards its events to the root.
 pub fn build(
     tool: Tool,
     window: &mut Window,
     cx: &mut Context<FerrumKit>,
-) -> (AnyView, Subscription) {
+) -> (ToolView, Subscription) {
     match tool {
         Tool::Json => wire(cx.new(|cx| json::JsonTool::new(window, cx)), cx),
         Tool::Base64 => wire(cx.new(|cx| base64::Base64Tool::new(window, cx)), cx),
@@ -47,12 +94,19 @@ pub fn build(
     }
 }
 
-fn wire<T: Render + EventEmitter<KitEvent>>(
-    entity: Entity<T>,
-    cx: &mut Context<FerrumKit>,
-) -> (AnyView, Subscription) {
+fn wire<T: KitTool>(entity: Entity<T>, cx: &mut Context<FerrumKit>) -> (ToolView, Subscription) {
     let subscription = cx.subscribe(&entity, |this, _, event, cx| this.handle_event(event, cx));
-    (entity.into(), subscription)
+    let inputs = entity.read(cx).inputs();
+    let target = entity.clone();
+    let rerun: Rc<dyn Fn(&mut App)> = Rc::new(move |cx: &mut App| {
+        target.update(cx, |tool, cx| tool.rerun(cx));
+    });
+    let view = ToolView {
+        view: entity.into(),
+        inputs,
+        rerun,
+    };
+    (view, subscription)
 }
 
 /// Two panes side by side (input left, output right).

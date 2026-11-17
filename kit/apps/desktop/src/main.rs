@@ -1,9 +1,11 @@
 //! FerrumKit desktop entry point. Everything runs locally; the app makes no
-//! network requests and stores nothing on disk.
+//! network requests and stores only input history and saved inputs (in
+//! `~/.ferrum/kit/`).
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod app;
 mod app_info;
+mod history;
 #[cfg(test)]
 mod tests_render;
 mod tools;

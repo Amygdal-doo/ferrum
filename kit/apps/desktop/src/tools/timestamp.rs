@@ -143,3 +143,14 @@ impl Render for TimestampTool {
         )
     }
 }
+
+impl super::KitTool for TimestampTool {
+    fn inputs(&self) -> Vec<Entity<TextInput>> {
+        vec![self.input.clone()]
+    }
+
+    fn rerun(&mut self, cx: &mut Context<Self>) {
+        self.run(cx);
+        cx.notify();
+    }
+}

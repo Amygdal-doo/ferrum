@@ -53,6 +53,30 @@ impl Tool {
         }
     }
 
+    /// Stable key for stored data (history, saved inputs).
+    pub fn id(self) -> &'static str {
+        match self {
+            Tool::Json => "json",
+            Tool::Base64 => "base64",
+            Tool::Jwt => "jwt",
+            Tool::Url => "url",
+            Tool::Timestamp => "timestamp",
+            Tool::Ids => "ids",
+            Tool::Hash => "hash",
+            Tool::Regex => "regex",
+            Tool::Diff => "diff",
+            Tool::NumberBase => "number-base",
+            Tool::Color => "color",
+            Tool::Case => "case",
+            Tool::Lines => "lines",
+        }
+    }
+
+    /// Inputs are usually secrets (tokens): no history unless turned on.
+    pub fn sensitive(self) -> bool {
+        matches!(self, Tool::Jwt)
+    }
+
     pub fn description(self) -> &'static str {
         match self {
             Tool::Json => "Format, minify and validate JSON; convert between JSON, YAML and TOML.",
@@ -139,10 +163,12 @@ mod tests {
     }
 
     #[test]
-    fn every_tool_has_text() {
+    fn every_tool_has_text_and_a_unique_id() {
+        let mut ids = std::collections::HashSet::new();
         for tool in Tool::ALL {
             assert!(!tool.name().is_empty());
             assert!(!tool.description().is_empty());
+            assert!(ids.insert(tool.id()));
         }
     }
 }

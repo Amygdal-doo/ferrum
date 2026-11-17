@@ -67,3 +67,9 @@ impl Render for CaseTool {
         )
     }
 }
+
+impl super::KitTool for CaseTool {
+    fn inputs(&self) -> Vec<Entity<TextInput>> {
+        vec![self.input.clone()]
+    }
+}

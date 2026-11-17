@@ -3190,6 +3190,7 @@ dependencies = [
  "ferrum-ui",
  "ferrumkit-core",
  "gpui",
+ "tempfile",
 ]
 
 [[package]]
