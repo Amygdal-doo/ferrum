@@ -484,8 +484,33 @@ those two functions; `state.json`'s format is unchanged.
   macOS `.app` in a folder the user can write to (an admin's
   `/Applications`, or `~/Applications`). A detached script waits for the
   launcher to quit, swaps the bundle (rolling back if the move fails) and
-  reopens it. Elsewhere the button opens the release page instead.
+  reopens it. On Windows and Linux a launcher installed by its installer
+  (`%LOCALAPPDATA%\Programs\Ferrum\…` from the setup.exe, `/opt/ferrum/launcher`
+  from the `.deb`) downloads the new release's
+  `FerrumLauncher-<v>-x86_64-setup.exe` or `ferrum-launcher_<v>_amd64.deb`
+  (checked against its `.sha256`) and opens it: the setup wizard, after which
+  the launcher quits so Inno Setup can replace it, or the desktop's package
+  installer (`xdg-open`). Anything else (an archive, `cargo run`, a release
+  without that installer) opens the release page.
 - Windows builds are compiled in CI but haven't been tested by hand;
   FerrumTerm has no Windows build (Unix sockets). Start Menu shortcuts are
   created through PowerShell; if that fails the install still succeeds and
   the launcher logs a warning.
+
+### Windows and Linux: what is and isn't verified
+
+| Path | Windows (x86_64) | Linux (x86_64) | Verified by |
+| --- | --- | --- | --- |
+| App installs and updates | the `.zip` (`.exe` files at the root), `.cmd` shims, Start Menu shortcut | the `.tar.gz`, symlinks, `.desktop` entry and icon | unit tests on macOS with `Platform::Windows` / `Platform::Linux` paths (asset choice, zip and tar unpacking, shims, entries) |
+| Checksums | `.sha256` beside each asset | same | unit tests |
+| Is the app running? Quit it ("Restart to update") | `tasklist`, `taskkill` (no `/F`) | `ps`, `SIGTERM` | output parsing unit-tested; the commands were only run on macOS |
+| Launcher self-update | runs the Inno Setup `setup.exe` (per user, `CloseApplications=yes`), then quits | opens the `.deb` with `xdg-open` | installer naming and install-location rules unit-tested |
+
+**Not tested on a real Windows or Linux machine**, by hand or in CI: the
+launcher has only been run on macOS. In particular untested: the setup.exe
+replacing a running launcher, `xdg-open` handing a `.deb` to a package
+installer (desktops without one just fail to open it, and the notice says
+so), and `taskkill`/`SIGTERM` letting an app ask about unsaved work. The
+`.deb` and setup.exe are only used for the launcher itself; other apps are
+installed from their archives. No AppImage or MSI is published, so neither is
+supported.

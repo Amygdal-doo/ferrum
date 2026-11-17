@@ -230,7 +230,7 @@ impl LauncherPanel {
             return None;
         }
         let url = release.html_url.clone();
-        let self_updatable = launcher.running_bundle.is_some();
+        let self_updatable = launcher.can_update_itself();
         let updating = launcher.self_update.is_some();
         let dismissed = version.clone();
         Some(

@@ -404,8 +404,13 @@ impl FerrumLauncher {
     }
 
     /// Downloads `version` of the launcher, then swaps it for the running
-    /// bundle and restarts (see [`Self::finish_self_update`]).
+    /// bundle and restarts (see [`Self::finish_self_update`]). Without a
+    /// bundle it goes through the installer (`installer_update`).
     pub fn update_launcher(&mut self, version: Version, cx: &mut Context<Self>) {
+        if self.running_bundle.is_none() {
+            self.update_launcher_with_installer(version, cx);
+            return;
+        }
         self.self_update = Some(version.clone());
         // Not activated: that would publish a second copy into
         // ~/Applications/Ferrum next to the one being replaced.

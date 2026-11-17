@@ -58,6 +58,9 @@ pub struct FerrumLauncher {
     pub logos: HashMap<AppId, Arc<Image>>,
     /// The `.app` this process runs from; `None` for unbundled builds.
     pub running_bundle: Option<std::path::PathBuf>,
+    /// Installed by its Windows or Linux installer (updates through the
+    /// next one, see `installer_update`).
+    pub from_installer: bool,
     pub token_source: Option<TokenSource>,
     pub onboarding: Option<Entity<Onboarding>>,
     pub(crate) onboarding_subscription: Option<Subscription>,
@@ -110,6 +113,7 @@ impl FerrumLauncher {
             self_update: None,
             logos: HashMap::new(),
             running_bundle: ferrumlauncher_core::self_update::running_bundle(),
+            from_installer: ferrumlauncher_core::self_update::running_from_installer(),
             token_source: None,
             onboarding: None,
             onboarding_subscription: None,
@@ -242,7 +246,7 @@ impl FerrumLauncher {
             .state
             .update_for(AppId::LAUNCHER)
             .map(|release| (release.version.clone(), release.html_url.clone()));
-        let self_updatable = self.running_bundle.is_some();
+        let self_updatable = self.can_update_itself();
         ferrum_ui::title_row("title-row", true, window)
             .gap_1()
             .child(div().flex_none().w(px(8.)))
@@ -250,8 +254,9 @@ impl FerrumLauncher {
             // same as ⌘,.
             .child(ferrum_ui::settings_button("settings"))
             // A bundled launcher swaps itself for the new version and
-            // restarts; otherwise (cargo run, Windows, Linux) the release
-            // page has the installer.
+            // restarts, an installed one on Windows or Linux runs the new
+            // installer; otherwise (cargo run, an archive) the release page
+            // has the installer.
             .when_some(launcher_update, |this, (version, url)| {
                 let updating = self.self_update.is_some();
                 let button = Button::new(
