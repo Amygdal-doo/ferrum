@@ -3,6 +3,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tool {
     Json,
+    Sql,
     Base64,
     Jwt,
     Url,
@@ -20,8 +21,9 @@ pub enum Tool {
 
 impl Tool {
     /// Sidebar order.
-    pub const ALL: [Tool; 14] = [
+    pub const ALL: [Tool; 15] = [
         Tool::Json,
+        Tool::Sql,
         Tool::Base64,
         Tool::Jwt,
         Tool::Url,
@@ -40,6 +42,7 @@ impl Tool {
     pub fn name(self) -> &'static str {
         match self {
             Tool::Json => "JSON / YAML / TOML",
+            Tool::Sql => "SQL Formatter",
             Tool::Base64 => "Base64",
             Tool::Jwt => "JWT Decoder",
             Tool::Url => "URL Encode / Parse",
@@ -60,6 +63,7 @@ impl Tool {
     pub fn id(self) -> &'static str {
         match self {
             Tool::Json => "json",
+            Tool::Sql => "sql",
             Tool::Base64 => "base64",
             Tool::Jwt => "jwt",
             Tool::Url => "url",
@@ -84,6 +88,7 @@ impl Tool {
     pub fn description(self) -> &'static str {
         match self {
             Tool::Json => "Format, minify and validate JSON; convert between JSON, YAML and TOML.",
+            Tool::Sql => "Lay out SQL one clause per line, with keyword case and indent options.",
             Tool::Base64 => "Encode and decode text as standard or URL-safe Base64.",
             Tool::Jwt => {
                 "Decode a JSON Web Token's header and payload. Does not verify signatures."
@@ -110,6 +115,7 @@ impl Tool {
     fn keywords(self) -> &'static str {
         match self {
             Tool::Json => "json yaml yml toml format pretty minify validate beautify convert",
+            Tool::Sql => "sql query format pretty beautify select postgres mysql",
             Tool::Base64 => "base64 b64 encode decode url-safe",
             Tool::Jwt => "jwt token jws bearer decode claims exp",
             Tool::Url => "url uri percent encode decode query parse params",

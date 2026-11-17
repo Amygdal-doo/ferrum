@@ -21,6 +21,7 @@ pub mod jwt;
 pub mod lines;
 pub mod number_base;
 pub mod regex_tool;
+pub mod sql;
 pub mod store;
 pub mod timestamp;
 pub mod url_tool;

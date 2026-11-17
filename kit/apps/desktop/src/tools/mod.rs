@@ -14,6 +14,7 @@ mod jwt;
 mod lines;
 mod number_base;
 mod regex;
+mod sql;
 mod timestamp;
 mod url;
 
@@ -95,6 +96,7 @@ pub fn build(
 ) -> (ToolView, Subscription) {
     match tool {
         Tool::Json => wire(cx.new(|cx| json::JsonTool::new(window, cx)), cx),
+        Tool::Sql => wire(cx.new(|cx| sql::SqlTool::new(window, cx)), cx),
         Tool::Base64 => wire(cx.new(|cx| base64::Base64Tool::new(window, cx)), cx),
         Tool::Jwt => wire(cx.new(|cx| jwt::JwtTool::new(window, cx)), cx),
         Tool::Url => wire(cx.new(|cx| url::UrlTool::new(window, cx)), cx),
