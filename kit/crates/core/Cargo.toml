@@ -10,6 +10,7 @@ license.workspace = true
 [dependencies]
 base64.workspace = true
 chrono.workspace = true
+jsonschema.workspace = true
 md-5.workspace = true
 percent-encoding.workspace = true
 regex.workspace = true

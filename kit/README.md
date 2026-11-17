@@ -19,6 +19,7 @@ its input history and saved inputs (see "Local data"). Part of the Ferrum monore
 | **History and saved inputs** (clock button in the tool header, ⌘Y): the last 20 inputs per tool, recorded after a 1.5 s pause in typing (one entry per editing session), click to restore; save the current input under a name; delete entries or clear. A per-tool **Keep history** toggle; off by default for the JWT decoder, and turning it off deletes that tool's history. Stores the text of the input fields, not modes or toggles | ✅ store unit-tested; panel headless-tested |
 | **Wrap** (tool header, ⌥Z): soft-wraps long lines in every multi-line input and result field, at spaces when a row has one; ↑/↓ move by painted row. Remembered between launches | ✅ wrapping headless-tested in `ferrum-ui` |
 | **JSON / YAML / TOML**: format (2/4 spaces, tab), minify, validate with error line + column; JSON ⇄ YAML ⇄ TOML (key order kept; TOML errors for non-table roots and `null`); "use output as input" | ✅ tested |
+| **JSON Schema** (`jsonschema` crate): validate a document against a schema (draft 4 to 2020-12 from `$schema`, formats checked) with each failure's JSON Pointer and message; or generate a draft 2020-12 schema from a sample (types, required keys, array items merged across elements, `date-time`/`date`/`uuid`/`uri`/`email` formats), then validate with it. Remote `$ref`s are not fetched | ✅ tested |
 | **SQL formatter** (`sqlformat` crate): one clause per line; indent 2/4 spaces or tab; keywords UPPER, lower or as written; generic, PostgreSQL or SQL Server dialect; several statements. Whitespace and keyword case only — the SQL is not validated | ✅ tested |
 | **Base64**: encode / decode text, standard (padded) or URL-safe (unpadded); decode ignores whitespace and missing padding; non-UTF-8 results reported as binary | ✅ tested |
 | **JWT decoder**: header and payload pretty-printed, `alg`, `exp`/`iat`/`nbf` as UTC + local dates + relative time, Expired / Not yet valid / Not expired / No exp badge; accepts a `Bearer ` prefix; detects JWE. **Decode only — signatures are not verified** (stated in the UI) | ✅ tested |
@@ -39,7 +40,7 @@ Remembering modes and toggles (history keeps only the text fields); file input /
 text); Base64 of binary files and images; JWT signature verification and encoding; hashing
 files, HMAC, other algorithms (SHA-3, BLAKE3, CRC32); regex replace and other regex engines
 (PCRE/JavaScript syntax); character-level (intra-line) diff and side-by-side diff view; JSON
-path queries, JSON schema, XML / CSV conversion; colour picker, contrast ratio and named
+path queries, XML / CSV conversion; colour picker, contrast ratio and named
 colours; keyboard navigation of the tool list (arrow keys) and ⌘1… shortcuts; a light theme; packaging, signing and a FerrumLauncher entry.
 
 ## Prerequisites
@@ -65,7 +66,7 @@ apps/desktop/            GPUI app: app.rs (root view: search, sidebar, tool host
                          tools/ (one view per tool; the KitTool trait names its input fields)
 crates/core/             pure, unit-tested tool logic, no GPUI: catalog (tool list + search),
                          data_format (JSON/YAML/TOML), base64, jwt, url_tool, timestamp, ids,
-                         hash, regex_tool, diff, number_base, color, case, lines, cron, sql,
+                         hash, regex_tool, diff, number_base, color, case, lines, cron, sql, json_schema,
                          store (history and saved inputs)
 ```
 

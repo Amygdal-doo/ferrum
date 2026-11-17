@@ -17,6 +17,7 @@ pub mod data_format;
 pub mod diff;
 pub mod hash;
 pub mod ids;
+pub mod json_schema;
 pub mod jwt;
 pub mod lines;
 pub mod number_base;

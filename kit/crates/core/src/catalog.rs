@@ -3,6 +3,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Tool {
     Json,
+    JsonSchema,
     Sql,
     Base64,
     Jwt,
@@ -21,8 +22,9 @@ pub enum Tool {
 
 impl Tool {
     /// Sidebar order.
-    pub const ALL: [Tool; 15] = [
+    pub const ALL: [Tool; 16] = [
         Tool::Json,
+        Tool::JsonSchema,
         Tool::Sql,
         Tool::Base64,
         Tool::Jwt,
@@ -42,6 +44,7 @@ impl Tool {
     pub fn name(self) -> &'static str {
         match self {
             Tool::Json => "JSON / YAML / TOML",
+            Tool::JsonSchema => "JSON Schema",
             Tool::Sql => "SQL Formatter",
             Tool::Base64 => "Base64",
             Tool::Jwt => "JWT Decoder",
@@ -63,6 +66,7 @@ impl Tool {
     pub fn id(self) -> &'static str {
         match self {
             Tool::Json => "json",
+            Tool::JsonSchema => "json-schema",
             Tool::Sql => "sql",
             Tool::Base64 => "base64",
             Tool::Jwt => "jwt",
@@ -88,6 +92,9 @@ impl Tool {
     pub fn description(self) -> &'static str {
         match self {
             Tool::Json => "Format, minify and validate JSON; convert between JSON, YAML and TOML.",
+            Tool::JsonSchema => {
+                "Validate JSON against a JSON Schema, or generate a schema from a sample."
+            }
             Tool::Sql => "Lay out SQL one clause per line, with keyword case and indent options.",
             Tool::Base64 => "Encode and decode text as standard or URL-safe Base64.",
             Tool::Jwt => {
@@ -115,6 +122,7 @@ impl Tool {
     fn keywords(self) -> &'static str {
         match self {
             Tool::Json => "json yaml yml toml format pretty minify validate beautify convert",
+            Tool::JsonSchema => "json schema validate validator draft 2020-12 generate infer types",
             Tool::Sql => "sql query format pretty beautify select postgres mysql",
             Tool::Base64 => "base64 b64 encode decode url-safe",
             Tool::Jwt => "jwt token jws bearer decode claims exp",
