@@ -163,6 +163,8 @@ pub struct FerrumEngineer {
     /// "Restore to here…" on a checkpoint in the git history, waiting for
     /// confirmation.
     pub(crate) restore_prompt: Option<crate::checkpoints::RestorePrompt>,
+    /// Reads the chat's checkpoints for the git column.
+    pub(crate) checkpoints_task: Option<Task<()>>,
     pub(crate) notice: Option<Notice>,
     notice_task: Option<Task<()>>,
     save_task: Option<Task<()>>,
@@ -230,6 +232,7 @@ impl FerrumEngineer {
             pending_changes: 0,
             git_refreshes: 0,
             restore_prompt: None,
+            checkpoints_task: None,
             notice: None,
             notice_task: None,
             save_task: None,

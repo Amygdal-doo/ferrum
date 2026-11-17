@@ -62,17 +62,23 @@ pub fn files_restored(checkpoints: &[CheckpointInfo], id: u64) -> Vec<PathBuf> {
 
 impl FerrumEngineer {
     /// Shows the current project's chat checkpoints in the git column.
+    /// Read off the UI thread: the change set they live in is locked while
+    /// the review scans the disk.
     pub(crate) fn sync_checkpoints(&mut self, cx: &mut Context<Self>) {
         let Some(git) = self.git.clone() else {
             return;
         };
-        let checkpoints = self
+        let session = self
             .chat()
-            .map(|chat| chat.read(cx).checkpoints())
-            .unwrap_or_default();
-        git.update(cx, |git, cx| {
-            git.set_history_markers(TITLE, markers(&checkpoints), cx);
-        });
+            .and_then(|chat| chat.read(cx).session().cloned());
+        let read = cx
+            .background_spawn(async move { session.map(|s| s.checkpoints()).unwrap_or_default() });
+        self.checkpoints_task = Some(cx.spawn(async move |_, cx| {
+            let checkpoints = read.await;
+            git.update(cx, |git, cx| {
+                git.set_history_markers(TITLE, markers(&checkpoints), cx);
+            });
+        }));
     }
 
     /// "Restore to here…" on checkpoint `id`: asks first.
