@@ -5,6 +5,7 @@
 mod base64;
 mod case;
 mod color;
+mod cron;
 mod diff;
 mod hash;
 mod ids;
@@ -98,6 +99,7 @@ pub fn build(
         Tool::Jwt => wire(cx.new(|cx| jwt::JwtTool::new(window, cx)), cx),
         Tool::Url => wire(cx.new(|cx| url::UrlTool::new(window, cx)), cx),
         Tool::Timestamp => wire(cx.new(|cx| timestamp::TimestampTool::new(window, cx)), cx),
+        Tool::Cron => wire(cx.new(|cx| cron::CronTool::new(window, cx)), cx),
         Tool::Ids => wire(cx.new(|cx| ids::IdsTool::new(window, cx)), cx),
         Tool::Hash => wire(cx.new(|cx| hash::HashTool::new(window, cx)), cx),
         Tool::Regex => wire(cx.new(|cx| regex::RegexTool::new(window, cx)), cx),

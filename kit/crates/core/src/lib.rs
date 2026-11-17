@@ -12,6 +12,7 @@ pub mod base64;
 pub mod case;
 pub mod catalog;
 pub mod color;
+pub mod cron;
 pub mod data_format;
 pub mod diff;
 pub mod hash;

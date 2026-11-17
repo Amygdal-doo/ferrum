@@ -23,6 +23,7 @@ its input history and saved inputs (see "Local data"). Part of the Ferrum monore
 | **JWT decoder**: header and payload pretty-printed, `alg`, `exp`/`iat`/`nbf` as UTC + local dates + relative time, Expired / Not yet valid / Not expired / No exp badge; accepts a `Bearer ` prefix; detects JWE. **Decode only — signatures are not verified** (stated in the UI) | ✅ tested |
 | **URL**: encode (like `encodeURIComponent`), decode (optional `+` as space), parser showing scheme / user / password / host / port / path / query / fragment and decoded query parameters (repeats kept) as rows | ✅ tested |
 | **Unix timestamp**: seconds or milliseconds (auto-detect from 12 digits up), dates (RFC 3339, RFC 2822, `YYYY-MM-DD[ HH:MM[:SS]]`) read as local or UTC; shows seconds, ms, UTC, local, ISO 8601, relative; **Now** button | ✅ tested |
+| **Cron expression**: five fields (`*`, values, ranges, steps, lists, `JAN`/`MON` names, `7` = Sunday) and `@hourly`/`@daily`/`@weekly`/`@monthly`/`@yearly`, explained in English ("At 09:30, on Monday through Friday"); the next 10 runs in local time with UTC and relative time; example buttons. Day-of-month and day-of-week both set means either (Vixie cron). No seconds field, `L`, `W` or `#` | ✅ tested (incl. 29 February) |
 | **UUID / ULID**: UUID v4, UUID v7 (time-ordered), ULID; count 1–10 000; uppercase toggle for UUIDs | ✅ tested |
 | **Hash**: MD5, SHA-1, SHA-256, SHA-512 of the UTF-8 text, live; uppercase toggle | ✅ tested against known vectors |
 | **Regex tester** (Rust `regex` crate syntax — no look-around/backreferences): pattern + flags `i m s x`, matches highlighted in the text, match list with byte ranges and numbered / named capture groups; 1 000-match cap | ✅ tested |
@@ -63,7 +64,7 @@ apps/desktop/            GPUI app: app.rs (root view: search, sidebar, tool host
                          tools/ (one view per tool; the KitTool trait names its input fields)
 crates/core/             pure, unit-tested tool logic, no GPUI: catalog (tool list + search),
                          data_format (JSON/YAML/TOML), base64, jwt, url_tool, timestamp, ids,
-                         hash, regex_tool, diff, number_base, color, case, lines,
+                         hash, regex_tool, diff, number_base, color, case, lines, cron,
                          store (history and saved inputs)
 ```
 

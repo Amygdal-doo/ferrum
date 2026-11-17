@@ -7,6 +7,7 @@ pub enum Tool {
     Jwt,
     Url,
     Timestamp,
+    Cron,
     Ids,
     Hash,
     Regex,
@@ -19,12 +20,13 @@ pub enum Tool {
 
 impl Tool {
     /// Sidebar order.
-    pub const ALL: [Tool; 13] = [
+    pub const ALL: [Tool; 14] = [
         Tool::Json,
         Tool::Base64,
         Tool::Jwt,
         Tool::Url,
         Tool::Timestamp,
+        Tool::Cron,
         Tool::Ids,
         Tool::Hash,
         Tool::Regex,
@@ -42,6 +44,7 @@ impl Tool {
             Tool::Jwt => "JWT Decoder",
             Tool::Url => "URL Encode / Parse",
             Tool::Timestamp => "Unix Timestamp",
+            Tool::Cron => "Cron Expression",
             Tool::Ids => "UUID / ULID",
             Tool::Hash => "Hash Generator",
             Tool::Regex => "Regex Tester",
@@ -61,6 +64,7 @@ impl Tool {
             Tool::Jwt => "jwt",
             Tool::Url => "url",
             Tool::Timestamp => "timestamp",
+            Tool::Cron => "cron",
             Tool::Ids => "ids",
             Tool::Hash => "hash",
             Tool::Regex => "regex",
@@ -88,6 +92,7 @@ impl Tool {
             Tool::Timestamp => {
                 "Convert Unix timestamps (seconds or milliseconds) to dates and back."
             }
+            Tool::Cron => "Explain a cron schedule in plain English and list its next run times.",
             Tool::Ids => "Generate UUID v4, UUID v7 and ULID identifiers.",
             Tool::Hash => "MD5, SHA-1, SHA-256 and SHA-512 digests of text.",
             Tool::Regex => "Test a regular expression (Rust regex syntax) against text.",
@@ -109,6 +114,7 @@ impl Tool {
             Tool::Jwt => "jwt token jws bearer decode claims exp",
             Tool::Url => "url uri percent encode decode query parse params",
             Tool::Timestamp => "unix epoch timestamp time date seconds milliseconds",
+            Tool::Cron => "cron crontab schedule job timer next run every minute hour",
             Tool::Ids => "uuid guid ulid v4 v7 generate id",
             Tool::Hash => "hash md5 sha1 sha256 sha512 digest checksum",
             Tool::Regex => "regex regexp regular expression match pattern",
