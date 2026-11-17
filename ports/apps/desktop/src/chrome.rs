@@ -2,6 +2,7 @@
 
 use ferrum_ui::components::TintColor;
 use ferrum_ui::prelude::*;
+use ferrumports_core::container;
 
 use crate::app::{FerrumPorts, KillStage};
 
@@ -236,6 +237,16 @@ pub fn kill_dialog(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> Option<A
             .width(px(560.))
             .on_dismiss(cx.listener(move |app, _, _, cx| close(app, cx)))
             .child(Label::new(intro))
+            .when(container::is_runtime(&l.process), |modal| {
+                modal.child(
+                    Label::new(format!(
+                        "{} is the container runtime, not a container: stopping it stops every \
+                         container. To stop one container, use FerrumContainers.",
+                        l.process
+                    ))
+                    .color(Color::Warning),
+                )
+            })
             .child(
                 div()
                     .id("kill-command")

@@ -107,6 +107,20 @@ pub fn render(
                 )
             }))
     });
+    let container = l.container.clone().map(|c| {
+        v_flex()
+            .gap_1()
+            .child(field(
+                "Container",
+                value(format!("{} · {} · {}", c.name, c.image, c.short_id())).color(Color::Info),
+            ))
+            .child(button(
+                "d-open-containers",
+                "Open in FerrumContainers",
+                cx,
+                |app, cx| app.open_containers(cx),
+            ))
+    });
     let kill = l.clone();
 
     let header = ferrum_ui::title_row("detail-header", false, window)
@@ -140,6 +154,7 @@ pub fn render(
         .gap_3()
         .child(actions)
         .children(open_in)
+        .children(container)
         .when_some(host.as_ref(), |d, host| {
             d.child(field(
                 "Machine",

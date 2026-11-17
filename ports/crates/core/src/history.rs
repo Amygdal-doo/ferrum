@@ -217,6 +217,7 @@ mod tests {
             started: None,
             cwd: None,
             project: Some(PathBuf::from("/code/shop")),
+            container: None,
         }
     }
 

@@ -6,6 +6,7 @@ use std::process::Command;
 use std::time::Duration;
 
 use ferrum_ui::NoticeTone;
+use ferrumports_core::container::Container;
 use ferrumports_core::forward::ForwardStatus;
 use ferrumports_core::kill::{KillError, Signal};
 use ferrumports_core::{Listener, Protocol, Row, ScanError, Snapshot};
@@ -25,6 +26,7 @@ fn listener(port: u16, process: &str, pid: u32, project: Option<&str>) -> Listen
         started: None,
         cwd: project.map(|p| PathBuf::from(p).join("src")),
         project: project.map(PathBuf::from),
+        container: None,
     }
 }
 
@@ -331,6 +333,32 @@ fn history_records_scans_of_this_mac(cx: &mut TestAppContext) {
         assert_eq!(app.history.entries().filter(|e| e.open).count(), 3);
         app.clear_history(cx);
         assert!(app.history.is_empty());
+    });
+    draw(cx);
+}
+
+#[gpui::test]
+fn container_ports_show_the_container(cx: &mut TestAppContext) {
+    let (app, cx) = window(cx);
+    app.update(cx, |app, cx| {
+        let mut snapshot = sample();
+        let mut docker = listener(8097, "com.docker.backend", 4_000_009, None);
+        docker.container = Some(Container {
+            id: "5d1bc4f4fb2c0f200fe6f8b0".into(),
+            name: "landing-wp-1".into(),
+            image: "wordpress:php8.2-apache".into(),
+        });
+        snapshot.listeners.push(docker);
+        app.apply_scan(Ok(snapshot), cx);
+        app.search
+            .update(cx, |input, cx| input.set_text("wordpress", cx));
+    });
+    assert_eq!(ports(&app, cx), ["8097"]);
+    app.update(cx, |app, cx| {
+        let l = app.listeners[4].clone();
+        app.select(l.key(), cx);
+        // The kill dialog warns that this is the runtime, not the container.
+        app.ask_kill(l, cx);
     });
     draw(cx);
 }

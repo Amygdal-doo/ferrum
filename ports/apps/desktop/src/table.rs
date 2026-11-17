@@ -12,7 +12,7 @@ const COLUMNS: [(&str, Option<f32>); 7] = [
     ("Address", Some(150.)),
     ("Process", Some(130.)),
     ("PID", Some(66.)),
-    ("Project", Some(120.)),
+    ("Project / container", Some(140.)),
     ("Command", None),
 ];
 const ACTIONS_WIDTH: f32 = 56.;
@@ -170,7 +170,21 @@ fn listener_row(
         ))
         .child(cell(
             COLUMNS[5].1,
-            text(l.project_name().unwrap_or_default(), Color::Accent),
+            // A container's port shows the container (a box before its name).
+            match &l.container {
+                Some(container) => h_flex()
+                    .gap_1()
+                    .child(
+                        Icon::new(IconName::Box)
+                            .size(IconSize::XSmall)
+                            .color(Color::Info),
+                    )
+                    .child(text(container.name.clone(), Color::Info))
+                    .into_any_element(),
+                None => {
+                    text(l.project_name().unwrap_or_default(), Color::Accent).into_any_element()
+                }
+            },
         ))
         .child(cell(
             COLUMNS[6].1,

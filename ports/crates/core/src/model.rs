@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use chrono::NaiveDateTime;
 
+use crate::container::Container;
 use crate::hints::{self, Hint};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -127,6 +128,9 @@ pub struct Listener {
     pub cwd: Option<PathBuf>,
     /// The project folder `cwd` belongs to (see [`crate::project`]).
     pub project: Option<PathBuf>,
+    /// The container that published the port, when a container runtime
+    /// holds it (see [`crate::container`]).
+    pub container: Option<Container>,
 }
 
 impl Listener {
@@ -240,6 +244,7 @@ mod tests {
             started: None,
             cwd: None,
             project: Some(PathBuf::from("/code/shop")),
+            container: None,
         };
         assert_eq!(l.exposure(), Exposure::AllInterfaces);
         assert_eq!(l.url(), "http://localhost:3000");

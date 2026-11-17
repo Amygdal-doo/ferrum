@@ -3,6 +3,7 @@
 //! background executor.
 
 use std::path::Path;
+use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use chrono::Local;
@@ -158,6 +159,42 @@ impl FerrumPorts {
         let notice = match project::open_in(app, folder) {
             Ok(()) => Notice::info(format!("Opening {} in {}…", folder.display(), app.name())),
             Err(e) => Notice::error(e),
+        };
+        self.show_notice(notice, cx);
+    }
+
+    /// Opens FerrumContainers. The shared open-in helpers
+    /// (`ferrum_ui::project::FerrumApp`) cover the IDE, Git and Term only,
+    /// so this uses its binary next to ours (development builds) or
+    /// `open -a`. FerrumContainers takes no container argument; it opens
+    /// on its container list.
+    pub fn open_containers(&mut self, cx: &mut Context<Self>) {
+        let spawned = match project::find_binary("ferrumdock", project::home_dir().as_deref()) {
+            Some(binary) => Command::new(binary)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn()
+                .map(drop),
+            None => Command::new("open")
+                .args(["-a", "FerrumContainers"])
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .and_then(|status| {
+                    if status.success() {
+                        Ok(())
+                    } else {
+                        Err(std::io::Error::other("not installed"))
+                    }
+                }),
+        };
+        let notice = match spawned {
+            Ok(()) => Notice::info("Opening FerrumContainers…"),
+            Err(e) => Notice::error(format!(
+                "Could not open FerrumContainers ({e}). Install it in FerrumLauncher."
+            )),
         };
         self.show_notice(notice, cx);
     }

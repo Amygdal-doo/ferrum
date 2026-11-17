@@ -21,6 +21,7 @@ same tools over the system `ssh`. It writes the shared recent-projects list
 | Bound UDP sockets (toolbar **UDP** toggle). Connected and `*:*` sockets are skipped | ✅ tested |
 | macOS/BSD: `lsof -F` machine output, `ps -o pid=,user=,lstart=,command=`, `lsof -a -d cwd -Fn`. Linux: `ss -ltnpH` / `-lunpH` (falls back to `lsof`), `ps`, `/proc/<pid>/cwd` | ✅ parsers tested; the Linux path has not been run on Linux |
 | Project mapping: each process's cwd is mapped to its git root. Without a git root, a folder under `~` counts as the project (not `~`, `~/Library` or dot folders). Daemons in `/` get no project | ✅ tested |
+| **Container ports**: when a container runtime holds a port (`com.docker.backend`, vpnkit, OrbStack, `docker-proxy`, `gvproxy`, Lima, Podman), `docker ps` (found on `PATH` or in the Docker Desktop / OrbStack / Homebrew locations) maps it to the container that published it. The Project / container column shows the container (box icon), search matches its name and image, the detail pane shows name · image · id and **Open in FerrumContainers**, and the stop dialog warns that stopping the runtime stops every container. `ferrum_ui::project` has open-in helpers for the IDE, Git and Term only, so FerrumContainers is started as `ferrumdock` next to FerrumPorts or with `open -a FerrumContainers`; it opens on its list (it takes no container argument) | ✅ `docker ps` parsing tested; checked once against a real Docker container (OrbStack CLI, Docker Desktop backend); UI headless-tested. Opening FerrumContainers not hand-tested |
 | Well-known port hints (3000 web, 5173 Vite, 5432 Postgres, 6379 Redis, 9229 Node inspector, 27017 Mongo, …; about 45 ports) | ✅ tested |
 | Table: auto-refresh every 2 s (**Pause** / **Resume**, ⌘⇧P), **Refresh** (⌘R), search (⌘F) across port, pid, process, command, project, address, user and hint. Numbers match ports by prefix (`30` finds 3000) or an exact pid | ✅ filter unit-tested; UI headless-tested |
 | **Group by project** (`shop — 3000 web, 5432 postgres`, with "Other" last) and **This project** (only listeners of the project in the strip) | ✅ tested |
@@ -75,7 +76,8 @@ crates/core/       pure logic, no GPUI: model (Listener, addresses, exposure, UR
                    table (search, project filter, grouping), kill, free (port checks),
                    remote (hosts, the ssh script and its parsing, remote kill),
                    forward (ssh -L child processes and their status),
-                   history (port history, retention, file)
+                   history (port history, retention, file),
+                   container (docker ps: which container published a port)
 ```
 
 ## Local data

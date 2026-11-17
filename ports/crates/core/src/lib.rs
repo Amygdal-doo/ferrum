@@ -3,6 +3,7 @@
 //! `lsof`, `ps` and `ss` output. [`remote`] runs the same tools on another
 //! machine over `ssh`.
 
+pub mod container;
 pub mod forward;
 pub mod free;
 pub mod hints;
