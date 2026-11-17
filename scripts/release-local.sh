@@ -30,6 +30,7 @@ for pair in "$@"; do
   case "$app" in
     term) packages="ferrumterm-gui ferrumterm-cli" ;;
     dock) packages="ferrumdock-desktop ferrumdock-cli" ;;
+    env) packages="ferrumenv-desktop ferrumenv-cli" ;;
     launcher) packages="ferrumlauncher-desktop" ;;
     *) packages="ferrum${app}-desktop" ;;
   esac

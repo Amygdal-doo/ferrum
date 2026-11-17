@@ -34,7 +34,7 @@ case "$app" in
   vibe)    name="FerrumEngineer"; binaries="ferrumvibe" ;;
   system)  name="FerrumSystem";   binaries="ferrumsystem" ;;
   ports)   name="FerrumPorts";    binaries="ferrumports" ;;
-  env)     name="FerrumVariables"; binaries="ferrumenv" ;;
+  env)     name="FerrumVariables"; binaries="ferrumenv fenv" ;;
   launcher) name="FerrumLauncher"; binaries="ferrum-launcher" ;;
   *) echo "error: unknown app id '$app'" >&2; usage ;;
 esac

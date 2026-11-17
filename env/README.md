@@ -11,8 +11,33 @@ shared `ferrum-ui` crate. Part of the Ferrum monorepo, sibling of [FerrumKit](..
 
 ```bash
 cargo env-ui                       # or: cargo run -p ferrumenv-desktop  (binary: ferrumenv)
-cargo test -p ferrumenv-core -p ferrumenv-desktop
+cargo run -p ferrumenv-cli -- list # the fenv CLI
+cargo test -p ferrumenv-core -p ferrumenv-desktop -p ferrumenv-cli
 ```
+
+## `fenv` (CLI)
+
+```bash
+fenv run --project shop --env dev -- npm start   # variables injected into npm's environment
+fenv run -- cargo run                            # project = the one linked to this folder,
+                                                 # env = development
+fenv list                                        # projects and environment sizes
+fenv list --project shop --env staging           # variable names only
+fenv list --project shop --env staging --show    # KEY=value lines (values on purpose)
+```
+
+`fenv run` never writes a `.env` file: the variables are added to the command's environment
+(over inherited ones of the same name) and, on Unix, `fenv` then *execs* the command, so no
+process keeps the decrypted vault and the command's exit status is passed through. `--env`
+takes a name or a unique prefix (`dev` → `development`).
+
+**Unlocking.** `fenv` asks for the master password on the terminal (echo off, raw mode) and
+unlocks the vault file itself, read-only; the derived key is dropped right after. For scripts,
+`--password-stdin` reads it from the first line of stdin; `--vault PATH` (or `FENV_VAULT`)
+picks another vault. It deliberately does **not** talk to the running app over a socket: that
+would be simpler to use, but any process running as you could then read every secret without
+knowing the password, and the app would need an IPC server to secure. A prompt keeps the
+password as the only way in.
 
 ## What it does
 
@@ -66,6 +91,7 @@ cargo test -p ferrumenv-core -p ferrumenv-desktop
 | Path | What |
 | --- | --- |
 | `crates/core` (`ferrumenv-core`) | No UI. `model` (vault data), `crypto` (Argon2id, XChaCha20-Poly1305), `store` (vault file, `Session`), `share_key`, `identity` (X25519 key pair, public keys, members), `recipients` (team-bundle sealing), `bundle`, `sync` (shared folder, three-way merge), `dotenv`, `diff`, `lock` (auto-lock timing), `password` (rules, strength) |
+| `apps/cli` (`ferrumenv-cli`, binary `fenv`) | `fenv run` / `fenv list`: `select` (project by name or folder, environment by prefix), `password` (terminal prompt) |
 | `apps/desktop` (`ferrumenv-desktop`, binary `ferrumenv`) | GPUI app: `app` (root, lock state, timer, clipboard), `lock_screen`, `unlocked` (strip, sidebar, status bar), `table`, `sync` (folder poll), `dialogs/*`, `tests.rs` |
 
 ## Security model
@@ -141,5 +167,5 @@ whole unlocked state: vault, session key, open dialogs. Values are never logged.
 
 ## Not built yet
 
-Undo, drag-and-drop of `.fenv` / `.env` files, per-variable history, a CLI (`ferrumenv run --
-cmd` to inject variables), opening `.fenv` files from Finder, OS keychain / Touch ID unlock.
+Undo, drag-and-drop of `.fenv` / `.env` files, per-variable history,
+opening `.fenv` files from Finder, OS keychain / Touch ID unlock.
