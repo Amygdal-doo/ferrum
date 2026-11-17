@@ -384,7 +384,13 @@ impl FerrumLauncher {
             .paths
             .application_path(&self.state.info(app))
             .is_some_and(|path| path.is_dir());
-        let update = self.state.update_for(app).map(|r| r.version.clone());
+        let restart = self.restart_button("restart-to-update", app, cx);
+        // A staged update needs a restart, not another download.
+        let update = self
+            .state
+            .update_for(app)
+            .map(|r| r.version.clone())
+            .filter(|_| restart.is_none());
         let install = latest
             .as_ref()
             .filter(|_| active.is_none())
@@ -423,6 +429,7 @@ impl FerrumLauncher {
                     )
                 })
             })
+            .children(restart)
             .when_some(update, |this, version| {
                 this.child(
                     Button::new("update", format!("Update to v{version}"))

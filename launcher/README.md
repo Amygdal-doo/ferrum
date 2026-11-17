@@ -341,6 +341,20 @@ On every start (each step is a no-op once done):
   download at once.
 - **Check for updates** runs on startup and then every *N* hours (Settings).
   A notice appears when new versions are found.
+- **Download updates in the background** (Settings › Launcher, off by
+  default): after each check, every app update is downloaded and installed
+  beside the active version (checksum verified like any install) and
+  *staged* (`AppState::staged` in `state.json`, kept by pruning). An app that
+  isn't running switches to it at once; a running one keeps its version and
+  shows **Restart to update** on its row and page, which asks first, then asks
+  the app to quit (Apple Events on macOS, `SIGTERM` on Linux, `taskkill`
+  without `/F` on Windows, so it can still ask about unsaved work), waits up to
+  30 s, switches and reopens it. Staged apps found not running when the window
+  becomes active or after a check switch then. Running is read from the
+  process list by the main executable's name (`ps`, `tasklist`;
+  `ferrumlauncher_core::auto_update`). The launcher's own update keeps its
+  **Update Launcher** button. FerrumTerm's `fterm` server is not counted as
+  running FerrumTerm.
 - **Activating** a version points `~/.ferrum/bin/<binary>` at it (for
   FerrumTerm, `fterm` too). On macOS it also publishes the version's bundle
   as `~/Applications/Ferrum/<App>.app`, an APFS clone rather than a

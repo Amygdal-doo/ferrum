@@ -6,6 +6,7 @@
 //! drives these APIs from a tokio runtime.
 
 pub mod auth;
+pub mod auto_update;
 pub mod catalog;
 pub mod github;
 pub mod install;

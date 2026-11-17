@@ -1,6 +1,6 @@
 //! Settings › Launcher (in the shared Settings window, ⌘,): how often to
-//! check for updates, how many versions to keep and the anonymous usage
-//! count. The menu bar and Dock
+//! check for updates, how many versions to keep, background downloads and
+//! the anonymous usage count. The menu bar and Dock
 //! switches are under Interface › Window.
 
 use ferrum_ui::components::{Button, ButtonCommon as _, ButtonStyle, Clickable as _, IconName};
@@ -98,6 +98,8 @@ impl SettingsPage for LauncherPage {
             "check",
             "versions",
             "keep",
+            "automatic",
+            "background",
             "privacy",
             "usage",
             "analytics",
@@ -159,6 +161,27 @@ impl SettingsPage for LauncherPage {
                                 window,
                                 cx,
                             )),
+                    )
+                    .row(
+                        Row::new("auto-update", "Download updates in the background")
+                            .detail(
+                                "After each check. An app switches to its new version once it \
+                                 isn't running; a running one shows Restart to update.",
+                            )
+                            .control(
+                                Switch::new("auto-update-switch", settings.auto_update).on_change(
+                                    |on, _, cx| {
+                                        if let Some(l) = self::launcher(cx) {
+                                            l.update(cx, |l, cx| {
+                                                let mut settings = l.state.settings.clone();
+                                                settings.auto_update = on;
+                                                l.apply_settings(settings, cx);
+                                            });
+                                            cx.refresh_windows();
+                                        }
+                                    },
+                                ),
+                            ),
                     )
                     .footnote(
                         "Update channels (Stable, Beta or Alpha) are set per app on its page.",

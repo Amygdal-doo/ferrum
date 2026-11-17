@@ -279,6 +279,9 @@ impl FerrumLauncher {
                 .into_any_element();
         }
         let active = self.state.active(app).cloned();
+        if let Some(restart) = self.restart_button("overview-restart", app, cx) {
+            return restart;
+        }
         if let Some(update) = self.state.update_for(app) {
             let version = update.version.clone();
             return Button::new(

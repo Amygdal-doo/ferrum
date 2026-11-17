@@ -70,6 +70,15 @@ pub struct FerrumLauncher {
     pub(crate) usage_loop: Task<()>,
     /// The open "Uninstall …?" confirmation.
     pub uninstall_dialog: Option<crate::components::uninstall::UninstallDialog>,
+    /// Installs started by "Download updates in the background": staged
+    /// when done instead of activated.
+    pub background_downloads: std::collections::HashSet<AppId>,
+    /// Apps "Restart to update" is waiting on to quit.
+    pub quitting: std::collections::HashSet<AppId>,
+    /// Staged updates the user was told about ("ready: Restart to update").
+    pub ready_told: std::collections::HashSet<(AppId, Version)>,
+    /// The open "Quit … to update?" confirmation.
+    pub restart_dialog: Option<AppId>,
     pub(crate) check_loop: Task<()>,
     progress_ticker: Option<Task<()>>,
     pub focus_handle: FocusHandle,
@@ -110,6 +119,10 @@ impl FerrumLauncher {
             usage_notice: false,
             usage_loop: Task::ready(()),
             uninstall_dialog: None,
+            background_downloads: Default::default(),
+            quitting: Default::default(),
+            ready_told: Default::default(),
+            restart_dialog: None,
             check_loop: Task::ready(()),
             progress_ticker: None,
             focus_handle: cx.focus_handle(),
@@ -133,6 +146,8 @@ impl FerrumLauncher {
         let activation = cx.observe_window_activation(window, |this, window, cx| {
             if window.is_window_active() {
                 this.reload_shared_prefs(cx);
+                // An app with a staged update may have quit meanwhile.
+                this.apply_staged_updates(cx);
             }
         });
         this.keep_subscription(activation);
@@ -384,6 +399,9 @@ impl Render for FerrumLauncher {
                     if this.uninstall_dialog.is_some() && event.keystroke.key == "escape" {
                         this.close_uninstall_dialog(cx);
                     }
+                    if this.restart_dialog.is_some() && event.keystroke.key == "escape" {
+                        this.close_restart_dialog(cx);
+                    }
                 }),
             )
             .text_color(colors.text)
@@ -400,6 +418,9 @@ impl Render for FerrumLauncher {
                 this.child(onboarding)
             })
             .when_some(self.render_uninstall_dialog(cx), |this, dialog| {
+                this.child(dialog)
+            })
+            .when_some(self.render_restart_dialog(cx), |this, dialog| {
                 this.child(dialog)
             })
             .when_some(self.notice.as_ref(), |this, notice| {
