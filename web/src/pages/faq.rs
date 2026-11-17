@@ -119,8 +119,8 @@ fn faqs() -> Vec<Faq> {
                 pick for the agent chat, and your own APIs, databases and container engine. \
                 FerrumLauncher sends one anonymous count a day (a random install ID, versions, \
                 OS and CPU type) so we know how many people use Ferrum; turn it off in \
-                Settings › Launcher or with FERRUM_NO_ANALYTICS=1. This website sets no cookies \
-                and runs no analytics."
+                Settings › Launcher or with FERRUM_NO_ANALYTICS=1. This website uses Google \
+                Analytics only if you accept cookies."
                 .to_owned(),
             more: Some(("What the launcher sends", "/privacy#usage-counts")),
         },

@@ -9,7 +9,7 @@ use maud::{DOCTYPE, Markup, html};
 use serde_json::Value;
 
 use crate::components::{self, breadcrumb::Crumb};
-use crate::{routes::assets, seo, site, updates};
+use crate::{analytics, routes::assets, seo, site, updates};
 
 /// Default social image (1200×630) and its description.
 pub const DEFAULT_OG_IMAGE: &str = "img/og.png";
@@ -172,6 +172,7 @@ pub fn page(site_url: &str, meta: &PageMeta, main: Markup) -> Markup {
                 script src=(assets::url("js/theme-init.js")) {}
                 script src=(assets::url("js/site.js")) defer {}
                 script src=(assets::url("js/filings.js")) defer {}
+                (analytics::head_tags(analytics::measurement_id()))
                 @if !meta.noindex && !meta.trail.is_empty() {
                     (seo::script(&seo::breadcrumb_list(site_url, &meta.trail)))
                 }

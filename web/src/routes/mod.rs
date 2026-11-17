@@ -36,6 +36,9 @@ pub struct AppState {
 impl AppState {
     pub fn new(config: Config, releases: Releases) -> Self {
         let usage = Usage::from_url(config.database_url.as_deref());
+        if let Some(id) = &config.ga_measurement_id {
+            crate::analytics::enable(id);
+        }
         Self {
             config: Arc::new(config),
             releases: Arc::new(releases),

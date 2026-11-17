@@ -186,8 +186,8 @@ pub fn render(site_url: &str) -> Markup {
                     p {
                         "The apps contain no analytics or telemetry. They connect to what you use \
                          them with: GitHub for releases and the CI page, and your own APIs, \
-                         databases and container engine. This website sets no cookies and runs no \
-                         analytics."
+                         databases and container engine. This website uses Google Analytics \
+                         only if you accept cookies."
                     }
                     p {
                         "FerrumLauncher sends one anonymous count a day (a random install ID, \

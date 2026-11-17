@@ -1,5 +1,6 @@
 //! web-ferrum: server-rendered marketing site for the Ferrum product family.
 
+pub mod analytics;
 pub mod components;
 pub mod config;
 pub mod layout;

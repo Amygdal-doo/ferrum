@@ -8,11 +8,13 @@ use crate::layout::{PageMeta, page};
 use crate::site;
 
 pub const PATH: &str = "/privacy";
-pub const UPDATED: &str = "2026-11-16";
+pub const UPDATED: &str = "2026-11-17";
 /// Anchor of the usage-count section (the launcher links to it).
 pub const USAGE_COUNTS_ID: &str = "usage-counts";
 /// Anchor of the accounts section (the sign-in pages link to it).
 pub const ACCOUNTS_ID: &str = "accounts";
+/// Anchor of the website-analytics section.
+pub const ANALYTICS_ID: &str = "analytics";
 
 pub fn render(site_url: &str) -> Markup {
     let meta = PageMeta::new(
@@ -54,6 +56,11 @@ pub fn render(site_url: &str) -> Markup {
                         ul class="post__list" {
                             li { strong { "Railway" } " hosts this website." }
                             li {
+                                strong { "Google Analytics" } " counts visits to this website, \
+                                 but only if you accept cookies; see "
+                                a href={ "#" (ANALYTICS_ID) } { "below" } "."
+                            }
+                            li {
                                 strong { "Google Fonts" } " serves the fonts on every page of \
                                  this site, so your browser contacts Google when it loads them."
                             }
@@ -64,10 +71,20 @@ pub fn render(site_url: &str) -> Markup {
                                  account page."
                             }
                         }
+                        h2 id=(ANALYTICS_ID) { "Website analytics" }
                         p {
-                            "This site runs no analytics and sets no cookies unless you sign in. \
-                             The light or dark theme you pick is kept in your browser's local \
-                             storage."
+                            "This website asks before it uses Google Analytics. Only if you \
+                             click Accept does your browser load Google's tag, which sets the "
+                            code { "_ga" } " cookies and sends Google the pages you visit, \
+                             where you came from, your browser, device and approximate \
+                             location. We use it only to count visits. If you decline, or \
+                             never answer, nothing is sent to Google Analytics. Change your \
+                             choice any time with Cookie settings at the bottom of every page."
+                        }
+                        p {
+                            "Apart from that, this site sets no cookies unless you sign in. \
+                             Your theme and cookie choice are kept in your browser's local \
+                             storage. The Ferrum apps contain no analytics."
                         }
                         h2 id=(ACCOUNTS_ID) { "Ferrum accounts" }
                         p {

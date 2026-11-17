@@ -85,6 +85,10 @@ pub fn render() -> Markup {
                         a href=(crate::pages::privacy::PATH) { "Privacy" }
                         " · "
                         a href=(crate::pages::licenses::PATH) { "Licences" }
+                        @if crate::analytics::measurement_id().is_some() {
+                            " · "
+                            (crate::analytics::settings_button(crate::analytics::measurement_id()))
+                        }
                     }
                     p class="footer-copy" {
                         "© 2026 " (site::ORGANIZATION_LEGAL_NAME) ", " (site::ORGANIZATION_CITY)

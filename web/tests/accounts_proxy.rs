@@ -26,7 +26,8 @@ impl Res {
         self.headers.get(name).map_or("", |v| v.to_str().unwrap())
     }
     fn json(&self) -> Value {
-        serde_json::from_str(&self.body).unwrap_or_else(|e| panic!("{e}: {} {}", self.status, self.body))
+        serde_json::from_str(&self.body)
+            .unwrap_or_else(|e| panic!("{e}: {} {}", self.status, self.body))
     }
 }
 

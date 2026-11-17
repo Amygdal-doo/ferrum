@@ -21,6 +21,9 @@ pub struct Config {
     /// trailing slash. `None`: those paths are 404 and `/login` says sign-in
     /// is coming soon.
     pub accounts_url: Option<String>,
+    /// Google Analytics 4 measurement ID (`crate::analytics`). `None`: no
+    /// cookie banner and no Google tag.
+    pub ga_measurement_id: Option<String>,
 }
 
 /// Look up a variable, treating empty / whitespace-only values as unset.
@@ -45,6 +48,8 @@ impl Config {
     /// - `ACCOUNTS_URL`: base URL of the accounts service, e.g.
     ///   `http://ferrum-cloud.railway.internal:8080`; only `http(s)://` URLs
     ///   count. A trailing `/` is stripped.
+    /// - `GA_MEASUREMENT_ID`: a GA4 ID such as `G-ABC123XYZ`; anything else
+    ///   counts as unset.
     pub fn from_vars(get: impl Fn(&str) -> Option<String>) -> Self {
         let port = non_empty(&get, "PORT")
             .and_then(|p| p.parse().ok())
@@ -59,6 +64,8 @@ impl Config {
             accounts_url: non_empty(&get, "ACCOUNTS_URL")
                 .filter(|u| u.starts_with("http://") || u.starts_with("https://"))
                 .map(|u| u.trim_end_matches('/').to_owned()),
+            ga_measurement_id: non_empty(&get, "GA_MEASUREMENT_ID")
+                .and_then(|id| crate::analytics::parse_measurement_id(&id)),
         }
     }
 
@@ -102,6 +109,17 @@ mod tests {
             Some("postgres://u:p@db.internal:5432/railway")
         );
         assert_eq!(cfg(&[("DATABASE_URL", "")]).database_url, None);
+    }
+
+    #[test]
+    fn reads_only_a_ga4_measurement_id() {
+        let c = cfg(&[("GA_MEASUREMENT_ID", " G-ABC123XYZ ")]);
+        assert_eq!(c.ga_measurement_id.as_deref(), Some("G-ABC123XYZ"));
+        assert_eq!(
+            cfg(&[("GA_MEASUREMENT_ID", "UA-1-1")]).ga_measurement_id,
+            None
+        );
+        assert_eq!(cfg(&[]).ga_measurement_id, None);
     }
 
     #[test]
