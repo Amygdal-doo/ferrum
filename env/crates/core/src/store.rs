@@ -139,11 +139,13 @@ impl Session {
             &aad(&file.kdf.params, &file.kdf.salt),
         )
         .ok_or(Error::WrongPassword)?;
-        let vault: Vault = serde_json::from_slice(&plaintext)
+        let mut vault: Vault = serde_json::from_slice(&plaintext)
             .map_err(|e| Error::CorruptVault(format!("contents: {e}")))?;
         if vault.version > VAULT_VERSION {
             return Err(Error::UnsupportedVersion(vault.version));
         }
+        // Older vaults read as is; the next save writes the current format.
+        vault.version = VAULT_VERSION;
         Ok((
             Self {
                 path: path.to_path_buf(),

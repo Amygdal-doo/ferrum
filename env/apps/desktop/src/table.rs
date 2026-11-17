@@ -102,11 +102,22 @@ impl EnvApp {
             Some(key) => format!("Share key {}", key.fingerprint()),
             None => "No share key: set one up".to_string(),
         };
+        let team_tooltip = match project.members.len() {
+            0 => "Team keys: add teammates' public keys".to_string(),
+            n => format!("Team keys ({n} members)"),
+        };
         row.child(tabs)
             .when(unlocked.environment().is_some(), |row| {
                 row.child(self.env_actions(cx))
             })
             .child(div().w(px(1.)).h(px(16.)).mx_1().bg(colors.border_variant))
+            .child(icon_button(
+                "team",
+                IconName::Person,
+                team_tooltip,
+                cx,
+                |this, window, cx| this.open_team(window, cx),
+            ))
             .child(icon_button(
                 "share-key",
                 IconName::Hash,

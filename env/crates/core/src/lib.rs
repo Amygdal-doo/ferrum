@@ -5,6 +5,8 @@
 //! - [`store`]: the encrypted vault file and the unlocked [`store::Session`].
 //! - [`share_key`] and [`bundle`]: per-project keys and encrypted bundles
 //!   exchanged between developers.
+//! - [`identity`] and [`recipients`]: per-person X25519 keys, so bundles
+//!   can be encrypted to each team member instead of a shared key.
 //! - [`dotenv`]: `.env` parsing, writing and `.gitignore` checks.
 //! - [`diff`]: comparing environments and previewing imports.
 //! - [`lock`] and [`password`]: auto-lock timing and password strength.
@@ -18,13 +20,16 @@ pub mod diff;
 pub mod dotenv;
 mod error;
 mod fsutil;
+pub mod identity;
 pub mod lock;
 pub mod model;
 pub mod password;
+pub mod recipients;
 pub mod share_key;
 pub mod store;
 
 pub use error::{Error, Result};
 pub use fsutil::write_private;
+pub use identity::{Identity, Member, PublicKey};
 pub use model::{Environment, Project, Settings, Variable, Vault};
 pub use share_key::ShareKey;

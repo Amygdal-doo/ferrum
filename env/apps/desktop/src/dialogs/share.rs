@@ -1,5 +1,6 @@
 //! The project share key (show / copy / generate / rotate / set a key
-//! received from a teammate) and exporting an encrypted bundle.
+//! received from a teammate) and exporting an encrypted bundle, either to
+//! the team members' public keys or with the share key.
 
 use chrono::Utc;
 use ferrum_ui::components::Checkbox;
@@ -24,6 +25,8 @@ pub(crate) struct ShareDialog {
     pub(crate) note: Entity<TextInput>,
     /// The armored bundle once created (encrypted: safe to show).
     pub(crate) output: Option<String>,
+    /// Encrypt to the team members' public keys (else the share key).
+    pub(crate) to_team: bool,
 }
 
 impl EnvApp {
@@ -175,6 +178,7 @@ impl EnvApp {
             return;
         };
         let selected = vec![true; project.environments.len()];
+        let to_team = !project.members.is_empty() || project.share_key.is_none();
         let mut subscriptions = Vec::new();
         let note = input(window, cx, &mut subscriptions, |t| {
             t.placeholder("e.g. rotated the Stripe keys")
@@ -183,20 +187,23 @@ impl EnvApp {
             selected,
             note: note.clone(),
             output: None,
+            to_team,
         };
         self.open_dialog(Dialog::Share(dialog), subscriptions, Some(note), window, cx);
     }
 
     pub(crate) fn create_bundle(&mut self, cx: &mut Context<Self>) {
+        let to_team = matches!(self.dialog_mut(), Some(Dialog::Share(d)) if d.to_team);
+        let me = if to_team {
+            self.my_public_key(cx)
+        } else {
+            None
+        };
         let sealed = (|| -> Result<String, String> {
             let u = self.vault().ok_or("Locked")?;
             let (Some(project), Some(Dialog::Share(d))) = (u.project(), u.dialog.as_ref()) else {
                 return Err("No project selected".into());
             };
-            let key = project
-                .share_key
-                .as_ref()
-                .ok_or("Generate or set a share key first.")?;
             let environments: Vec<_> = project
                 .environments
                 .iter()
@@ -213,6 +220,17 @@ impl EnvApp {
                 created_at: Utc::now(),
                 note: d.note.read(cx).text().trim().to_string(),
             };
+            if to_team {
+                let (Some(identity), Some(me)) = (u.vault.identity.as_ref(), me) else {
+                    return Err("Your key pair could not be created.".into());
+                };
+                return bundle::seal_for(&contents, identity, &project.recipients(&me))
+                    .map_err(|e| e.to_string());
+            }
+            let key = project
+                .share_key
+                .as_ref()
+                .ok_or("Generate or set a share key first.")?;
             bundle::seal(&contents, key).map_err(|e| e.to_string())
         })();
         match sealed {
@@ -267,8 +285,42 @@ impl EnvApp {
         };
         let mut modal = self
             .modal(format!("Share {}", project.name), cx)
-            .width(px(600.));
-        let Some(key) = project.share_key.as_ref() else {
+            .width(px(600.))
+            .child(
+                h_flex()
+                    .gap_1()
+                    .child(muted("Encrypt to"))
+                    .child(share_mode_button(
+                        "share-to-team",
+                        "Team members' keys",
+                        true,
+                        d,
+                        cx,
+                    ))
+                    .child(share_mode_button(
+                        "share-with-key",
+                        "Share key",
+                        false,
+                        d,
+                        cx,
+                    )),
+            );
+        let how = if d.to_team {
+            let names: Vec<&str> = project.members.iter().map(|m| m.name.as_str()).collect();
+            if names.is_empty() {
+                "Encrypted to your public key only: add teammates under Team keys first, or only you can open it.".to_string()
+            } else {
+                format!(
+                    "Encrypted to you and {}. Only they can open it, and they can see it came from you.",
+                    names.join(", ")
+                )
+            }
+        } else if let Some(key) = project.share_key.as_ref() {
+            format!(
+                "Encrypted with the share key {}. Teammates who hold it can import the bundle; the key is never included.",
+                key.fingerprint()
+            )
+        } else {
             return modal
                 .child(Label::new(
                     "Bundles are encrypted with the project's share key, and this project has none yet.",
@@ -299,10 +351,7 @@ impl EnvApp {
             );
         }
         modal = modal
-            .child(muted(format!(
-                "Encrypted with the share key {}. Teammates who hold it can import the bundle; the key is never included.",
-                key.fingerprint()
-            )))
+            .child(muted(how))
             .child(field("Environments", envs))
             .child(field("Note for the receiver", d.note.clone()));
         match &d.output {
@@ -353,4 +402,28 @@ impl EnvApp {
                 )),
         }
     }
+}
+
+/// One choice of the "Encrypt to" toggle.
+fn share_mode_button(
+    id: &'static str,
+    label: &'static str,
+    team: bool,
+    d: &ShareDialog,
+    cx: &mut Context<EnvApp>,
+) -> Button {
+    Button::new(id, label)
+        .size(ButtonSize::Compact)
+        .label_size(LabelSize::Small)
+        .toggle_state(d.to_team == team)
+        .on_click(cx.listener(move |this, _, _, cx| {
+            if let Some(Dialog::Share(d)) = this.dialog_mut() {
+                d.to_team = team;
+                d.output = None;
+            }
+            if let Some(u) = this.vault_mut() {
+                u.dialog_error = None;
+            }
+            cx.notify();
+        }))
 }

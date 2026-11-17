@@ -123,6 +123,9 @@ ferrumenv-core = { path = "env/crates/core" }
 # Vault encryption: XChaCha20-Poly1305 with an Argon2id-derived key.
 chacha20poly1305 = { version = "0.10", features = ["std"] }
 argon2 = { version = "0.5", features = ["std"] }
+# Team members' keys: X25519 and HKDF-SHA256. Already linked into every app
+# through rustls (ISC / Apache-2.0), so no new code is shipped.
+aws-lc-rs = { version = "1.18", default-features = false, features = ["aws-lc-sys"] }
 zeroize = { version = "1.8", features = ["derive"] }
 
 # Logs (library behind the Editor's Logs page)

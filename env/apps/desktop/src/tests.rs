@@ -588,3 +588,100 @@ fn changing_the_master_password(cx: &mut TestAppContext) {
     assert_eq!(screen_name(&app, cx), "unlocked");
     assert_eq!(with_vault(&app, cx, |u| u.vault.projects.len()), 1);
 }
+
+fn public_key_of(app: &Entity<EnvApp>, cx: &mut VisualTestContext) -> String {
+    app.update(cx, |a, cx| a.my_public_key(cx))
+        .expect("key pair")
+        .encode()
+}
+
+/// Adds `name` with `key` from the Team dialog; returns the dialog error.
+fn add_member(app: &Entity<EnvApp>, name: &str, key: &str, cx: &mut VisualTestContext) -> String {
+    app.update_in(cx, |a, window, cx| a.open_team(window, cx));
+    let (name_input, key_input) = with_vault(app, cx, |u| match &u.dialog {
+        Some(Dialog::Team(d)) => (d.name.clone(), d.key.clone()),
+        _ => panic!("team dialog not open"),
+    });
+    set(&name_input, name, cx);
+    set(&key_input, key, cx);
+    app.update_in(cx, |a, window, cx| a.submit_dialog(window, cx));
+    dialog_error(app, cx)
+}
+
+fn preview_sender(app: &Entity<EnvApp>, cx: &mut VisualTestContext) -> Option<String> {
+    with_vault(app, cx, |u| match &u.dialog {
+        Some(Dialog::ImportBundle(d)) => d
+            .preview
+            .as_ref()
+            .and_then(|p| p.sender.as_ref().map(|s| s.describe())),
+        _ => None,
+    })
+}
+
+#[gpui::test]
+fn team_bundles_use_public_keys(cx: &mut TestAppContext) {
+    init(cx);
+    let dir = tempfile::tempdir().expect("tempdir");
+    let (alice, mut acx) = open(cx, &dir.path().join("alice.json"));
+    let (bob, mut bcx) = open(cx, &dir.path().join("bob.json"));
+    let (eve, mut ecx) = open(cx, &dir.path().join("eve.json"));
+    submit_password(&alice, PASSWORD, PASSWORD, &mut acx);
+    submit_password(&bob, PASSWORD, PASSWORD, &mut bcx);
+    submit_password(&eve, PASSWORD, PASSWORD, &mut ecx);
+    let alice_key = public_key_of(&alice, &mut acx);
+    let bob_key = public_key_of(&bob, &mut bcx);
+    // The key pair is created once and kept in the (encrypted) vault.
+    assert_eq!(public_key_of(&alice, &mut acx), alice_key);
+    let vault_text = std::fs::read_to_string(dir.path().join("alice.json")).expect("vault");
+    assert!(!vault_text.contains("identity"));
+
+    let cx = &mut acx;
+    add_project(&alice, "shop", "staging", &[("STRIPE_KEY", "sk_team")], cx);
+    assert!(add_member(&alice, "Me", &alice_key, cx).contains("your own key"));
+    assert!(add_member(&alice, "Bob", "fepk1_nope", cx).contains("Invalid public key"));
+    assert_eq!(add_member(&alice, "Bob", &bob_key, cx), "");
+    assert_eq!(
+        with_vault(&alice, cx, |u| u.project().map(|p| p.members.len())),
+        Some(1)
+    );
+
+    // No share key: the Share dialog encrypts to the team by default.
+    let armored = make_bundle(&alice, cx);
+    assert!(armored.contains("From: "));
+    assert!(!armored.contains("sk_team"));
+    assert!(with_vault(&alice, cx, |u| u
+        .project()
+        .is_some_and(|p| p.share_key.is_none())));
+
+    // Bob opens it with his own key; Alice is not in his team yet.
+    let cx = &mut bcx;
+    bob.update_in(cx, |a, window, cx| a.open_import_bundle(window, cx));
+    let (text, _) = import_inputs(&bob, cx);
+    set(&text, &armored, cx);
+    bob.update(cx, |a, cx| a.preview_bundle(cx));
+    assert_eq!(dialog_error(&bob, cx), "");
+    assert!(preview_sender(&bob, cx).is_some_and(|s| s.contains("unknown key")));
+    bob.update_in(cx, |a, window, cx| a.submit_dialog(window, cx));
+    let value = with_vault(&bob, cx, |u| {
+        let p = u.project().expect("imported");
+        assert!(p.share_key.is_none());
+        let env = &p.environments[p.environment_index("staging").expect("staging")];
+        env.get("STRIPE_KEY").map(|v| v.value.clone())
+    });
+    assert_eq!(value.as_deref(), Some("sk_team"));
+    assert_eq!(add_member(&bob, "Alice", &alice_key, cx), "");
+    bob.update_in(cx, |a, window, cx| a.open_import_bundle(window, cx));
+    let (text, _) = import_inputs(&bob, cx);
+    set(&text, &armored, cx);
+    bob.update(cx, |a, cx| a.preview_bundle(cx));
+    assert!(preview_sender(&bob, cx).is_some_and(|s| s.starts_with("From Alice")));
+
+    // Eve, not a recipient, can't open it.
+    let cx = &mut ecx;
+    eve.update(cx, |a, cx| a.my_public_key(cx));
+    eve.update_in(cx, |a, window, cx| a.open_import_bundle(window, cx));
+    let (text, _) = import_inputs(&eve, cx);
+    set(&text, &armored, cx);
+    eve.update(cx, |a, cx| a.preview_bundle(cx));
+    assert!(dialog_error(&eve, cx).contains("not encrypted to your key"));
+}
