@@ -7,6 +7,9 @@ mod app_info;
 mod chrome;
 mod commands;
 mod detail;
+mod forwards;
+mod history;
+mod remote;
 mod table;
 #[cfg(test)]
 mod tests;
@@ -33,6 +36,7 @@ fn main() {
         let options = app::Options {
             project,
             autostart: true,
+            home: ferrum_ui::project::home_dir(),
         };
         cx.new(|cx| app::FerrumPorts::new(options, window, cx))
     });

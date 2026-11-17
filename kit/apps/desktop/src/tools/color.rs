@@ -19,7 +19,7 @@ impl ColorTool {
         let input = cx.new(|cx| {
             TextInput::new(window, cx)
                 .monospace()
-                .placeholder("#ff8000, rgb(255 128 0), hsl(30, 100%, 50%)")
+                .placeholder("#ff8000, rgb(255 128 0), hsl(30, 100%, 50%), oklch(70% 0.19 48)")
                 .with_text("#e8590c")
         });
         let subscriptions = vec![on_change(&input, cx, Self::run)];
@@ -51,10 +51,11 @@ fn to_hsla(color: Rgba) -> Hsla {
 impl Render for ColorTool {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let body = match self.result.clone() {
-            None => hint("Enter a colour as hex, rgb() or hsl().").into_any_element(),
+            None => hint("Enter a colour as hex, rgb(), hsl() or oklch().").into_any_element(),
             Some(Err(error)) => status_line(Err(error), cx).into_any_element(),
             Some(Ok(rgba)) => {
                 let hsl = rgba.to_hsl();
+                let oklch = rgba.to_oklch();
                 h_flex()
                     .items_start()
                     .gap_4()
@@ -67,6 +68,7 @@ impl Render for ColorTool {
                             .child(value_row("hex", "Hex", rgba.to_hex(), cx))
                             .child(value_row("rgb", "RGB", rgba.to_rgb_string(), cx))
                             .child(value_row("hsl", "HSL", rgba.to_hsl_string(), cx))
+                            .child(value_row("oklch", "OKLCH", rgba.to_oklch_string(), cx))
                             .child(value_row(
                                 "channels",
                                 "Channels",
@@ -75,6 +77,12 @@ impl Render for ColorTool {
                                     rgba.r, rgba.g, rgba.b, hsl.h, hsl.s, hsl.l, rgba.a
                                 ),
                                 cx,
+                            ))
+                            .child(value_row(
+                                "oklch-channels",
+                                "OKLCH channels",
+                                format!("L {:.4}  C {:.4}  H {:.2}°", oklch.l, oklch.c, oklch.h),
+                                cx,
                             )),
                     )
                     .into_any_element()
@@ -82,7 +90,7 @@ impl Render for ColorTool {
         };
         layout(
             v_flex().gap_2().child(self.input.clone()).child(hint(
-                "Accepts #rgb, #rgba, #rrggbb, #rrggbbaa, rgb()/rgba() and hsl()/hsla().",
+                "Accepts #rgb, #rgba, #rrggbb, #rrggbbaa, rgb()/rgba(), hsl()/hsla() and oklch(L C H [/ A]). OKLCH colours outside sRGB are clipped.",
             )),
             div()
                 .id("color-body")
@@ -91,5 +99,16 @@ impl Render for ColorTool {
                 .overflow_y_scroll()
                 .child(body),
         )
+    }
+}
+
+impl super::KitTool for ColorTool {
+    fn inputs(&self) -> Vec<Entity<TextInput>> {
+        vec![self.input.clone()]
+    }
+
+    fn rerun(&mut self, cx: &mut Context<Self>) {
+        self.run(cx);
+        cx.notify();
     }
 }

@@ -4,9 +4,10 @@
 processes behind them. It is a GPUI desktop app (the UI framework of Zed, a pinned
 git dependency) built on the shared `ferrum-ui` crate. One window has the Ferrum project strip
 on top and a table of listeners below it, with a detail pane for the selected row.
-Everything runs locally: FerrumPorts reads the system with `lsof`, `ps` and `ss` and writes
-nothing except the shared recent-projects list (`~/.ferrum/projects.json`, through the
-project strip). Part of the Ferrum monorepo, with the same theme and components as
+FerrumPorts reads the system with `lsof`, `ps` and `ss`; for a remote machine it runs the
+same tools over the system `ssh`. It writes the shared recent-projects list
+(`~/.ferrum/projects.json`, through the project strip) and its own files in
+`~/.ferrum/ports/` (see "Local data"). Part of the Ferrum monorepo, with the same theme and components as
 [FerrumContainers](../dock), [FerrumKit](../kit) and [FerrumIDE](../editor).
 
 > **Status: alpha, first vertical slice.** "Tested" means automated unit tests of
@@ -20,6 +21,7 @@ project strip). Part of the Ferrum monorepo, with the same theme and components 
 | Bound UDP sockets (toolbar **UDP** toggle). Connected and `*:*` sockets are skipped | ✅ tested |
 | macOS/BSD: `lsof -F` machine output, `ps -o pid=,user=,lstart=,command=`, `lsof -a -d cwd -Fn`. Linux: `ss -ltnpH` / `-lunpH` (falls back to `lsof`), `ps`, `/proc/<pid>/cwd` | ✅ parsers tested; the Linux path has not been run on Linux |
 | Project mapping: each process's cwd is mapped to its git root. Without a git root, a folder under `~` counts as the project (not `~`, `~/Library` or dot folders). Daemons in `/` get no project | ✅ tested |
+| **Container ports**: when a container runtime holds a port (`com.docker.backend`, vpnkit, OrbStack, `docker-proxy`, `gvproxy`, Lima, Podman), `docker ps` (found on `PATH` or in the Docker Desktop / OrbStack / Homebrew locations) maps it to the container that published it. The Project / container column shows the container (box icon), search matches its name and image, the detail pane shows name · image · id and **Open in FerrumContainers**, and the stop dialog warns that stopping the runtime stops every container. `ferrum_ui::project` has open-in helpers for the IDE, Git and Term only, so FerrumContainers is started as `ferrumdock` next to FerrumPorts or with `open -a FerrumContainers`; it opens on its list (it takes no container argument) | ✅ `docker ps` parsing tested; checked once against a real Docker container (OrbStack CLI, Docker Desktop backend); UI headless-tested. Opening FerrumContainers not hand-tested |
 | Well-known port hints (3000 web, 5173 Vite, 5432 Postgres, 6379 Redis, 9229 Node inspector, 27017 Mongo, …; about 45 ports) | ✅ tested |
 | Table: auto-refresh every 2 s (**Pause** / **Resume**, ⌘⇧P), **Refresh** (⌘R), search (⌘F) across port, pid, process, command, project, address, user and hint. Numbers match ports by prefix (`30` finds 3000) or an exact pid | ✅ filter unit-tested; UI headless-tested |
 | **Group by project** (`shop — 3000 web, 5432 postgres`, with "Other" last) and **This project** (only listeners of the project in the strip) | ✅ tested |
@@ -30,6 +32,9 @@ project strip). Part of the Ferrum monorepo, with the same theme and components 
 | Status bar: listener count (and how many are shown), auto-refresh state and last refresh time, scan errors (e.g. `lsof` missing) and warnings | ✅ headless-rendered |
 | Empty states: scanning, nothing listening, no matches, scan failed | ✅ headless-rendered |
 | Project strip (`ProjectBar`): ⌥⌘O switcher; `ferrumports <folder>` starts with that project | ⚠️ wired |
+| **Remote machines** (machine picker at the start of the header): "Add a machine…" offers the `~/.ssh/config` aliases (FerrumTerm's parser, `ferrumterm-net`) or a typed `user@host[:port]`; the list is kept in `~/.ferrum/ports/ssh-hosts.json`. One `ssh -T -o BatchMode=yes` run per refresh (every 10 s) executes a small `sh` script: `ss -ltnpH` (Linux), else `lsof`, then `ps -A`; the existing parsers read the output. Stopping a remote process uses the same confirmation dialog ("… on prod over ssh"), sends `kill -TERM` (then offers `-KILL`) over ssh and checks once after 2 s. Keys must be in ssh-agent or the keychain: nothing can prompt for a password | ✅ command line, script and parsers tested (the script also run locally with `sh`); dialogs headless-tested. **Not run against a real remote host** |
+| **Port forwarding**: **Forward to this Mac** in the detail pane of a remote listener runs `ssh -N -L 127.0.0.1:<local>:localhost:<port> <host>` (FerrumTerm's command line from `ferrumterm-net`: `ExitOnForwardFailure`, `BatchMode`, keep-alives); the local port is the same number when free here, else the nearest free one. A bar under the header lists each forward with its status (Connecting… until the local port is bound, Running, Failed with ssh's message, Stopped), open, stop, start again and remove. Forwards are ssh child processes of FerrumPorts, stopped when it quits; they are not remembered between launches | ✅ command, port choice and process tracking tested; a real ssh that fails headless-tested. **Not run against a real remote host** |
+| **History** (header toggle): each scan of this Mac opens an entry for a listener seen for the first time (port, protocol, pid, process, command, project) and closes it when it is gone, so the view shows which process held which port and when (`Today 09:12 – 09:40 · 28 min`, `– now` while open), newest first, filtered by the search field; **Clear**. Kept in `~/.ferrum/ports/history.json`: the last 30 days, at most 1000 entries; written when an entry opens or closes, else at most once a minute. Only recorded while FerrumPorts runs (entries open at quit end at their last sighting); remote machines are not recorded | ✅ recording, retention and file tested; view headless-tested |
 
 ## Known limitations
 - Without root, `lsof` on macOS only shows the sockets of your own processes. Ports held by
@@ -42,6 +47,9 @@ project strip). Part of the Ferrum monorepo, with the same theme and components 
 - There is no column sorting, no keyboard row navigation and no per-row context menu yet
   (the actions are on the row icons and in the detail pane).
 - Windows is not supported (no `lsof`/`ss`; the scan reports the missing tool).
+- Remote machines: no working directory or project for remote processes; without root,
+  `ss` shows other users' processes without a pid (a warning says so); "Is port N free?",
+  "This project" and the open-in-browser buttons are about this Mac.
 
 ## Commands
 Run from the monorepo root (`ferrum/`).
@@ -59,9 +67,20 @@ apps/desktop/      GPUI app: app.rs (root view, state, keys, project strip),
                    commands.rs (scan + polling, kill flow, row actions, port check),
                    table.rs (listener table), detail.rs (detail pane),
                    chrome.rs (toolbar, status bar, kill dialog, notices),
+                   remote.rs (machine picker, add-a-machine dialog),
+                   forwards.rs (forward bar, start / stop), history.rs (history view),
                    tests.rs (headless GPUI tests)
 crates/core/       pure logic, no GPUI: model (Listener, addresses, exposure, URL),
                    lsof / ps / ss parsers, scan (runs the tools, joins the output),
                    project (cwd to project), hints (well-known ports),
-                   table (search, project filter, grouping), kill, free (port checks)
+                   table (search, project filter, grouping), kill, free (port checks),
+                   remote (hosts, the ssh script and its parsing, remote kill),
+                   forward (ssh -L child processes and their status),
+                   history (port history, retention, file),
+                   container (docker ps: which container published a port)
 ```
+
+## Local data
+- `~/.ferrum/ports/ssh-hosts.json`: the machines added in FerrumPorts (FerrumTerm's
+  `HostStore` format, separate from FerrumTerm's own file). `~/.ssh/config` is only read.
+- `~/.ferrum/ports/history.json`: the port history (30 days, at most 1000 entries).

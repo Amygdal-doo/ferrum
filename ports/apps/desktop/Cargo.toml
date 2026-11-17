@@ -18,6 +18,8 @@ ferrum-ui.workspace = true
 ferrum-account-ui.workspace = true
 gpui.workspace = true
 chrono.workspace = true
+# SSH host types (~/.ssh/config, typed hosts), shared with FerrumTerm.
+ferrumterm-net.workspace = true
 
 [dev-dependencies]
 # Headless GPUI test harness (TestAppContext); no window is shown.

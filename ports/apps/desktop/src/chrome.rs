@@ -2,6 +2,7 @@
 
 use ferrum_ui::components::TintColor;
 use ferrum_ui::prelude::*;
+use ferrumports_core::container;
 
 use crate::app::{FerrumPorts, KillStage};
 
@@ -70,6 +71,7 @@ pub fn table_header(
         // First after the traffic lights, where the other apps put it
         // (after their sidebar toggle; FerrumPorts has no sidebar).
         .child(ferrum_ui::settings_button("open-settings"))
+        .child(crate::remote::host_picker(app, cx))
         .child(div().flex_none().w(px(260.)).child(app.project_bar.clone()))
         .child(
             field(cx)
@@ -103,6 +105,14 @@ pub fn table_header(
         .child(
             toggle("udp", "UDP", app.udp, cx, |app, cx| app.toggle_udp(cx))
                 .tooltip(Tooltip::text("Also list bound UDP sockets")),
+        )
+        .child(
+            toggle("history", "History", app.show_history, cx, |app, _| {
+                app.show_history = !app.show_history;
+            })
+            .tooltip(Tooltip::text(
+                "Which process held which port on this Mac, and when",
+            )),
         )
         .child(div().flex_1())
         .child(
@@ -154,10 +164,18 @@ pub fn table_footer(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> AnyElem
     if shown != app.listeners.len() {
         left.push_str(&format!(" · {shown} shown"));
     }
+    let (machine, every) = match &app.target {
+        Some(host) => (format!("{host} (ssh) · "), crate::commands::REMOTE_POLL),
+        None => (String::new(), crate::commands::POLL),
+    };
     let refresh = match (&app.last_refresh, app.paused) {
-        (Some(t), true) => format!("Paused · last refresh {}", t.format("%H:%M:%S")),
-        (Some(t), false) => format!("Auto-refresh 2 s · last {}", t.format("%H:%M:%S")),
-        (None, _) => "Scanning…".to_string(),
+        (Some(t), true) => format!("{machine}Paused · last refresh {}", t.format("%H:%M:%S")),
+        (Some(t), false) => format!(
+            "{machine}Auto-refresh {} s · last {}",
+            every.as_secs(),
+            t.format("%H:%M:%S")
+        ),
+        (None, _) => format!("{machine}Scanning…"),
     };
     let problem = app.error.clone().or_else(|| app.warnings.first().cloned());
     let colors = cx.theme().colors();
@@ -191,10 +209,15 @@ pub fn kill_dialog(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> Option<A
     let colors = cx.theme().colors();
     let l = &dialog.listener;
     let pid = l.pid.unwrap_or_default();
+    // On a remote machine the signal goes out over ssh.
+    let (on, via) = match &dialog.host {
+        Some(host) => (format!(" on {}", host.name), " over ssh"),
+        None => (String::new(), ""),
+    };
     let (title, intro, confirm) = match dialog.stage {
         KillStage::Term => (
-            format!("Stop {} on port {}?", l.process, l.port),
-            format!("Sends SIGTERM to pid {pid}, asking it to exit cleanly."),
+            format!("Stop {} on port {}{on}?", l.process, l.port),
+            format!("Sends SIGTERM to pid {pid}{on}{via}, asking it to exit cleanly."),
             "Stop (SIGTERM)",
         ),
         KillStage::Force => (
@@ -214,6 +237,16 @@ pub fn kill_dialog(app: &FerrumPorts, cx: &mut Context<FerrumPorts>) -> Option<A
             .width(px(560.))
             .on_dismiss(cx.listener(move |app, _, _, cx| close(app, cx)))
             .child(Label::new(intro))
+            .when(container::is_runtime(&l.process), |modal| {
+                modal.child(
+                    Label::new(format!(
+                        "{} is the container runtime, not a container: stopping it stops every \
+                         container. To stop one container, use FerrumContainers.",
+                        l.process
+                    ))
+                    .color(Color::Warning),
+                )
+            })
             .child(
                 div()
                     .id("kill-command")

@@ -12,8 +12,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::model::{Listener, Protocol, Snapshot, Socket};
-use crate::project;
 use crate::ps::{self, PsEntry};
+use crate::{container, project};
 use crate::{lsof, ss};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -31,6 +31,9 @@ pub enum ScanError {
         program: &'static str,
         message: String,
     },
+    /// Listing a remote host's ports over ssh failed.
+    #[error("{0}")]
+    Remote(String),
 }
 
 /// Runs `program` and returns its stdout. A non-zero exit with output is
@@ -122,8 +125,16 @@ pub fn scan(options: ScanOptions) -> Result<Snapshot, ScanError> {
         (processes, cwds(&pids))
     };
     let home = std::env::var_os("HOME").map(PathBuf::from);
+    let mut listeners = assemble(sockets, &processes, &cwds, home.as_deref());
+    // `docker ps` only when a container runtime holds a port; without
+    // Docker (or with it stopped) the rows just show no container.
+    if listeners.iter().any(|l| container::is_runtime(&l.process))
+        && let Ok(containers) = container::containers(home.as_deref())
+    {
+        container::attach(&mut listeners, &containers);
+    }
     Ok(Snapshot {
-        listeners: assemble(sockets, &processes, &cwds, home.as_deref()),
+        listeners,
         warnings,
     })
 }
@@ -176,6 +187,7 @@ pub fn assemble(
                 started: entry.and_then(|e| e.started),
                 cwd,
                 project,
+                container: None,
             },
         );
     }

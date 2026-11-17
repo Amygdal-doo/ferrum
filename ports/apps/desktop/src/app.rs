@@ -2,11 +2,16 @@
 //! search and toggles; quiet status line at its foot) and the detail card.
 
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use chrono::{DateTime, Local};
 use ferrum_ui::gpui::{KeyBinding, MouseButton};
 use ferrum_ui::prelude::*;
-use ferrumports_core::{Listener, ListenerKey, Row, View, table};
+use ferrumports_core::forward::Forward;
+use ferrumports_core::history::PortHistory;
+use ferrumports_core::{Listener, ListenerKey, Row, View, remote, table};
+use ferrumterm_net::ssh_config::ConfigHost;
+use ferrumterm_net::{Host, HostStore};
 
 use crate::{chrome, detail};
 
@@ -30,6 +35,9 @@ pub struct Options {
     pub project: Option<PathBuf>,
     /// Scan now and every [`crate::commands::POLL`]; off in tests.
     pub autostart: bool,
+    /// Home folder for `~/.ssh/config` and FerrumPorts' files in
+    /// `~/.ferrum/ports/`; `None` in tests (nothing is read or written).
+    pub home: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,6 +55,8 @@ pub struct KillDialog {
     pub stage: KillStage,
     /// A signal is in flight.
     pub busy: bool,
+    /// The remote machine the process runs on (`None`: this Mac).
+    pub host: Option<Host>,
 }
 
 pub struct FerrumPorts {
@@ -73,9 +83,27 @@ pub struct FerrumPorts {
     pub(crate) notice_task: Option<Task<()>>,
     /// The detail card was clicked last (it is drawn a little lighter).
     pub(crate) detail_active: bool,
+    /// Machines added in FerrumPorts and the `~/.ssh/config` aliases.
+    pub(crate) hosts: HostStore,
+    pub(crate) config_hosts: Vec<ConfigHost>,
+    pub(crate) hosts_path: Option<PathBuf>,
+    /// The remote machine listed (by name); `None` for this Mac.
+    pub(crate) target: Option<String>,
+    /// When the last scan started (remote machines are scanned less often).
+    pub(crate) last_scan: Option<Instant>,
+    /// The "Add a machine" dialog's host field while it is open.
+    pub(crate) add_host: Option<Entity<TextInput>>,
+    /// `ssh -L` forwards started here (stopped when the app quits).
+    pub(crate) forwards: Vec<Forward>,
+    /// Which process held which port on this Mac, and when.
+    pub(crate) history: PortHistory,
+    pub(crate) history_path: Option<PathBuf>,
+    pub(crate) history_saved: Option<Instant>,
+    /// The table shows the history instead of the listeners.
+    pub(crate) show_history: bool,
     focus_handle: FocusHandle,
     _poll: Option<Task<()>>,
-    _subscriptions: Vec<Subscription>,
+    pub(crate) _subscriptions: Vec<Subscription>,
 }
 
 impl FerrumPorts {
@@ -113,6 +141,33 @@ impl FerrumPorts {
                 }
             }),
         ];
+        let hosts_path = options.home.as_deref().map(remote::store_path);
+        let mut load_error = None;
+        let hosts = match hosts_path.as_deref().map(HostStore::load) {
+            Some(Ok(store)) => store,
+            Some(Err(e)) => {
+                load_error = Some(e);
+                HostStore::default()
+            }
+            None => HostStore::default(),
+        };
+        let history_path = options
+            .home
+            .as_deref()
+            .map(|home| home.join(".ferrum").join("ports").join("history.json"));
+        let history = match history_path.as_deref().map(PortHistory::load) {
+            Some(Ok(history)) => history,
+            Some(Err(e)) => {
+                load_error = Some(e);
+                PortHistory::default()
+            }
+            None => PortHistory::default(),
+        };
+        let config_hosts = if options.home.is_some() {
+            ferrumterm_net::ssh_config::load_user()
+        } else {
+            Vec::new()
+        };
         let mut app = Self {
             project_bar,
             search,
@@ -133,10 +188,31 @@ impl FerrumPorts {
             notice: None,
             notice_task: None,
             detail_active: false,
+            hosts,
+            config_hosts,
+            hosts_path,
+            target: None,
+            last_scan: None,
+            add_host: None,
+            forwards: Vec::new(),
+            history,
+            history_path,
+            history_saved: None,
+            show_history: false,
             focus_handle: cx.focus_handle(),
             _poll: None,
             _subscriptions: subscriptions,
         };
+        if let Some(e) = load_error {
+            app.show_notice(Notice::error(e), cx);
+        }
+        // ssh children would outlive the app otherwise.
+        app._subscriptions.push(cx.on_app_quit(|app, _| {
+            app.stop_forwards();
+            app.history.close_all();
+            app.save_history();
+            async {}
+        }));
         window.focus(&app.focus_handle, cx);
         if options.autostart {
             app._poll = Some(Self::start_polling(cx));
@@ -191,7 +267,8 @@ impl FerrumPorts {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.dialog.take().is_some() {
+        // A dialog closes first (the add-machine one, then the kill one).
+        if self.add_host.take().is_some() || self.dialog.take().is_some() {
             window.focus(&self.focus_handle, cx);
         } else {
             self.selected = None;
@@ -204,10 +281,16 @@ impl Render for FerrumPorts {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let text = cx.theme().colors().text;
         let header = chrome::table_header(self, window, cx);
-        let table = crate::table::render(self, cx);
+        let forwards = crate::forwards::bar(self, cx);
+        let table = if self.show_history {
+            crate::history::render(self, cx)
+        } else {
+            crate::table::render(self, cx)
+        };
         let detail = detail::render(self, window, cx);
         let footer = chrome::table_footer(self, cx);
-        let dialog = chrome::kill_dialog(self, cx);
+        let dialog =
+            chrome::kill_dialog(self, cx).or_else(|| crate::remote::add_host_dialog(self, cx));
         let notice = chrome::notice(self, cx);
         let detail_active = self.detail_active && detail.is_some();
         let table_card = ferrum_ui::pane_card(!detail_active, cx)
@@ -219,6 +302,7 @@ impl Render for FerrumPorts {
                 cx.listener(|app, _, _, _| app.detail_active = false),
             )
             .child(header)
+            .children(forwards)
             .child(table)
             .child(footer);
         let detail_card = detail.map(|detail| {

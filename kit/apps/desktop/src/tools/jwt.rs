@@ -148,3 +148,18 @@ impl Render for JwtTool {
         )
     }
 }
+
+impl super::KitTool for JwtTool {
+    fn inputs(&self) -> Vec<Entity<TextInput>> {
+        vec![self.token.clone()]
+    }
+
+    fn outputs(&self) -> Vec<Entity<TextInput>> {
+        vec![self.header.clone(), self.payload.clone()]
+    }
+
+    fn rerun(&mut self, cx: &mut Context<Self>) {
+        self.run(cx);
+        cx.notify();
+    }
+}

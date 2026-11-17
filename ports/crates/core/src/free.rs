@@ -131,6 +131,7 @@ mod tests {
                 started: None,
                 cwd: None,
                 project: None,
+                container: None,
             }],
             suggestion: Some(3001),
         };

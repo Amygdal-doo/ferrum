@@ -50,8 +50,9 @@ pub fn render(
         .collect();
 
     let url = l.url();
+    let host = app.target_host();
     let mut actions = h_flex().flex_wrap().gap_1();
-    {
+    if host.is_none() {
         let (l1, url1) = (l.clone(), url.clone());
         actions = actions
             .child(button("d-open", "Open in browser", cx, move |app, cx| {
@@ -60,6 +61,23 @@ pub fn render(
             .child(button("d-copy-url", "Copy URL", cx, move |app, cx| {
                 app.copy(url1.clone(), "URL", cx)
             }));
+    } else if let Some(forward) = app.forward_of(l.port) {
+        // Already forwarded: open the local end.
+        let local = forward.url();
+        actions = actions.child(button(
+            "d-open-forward",
+            format!("Open {}", local.trim_start_matches("http://")),
+            cx,
+            move |_, cx| cx.open_url(&local),
+        ));
+    } else {
+        let l1 = l.clone();
+        actions = actions.child(
+            button("d-forward", "Forward to this Mac", cx, move |app, cx| {
+                app.start_forward(&l1, cx)
+            })
+            .tooltip(Tooltip::text("ssh -L: reach this port at localhost")),
+        );
     }
     if let Some(pid) = l.pid {
         actions = actions.child(button("d-copy-pid", "Copy PID", cx, move |app, cx| {
@@ -88,6 +106,20 @@ pub fn render(
                     move |app, cx| app.open_project_in(ferrum, &project, cx),
                 )
             }))
+    });
+    let container = l.container.clone().map(|c| {
+        v_flex()
+            .gap_1()
+            .child(field(
+                "Container",
+                value(format!("{} · {} · {}", c.name, c.image, c.short_id())).color(Color::Info),
+            ))
+            .child(button(
+                "d-open-containers",
+                "Open in FerrumContainers",
+                cx,
+                |app, cx| app.open_containers(cx),
+            ))
     });
     let kill = l.clone();
 
@@ -122,6 +154,13 @@ pub fn render(
         .gap_3()
         .child(actions)
         .children(open_in)
+        .children(container)
+        .when_some(host.as_ref(), |d, host| {
+            d.child(field(
+                "Machine",
+                value(format!("{} · {} (ssh)", host.name, host.address())),
+            ))
+        })
         .child(field(
             "Command",
             div()

@@ -3,8 +3,8 @@
 Offline developer utilities in the style of DevUtils / DevToys, written in Rust: a native
 GPUI desktop app (the UI framework of Zed, a pinned git dependency) built on the shared
 `ferrum-ui` crate. One window: a searchable list of tools on the left, the selected tool on
-the right. Everything runs locally — FerrumKit makes no network requests and writes nothing
-to disk. Part of the Ferrum monorepo, sibling of [FerrumAPI](../api), [FerrumGIT](../git),
+the right. Everything runs locally — FerrumKit makes no network requests and writes only
+its input history and saved inputs (see "Local data"). Part of the Ferrum monorepo, sibling of [FerrumAPI](../api), [FerrumGIT](../git),
 [FerrumData](../data) and [FerrumIDE](../editor), with the same theme and components.
 
 > **Status: alpha — first vertical slice.** See "What works" below; nothing beyond that list
@@ -15,30 +15,35 @@ to disk. Part of the Ferrum monorepo, sibling of [FerrumAPI](../api), [FerrumGIT
 | Tool | State |
 |------|-------|
 | Member of the Ferrum monorepo workspace, pinned toolchain, workspace lints | ✅ |
-| Shell: tool sidebar with search (name + keywords, all terms must match), ⌘K / Ctrl+K focuses search, Enter opens the first match; each tool keeps its last input in memory for the session; copy buttons with a "Copied" toast | ⚠️ filter unit-tested; UI wired (not hand-tested) |
+| Shell: tool sidebar with search (name + keywords, all terms must match), ⌘F focuses it, Enter opens the first match; each tool keeps its last input in memory for the session; copy buttons with a "Copied" toast | ⚠️ filter unit-tested; UI wired (not hand-tested) |
+| **Command palette** (⌘K / ⌘P / Ctrl+K / Ctrl+P, or the ⌘ button): every tool with its description, fuzzy-ranked (exact name, id or keyword, then prefix, substring, letters in order: `b64` → Base64), matched letters highlighted; ↑/↓, Enter opens the tool with the caret in its input, Esc or a click outside closes | ✅ ranking unit-tested; palette headless-tested |
+| **History and saved inputs** (clock button in the tool header, ⌘Y): the last 20 inputs per tool, recorded after a 1.5 s pause in typing (one entry per editing session), click to restore; save the current input under a name; delete entries or clear. A per-tool **Keep history** toggle; off by default for the JWT decoder, and turning it off deletes that tool's history. Stores the text of the input fields, not modes or toggles | ✅ store unit-tested; panel headless-tested |
+| **Wrap** (tool header, ⌥Z): soft-wraps long lines in every multi-line input and result field, at spaces when a row has one; ↑/↓ move by painted row. Remembered between launches | ✅ wrapping headless-tested in `ferrum-ui` |
 | **JSON / YAML / TOML**: format (2/4 spaces, tab), minify, validate with error line + column; JSON ⇄ YAML ⇄ TOML (key order kept; TOML errors for non-table roots and `null`); "use output as input" | ✅ tested |
+| **JSON Schema** (`jsonschema` crate): validate a document against a schema (draft 4 to 2020-12 from `$schema`, formats checked) with each failure's JSON Pointer and message; or generate a draft 2020-12 schema from a sample (types, required keys, array items merged across elements, `date-time`/`date`/`uuid`/`uri`/`email` formats), then validate with it. Remote `$ref`s are not fetched | ✅ tested |
+| **SQL formatter** (`sqlformat` crate): one clause per line; indent 2/4 spaces or tab; keywords UPPER, lower or as written; generic, PostgreSQL or SQL Server dialect; several statements. Whitespace and keyword case only — the SQL is not validated | ✅ tested |
 | **Base64**: encode / decode text, standard (padded) or URL-safe (unpadded); decode ignores whitespace and missing padding; non-UTF-8 results reported as binary | ✅ tested |
 | **JWT decoder**: header and payload pretty-printed, `alg`, `exp`/`iat`/`nbf` as UTC + local dates + relative time, Expired / Not yet valid / Not expired / No exp badge; accepts a `Bearer ` prefix; detects JWE. **Decode only — signatures are not verified** (stated in the UI) | ✅ tested |
 | **URL**: encode (like `encodeURIComponent`), decode (optional `+` as space), parser showing scheme / user / password / host / port / path / query / fragment and decoded query parameters (repeats kept) as rows | ✅ tested |
 | **Unix timestamp**: seconds or milliseconds (auto-detect from 12 digits up), dates (RFC 3339, RFC 2822, `YYYY-MM-DD[ HH:MM[:SS]]`) read as local or UTC; shows seconds, ms, UTC, local, ISO 8601, relative; **Now** button | ✅ tested |
+| **Cron expression**: five fields (`*`, values, ranges, steps, lists, `JAN`/`MON` names, `7` = Sunday) and `@hourly`/`@daily`/`@weekly`/`@monthly`/`@yearly`, explained in English ("At 09:30, on Monday through Friday"); the next 10 runs in local time with UTC and relative time; example buttons. Day-of-month and day-of-week both set means either (Vixie cron). No seconds field, `L`, `W` or `#` | ✅ tested (incl. 29 February) |
 | **UUID / ULID**: UUID v4, UUID v7 (time-ordered), ULID; count 1–10 000; uppercase toggle for UUIDs | ✅ tested |
+| **QR code** (`qrcode` + `image` crates): from text or a URL as you type, error correction L/M/Q/H, black on white with the 4-module quiet zone; **Copy image** (PNG on the clipboard) and **Save PNG…** (10 px per module). Byte mode only (no Kanji/ECI) | ✅ encoder and PNG tested; image headless-rendered |
 | **Hash**: MD5, SHA-1, SHA-256, SHA-512 of the UTF-8 text, live; uppercase toggle | ✅ tested against known vectors |
 | **Regex tester** (Rust `regex` crate syntax — no look-around/backreferences): pattern + flags `i m s x`, matches highlighted in the text, match list with byte ranges and numbered / named capture groups; 1 000-match cap | ✅ tested |
 | **Text diff**: line-based (via `similar`), old/new line numbers, added/removed colouring, summary counts, copy as `+`/`-` text; renders the first 5 000 lines | ✅ tested |
 | **Number base**: decimal / hex / octal / binary, `0x`/`0o`/`0b` prefixes, `_`/`,`/space separators, negatives, up to 128 bits | ✅ tested |
-| **Colour**: `#rgb[a]`, `#rrggbb[aa]`, `rgb()/rgba()`, `hsl()/hsla()` (comma or space syntax) → hex, RGB, HSL, channels, swatch | ✅ tested (HSL round-trips) |
+| **Colour**: `#rgb[a]`, `#rrggbb[aa]`, `rgb()/rgba()`, `hsl()/hsla()` (comma or space syntax), `oklch(L C H [/ A])` → hex, RGB, HSL, OKLCH (CSS Color 4 / OKLab maths), channels, swatch preview. OKLCH colours outside sRGB are clipped per channel (no gamut mapping) | ✅ tested (HSL and OKLCH round-trips, CSS reference values) |
 | **Case converter**: camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case, Title Case, lower, UPPER; line by line; splits acronyms (`HTTPServer` → `HTTP Server`) | ✅ tested |
 | **Line tools**: sort A→Z / Z→A / ignoring case, reverse, dedupe (keeps first), trim, remove empty, shuffle; in place with undo; live counts (lines, non-empty, unique, words, chars, bytes) | ✅ tested |
 
 ## Not built yet
-Persistence of inputs between launches; file input / drag-and-drop (all tools take pasted
+Remembering modes and toggles (history keeps only the text fields); file input / drag-and-drop (all tools take pasted
 text); Base64 of binary files and images; JWT signature verification and encoding; hashing
 files, HMAC, other algorithms (SHA-3, BLAKE3, CRC32); regex replace and other regex engines
 (PCRE/JavaScript syntax); character-level (intra-line) diff and side-by-side diff view; JSON
-path queries, JSON schema, XML / CSV conversion; colour picker, contrast ratio and named
-colours; keyboard navigation of the tool list (arrow keys) and ⌘1… shortcuts; soft-wrap in
-text fields (long lines such as JWTs scroll horizontally — the shared text field lays out
-unwrapped lines); a light theme; packaging, signing and a FerrumLauncher entry.
+path queries, XML / CSV conversion; colour picker, contrast ratio and named
+colours; keyboard navigation of the tool list (arrow keys) and ⌘1… shortcuts; a light theme; packaging, signing and a FerrumLauncher entry.
 
 ## Prerequisites
 - Rust via rustup. `rust-toolchain.toml` installs the pinned toolchain automatically.
@@ -57,13 +62,18 @@ cargo fmt --all
 
 ## Layout
 ```
-apps/desktop/            GPUI app: app.rs (root view: search, sidebar, tool host, ⌘K),
+apps/desktop/            GPUI app: app.rs (root view: search, sidebar, tool host,
+                         recording history), history.rs (history / saved inputs panel),
+                         palette.rs (⌘K / ⌘P command palette),
                          widgets.rs (fields, copy button, choice buttons, value rows),
-                         tools/ (one view per tool)
-crates/core/             pure, unit-tested tool logic, no GPUI: catalog (tool list + search),
+                         tools/ (one view per tool; the KitTool trait names its input fields)
+crates/core/             pure, unit-tested tool logic, no GPUI: catalog (tool list, search, fuzzy rank),
                          data_format (JSON/YAML/TOML), base64, jwt, url_tool, timestamp, ids,
-                         hash, regex_tool, diff, number_base, color, case, lines
+                         hash, regex_tool, diff, number_base, color, case, lines, cron, sql, json_schema, qr,
+                         store (history and saved inputs)
 ```
 
 ## Local data
-None. Inputs live in memory while the app runs and are gone when it quits.
+`~/.ferrum/kit/inputs.json` (mode 0600): per tool, the last 20 inputs, the saved inputs and
+the Keep history choice; and the Wrap setting. Delete the file to forget everything. Inputs not recorded (a tool
+with history off) live in memory only while the app runs.

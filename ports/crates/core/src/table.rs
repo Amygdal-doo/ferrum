@@ -34,6 +34,11 @@ pub fn matches(listener: &Listener, query: &str) -> bool {
     let port = listener.port.to_string();
     let project = listener.project_name().unwrap_or_default();
     let hint = listener.hint().map(|h| h.description).unwrap_or_default();
+    let container = listener
+        .container
+        .as_ref()
+        .map(|c| format!("{} {}", c.name, c.image))
+        .unwrap_or_default();
     let fields = [
         port.as_str(),
         listener.process.as_str(),
@@ -43,6 +48,7 @@ pub fn matches(listener: &Listener, query: &str) -> bool {
         listener.user.as_deref().unwrap_or_default(),
         hint,
         listener.protocol.label(),
+        container.as_str(),
     ]
     .map(str::to_lowercase);
     query.split_whitespace().all(|word| {
@@ -135,6 +141,7 @@ mod tests {
             started: None,
             cwd: None,
             project: project.map(PathBuf::from),
+            container: None,
         }
     }
 

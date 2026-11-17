@@ -6,6 +6,8 @@ use std::process::Command;
 use std::time::Duration;
 
 use ferrum_ui::NoticeTone;
+use ferrumports_core::container::Container;
+use ferrumports_core::forward::ForwardStatus;
 use ferrumports_core::kill::{KillError, Signal};
 use ferrumports_core::{Listener, Protocol, Row, ScanError, Snapshot};
 use gpui::{Entity, TestAppContext, VisualTestContext};
@@ -24,6 +26,7 @@ fn listener(port: u16, process: &str, pid: u32, project: Option<&str>) -> Listen
         started: None,
         cwd: project.map(|p| PathBuf::from(p).join("src")),
         project: project.map(PathBuf::from),
+        container: None,
     }
 }
 
@@ -49,6 +52,7 @@ fn window(cx: &mut TestAppContext) -> (Entity<FerrumPorts>, &mut VisualTestConte
             Options {
                 project: None,
                 autostart: false,
+                home: None,
             },
             window,
             cx,
@@ -205,4 +209,156 @@ fn kill_stops_a_real_process(cx: &mut TestAppContext) {
             notice.message
         );
     });
+}
+
+#[gpui::test]
+fn remote_machine_lists_and_confirms_stops(cx: &mut TestAppContext) {
+    let (app, cx) = window(cx);
+    app.update(cx, |app, cx| {
+        let name = app.hosts.add_typed("deploy@10.0.0.9:2200").expect("host");
+        // Set directly: `set_target` would start a real ssh scan.
+        app.target = Some(name.clone());
+        let host = app.target_host().expect("host");
+        assert_eq!(host.address(), "deploy@10.0.0.9:2200");
+        app.apply_scan(Ok(sample()), cx);
+        let key = app.listeners[0].key();
+        app.select(key, cx);
+    });
+    draw(cx);
+    app.update(cx, |app, cx| {
+        let l = app.listeners[1].clone();
+        app.ask_kill(l, cx);
+        let dialog = app.dialog.as_ref().expect("dialog");
+        assert_eq!(
+            dialog.host.as_ref().map(|h| h.name.as_str()),
+            app.target.as_deref()
+        );
+    });
+    draw(cx);
+    app.update(cx, |app, cx| {
+        // As if a scan were running, so the refresh after the stop does
+        // not ssh to the made-up host.
+        app.scanning = true;
+        app.kill_finished(Signal::Term, Ok(()), false, cx);
+        let notice = app.notice.clone().expect("notice");
+        assert!(
+            notice.message.ends_with("on 10.0.0.9"),
+            "{}",
+            notice.message
+        );
+        // A failed ssh scan keeps the rows and shows ssh's message.
+        app.apply_scan(
+            Err(ScanError::Remote("Permission denied (publickey)".into())),
+            cx,
+        );
+        assert_eq!(app.error.as_deref(), Some("Permission denied (publickey)"));
+    });
+    draw(cx);
+    // The "Add a machine" dialog renders; Esc closes it.
+    cx.update(|window, cx| app.update(cx, |app, cx| app.open_add_host(window, cx)));
+    draw(cx);
+    cx.dispatch_action(ferrum_ui::menu::Cancel);
+    app.read_with(cx, |app, _| assert!(app.add_host.is_none()));
+}
+
+/// Starts a real `ssh -N -L` to a host that cannot resolve: the forward
+/// shows up in the bar and ends as failed with ssh's message.
+#[gpui::test]
+fn forward_reports_ssh_failure(cx: &mut TestAppContext) {
+    let (app, cx) = window(cx);
+    app.update(cx, |app, cx| {
+        let name = app
+            .hosts
+            .add_typed("nobody@ferrumports-test.invalid")
+            .expect("host");
+        app.target = Some(name);
+        app.apply_scan(Ok(sample()), cx);
+        let postgres = app.listeners[1].clone();
+        app.start_forward(&postgres, cx);
+        assert_eq!(app.forwards.len(), 1);
+        assert_eq!(app.forwards[0].remote_port, 5432);
+        assert!(app.forward_of(5432).is_some());
+        let key = postgres.key();
+        app.select(key, cx);
+    });
+    draw(cx);
+    let mut failed = false;
+    for _ in 0..200 {
+        app.update(cx, |app, cx| app.poll_forwards(cx));
+        failed = app.read_with(cx, |app, _| {
+            matches!(app.forwards[0].status, ForwardStatus::Failed(_))
+        });
+        if failed {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    draw(cx);
+    app.update(cx, |app, cx| {
+        if failed {
+            assert!(app.forward_of(5432).is_none());
+            app.restart_forward(0, cx);
+        }
+        app.stop_forward(0, cx);
+        assert_eq!(app.forwards[0].status, ForwardStatus::Stopped);
+        app.remove_forward(0, cx);
+        assert!(app.forwards.is_empty());
+    });
+    draw(cx);
+}
+
+#[gpui::test]
+fn history_records_scans_of_this_mac(cx: &mut TestAppContext) {
+    let (app, cx) = window(cx);
+    app.update(cx, |app, cx| {
+        app.apply_scan(Ok(sample()), cx);
+        // postgres stops.
+        let mut snapshot = sample();
+        snapshot.listeners.remove(1);
+        app.apply_scan(Ok(snapshot), cx);
+        let entries: Vec<_> = app.history.entries().cloned().collect();
+        assert_eq!(entries.len(), 4);
+        let postgres = entries.iter().find(|e| e.port == 5432).expect("entry");
+        assert!(!postgres.open);
+        assert!(entries.iter().filter(|e| e.port != 5432).all(|e| e.open));
+        app.show_history = true;
+        app.search
+            .update(cx, |input, cx| input.set_text("postgres", cx));
+    });
+    draw(cx);
+    app.update(cx, |app, cx| {
+        // Scans of a remote machine are not recorded.
+        app.target = Some("elsewhere".into());
+        app.apply_scan(Ok(Snapshot::default()), cx);
+        assert_eq!(app.history.entries().filter(|e| e.open).count(), 3);
+        app.clear_history(cx);
+        assert!(app.history.is_empty());
+    });
+    draw(cx);
+}
+
+#[gpui::test]
+fn container_ports_show_the_container(cx: &mut TestAppContext) {
+    let (app, cx) = window(cx);
+    app.update(cx, |app, cx| {
+        let mut snapshot = sample();
+        let mut docker = listener(8097, "com.docker.backend", 4_000_009, None);
+        docker.container = Some(Container {
+            id: "5d1bc4f4fb2c0f200fe6f8b0".into(),
+            name: "landing-wp-1".into(),
+            image: "wordpress:php8.2-apache".into(),
+        });
+        snapshot.listeners.push(docker);
+        app.apply_scan(Ok(snapshot), cx);
+        app.search
+            .update(cx, |input, cx| input.set_text("wordpress", cx));
+    });
+    assert_eq!(ports(&app, cx), ["8097"]);
+    app.update(cx, |app, cx| {
+        let l = app.listeners[4].clone();
+        app.select(l.key(), cx);
+        // The kill dialog warns that this is the runtime, not the container.
+        app.ask_kill(l, cx);
+    });
+    draw(cx);
 }

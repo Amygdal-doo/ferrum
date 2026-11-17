@@ -10,6 +10,12 @@ license.workspace = true
 [dependencies]
 chrono.workspace = true
 thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# SSH hosts (~/.ssh/config, typed hosts) and ssh command lines, shared
+# with FerrumTerm (no GUI).
+ferrumterm-net.workspace = true
+ferrumterm-protocol.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
