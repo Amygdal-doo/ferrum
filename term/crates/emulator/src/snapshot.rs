@@ -114,6 +114,7 @@ pub fn frame<T: alacritty_terminal::event::EventListener>(term: &Term<T>, title:
         bracketed_paste: mode.contains(TermMode::BRACKETED_PASTE),
         alt_screen: mode.contains(TermMode::ALT_SCREEN),
         mouse: mode.intersects(TermMode::MOUSE_MODE),
+        commands: Vec::new(),
     }
 }
 

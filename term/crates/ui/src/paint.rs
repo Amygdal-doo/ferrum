@@ -1,7 +1,10 @@
 //! Painting a window's panes cell by cell from server frames: backgrounds,
-//! selection, text shaped per row and snapped to the cell grid, cursor, IME
-//! composition, and dividers between split panes.
+//! selection, find matches, text shaped per row and snapped to the cell
+//! grid, cursor, IME composition, command blocks (a line between commands,
+//! a bar beside a failed or selected one; collapsed outputs are
+//! left out, see `blocks`), and dividers between split panes.
 
+use crate::blocks;
 use crate::theme::Palette;
 use crate::view::{PADDING, TermView};
 use ferrum_ui::gpui::{
@@ -116,6 +119,10 @@ pub(crate) fn paint_terminal(
         .bell_flash
         .filter(|(_, at)| at.elapsed() < crate::view::BELL_FLASH)
         .map(|(block, _)| block);
+    let collapsed = view.collapsed.clone();
+    let selected_command = view.selected_command;
+    let no_folds = std::collections::HashSet::new();
+    let mut row_maps = std::collections::HashMap::new();
     let palette = Palette::current(cx);
     let theme = cx.theme();
     let colors = Colors {
@@ -125,6 +132,7 @@ pub(crate) fn paint_terminal(
         accent: theme.colors().text_accent,
         background: palette.background,
         found: theme.status().warning,
+        failed: theme.status().error,
         palette,
     };
 
@@ -156,6 +164,9 @@ pub(crate) fn paint_terminal(
             let focused = pane.block == focused_block;
             if let Some(frame) = &pane.frame {
                 let pane_bounds = Bounds::new(pane_origin, pane_size);
+                let rows =
+                    blocks::visible_rows(frame, collapsed.get(&pane.block).unwrap_or(&no_folds));
+                let shown = |row: u16| rows.iter().position(|r| *r == row);
                 window.with_content_mask(
                     Some(gpui::ContentMask {
                         bounds: pane_bounds,
@@ -164,8 +175,11 @@ pub(crate) fn paint_terminal(
                         if bell == Some(pane.block) {
                             window.paint_quad(fill(pane_bounds, colors.foreground.opacity(0.12)));
                         }
-                        for (row, line) in frame.lines.iter().enumerate() {
-                            let row_origin = pane_origin + point(px(0.), cell_height * row as f32);
+                        for (at, &row) in rows.iter().enumerate() {
+                            let Some(line) = frame.lines.get(usize::from(row)) else {
+                                continue;
+                            };
+                            let row_origin = pane_origin + point(px(0.), cell_height * at as f32);
                             paint_backgrounds(
                                 line,
                                 row_origin,
@@ -178,10 +192,7 @@ pub(crate) fn paint_terminal(
                                 .as_ref()
                                 .filter(|s| s.block == pane.block)
                                 .and_then(|s| {
-                                    s.columns(
-                                        crate::selection::line_of(frame, row as u16),
-                                        pane.rect.cols,
-                                    )
+                                    s.columns(crate::selection::line_of(frame, row), pane.rect.cols)
                                 })
                             {
                                 window.paint_quad(fill(
@@ -196,7 +207,7 @@ pub(crate) fn paint_terminal(
                                 search.as_ref().filter(|s| s.block == Some(pane.block))
                             {
                                 for (from, to, current) in
-                                    search.row_highlights(frame, row as u16, pane.rect.cols)
+                                    search.row_highlights(frame, row, pane.rect.cols)
                                 {
                                     let found = Bounds::new(
                                         row_origin + point(cell_width * f32::from(from), px(0.)),
@@ -217,12 +228,26 @@ pub(crate) fn paint_terminal(
                             }
                             paint_row(line, row_origin, &metrics, font, &colors, window, cx);
                         }
-                        if let Some(cursor) = frame.cursor {
+                        paint_commands(
+                            frame,
+                            &shown,
+                            pane_origin,
+                            pane_size.width,
+                            cell_height,
+                            selected_command
+                                .filter(|(b, _)| *b == pane.block)
+                                .map(|(_, id)| id),
+                            &colors,
+                            window,
+                        );
+                        if let Some((cursor, at)) =
+                            frame.cursor.and_then(|c| shown(c.row).map(|at| (c, at)))
+                        {
                             let caret = Bounds::new(
                                 pane_origin
                                     + point(
                                         cell_width * f32::from(cursor.col),
-                                        cell_height * f32::from(cursor.row),
+                                        cell_height * at as f32,
                                     ),
                                 size(cell_width, cell_height),
                             );
@@ -241,6 +266,7 @@ pub(crate) fn paint_terminal(
                         }
                     },
                 );
+                row_maps.insert(pane.block, rows);
             }
 
             let divider = if focused && split {
@@ -273,7 +299,59 @@ pub(crate) fn paint_terminal(
         view.app.panes = pane_hits;
         view.cursor_bounds = cursor_bounds;
         view.canvas_origin = (f32::from(bounds.origin.x), f32::from(bounds.origin.y));
+        view.row_maps = row_maps;
     });
+}
+
+/// Command blocks: a line above each command that starts on screen (but
+/// the first row), and a bar down the left edge of a failed (red) or
+/// selected (accent) one; the selected one is also tinted. `shown`
+/// gives a frame row's place on screen (`None`: folded away).
+#[allow(clippy::too_many_arguments)]
+fn paint_commands(
+    frame: &Frame,
+    shown: &dyn Fn(u16) -> Option<usize>,
+    origin: Point<Pixels>,
+    width: Pixels,
+    cell_height: Pixels,
+    selected: Option<u64>,
+    colors: &Colors,
+    window: &mut Window,
+) {
+    for command in &frame.commands {
+        let places: Vec<usize> = (command.top..=command.bottom).filter_map(shown).collect();
+        let (Some(&first), Some(&last)) = (places.first(), places.last()) else {
+            continue;
+        };
+        let top = origin.y + cell_height * first as f32;
+        let height = cell_height * (last - first + 1) as f32;
+        if command.starts && first > 0 {
+            window.paint_quad(fill(
+                Bounds::new(point(origin.x, top), size(width, px(1.))),
+                colors.divider.opacity(0.7),
+            ));
+        }
+        let is_selected = selected == Some(command.id);
+        if is_selected {
+            window.paint_quad(fill(
+                Bounds::new(point(origin.x, top), size(width, height)),
+                colors.accent.opacity(0.07),
+            ));
+        }
+        let bar = if blocks::failed(command) {
+            Some(colors.failed)
+        } else if is_selected {
+            Some(colors.accent)
+        } else {
+            None
+        };
+        if let Some(bar) = bar {
+            window.paint_quad(fill(
+                Bounds::new(point(origin.x, top), size(px(2.), height)),
+                bar,
+            ));
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -285,6 +363,8 @@ struct Colors {
     background: Hsla,
     /// Find bar matches.
     found: Hsla,
+    /// The bar beside a failed command.
+    failed: Hsla,
     palette: Palette,
 }
 

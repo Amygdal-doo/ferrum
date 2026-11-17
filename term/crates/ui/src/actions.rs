@@ -49,6 +49,8 @@ pub(crate) const BINDINGS: &[(&str, Shortcut)] = &[
     ("cmd-f", Shortcut::Find),
     ("cmd-g", Shortcut::FindNext),
     ("cmd-shift-g", Shortcut::FindPrevious),
+    ("cmd-up", Shortcut::PreviousCommand),
+    ("cmd-down", Shortcut::NextCommand),
 ];
 
 /// Declares the actions, maps each to its [`Shortcut`], and registers a
@@ -113,6 +115,8 @@ shortcut_actions! {
     Find => Shortcut::Find,
     FindNext => Shortcut::FindNext,
     FindPrevious => Shortcut::FindPrevious,
+    PreviousCommand => Shortcut::PreviousCommand,
+    NextCommand => Shortcut::NextCommand,
 }
 
 /// FerrumTerm's key bindings, all in the [`KEY_CONTEXT`] context.
@@ -144,6 +148,13 @@ impl TermView {
         if !self.focus_handle.is_focused(window) {
             cx.propagate();
             return;
+        }
+        match shortcut {
+            Shortcut::PreviousCommand => {
+                return self.jump_command(crate::blocks::Jump::Previous, cx);
+            }
+            Shortcut::NextCommand => return self.jump_command(crate::blocks::Jump::Next, cx),
+            _ => {}
         }
         self.ime_marked = None;
         self.act(Action::Shortcut(shortcut), cx);

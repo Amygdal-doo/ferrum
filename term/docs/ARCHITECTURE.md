@@ -24,6 +24,17 @@ crates/protocol ◄── all crates (wire types, layout math, OSC 7501)
 - Status: OSC 7501 is scanned from the raw byte stream (alacritty ignores unknown OSCs) or set
   with `SetStatus`. `working`/`blocked`/`idle` clear when the process exits; `done`/`error` stay.
   Transitions to done, blocked or error trigger a notification. Any `working` block triggers keep-awake.
+- Command blocks: OSC 133 marks (prompt `A`, input `B`, output `C;cmdline_url=…`, done `D;<code>`)
+  are scanned the same way, and the feed is split at each so it applies at its place in the
+  stream: it sets the cursor template's hyperlink to a hidden id (`fterm-cmd:<n>:<p|i|o>`), so
+  every cell written after it carries its command and zone. Marks thus live in the grid (they
+  scroll, reflow and leave with the scrollback); a row belongs to its first marked cell's command,
+  blank rows to the row above. Frames carry the commands on screen (`Frame::commands`);
+  `Commands` / `CommandOutput` scan the whole grid on request. The shell scripts are written to
+  `<state dir>/shell-integration/` and loaded into zsh (a `ZDOTDIR` bootstrap) and fish
+  (`XDG_DATA_DIRS`) when a block starts one.
+- Find: `Find` searches the screen and scrollback with a regex (rows joined by a soft wrap are
+  one line); matches are in lines from the oldest scrollback line, stable while output scrolls.
 - Security: the Unix socket is trusted (0600 in a 0700 dir). TCP requires `Hello` with the token
   (constant-time compare) as the first message and binds only to loopback or Tailscale ranges.
 

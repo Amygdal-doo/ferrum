@@ -15,7 +15,7 @@ pub mod version;
 mod wire;
 
 pub use forward::{ForwardInfo, ForwardKind, ForwardSpec, ForwardState, forward_key};
-pub use frame::{Cursor, CursorShape, Frame, Span, flags};
+pub use frame::{CommandMark, Cursor, CursorShape, Frame, Span, flags};
 pub use ids::{BlockId, SessionId, WindowId};
 pub use msg::*;
 pub use status::{OscScanner, ProgramState, ProgramStatus, StatusUpdate};

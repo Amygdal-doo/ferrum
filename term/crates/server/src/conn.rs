@@ -125,6 +125,21 @@ where
                     text: lock(&b.term).capture(scrollback),
                 })
             }
+            Request::Commands { target } => {
+                with_block(&server, target.as_deref(), |b| Response::Commands {
+                    commands: lock(&b.term).commands(),
+                })
+            }
+            Request::CommandOutput { target, command } => {
+                with_block(&server, target.as_deref(), |b| {
+                    match lock(&b.term).command_output(command) {
+                        Some(text) => Response::Text { text },
+                        None => Response::Error {
+                            message: format!("command {command} is no longer in the scrollback"),
+                        },
+                    }
+                })
+            }
             Request::Find {
                 target,
                 query,

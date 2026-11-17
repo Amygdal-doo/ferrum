@@ -219,6 +219,9 @@ pub struct TermSettings {
     /// Scrollback lines of new terminals.
     pub scrollback: u32,
     pub bell: Bell,
+    /// Load FerrumTerm's shell integration into new zsh and fish shells
+    /// (command blocks).
+    pub shell_integration: bool,
 }
 
 impl Default for TermSettings {
@@ -240,6 +243,7 @@ impl Default for TermSettings {
             theme: "ferrum".to_owned(),
             scrollback: DEFAULT_SCROLLBACK,
             bell: Bell::Visual,
+            shell_integration: true,
         }
     }
 }

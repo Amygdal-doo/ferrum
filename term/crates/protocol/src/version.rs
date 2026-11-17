@@ -28,7 +28,9 @@ use std::cmp::Ordering;
 /// - 1: agent detection in the sidebar, agent notifications, build reporting.
 /// - 2: agent status follows within a second (detection on output / Enter,
 ///   indicators over output timing); Codex no longer stuck.
-/// - 3: `Find` (search in the scrollback); `Spawn::scrollback`.
+/// - 3: `Find` (search in the scrollback); `Spawn::scrollback`; command
+///   blocks (shell integration: `Frame::commands`, `Commands`,
+///   `CommandOutput`).
 pub const SERVER_REVISION: u32 = 3;
 
 /// The release version of this build: `FERRUM_VERSION` at compile time

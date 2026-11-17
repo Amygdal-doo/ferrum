@@ -30,6 +30,7 @@ pub struct ConfigFile {
     pub copy_on_select: Option<bool>,
     pub bell: Option<Bell>,
     pub theme: Option<String>,
+    pub shell_integration: Option<bool>,
 }
 
 /// `option_as_meta`: `true` / `false`, or `"auto"`, `"left"`, `"right"`.
@@ -96,6 +97,9 @@ impl ConfigFile {
         if let Some(theme) = &self.theme {
             settings.theme = crate::theme::by_id(theme).id.to_owned();
         }
+        if let Some(on) = self.shell_integration {
+            settings.shell_integration = on;
+        }
     }
 }
 
@@ -155,6 +159,10 @@ pub fn render(settings: &TermSettings) -> String {
         format!("# {}.", themes.join(" | ")),
         "# ferrum follows the Ferrum app theme (light or dark).".to_owned(),
         format!("theme = {}", quoted(&settings.theme)),
+        String::new(),
+        "# Mark prompts and commands in new zsh and fish shells (command blocks);".to_owned(),
+        "# for bash: eval \"$(fterm shell-integration bash)\" in ~/.bashrc.".to_owned(),
+        format!("shell_integration = {}", settings.shell_integration),
     ];
     let mut text = lines.join("\n");
     text.push('\n');
@@ -196,6 +204,7 @@ mod tests {
             copy_on_select: true,
             bell: Bell::System,
             theme: "nord".into(),
+            shell_integration: false,
             ..TermSettings::default()
         };
         let text = render(&settings);

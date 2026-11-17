@@ -405,7 +405,8 @@ pub async fn run(cmd: Cmd, ctx: &Ctx) -> Result<ExitCode, String> {
         | Cmd::Ssh(_)
         | Cmd::Forward(_)
         | Cmd::Port { .. }
-        | Cmd::Ports => {
+        | Cmd::Ports
+        | Cmd::ShellIntegration { .. } => {
             unreachable!("dispatched in main")
         }
     }

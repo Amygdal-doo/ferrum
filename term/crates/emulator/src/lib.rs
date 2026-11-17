@@ -1,9 +1,11 @@
 //! VT emulation for one block, on `alacritty_terminal` (the emulator inside
 //! Alacritty). Adds what a multiplexer needs on top: screen frames for
-//! clients, text capture, OSC 7501 program status, replies the program asks
-//! for (cursor reports etc.), and key-spec → byte encoding.
+//! clients, text capture, OSC 7501 program status, command blocks from
+//! shell integration (OSC 133, see `marks`), search, replies the program
+//! asks for (cursor reports etc.), and key-spec → byte encoding.
 
 pub mod keys;
+mod marks;
 mod palette;
 mod search;
 mod snapshot;
@@ -17,7 +19,7 @@ use alacritty_terminal::term::test::TermSize;
 use alacritty_terminal::term::{Config, Term, TermMode};
 use alacritty_terminal::vte::ansi::Processor;
 use ferrumterm_protocol::status::{OscScanner, StatusUpdate, parse_osc_body};
-use ferrumterm_protocol::{FindMatch, Frame, Input};
+use ferrumterm_protocol::{CommandInfo, FindMatch, Frame, Input};
 use std::sync::{Arc, Mutex, PoisonError};
 
 /// Scrollback lines kept per block, unless the spawn asks for another number.
@@ -52,6 +54,8 @@ pub struct Terminal {
     parser: Processor,
     events: Listener,
     scanner: OscScanner,
+    marks: marks::MarkScanner,
+    commands: marks::Commands,
     title: String,
 }
 
@@ -75,6 +79,8 @@ impl Terminal {
             parser: Processor::new(),
             events,
             scanner: OscScanner::default(),
+            marks: marks::MarkScanner::default(),
+            commands: marks::Commands::default(),
             title: String::new(),
         }
     }
@@ -87,7 +93,14 @@ impl Terminal {
                 feed.status.push(u);
             }
         }
-        self.parser.advance(&mut self.term, bytes);
+        // Shell integration marks apply where they are in the stream.
+        let mut start = 0;
+        for (end, mark) in self.marks.feed(bytes) {
+            self.parser.advance(&mut self.term, &bytes[start..end]);
+            self.commands.apply(mark, &mut self.term);
+            start = end;
+        }
+        self.parser.advance(&mut self.term, &bytes[start..]);
         let events =
             std::mem::take(&mut *self.events.0.lock().unwrap_or_else(PoisonError::into_inner));
         for e in events {
@@ -154,7 +167,21 @@ impl Terminal {
 
     #[must_use]
     pub fn frame(&self) -> Frame {
-        snapshot::frame(&self.term, &self.title)
+        let mut frame = snapshot::frame(&self.term, &self.title);
+        frame.commands = self.commands.on_screen(&self.term);
+        frame
+    }
+
+    /// The shell commands in the scrollback and on the screen, oldest first.
+    #[must_use]
+    pub fn commands(&self) -> Vec<CommandInfo> {
+        self.commands.all(&self.term)
+    }
+
+    /// The output of command `id` as text.
+    #[must_use]
+    pub fn command_output(&self, id: u64) -> Option<String> {
+        self.commands.output(&self.term, id).map(|(_, text)| text)
     }
 
     /// Screen (and optionally scrollback) as plain text, trailing blanks trimmed.
@@ -277,6 +304,136 @@ mod tests {
         assert!(t.find("(", false, true).is_err(), "invalid regex");
         assert_eq!(t.find("(", false, false).expect("plain").0.len(), 0);
         assert!(t.find("", false, false).expect("empty").0.is_empty());
+    }
+
+    /// What a shell with FerrumTerm's integration prints for a prompt.
+    fn prompt(t: &mut Terminal) {
+        t.feed(b"\x1b]133;A\x07$ ");
+    }
+
+    /// Typing `command` at the prompt and running it: output, exit code.
+    fn run(t: &mut Terminal, command: &str, output: &str, exit: i32) {
+        t.feed(command.as_bytes());
+        t.feed(b"\r\n");
+        let url = command.replace(' ', "%20");
+        t.feed(format!("\x1b]133;C;cmdline_url={url}\x07{output}").as_bytes());
+        t.feed(format!("\x1b]133;D;{exit}\x07").as_bytes());
+        prompt(t);
+    }
+
+    #[test]
+    fn groups_commands_with_their_output() {
+        let mut t = Terminal::new(20, 6);
+        prompt(&mut t);
+        run(&mut t, "ls", "a\r\nb\r\n", 0);
+        run(&mut t, "false", "", 1);
+        run(&mut t, "cat x", "no such file\r\n\r\nreally\r\n", 1);
+        // Screen: "$ false", "$ cat x", "no such file", "", "really", "$ ".
+        let f = t.frame();
+        assert_eq!(f.line_text(5), "$");
+        let marks: Vec<_> = f
+            .commands
+            .iter()
+            .map(|c| (c.id, c.top, c.bottom, c.starts, c.output, c.exit, c.running))
+            .collect();
+        assert_eq!(
+            marks,
+            [
+                (2, 0, 0, true, None, Some(1), false),
+                (3, 1, 4, true, Some(2), Some(1), false),
+                (4, 5, 5, true, None, None, false),
+            ],
+            "the blank output line belongs to its command"
+        );
+        assert_eq!(f.commands[1].command, "cat x");
+        let all = t.commands();
+        let summary: Vec<_> = all
+            .iter()
+            .map(|c| {
+                (
+                    c.id,
+                    c.line,
+                    c.output_line,
+                    c.end_line,
+                    c.exit,
+                    c.command.as_str(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                (1, 0, Some(1), 2, Some(0), "ls"),
+                (2, 3, None, 3, Some(1), "false"),
+                (3, 4, Some(5), 7, Some(1), "cat x"),
+                (4, 8, None, 8, None, ""),
+            ]
+        );
+        assert_eq!(t.command_output(1).as_deref(), Some("a\nb"));
+        assert_eq!(t.command_output(2).as_deref(), Some(""));
+        assert_eq!(
+            t.command_output(3).as_deref(),
+            Some("no such file\n\nreally")
+        );
+        assert_eq!(t.command_output(9), None);
+        // Scrolled back one line: the first command starts above the screen.
+        t.scroll(Some(1));
+        let f = t.frame();
+        assert_eq!((f.commands[0].id, f.commands[0].starts), (1, false));
+        t.scroll(Some(2));
+        let f = t.frame();
+        assert_eq!((f.commands[0].id, f.commands[0].starts), (1, true));
+    }
+
+    #[test]
+    fn running_commands_empty_lines_and_wrapped_output() {
+        let mut t = Terminal::new(10, 8);
+        prompt(&mut t);
+        // Enter on an empty line prompts again: still the same command.
+        t.feed(b"\r\n");
+        prompt(&mut t);
+        t.feed(b"yes\r\n\x1b]133;C;cmdline=yes\x07y\r\ny\r\n");
+        let f = t.frame();
+        assert_eq!(f.commands.len(), 1);
+        assert!(f.commands[0].running);
+        assert_eq!(f.commands[0].output, Some(2));
+        // ^C: the shell prompts without a D: no longer running.
+        prompt(&mut t);
+        let f = t.frame();
+        assert!(!f.commands[0].running);
+        assert_eq!(f.commands[0].exit, None);
+        // Output longer than a row is one line of output.
+        t.feed(b"echo\r\n\x1b]133;C\x070123456789abc\r\n\x1b]133;D;0\x07");
+        assert_eq!(t.command_output(2).as_deref(), Some("0123456789abc"));
+        // A program's own hyperlink doesn't end the output zone.
+        prompt(&mut t);
+        t.feed(b"ls\r\n\x1b]133;C\x07\x1b]8;;file:///x\x1b\\x\x1b]8;;\x1b\\ y\r\nz\r\n\x1b]133;D;0\x07");
+        assert_eq!(t.command_output(3).as_deref(), Some("x y\nz"));
+    }
+
+    #[test]
+    fn full_screen_programs_are_not_command_output() {
+        let mut t = Terminal::new(20, 6);
+        prompt(&mut t);
+        t.feed(b"vim\r\n\x1b]133;C;cmdline=vim\x07\x1b[?1049hediting");
+        assert!(t.frame().commands.is_empty());
+        assert!(t.commands().is_empty());
+        t.feed(b"\x1b[?1049l\x1b]133;D;0\x07");
+        prompt(&mut t);
+        let f = t.frame();
+        assert_eq!(f.commands.len(), 2);
+        assert_eq!(
+            (f.commands[0].command.as_str(), f.commands[0].exit),
+            ("vim", Some(0))
+        );
+    }
+
+    #[test]
+    fn without_shell_integration_there_are_no_commands() {
+        let mut t = Terminal::new(10, 3);
+        t.feed(b"$ ls\r\na b\r\n$ ");
+        assert!(t.frame().commands.is_empty());
+        assert!(t.commands().is_empty());
     }
 
     #[test]

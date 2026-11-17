@@ -44,6 +44,14 @@ pub enum UiEvent {
         BlockId,
         Result<(Vec<ferrumterm_protocol::FindMatch>, bool), String>,
     ),
+    /// A pane's shell commands, for ⌘↑ / ⌘↓.
+    Commands(
+        BlockId,
+        Vec<ferrumterm_protocol::CommandInfo>,
+        crate::blocks::Jump,
+    ),
+    /// Text for the clipboard, and what to say about it.
+    Copied(String, String),
 }
 
 pub type UiSender = futures::channel::mpsc::UnboundedSender<UiEvent>;
@@ -123,6 +131,10 @@ pub(crate) fn spawn_env() -> Spawn {
         .filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v)))
         .collect();
     let settings = crate::settings::get();
+    let mut env: Vec<(String, String)> = env;
+    if !settings.shell_integration {
+        env.push(("FTERM_SHELL_INTEGRATION".into(), "0".into()));
+    }
     Spawn {
         command: settings.startup_argv(),
         env,
@@ -584,7 +596,9 @@ impl App {
             | Shortcut::Copy
             | Shortcut::Find
             | Shortcut::FindNext
-            | Shortcut::FindPrevious => {}
+            | Shortcut::FindPrevious
+            | Shortcut::PreviousCommand
+            | Shortcut::NextCommand => {}
             Shortcut::CopyScreen => {
                 let Some(c) = self.client.clone() else { return };
                 let proxy = self.proxy.clone();

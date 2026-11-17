@@ -3,6 +3,9 @@
 //! the transient message strip. Its public, embeddable API is in `api`.
 
 mod api;
+mod blocks;
+#[cfg(test)]
+mod blocks_tests;
 mod drag_scroll;
 mod find;
 #[cfg(test)]
@@ -25,6 +28,7 @@ use ferrum_ui::gpui::{
 };
 use ferrumterm_protocol::{BlockId, Event};
 use futures::StreamExt as _;
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 pub(crate) use render::{TabKind, tab_label};
@@ -91,6 +95,15 @@ pub struct TermView {
     /// Top-left of the painted panes in window px (from the last paint),
     /// for overlays positioned over a pane.
     pub(crate) canvas_origin: (f32, f32),
+    /// Collapsed command outputs, by pane (see `blocks`).
+    pub(crate) collapsed: HashMap<BlockId, HashSet<u64>>,
+    /// The command under the pointer (its toolbar shows).
+    pub(crate) hovered_command: Option<(BlockId, u64)>,
+    /// The command ⌘↑ / ⌘↓ went to.
+    pub(crate) selected_command: Option<(BlockId, u64)>,
+    /// Which frame row each screen row of a pane shows (from the last
+    /// paint; differs while outputs are collapsed).
+    pub(crate) row_maps: HashMap<BlockId, Vec<u16>>,
     /// The pane flashing for a bell, and since when.
     pub(crate) bell_flash: Option<(BlockId, Instant)>,
     _bell_timer: Option<Task<()>>,
@@ -189,6 +202,10 @@ impl TermView {
             agent,
             find: None,
             canvas_origin: (0., 0.),
+            collapsed: HashMap::new(),
+            hovered_command: None,
+            selected_command: None,
+            row_maps: HashMap::new(),
             bell_flash: None,
             _bell_timer: None,
             _config_watch: config_watch,
@@ -274,6 +291,14 @@ impl TermView {
             UiEvent::Found(generation, block, found) => {
                 self.on_found(generation, block, found, cx);
                 return;
+            }
+            UiEvent::Commands(block, commands, to) => {
+                self.on_commands(block, &commands, to, cx);
+                return;
+            }
+            UiEvent::Copied(text, message) => {
+                cx.write_to_clipboard(ClipboardItem::new_string(text));
+                self.app.notify(message);
             }
         }
         self.after_change(cx);
@@ -458,6 +483,7 @@ impl TermView {
             action => {
                 if matches!(action, Action::Send(_)) {
                     self.clear_selection();
+                    self.selected_command = None;
                 }
                 self.app.act(action);
             }
@@ -524,10 +550,13 @@ impl TermView {
 
     /// Extends the selection while the left button is held.
     fn mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+        let (x, y) = (f32::from(event.position.x), f32::from(event.position.y));
+        if event.pressed_button.is_none() && self.hover_command(x, y) {
+            cx.notify();
+        }
         if !self.selecting || event.pressed_button != Some(MouseButton::Left) {
             return;
         }
-        let (x, y) = (f32::from(event.position.x), f32::from(event.position.y));
         self.drag_pointer = Some((x, y));
         if self.drag_to(x, y) {
             cx.notify();
@@ -584,7 +613,14 @@ impl TermView {
             f32::from(metrics.cell_width),
             f32::from(metrics.cell_height),
         );
-        let row = self.line_at(pane.0, cell.row);
+        // The frame row shown there (collapsed outputs are left out); below
+        // the last one, the last.
+        let at = usize::try_from(cell.row).unwrap_or(0);
+        let row = self
+            .frame_row(pane.0, at)
+            .or_else(|| self.row_maps.get(&pane.0).and_then(|r| r.last().copied()))
+            .map_or(cell.row, i64::from);
+        let row = self.line_at(pane.0, row);
         Some((pane.0, Cell { row, ..cell }))
     }
 

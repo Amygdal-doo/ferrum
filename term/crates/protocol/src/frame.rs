@@ -43,6 +43,31 @@ pub struct Cursor {
     pub shape: CursorShape,
 }
 
+/// A shell command and its output on a [`Frame`]'s screen, from shell
+/// integration (OSC 133 marks; see the emulator's `marks`).
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct CommandMark {
+    /// Numbers the pane's commands, oldest first.
+    pub id: u64,
+    /// The screen rows it covers, `top` to `bottom` inclusive (prompt,
+    /// command line and output).
+    pub top: u16,
+    pub bottom: u16,
+    /// Its first line is `top` (else it began above the screen).
+    pub starts: bool,
+    /// The first row of its output on the screen.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<u16>,
+    /// Exit code once it finished (and the shell said).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit: Option<i32>,
+    #[serde(default)]
+    pub running: bool,
+    /// The command line, when the shell sent it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub command: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Frame {
     pub cols: u16,
@@ -60,6 +85,10 @@ pub struct Frame {
     pub alt_screen: bool,
     /// Mouse reporting (SGR) requested by the program.
     pub mouse: bool,
+    /// Shell commands on the screen, top to bottom (none without shell
+    /// integration, or from servers before revision 3).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub commands: Vec<CommandMark>,
 }
 
 impl Frame {

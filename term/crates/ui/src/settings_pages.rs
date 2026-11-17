@@ -58,6 +58,8 @@ impl SettingsPage for TerminalPage {
     fn keywords(&self) -> &'static [&'static str] {
         &[
             "theme",
+            "integration",
+            "commands",
             "colors",
             "colours",
             "config",
@@ -496,6 +498,17 @@ impl Render for TerminalSettingsView {
                         Row::new("startup", "Startup command")
                             .control(div().w(px(280.)).child(self.startup.clone())),
                     )
+                    .row(switch_row(
+                        "shell-integration",
+                        "Shell integration",
+                        Some(
+                            "Marks each command in new zsh and fish shells, so its output, \
+                             exit code, copy, run again and ⌘↑ / ⌘↓ work. For bash, add \
+                             eval \"$(fterm shell-integration bash)\" to ~/.bashrc.",
+                        ),
+                        s.shell_integration,
+                        |s, on| s.shell_integration = on,
+                    ))
                     .footnote(
                         "Executable and arguments; quotes group arguments. Applies to new \
                          terminals, tabs and splits. SSH hosts use their own shell.",

@@ -204,6 +204,17 @@ pub enum Request {
         target: Option<String>,
         scrollback: bool,
     },
+    /// The pane's shell commands still in its scrollback or on its screen
+    /// (shell integration); answered with [`Response::Commands`].
+    Commands {
+        target: Option<String>,
+    },
+    /// The output of the command numbered `command` ([`CommandInfo::id`]),
+    /// as text. (Not `id`: that names the request.)
+    CommandOutput {
+        target: Option<String>,
+        command: u64,
+    },
     /// Search the screen and scrollback for `query` (plain text, or a regex
     /// with `regex`); answered with [`Response::Found`]. Server revision 3.
     Find {
@@ -293,6 +304,22 @@ pub struct BlockInfo {
     /// sees it: the started program or the terminal's foreground process.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
+}
+
+/// A shell command of a pane (shell integration, OSC 133). Lines count
+/// from the oldest scrollback line, as in [`FindMatch`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommandInfo {
+    pub id: u64,
+    /// Its first line (the prompt's).
+    pub line: u32,
+    /// Where its output starts, once it has output.
+    pub output_line: Option<u32>,
+    pub end_line: u32,
+    /// The command line, when the shell sent it.
+    pub command: String,
+    pub exit: Option<i32>,
+    pub running: bool,
 }
 
 /// A match of [`Request::Find`]. Lines count from the oldest scrollback
@@ -397,6 +424,10 @@ pub enum Response {
     },
     Text {
         text: String,
+    },
+    /// The pane's commands, oldest first.
+    Commands {
+        commands: Vec<CommandInfo>,
     },
     /// `Find`'s matches, oldest first; `truncated` when there were more.
     Found {

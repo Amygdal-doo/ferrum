@@ -34,6 +34,10 @@ pub enum Shortcut {
     FindNext,
     /// The next match down (newer output).
     FindPrevious,
+    /// Scrolls to the command above (shell integration, see `blocks`).
+    PreviousCommand,
+    /// Scrolls to the command below, or back to the bottom.
+    NextCommand,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,6 +101,8 @@ fn shortcut(key: &str, shift: bool) -> Option<Shortcut> {
         ("f", false) => Shortcut::Find,
         ("g", false) => Shortcut::FindNext,
         ("g", true) => Shortcut::FindPrevious,
+        ("up", false) => Shortcut::PreviousCommand,
+        ("down", false) => Shortcut::NextCommand,
         ("pageup", _) => Shortcut::ScrollPageUp,
         ("pagedown", _) => Shortcut::ScrollPageDown,
         (digit, false) if digit.len() == 1 && digit != "0" => {

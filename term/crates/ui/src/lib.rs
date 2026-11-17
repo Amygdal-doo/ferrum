@@ -30,6 +30,7 @@ mod app;
 mod app_info;
 #[cfg(test)]
 mod app_tests;
+mod blocks;
 mod config;
 mod connection;
 mod dialogs;
