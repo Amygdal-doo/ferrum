@@ -98,7 +98,7 @@ impl Tool {
             Tool::Regex => "Test a regular expression (Rust regex syntax) against text.",
             Tool::Diff => "Line-by-line difference between two texts.",
             Tool::NumberBase => "Convert integers between decimal, hexadecimal, octal and binary.",
-            Tool::Color => "Convert colours between hex, RGB and HSL.",
+            Tool::Color => "Convert colours between hex, RGB, HSL and OKLCH, with a preview.",
             Tool::Case => {
                 "camelCase, snake_case, kebab-case, PascalCase, SCREAMING_SNAKE, Title Case."
             }
@@ -120,7 +120,7 @@ impl Tool {
             Tool::Regex => "regex regexp regular expression match pattern",
             Tool::Diff => "diff compare text lines changes",
             Tool::NumberBase => "number base hex hexadecimal binary octal decimal radix",
-            Tool::Color => "color colour hex rgb hsl swatch",
+            Tool::Color => "color colour hex rgb hsl oklch oklab swatch preview",
             Tool::Case => "case camel snake kebab pascal screaming title convert",
             Tool::Lines => "lines sort dedupe unique trim count text",
         }

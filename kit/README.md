@@ -29,7 +29,7 @@ its input history and saved inputs (see "Local data"). Part of the Ferrum monore
 | **Regex tester** (Rust `regex` crate syntax — no look-around/backreferences): pattern + flags `i m s x`, matches highlighted in the text, match list with byte ranges and numbered / named capture groups; 1 000-match cap | ✅ tested |
 | **Text diff**: line-based (via `similar`), old/new line numbers, added/removed colouring, summary counts, copy as `+`/`-` text; renders the first 5 000 lines | ✅ tested |
 | **Number base**: decimal / hex / octal / binary, `0x`/`0o`/`0b` prefixes, `_`/`,`/space separators, negatives, up to 128 bits | ✅ tested |
-| **Colour**: `#rgb[a]`, `#rrggbb[aa]`, `rgb()/rgba()`, `hsl()/hsla()` (comma or space syntax) → hex, RGB, HSL, channels, swatch | ✅ tested (HSL round-trips) |
+| **Colour**: `#rgb[a]`, `#rrggbb[aa]`, `rgb()/rgba()`, `hsl()/hsla()` (comma or space syntax), `oklch(L C H [/ A])` → hex, RGB, HSL, OKLCH (CSS Color 4 / OKLab maths), channels, swatch preview. OKLCH colours outside sRGB are clipped per channel (no gamut mapping) | ✅ tested (HSL and OKLCH round-trips, CSS reference values) |
 | **Case converter**: camelCase, PascalCase, snake_case, SCREAMING_SNAKE, kebab-case, Title Case, lower, UPPER; line by line; splits acronyms (`HTTPServer` → `HTTP Server`) | ✅ tested |
 | **Line tools**: sort A→Z / Z→A / ignoring case, reverse, dedupe (keeps first), trim, remove empty, shuffle; in place with undo; live counts (lines, non-empty, unique, words, chars, bytes) | ✅ tested |
 
