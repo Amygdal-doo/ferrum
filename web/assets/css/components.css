@@ -219,14 +219,14 @@ html:not(.js) .theme-toggle, html:not(.js) .nav-toggle { display: none; }
 /* ---------- Cookie banner (js/consent.js) ---------- */
 .consent {
   position: fixed; z-index: 50; left: var(--sp-4); right: var(--sp-4); bottom: var(--sp-4);
-  max-width: 560px; margin-inline: auto; padding: var(--sp-4) var(--sp-5);
-  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-5);
+  max-width: 600px; margin-inline: auto; padding: var(--sp-4) var(--sp-4) var(--sp-4) var(--sp-6);
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-6);
   background: var(--surface-2); color: var(--text);
-  border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow);
 }
 .consent[hidden] { display: none; }
-.consent__text { margin: 0; flex: 1 1 260px; font-size: var(--fs-sm); color: var(--text-muted); }
-.consent__actions { display: flex; gap: var(--sp-2); margin-left: auto; }
+.consent__text { margin: 0; flex: 1 1 260px; font-size: var(--fs-sm); line-height: 1.5; color: var(--text-muted); }
+.consent__actions { display: flex; gap: var(--sp-2); margin-left: auto; flex: none; }
 
 /* ---------- Logos ---------- */
 .app-logo { display: block; flex: none; width: 56px; height: 56px; }
