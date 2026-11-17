@@ -2932,6 +2932,8 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "tree-sitter-highlight",
+ "tree-sitter-yaml",
 ]
 
 [[package]]
@@ -2939,9 +2941,12 @@ name = "ferrumdock-engine"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "bollard",
  "chrono",
+ "ferrumsystem-core",
  "futures",
+ "keyring",
  "regex",
  "serde",
  "serde_json",

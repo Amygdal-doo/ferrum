@@ -86,6 +86,7 @@ impl FerrumContainers {
                     app.state.loaded.insert(Section::Volumes);
                 },
             ),
+            Section::Kubernetes => self.load_kube(cx),
             Section::Networks => self.with_engine(
                 cx,
                 |e| async move { e.networks().await },

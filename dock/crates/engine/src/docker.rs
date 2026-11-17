@@ -6,35 +6,73 @@ use crate::endpoint::Endpoint;
 use crate::engine::{Engine, EngineStream};
 use crate::error::{EngineError, EngineResult};
 use crate::model::{
-    Container, ContainerAction, ContainerDetail, EngineInfo, Image, ImageLayer, LogChunk,
-    LogOptions, LogStream, Network, PruneReport, PullEvent, Stats, Volume,
+    Container, ContainerAction, ContainerDetail, EngineInfo, ExecOutput, Image, ImageLayer,
+    LogChunk, LogOptions, LogStream, Network, PruneReport, PullEvent, Stats, Volume,
 };
 use crate::rawhttp;
+use crate::registry::{AuthOutcome, RegistryAuth};
+use crate::tunnel::{self, SshTarget, Tunnel};
 use async_trait::async_trait;
 use bollard::Docker;
+use bollard::auth::DockerCredentials;
 use bollard::container::LogOutput;
 use bollard::query_parameters as q;
 use futures::{StreamExt, TryStreamExt};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Seconds before a request without a response fails (streams are not cut).
 const TIMEOUT_SECS: u64 = 30;
 const DF_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
+/// Output kept from one `exec` (the rest is read and dropped).
+const EXEC_OUTPUT_LIMIT: usize = 16 << 20;
+/// The engine contacts the registry, which can be slow.
+const AUTH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(45);
 
 #[derive(Clone)]
 pub struct DockerEngine {
     docker: Docker,
+    /// Where requests go: the engine's socket or address, or the local end
+    /// of the SSH tunnel for an `ssh://` engine.
     endpoint: Endpoint,
+    /// Kept open as long as the engine (and its clones) live.
+    _tunnel: Option<Arc<Tunnel>>,
 }
 
 impl DockerEngine {
     /// Connects to `endpoint` and negotiates the API version with the engine.
+    /// An `ssh://` endpoint first gets an SSH tunnel to the remote socket.
     pub async fn connect(endpoint: &Endpoint) -> EngineResult<Self> {
+        let (local, tunnel) = match endpoint {
+            Endpoint::Ssh(target) => {
+                let parsed = SshTarget::parse(target).ok_or_else(|| EngineError::Unreachable {
+                    endpoint: endpoint.to_string(),
+                    message: "invalid ssh:// address".into(),
+                })?;
+                let ssh = tunnel::find_ssh().ok_or_else(|| EngineError::Unreachable {
+                    endpoint: endpoint.to_string(),
+                    message: "ssh was not found".into(),
+                })?;
+                let tunnel = Tunnel::open(&ssh, &parsed).await?;
+                (
+                    Endpoint::Unix(tunnel.socket.clone()),
+                    Some(Arc::new(tunnel)),
+                )
+            }
+            other => (other.clone(), None),
+        };
         let unreachable = |e: bollard::errors::Error| EngineError::Unreachable {
             endpoint: endpoint.to_string(),
-            message: e.to_string(),
+            message: if tunnel.is_some() {
+                format!(
+                    "{e} (through SSH to {}: is the engine running there, and may this user use it?)",
+                    tunnel::REMOTE_SOCKET
+                )
+            } else {
+                e.to_string()
+            },
         };
-        let docker = match endpoint {
+        let docker = match &local {
             Endpoint::Unix(path) => Docker::connect_with_unix(
                 &path.to_string_lossy(),
                 TIMEOUT_SECS,
@@ -43,18 +81,84 @@ impl DockerEngine {
             Endpoint::Tcp(addr) => {
                 Docker::connect_with_http(addr, TIMEOUT_SECS, bollard::API_DEFAULT_VERSION)
             }
+            // Replaced by the tunnel's socket above.
+            Endpoint::Ssh(_) => {
+                return Err(EngineError::Unreachable {
+                    endpoint: endpoint.to_string(),
+                    message: "no SSH tunnel".into(),
+                });
+            }
         }
         .map_err(unreachable)?;
         let docker = docker.negotiate_version().await.map_err(unreachable)?;
         Ok(Self {
             docker,
-            endpoint: endpoint.clone(),
+            endpoint: local,
+            _tunnel: tunnel,
         })
     }
 }
 
 fn label_filter(key: &str, value: &str) -> Option<HashMap<String, Vec<String>>> {
     Some(HashMap::from([(key.to_owned(), vec![value.to_owned()])]))
+}
+
+/// The `X-Registry-Auth` credentials of a pull: an identity token, or user and password.
+fn credentials(auth: &RegistryAuth) -> DockerCredentials {
+    if auth.is_identity_token() {
+        DockerCredentials {
+            identitytoken: Some(auth.secret.clone()),
+            serveraddress: Some(auth.server.clone()),
+            ..DockerCredentials::default()
+        }
+    } else {
+        DockerCredentials {
+            username: Some(auth.username.clone()),
+            password: Some(auth.secret.clone()),
+            serveraddress: Some(auth.server.clone()),
+            ..DockerCredentials::default()
+        }
+    }
+}
+
+/// The `POST /auth` body (the engine's `AuthConfig`).
+fn auth_body(auth: &RegistryAuth) -> serde_json::Value {
+    if auth.is_identity_token() {
+        serde_json::json!({ "identitytoken": auth.secret, "serveraddress": auth.server })
+    } else {
+        serde_json::json!({
+            "username": auth.username,
+            "password": auth.secret,
+            "serveraddress": auth.server,
+        })
+    }
+}
+
+/// `200 {"Status","IdentityToken"}`, or the engine's error message (401 for bad credentials).
+fn parse_auth_response(status: u16, body: &[u8]) -> EngineResult<AuthOutcome> {
+    let value: serde_json::Value = serde_json::from_slice(body).unwrap_or_default();
+    let text = |key: &str| {
+        value
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+    };
+    if status == 200 {
+        return Ok(AuthOutcome {
+            status: text("Status").unwrap_or_else(|| "Login Succeeded".to_owned()),
+            identity_token: text("IdentityToken"),
+        });
+    }
+    let message = text("message").unwrap_or_else(|| {
+        let raw = String::from_utf8_lossy(body).trim().to_owned();
+        if raw.is_empty() {
+            format!("the engine answered {status}")
+        } else {
+            raw
+        }
+    });
+    Err(EngineError::Api { status, message })
 }
 
 #[async_trait]
@@ -165,6 +269,58 @@ impl Engine for DockerEngine {
         Ok(created.id)
     }
 
+    fn archive(&self, id: &str, path: &str) -> EngineStream<Vec<u8>> {
+        let options = q::DownloadFromContainerOptionsBuilder::new()
+            .path(path)
+            .build();
+        self.docker
+            .download_from_container(id, Some(options))
+            .map_ok(|bytes| bytes.to_vec())
+            .map_err(EngineError::from)
+            .boxed()
+    }
+
+    async fn put_archive(&self, id: &str, dir: &str, tar: Vec<u8>) -> EngineResult<()> {
+        let options = q::UploadToContainerOptionsBuilder::new().path(dir).build();
+        self.docker
+            .upload_to_container(id, Some(options), bollard::body_full(tar.into()))
+            .await?;
+        Ok(())
+    }
+
+    async fn exec_capture(&self, id: &str, cmd: &[String]) -> EngineResult<ExecOutput> {
+        use bollard::exec::{CreateExecOptions, StartExecResults};
+        let options = CreateExecOptions {
+            cmd: Some(cmd.to_vec()),
+            attach_stdout: Some(true),
+            attach_stderr: Some(true),
+            ..CreateExecOptions::default()
+        };
+        let exec = self.docker.create_exec(id, options).await?;
+        let mut out = ExecOutput::default();
+        if let StartExecResults::Attached { mut output, .. } =
+            self.docker.start_exec(&exec.id, None).await?
+        {
+            while let Some(message) = output.next().await {
+                match message? {
+                    LogOutput::StdOut { message } | LogOutput::Console { message } => {
+                        if out.stdout.len() < EXEC_OUTPUT_LIMIT {
+                            out.stdout.extend_from_slice(&message);
+                        }
+                    }
+                    LogOutput::StdErr { message } => {
+                        if out.stderr.len() < EXEC_OUTPUT_LIMIT {
+                            out.stderr.push_str(&String::from_utf8_lossy(&message));
+                        }
+                    }
+                    LogOutput::StdIn { .. } => {}
+                }
+            }
+        }
+        out.exit_code = self.docker.inspect_exec(&exec.id).await?.exit_code;
+        Ok(out)
+    }
+
     async fn images(&self) -> EngineResult<Vec<Image>> {
         let list = self
             .docker
@@ -173,7 +329,7 @@ impl Engine for DockerEngine {
         Ok(list.into_iter().map(convert::image).collect())
     }
 
-    fn pull(&self, reference: &str) -> EngineStream<PullEvent> {
+    fn pull(&self, reference: &str, auth: Option<RegistryAuth>) -> EngineStream<PullEvent> {
         let Some((image, tag)) = crate::pull::split_reference(reference) else {
             let error = EngineError::Api {
                 status: 400,
@@ -186,10 +342,17 @@ impl Engine for DockerEngine {
             .tag(&tag)
             .build();
         self.docker
-            .create_image(Some(options), None, None)
+            .create_image(Some(options), None, auth.as_ref().map(credentials))
             .map_ok(convert::pull_event)
             .map_err(EngineError::from)
             .boxed()
+    }
+
+    async fn check_auth(&self, auth: &RegistryAuth) -> EngineResult<AuthOutcome> {
+        let body = auth_body(auth).to_string();
+        let (status, response) =
+            rawhttp::post_json(&self.endpoint, "/auth", body.as_bytes(), AUTH_TIMEOUT).await?;
+        parse_auth_response(status, &response)
     }
 
     async fn remove_image(&self, id: &str) -> EngineResult<()> {
@@ -294,5 +457,57 @@ impl Engine for DockerEngine {
             deleted: r.networks_deleted.unwrap_or_default(),
             reclaimed: 0,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn auth(username: &str) -> RegistryAuth {
+        RegistryAuth {
+            server: "ghcr.io".into(),
+            username: username.into(),
+            secret: "s3cret".into(),
+        }
+    }
+
+    #[test]
+    fn sends_a_password_or_an_identity_token() {
+        let body = auth_body(&auth("me"));
+        assert_eq!(body["username"], "me");
+        assert_eq!(body["password"], "s3cret");
+        assert_eq!(body["serveraddress"], "ghcr.io");
+        let token = auth_body(&auth(crate::registry::TOKEN_USERNAME));
+        assert_eq!(token["identitytoken"], "s3cret");
+        assert!(token.get("password").is_none());
+        let creds = credentials(&auth(crate::registry::TOKEN_USERNAME));
+        assert_eq!(creds.identitytoken.as_deref(), Some("s3cret"));
+        assert!(creds.password.is_none());
+    }
+
+    #[test]
+    fn reads_the_auth_answer() {
+        let ok = parse_auth_response(200, br#"{"Status":"Login Succeeded","IdentityToken":""}"#);
+        assert_eq!(
+            ok,
+            Ok(AuthOutcome {
+                status: "Login Succeeded".into(),
+                identity_token: None
+            })
+        );
+        let token = parse_auth_response(200, br#"{"Status":"ok","IdentityToken":"tok"}"#);
+        assert_eq!(
+            token.ok().and_then(|o| o.identity_token).as_deref(),
+            Some("tok")
+        );
+        let refused = parse_auth_response(
+            401,
+            br#"{"message":"login attempt to https://ghcr.io/v2/ failed with status: 401 Unauthorized"}"#,
+        );
+        assert!(
+            matches!(refused, Err(EngineError::Api { status: 401, message }) if message.contains("401 Unauthorized"))
+        );
+        assert!(parse_auth_response(500, b"").is_err_and(|e| e.to_string().contains("500")));
     }
 }

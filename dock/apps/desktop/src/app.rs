@@ -39,6 +39,48 @@ pub struct Inputs {
     pub run: RunInputs,
     /// New reference in the tag dialog.
     pub tag: Entity<TextInput>,
+    pub registry: RegistryInputs,
+    /// New `ssh://` Docker context in the engine picker.
+    pub context_name: Entity<TextInput>,
+    pub context_host: Entity<TextInput>,
+    /// The folder shown in the Files tab (editable).
+    pub files_path: Entity<TextInput>,
+    /// The file viewer (read-only).
+    pub file_view: Entity<TextInput>,
+    /// The compose file editor (YAML highlighted).
+    pub compose_editor: Entity<TextInput>,
+    /// A pod's logs (read-only).
+    pub pod_logs: Entity<TextInput>,
+}
+
+/// The registry sign-in form.
+pub struct RegistryInputs {
+    pub server: Entity<TextInput>,
+    pub username: Entity<TextInput>,
+    /// Masked; cleared after every attempt.
+    pub secret: Entity<TextInput>,
+}
+
+impl RegistryInputs {
+    fn new(window: &mut Window, cx: &mut Context<FerrumContainers>) -> Self {
+        let server = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("registry.example.com:5000")
+                .monospace()
+                .with_text("docker.io")
+        });
+        let username = cx.new(|cx| TextInput::new(window, cx).placeholder("username"));
+        let secret = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("password or token")
+                .masked(true)
+        });
+        Self {
+            server,
+            username,
+            secret,
+        }
+    }
 }
 
 /// The run dialog's text fields.
@@ -136,6 +178,43 @@ impl FerrumContainers {
                 .monospace()
         });
         let run = RunInputs::new(window, cx);
+        let registry = RegistryInputs::new(window, cx);
+        let files_path = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("/path/in/the/container")
+                .monospace()
+                .borderless()
+        });
+        let file_view = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .monospace()
+                .multiline(8)
+                .read_only(true)
+                .borderless()
+        });
+        let compose_editor = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .monospace()
+                .multiline(12)
+                .borderless()
+        });
+        let pod_logs = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .monospace()
+                .multiline(20)
+                .read_only(true)
+                .borderless()
+        });
+        let context_name = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("name, e.g. build-box")
+                .monospace()
+        });
+        let context_host = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("ssh://me@build-box")
+                .monospace()
+        });
         let project_bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx).inline(true));
         let subscriptions = vec![
             cx.subscribe(&filter, |app: &mut Self, input, event, cx| {
@@ -160,6 +239,26 @@ impl FerrumContainers {
                     app.submit_tag(cx);
                 }
             }),
+            cx.subscribe(&registry.secret, |app: &mut Self, _, event, cx| {
+                if *event == TextInputEvent::Submit {
+                    app.sign_in(cx);
+                }
+            }),
+            cx.subscribe(&files_path, |app: &mut Self, _, event, cx| {
+                if *event == TextInputEvent::Submit {
+                    app.submit_files_path(cx);
+                }
+            }),
+            cx.subscribe(&compose_editor, |app: &mut Self, _, event, cx| {
+                if *event == TextInputEvent::Changed {
+                    app.compose_text_changed(cx);
+                }
+            }),
+            cx.subscribe(&context_host, |app: &mut Self, _, event, cx| {
+                if *event == TextInputEvent::Submit {
+                    app.add_ssh_context(cx);
+                }
+            }),
             cx.subscribe(&run.image, |app: &mut Self, _, event, cx| {
                 if *event == TextInputEvent::Submit {
                     app.submit_run(cx);
@@ -180,6 +279,13 @@ impl FerrumContainers {
                 pull,
                 run,
                 tag,
+                registry,
+                context_name,
+                context_host,
+                files_path,
+                file_view,
+                compose_editor,
+                pod_logs,
             },
             project_bar,
             log_scroll: UniformListScrollHandle::new(),

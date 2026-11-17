@@ -2,11 +2,13 @@
 //! relies on, kept here so they are tested without a window.
 
 use crate::create::CreateSpec;
+use crate::credentials::Credentials;
 use crate::engine::SharedEngine;
 use crate::error::{EngineError, EngineResult};
 use crate::format;
 use crate::model::{Container, ContainerAction, ContainerState, PruneReport};
 use crate::pull::PullProgress;
+use crate::registry::{self, RegistryAuth, SecretStore};
 use futures::StreamExt;
 
 /// Lifecycle buttons offered for a container in `state` (remove is separate).
@@ -59,10 +61,11 @@ pub fn prune_message(noun: &str, report: &PruneReport) -> String {
 pub async fn pull(
     engine: &SharedEngine,
     reference: &str,
+    auth: Option<RegistryAuth>,
     mut on_progress: impl FnMut(&PullProgress) + Send,
 ) -> EngineResult<PullProgress> {
     let mut progress = PullProgress::default();
-    let mut stream = engine.pull(reference);
+    let mut stream = engine.pull(reference, auth);
     while let Some(event) = stream.next().await {
         progress.apply(&event?);
         if let Some(error) = &progress.error {
@@ -87,13 +90,14 @@ pub async fn pull(
 pub async fn run_container(
     engine: &SharedEngine,
     spec: &CreateSpec,
+    auth: Option<RegistryAuth>,
     on_pull: impl FnMut(&PullProgress) + Send,
 ) -> EngineResult<String> {
     let id = match engine.create_container(spec).await {
         Ok(id) => id,
         Err(error) if error.is_not_found() => {
             tracing::info!(image = %spec.image, "image not present: pulling before create");
-            pull(engine, &spec.image, on_pull).await?;
+            pull(engine, &spec.image, auth, on_pull).await?;
             engine.create_container(spec).await?
         }
         Err(error) => return Err(error),
@@ -108,6 +112,35 @@ pub async fn run_container(
         });
     }
     Ok(id)
+}
+
+/// `docker login`: the engine checks `auth` with the registry, then the
+/// credentials are stored (the identity token instead of the password when
+/// the registry returns one). Returns where they were stored.
+pub async fn sign_in(
+    engine: &SharedEngine,
+    credentials: std::sync::Arc<Credentials>,
+    auth: RegistryAuth,
+) -> EngineResult<SecretStore> {
+    if !registry::valid_server(&auth.server) || auth.username.trim().is_empty() {
+        return Err(EngineError::Api {
+            status: 400,
+            message: "A registry, a username and a password or token are needed".into(),
+        });
+    }
+    let outcome = engine.check_auth(&auth).await?;
+    let stored = match outcome.identity_token {
+        Some(token) => RegistryAuth {
+            username: registry::TOKEN_USERNAME.to_owned(),
+            secret: token,
+            ..auth
+        },
+        None => auth,
+    };
+    tokio::task::spawn_blocking(move || credentials.save(&stored))
+        .await
+        .map_err(|e| EngineError::Command(e.to_string()))?
+        .map_err(EngineError::Command)
 }
 
 /// A new reference for `docker tag`: (`repo`, `tag`), `latest` when no tag is
@@ -273,7 +306,7 @@ mod tests {
         ];
         let engine: SharedEngine = fake.clone();
         let mut seen = Vec::new();
-        let result = pull(&engine, "nginx", |p| seen.push(p.fraction())).await;
+        let result = pull(&engine, "nginx", None, |p| seen.push(p.fraction())).await;
         assert!(result.is_ok_and(|p| p.finished && p.layers() == (1, 1)));
         assert_eq!(seen.first().copied().flatten(), Some(0.5));
         assert_eq!(seen.last().copied().flatten(), Some(1.0));
@@ -283,7 +316,7 @@ mod tests {
             error: Some("pull access denied for nope".into()),
             ..PullEvent::default()
         }];
-        let failed = pull(&engine, "nope", |_| {}).await;
+        let failed = pull(&engine, "nope", None, |_| {}).await;
         assert!(
             matches!(failed, Err(EngineError::Api { message, .. }) if message.contains("access denied"))
         );
@@ -298,7 +331,7 @@ mod tests {
             name: Some("cache".into()),
             ..CreateSpec::default()
         };
-        let id = run_container(&engine, &spec, |_| {}).await;
+        let id = run_container(&engine, &spec, None, |_| {}).await;
         let id = id.unwrap_or_else(|e| panic!("run: {e}"));
         assert_eq!(
             fake.state().calls,
@@ -313,7 +346,7 @@ mod tests {
         assert!(created.is_some_and(|c| c.state.is_up() && c.name == "cache"));
 
         // Same name again: the engine's conflict comes back unchanged.
-        let again = run_container(&engine, &spec, |_| {}).await;
+        let again = run_container(&engine, &spec, None, |_| {}).await;
         assert!(again.is_err_and(|e| e.is_conflict()));
 
         // A failing pull stops before create.
@@ -325,8 +358,75 @@ mod tests {
             image: "private/app".into(),
             ..CreateSpec::default()
         };
-        let failed = run_container(&engine, &denied, |_| {}).await;
+        let failed = run_container(&engine, &denied, None, |_| {}).await;
         assert!(failed.is_err_and(|e| e.to_string().contains("access denied")));
+    }
+
+    fn private_registry() -> (Arc<FakeEngine>, SharedEngine) {
+        let fake = Arc::new(FakeEngine::default());
+        {
+            let mut s = fake.state();
+            s.private_repos = vec!["ghcr.io/acme/api".into()];
+            s.registry_accounts
+                .insert("ghcr.io".into(), ("me".into(), "ghp_ok".into()));
+        }
+        let engine: SharedEngine = fake.clone();
+        (fake, engine)
+    }
+
+    fn ghcr(secret: &str) -> RegistryAuth {
+        RegistryAuth {
+            server: "ghcr.io".into(),
+            username: "me".into(),
+            secret: secret.into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn pulls_private_images_with_credentials() {
+        let (fake, engine) = private_registry();
+        let anonymous = pull(&engine, "ghcr.io/acme/api:1", None, |_| {}).await;
+        assert!(anonymous.is_err_and(|e| e.to_string().contains("docker login")));
+        let wrong = pull(&engine, "ghcr.io/acme/api:1", Some(ghcr("bad")), |_| {}).await;
+        assert!(wrong.is_err());
+        let signed_in = pull(&engine, "ghcr.io/acme/api:1", Some(ghcr("ghp_ok")), |_| {}).await;
+        assert!(signed_in.is_ok());
+        assert_eq!(
+            fake.state().calls.last().map(String::as_str),
+            Some("pull ghcr.io/acme/api:1 as me@ghcr.io")
+        );
+
+        // `docker run` of a private image pulls with the same credentials.
+        let spec = CreateSpec {
+            image: "ghcr.io/acme/api:2".into(),
+            ..CreateSpec::default()
+        };
+        let run = run_container(&engine, &spec, Some(ghcr("ghp_ok")), |_| {}).await;
+        assert!(run.is_ok(), "{run:?}");
+    }
+
+    #[tokio::test]
+    async fn signs_in_only_with_accepted_credentials() {
+        use crate::credentials::MemoryBackend;
+        let (fake, engine) = private_registry();
+        let backend = Arc::new(MemoryBackend::default());
+        let credentials = Arc::new(Credentials::new(None, backend.clone()));
+
+        let refused = sign_in(&engine, credentials.clone(), ghcr("bad")).await;
+        assert!(refused.is_err_and(|e| e.to_string().contains("401")));
+        assert!(credentials.list().is_empty(), "nothing stored on failure");
+
+        let stored = sign_in(&engine, credentials.clone(), ghcr("ghp_ok")).await;
+        assert_eq!(stored, Ok(SecretStore::Keychain));
+        assert_eq!(credentials.get("ghcr.io"), Ok(Some(ghcr("ghp_ok"))));
+        assert_eq!(fake.state().calls, ["auth ghcr.io me", "auth ghcr.io me"]);
+
+        let empty = RegistryAuth {
+            username: " ".into(),
+            ..ghcr("x")
+        };
+        assert!(sign_in(&engine, credentials, empty).await.is_err());
+        assert_eq!(fake.state().calls.len(), 2, "not sent to the engine");
     }
 
     #[tokio::test]

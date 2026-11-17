@@ -55,6 +55,17 @@ impl FerrumContainers {
             PendingAction::PruneImages => self.prune(Section::Images, "dangling image", cx),
             PendingAction::PruneVolumes => self.prune(Section::Volumes, "volume", cx),
             PendingAction::PruneNetworks => self.prune(Section::Networks, "network", cx),
+            PendingAction::RemoveContext(name) => self.remove_context(name, cx),
+            PendingAction::RestartDeployment {
+                context,
+                namespace,
+                name,
+            } => self.restart_deployment(context, namespace, name, cx),
+            PendingAction::Upload {
+                container,
+                dir,
+                local,
+            } => self.upload_file(container, dir, local, cx),
         }
         cx.notify();
     }
@@ -89,7 +100,7 @@ impl FerrumContainers {
                     Section::Images => e.prune_images().await,
                     Section::Volumes => e.prune_volumes().await,
                     Section::Networks => e.prune_networks().await,
-                    Section::Containers => Ok(PruneReport::default()),
+                    Section::Containers | Section::Kubernetes => Ok(PruneReport::default()),
                 }
             },
             move |app, result, cx| {
@@ -156,7 +167,7 @@ impl FerrumContainers {
                 "Removes custom networks not used by any container.".to_owned(),
                 PendingAction::PruneNetworks,
             ),
-            Section::Containers => return,
+            Section::Containers | Section::Kubernetes => return,
         };
         self.ask(
             Confirm {
@@ -213,7 +224,8 @@ impl FerrumContainers {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<PullProgress>();
         let target = reference.clone();
         let producer = self.services.spawn(async move {
-            ops::pull(&engine, &target, |p| {
+            let auth = ferrumdock_engine::credentials::for_reference(&target).await;
+            ops::pull(&engine, &target, auth, |p| {
                 let _ = tx.send(p.clone());
             })
             .await

@@ -11,7 +11,7 @@ pub struct DockerContext {
     pub name: String,
     /// The raw `Host`, e.g. `unix:///…/docker.sock` or `ssh://me@box`.
     pub host: String,
-    /// `None` when FerrumContainers cannot talk to it (ssh, npipe, TLS-only…).
+    /// `None` when FerrumContainers cannot talk to it (npipe, TLS-only…).
     pub endpoint: Option<Endpoint>,
     pub current: bool,
 }
@@ -75,6 +75,57 @@ pub fn load(dir: &Path, env_context: Option<&str>) -> Vec<DockerContext> {
     contexts
 }
 
+/// A context name the CLI accepts (`^[a-zA-Z0-9][a-zA-Z0-9_.+-]*$`).
+#[must_use]
+pub fn valid_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && chars.all(|c| c.is_ascii_alphanumeric() || "_.+-".contains(c))
+}
+
+/// `docker context create <name> --docker host=ssh://…` for a remote
+/// engine; `host` is `ssh://[user@]host[:port]` (the scheme may be left out).
+pub fn create_ssh_args(name: &str, host: &str) -> Result<Vec<String>, String> {
+    let name = name.trim();
+    if !valid_name(name) || name == "default" {
+        return Err(format!(
+            "{name:?} cannot be a context name (letters, digits, _ . + -)"
+        ));
+    }
+    let host = host.trim();
+    let url = if host.starts_with("ssh://") {
+        host.to_owned()
+    } else {
+        format!("ssh://{host}")
+    };
+    if !matches!(Endpoint::parse(&url), Some(Endpoint::Ssh(_))) {
+        return Err(format!(
+            "{host:?} is not an SSH address like ssh://me@build-box"
+        ));
+    }
+    Ok(vec![
+        "context".into(),
+        "create".into(),
+        name.into(),
+        "--description".into(),
+        "Added in FerrumContainers".into(),
+        "--docker".into(),
+        format!("host={url}"),
+    ])
+}
+
+/// `docker context use <name>`: the CLI's current context from now on.
+#[must_use]
+pub fn use_args(name: &str) -> Vec<String> {
+    vec!["context".into(), "use".into(), name.into()]
+}
+
+/// `docker context rm <name>`.
+#[must_use]
+pub fn remove_args(name: &str) -> Vec<String> {
+    vec!["context".into(), "rm".into(), name.into()]
+}
+
 /// Contexts on this machine, from the real environment.
 #[must_use]
 pub fn detect() -> Vec<DockerContext> {
@@ -115,6 +166,22 @@ mod tests {
     }
 
     #[test]
+    fn builds_context_commands() {
+        assert_eq!(
+            create_ssh_args("build-box", "me@10.0.0.5:2222").map(|a| a.join(" ")),
+            Ok("context create build-box --description Added in FerrumContainers --docker host=ssh://me@10.0.0.5:2222".into())
+        );
+        assert!(create_ssh_args("lab", "ssh://ops@lab").is_ok());
+        assert!(create_ssh_args("bad name", "ssh://me@box").is_err());
+        assert!(create_ssh_args("default", "ssh://me@box").is_err());
+        assert!(create_ssh_args("x", "tcp://1.2.3.4:2375").is_err());
+        assert!(create_ssh_args("x", "me@-oProxyCommand=evil").is_err());
+        assert!(valid_name("orb.stack_1+x") && !valid_name("-x") && !valid_name(""));
+        assert_eq!(use_args("lab"), ["context", "use", "lab"]);
+        assert_eq!(remove_args("lab"), ["context", "rm", "lab"]);
+    }
+
+    #[test]
     fn loads_contexts_from_the_config_folder() {
         let dir = tempfile::tempdir().unwrap_or_else(|e| panic!("tempdir: {e}"));
         let write = |rel: &str, text: &str| {
@@ -138,7 +205,8 @@ mod tests {
         let names: Vec<_> = contexts.iter().map(|c| c.name.as_str()).collect();
         assert_eq!(names, ["orbstack", "remote"]);
         assert!(contexts[0].current && contexts[0].endpoint.is_some());
-        assert!(!contexts[1].current && contexts[1].endpoint.is_none());
+        assert!(!contexts[1].current);
+        assert_eq!(contexts[1].endpoint, Some(Endpoint::Ssh("me@box".into())));
         let env = load(dir.path(), Some("remote"));
         assert!(env[1].current && !env[0].current);
         assert!(load(&dir.path().join("missing"), None).is_empty());

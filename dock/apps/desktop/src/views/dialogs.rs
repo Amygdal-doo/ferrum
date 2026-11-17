@@ -2,6 +2,7 @@
 
 use crate::app::FerrumContainers;
 use crate::state::Dialog;
+use crate::views::widgets::muted;
 use ferrum_ui::Modal;
 use ferrum_ui::components::{
     Button, ButtonCommon, ButtonStyle, Clickable, Color, Disableable, Label, LabelCommon,
@@ -44,6 +45,9 @@ pub fn render(
         Dialog::Tag(image) => Some(super::image_dialogs::tag(app, image, cx)),
         Dialog::History => Some(super::image_dialogs::history(app, cx)),
         Dialog::Engines => Some(super::engines::render(app, cx)),
+        Dialog::Registries => Some(super::registries::render(app, cx)),
+        Dialog::Kube(picker) => Some(super::kube_dialogs::picker(app, *picker, cx)),
+        Dialog::PodLogs => Some(super::kube_dialogs::logs(app, cx)),
     }
 }
 
@@ -108,6 +112,13 @@ fn pull(app: &FerrumContainers, cx: &mut Context<FerrumContainers>) -> AnyElemen
                 .child(app.inputs.pull.clone()),
         )
         .children(progress)
+        .child(muted(
+            "Private registries use the credentials stored by Registries… or docker login.",
+        ))
+        .footer(
+            Button::new("pull-registries", "Registries…")
+                .on_click(cx.listener(|app, _, _, cx| app.open_registries(cx))),
+        )
         .footer(
             Button::new("pull-close", if running { "Hide" } else { "Close" }).on_click(
                 cx.listener(|app, _, _, cx| {

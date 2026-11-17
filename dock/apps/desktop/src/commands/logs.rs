@@ -169,11 +169,19 @@ impl FerrumContainers {
             return;
         };
         detail.tab = tab;
+        let list_files = (tab == DetailTab::Files && detail.files.listing.is_none())
+            .then(|| detail.files.path.clone());
         if tab == DetailTab::Inspect && detail.inspect.is_none() {
             self.load_inspect(cx);
         }
         if tab == DetailTab::Services {
             self.load_services(cx);
+        }
+        if let Some(path) = list_files {
+            self.load_dir(path, cx);
+        }
+        if tab == DetailTab::Compose {
+            self.open_compose_file(cx);
         }
         cx.notify();
     }

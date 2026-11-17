@@ -1,17 +1,24 @@
 //! UI state owned by the root view. Plain data plus pure helpers (tested);
 //! the view mutates it and calls `cx.notify()`.
 
+mod compose_tab;
 mod detail;
 mod dialogs;
+mod kube;
 
+pub use compose_tab::{ComposeEditor, ComposeRun};
 pub use detail::{DetailState, DetailTab};
-pub use dialogs::{Confirm, Dialog, EnginePicker, LayersState, PendingAction, PullState, RunState};
+pub use dialogs::{
+    Confirm, Dialog, EnginePicker, LayersState, PendingAction, PullState, RegistryPreset,
+    RegistryState, RunState,
+};
+pub use kube::{KubePicker, KubeState, KubeTab};
 
 use crate::project::ProjectState;
 use ferrumdock_engine::compose::{self, ComposeProject, ContainerGroup};
 use ferrumdock_engine::project::ComposeFile;
 use ferrumdock_engine::stats::StatsHistory;
-use ferrumdock_engine::{Connection, Container, Endpoint, Image, Network, Stats, Volume};
+use ferrumdock_engine::{Candidate, Connection, Container, Image, Network, Stats, Volume};
 use std::collections::{HashMap, HashSet};
 
 /// Lines kept per container log view.
@@ -24,14 +31,17 @@ pub enum Section {
     Images,
     Volumes,
     Networks,
+    /// Pods, deployments and services of the kubeconfig's clusters.
+    Kubernetes,
 }
 
 impl Section {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::Containers,
         Self::Images,
         Self::Volumes,
         Self::Networks,
+        Self::Kubernetes,
     ];
 
     pub fn title(self) -> &'static str {
@@ -40,6 +50,7 @@ impl Section {
             Self::Images => "Images",
             Self::Volumes => "Volumes",
             Self::Networks => "Networks",
+            Self::Kubernetes => "Kubernetes",
         }
     }
 }
@@ -82,8 +93,12 @@ pub struct AppState {
     pub run: RunState,
     pub layers: Option<LayersState>,
     pub engines: EnginePicker,
+    pub registries: RegistryState,
+    /// The last `docker compose` run of each project (Compose tab output).
+    pub compose_runs: HashMap<String, ComposeRun>,
+    pub kube: KubeState,
     /// Engine picked in the toolbar; tried first when (re)connecting.
-    pub preferred: Option<Endpoint>,
+    pub preferred: Option<Candidate>,
 }
 
 impl AppState {
@@ -202,6 +217,19 @@ pub fn container_rows(
     rows
 }
 
+/// The active context (and the host of a remote engine) beside the badge.
+pub fn engine_label(candidate: &Candidate) -> Option<String> {
+    let remote = candidate
+        .endpoint
+        .is_remote()
+        .then(|| candidate.endpoint.to_string());
+    match (&candidate.context, remote) {
+        (Some(name), Some(host)) => Some(format!("context {name} · {host}")),
+        (Some(name), None) => Some(format!("context {name}")),
+        (None, remote) => remote,
+    }
+}
+
 /// Case-insensitive match of `filter` against any of `fields`.
 pub fn matches_any(filter: &str, fields: &[&str]) -> bool {
     let needle = filter.trim().to_lowercase();
@@ -264,6 +292,25 @@ mod tests {
             ["[web 1/2]", "web-app-1", "web-db-1"]
         );
         assert!(container_rows(&sample(), "nothing", &HashSet::new(), None).is_empty());
+    }
+
+    #[test]
+    fn labels_the_active_engine() {
+        use ferrumdock_engine::Endpoint;
+        let mut candidate = Candidate::new(Endpoint::Unix("/x.sock".into()), "OrbStack");
+        assert_eq!(engine_label(&candidate), None);
+        candidate.context = Some("orbstack".into());
+        assert_eq!(
+            engine_label(&candidate).as_deref(),
+            Some("context orbstack")
+        );
+        candidate.endpoint = Endpoint::Ssh("me@box".into());
+        assert_eq!(
+            engine_label(&candidate).as_deref(),
+            Some("context orbstack · ssh://me@box")
+        );
+        candidate.context = None;
+        assert_eq!(engine_label(&candidate).as_deref(), Some("ssh://me@box"));
     }
 
     #[test]

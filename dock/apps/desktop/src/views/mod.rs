@@ -1,15 +1,20 @@
 //! Rendering. Each section is a function of the root view's state.
 
 pub mod chrome;
+pub mod compose_file;
 pub mod compose_rows;
 pub mod containers;
 pub mod detail;
 pub mod dialogs;
 pub mod engines;
+pub mod files;
 pub mod image_dialogs;
 pub mod images;
 pub mod inspect;
+pub mod kube;
+pub mod kube_dialogs;
 pub mod logs;
+pub mod registries;
 pub mod resources;
 pub mod run_dialog;
 pub mod services;
@@ -139,6 +144,10 @@ fn section(
         }
         Section::Networks => {
             let (header, list) = resources::networks(app, window, cx);
+            card(true, header, list, footer, cx)
+        }
+        Section::Kubernetes => {
+            let (header, list) = kube::render(app, window, cx);
             card(true, header, list, footer, cx)
         }
     }

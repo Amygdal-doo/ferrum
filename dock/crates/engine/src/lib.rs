@@ -4,18 +4,23 @@
 //! `docker compose` / "open shell" launchers. No UI code lives here.
 
 pub mod ansi;
+pub mod archive;
 pub mod cli;
 pub mod compose;
 pub mod compose_ps;
+pub mod compose_run;
 pub mod context;
 mod convert;
 pub mod create;
+pub mod credentials;
 pub mod docker;
 pub mod endpoint;
 pub mod engine;
 pub mod error;
 pub mod fake;
+pub mod files;
 pub mod format;
+pub mod kube;
 pub mod logmux;
 pub mod logs;
 pub mod model;
@@ -23,8 +28,10 @@ pub mod ops;
 pub mod project;
 pub mod pull;
 mod rawhttp;
+pub mod registry;
 pub mod shell;
 pub mod stats;
+pub mod tunnel;
 pub mod vm;
 
 pub use cli::DockerCli;
@@ -36,7 +43,7 @@ pub use model::*;
 
 /// Detects the present candidates (Docker contexts included) and connects to
 /// the first engine that answers, trying `preferred` (picked in the UI) first.
-pub async fn connect(preferred: Option<Endpoint>) -> EngineResult<Connection> {
+pub async fn connect(preferred: Option<Candidate>) -> EngineResult<Connection> {
     let candidates = endpoint::prefer(endpoint::detect(), preferred.as_ref());
     connect_first(&candidates, |candidate| async move {
         let engine = DockerEngine::connect(&candidate.endpoint).await?;

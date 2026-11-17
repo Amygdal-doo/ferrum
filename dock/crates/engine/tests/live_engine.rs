@@ -169,3 +169,144 @@ async fn reads_the_local_engine() {
     println!("{} networks", networks.len());
     assert!(networks.iter().any(|n| n.is_builtin()));
 }
+
+/// Browses the first running container's file system (read only: one exec
+/// of the listing script, archive downloads), and checks that `/auth`
+/// refuses made-up credentials.
+#[tokio::test]
+#[ignore = "needs a running Docker-compatible engine with a running container"]
+async fn browses_a_container_and_checks_auth() {
+    use ferrumdock_engine::files;
+    use ferrumdock_engine::registry::{RegistryAuth, server_key};
+    let connection = connect(None)
+        .await
+        .unwrap_or_else(|e| panic!("no engine reachable: {e}"));
+    let engine = connection.engine.clone();
+    let containers = engine
+        .containers()
+        .await
+        .unwrap_or_else(|e| panic!("containers: {e}"));
+    let Some(c) = containers.iter().find(|c| c.state.is_up()) else {
+        println!("no running container: skipped");
+        return;
+    };
+    let started = std::time::Instant::now();
+    let root = files::list_dir(&engine, &c.id, "/")
+        .await
+        .unwrap_or_else(|e| panic!("list /: {e}"));
+    println!(
+        "{} ({:.1}s): / has {} entries{}: {}",
+        c.name,
+        started.elapsed().as_secs_f64(),
+        root.entries.len(),
+        if root.partial { " (partial)" } else { "" },
+        root.entries
+            .iter()
+            .map(|e| format!("{} {}", e.mode_string(), e.name))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+    assert!(!root.entries.is_empty());
+    let etc = files::list_dir(&engine, &c.id, "/etc")
+        .await
+        .unwrap_or_else(|e| panic!("list /etc: {e}"));
+    println!(
+        "/etc ({:.1}s): {} entries",
+        started.elapsed().as_secs_f64(),
+        etc.entries.len()
+    );
+    let started = std::time::Instant::now();
+    let from_archive = files::list_dir_archive(&engine, &c.id, "/etc")
+        .await
+        .unwrap_or_else(|e| panic!("archive /etc: {e}"));
+    println!(
+        "/etc from the archive ({:.1}s): {} entries",
+        started.elapsed().as_secs_f64(),
+        from_archive.entries.len()
+    );
+    let names =
+        |l: &files::DirListing| l.entries.iter().map(|e| e.name.clone()).collect::<Vec<_>>();
+    assert_eq!(names(&etc), names(&from_archive), "exec and archive agree");
+    let hosts = files::read_file(&engine, &c.id, "/etc/hosts")
+        .await
+        .unwrap_or_else(|e| panic!("read /etc/hosts: {e}"));
+    println!(
+        "/etc/hosts ({} bytes):\n{}",
+        hosts.size,
+        hosts.text().unwrap_or("<binary>")
+    );
+    assert!(hosts.text().is_some_and(|t| t.contains("localhost")));
+
+    let made_up = RegistryAuth {
+        server: server_key("docker.io"),
+        username: "ferrumdock-live-check".into(),
+        secret: "not-a-real-password".into(),
+    };
+    let started = std::time::Instant::now();
+    let refused = engine.check_auth(&made_up).await;
+    println!(
+        "auth with made-up credentials ({:.1}s): {refused:?}",
+        started.elapsed().as_secs_f64()
+    );
+    assert!(refused.is_err());
+}
+
+/// Reads the kubeconfig's contexts with `kubectl config view` (local only:
+/// no cluster is contacted).
+#[tokio::test]
+#[ignore = "needs kubectl and a kubeconfig"]
+async fn reads_the_kubeconfig() {
+    let kubectl =
+        ferrumdock_engine::kube::Kubectl::detect().unwrap_or_else(|| panic!("no kubectl"));
+    let config = kubectl
+        .config()
+        .await
+        .unwrap_or_else(|e| panic!("kubectl config view: {e}"));
+    for c in &config.contexts {
+        println!(
+            "context {}{} (cluster {}, namespace {})",
+            c.name,
+            if config.current.as_deref() == Some(c.name.as_str()) {
+                " (current)"
+            } else {
+                ""
+            },
+            c.cluster,
+            config.namespace_of(&c.name)
+        );
+    }
+}
+
+/// `docker compose config` on a temporary compose file, saved and unsaved
+/// (stdin). Compose only reads it; nothing is created.
+#[tokio::test]
+#[ignore = "needs the docker CLI with the compose plugin"]
+async fn validates_compose_files_with_the_cli() {
+    use ferrumdock_engine::compose::ComposeProject;
+    use ferrumdock_engine::compose_run::validate;
+    let cli = ferrumdock_engine::DockerCli::detect().unwrap_or_else(|| panic!("no docker CLI"));
+    let connection = connect(None)
+        .await
+        .unwrap_or_else(|e| panic!("no engine reachable: {e}"));
+    let dir = tempfile::tempdir().unwrap_or_else(|e| panic!("{e}"));
+    let file = dir.path().join("compose.yaml");
+    std::fs::write(&file, "services:\n  web:\n    image: nginx:alpine\n")
+        .unwrap_or_else(|e| panic!("{e}"));
+    let project = ComposeProject {
+        name: "ferrumdock-live-check".into(),
+        working_dir: Some(dir.path().display().to_string()),
+        config_files: vec![file.display().to_string()],
+    };
+    let endpoint = &connection.candidate.endpoint;
+    let saved = validate(&cli, endpoint, &project, Some(&file), None).await;
+    println!("saved: {saved:?}");
+    assert!(saved.is_ok_and(|text| text.contains("nginx:alpine")));
+    let broken = "services:\n  web:\n    image: nginx\n    ports: \"not a list\n";
+    let unsaved = validate(&cli, endpoint, &project, Some(&file), Some(broken)).await;
+    println!("unsaved, broken: {unsaved:?}");
+    assert!(unsaved.is_err());
+    let undefined = "services:\n  web:\n    image: nginx\n    volumes: [data:/d]\n";
+    let unsaved = validate(&cli, endpoint, &project, Some(&file), Some(undefined)).await;
+    println!("unsaved, undefined volume: {unsaved:?}");
+    assert!(unsaved.is_err_and(|e| e.to_string().contains("data")));
+}

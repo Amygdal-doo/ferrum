@@ -74,7 +74,7 @@ pub fn card_header(
     let connected = matches!(app.status, EngineStatus::Connected(_));
     let sidebar = app.sidebar_shown();
     let context = match &app.status {
-        EngineStatus::Connected(c) => c.candidate.context.clone(),
+        EngineStatus::Connected(c) => crate::state::engine_label(&c.candidate),
         _ => None,
     };
     ferrum_ui::title_row("card-header", !sidebar, window)
@@ -164,6 +164,8 @@ pub fn sidebar(
             Section::Images => (IconName::Server, app.state.images.len()),
             Section::Volumes => (IconName::Folder, app.state.volumes.len()),
             Section::Networks => (IconName::Link, app.state.networks.len()),
+            // Not counted: its lists are per context and namespace.
+            Section::Kubernetes => (IconName::Cloud, 0),
         };
         let selected = app.state.section == section;
         let loaded = app.state.loaded.contains(&section);

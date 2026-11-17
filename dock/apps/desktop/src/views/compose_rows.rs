@@ -25,7 +25,11 @@ pub fn group_row(
     let name = project.to_owned();
     let mut actions: Vec<AnyElement> = Vec::new();
     if let Some(compose) = compose {
-        for (label, tab) in [("Logs", DetailTab::Logs), ("ps", DetailTab::Services)] {
+        for (label, tab) in [
+            ("Logs", DetailTab::Logs),
+            ("ps", DetailTab::Services),
+            ("Compose", DetailTab::Compose),
+        ] {
             let compose = compose.clone();
             actions.push(
                 button(
@@ -113,6 +117,11 @@ pub fn file_row(
         None => file.services.join(", "),
     };
     let up = file.clone();
+    let open = app
+        .state
+        .project
+        .as_ref()
+        .map(|p| file.compose_project(&p.root));
     h_flex()
         .id(SharedString::from(format!("file-{}", file.path.display())))
         .flex_none()
@@ -137,6 +146,17 @@ pub fn file_row(
         )
         .when(busy, |d| d.child(muted("working…")))
         .child(div().flex_1())
+        .children(open.map(|project| {
+            button(
+                SharedString::from(format!("file-open-{}", file.path.display())),
+                "Compose",
+                false,
+                cx,
+                move |app, cx| {
+                    app.open_project_panel(project.clone(), DetailTab::Compose, cx);
+                },
+            )
+        }))
         .child(button(
             SharedString::from(format!("file-up-{}", file.path.display())),
             "Up",

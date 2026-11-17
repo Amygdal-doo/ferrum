@@ -48,6 +48,10 @@ pub fn render(
             format::bytes(total)
         ))
         .into_any_element(),
+        button("registries", "Registries…", false, cx, |app, cx| {
+            app.open_registries(cx)
+        })
+        .into_any_element(),
         button("pull-image", "Pull…", false, cx, |app, cx| {
             app.open_pull_dialog(cx)
         })

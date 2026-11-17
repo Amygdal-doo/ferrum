@@ -255,6 +255,15 @@ impl Network {
     }
 }
 
+/// What a command run with `exec` printed, and how it exited.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ExecOutput {
+    pub stdout: Vec<u8>,
+    pub stderr: String,
+    /// `None` when the engine did not report one.
+    pub exit_code: Option<i64>,
+}
+
 /// Result of a prune: what was removed and how much disk came back.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PruneReport {

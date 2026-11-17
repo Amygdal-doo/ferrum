@@ -1,6 +1,7 @@
-//! Minimal HTTP/1.0 GET over the engine socket, for the one call bollard
+//! Minimal HTTP/1.0 requests over the engine socket, for the calls bollard
 //! cannot make: `GET /system/df?type=volume` (its query serializer rejects the
-//! `type` array, and an untyped df fails on some engines while computing image usage).
+//! `type` array, and an untyped df fails on some engines while computing image
+//! usage) and `POST /auth` (bollard has no registry login).
 
 use crate::endpoint::Endpoint;
 use crate::error::{EngineError, EngineResult};
@@ -18,6 +19,31 @@ pub async fn get(
 ) -> EngineResult<(u16, Vec<u8>)> {
     let request =
         format!("GET {path} HTTP/1.0\r\nHost: localhost\r\nUser-Agent: FerrumContainers\r\n\r\n");
+    send(endpoint, path, request.into_bytes(), timeout).await
+}
+
+/// `POST path` with a JSON body → (status, body).
+pub async fn post_json(
+    endpoint: &Endpoint,
+    path: &str,
+    body: &[u8],
+    timeout: Duration,
+) -> EngineResult<(u16, Vec<u8>)> {
+    let mut request = format!(
+        "POST {path} HTTP/1.0\r\nHost: localhost\r\nUser-Agent: FerrumContainers\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n",
+        body.len()
+    )
+    .into_bytes();
+    request.extend_from_slice(body);
+    send(endpoint, path, request, timeout).await
+}
+
+async fn send(
+    endpoint: &Endpoint,
+    path: &str,
+    request: Vec<u8>,
+    timeout: Duration,
+) -> EngineResult<(u16, Vec<u8>)> {
     let exchange = async {
         let response = match endpoint {
             #[cfg(unix)]
@@ -31,6 +57,10 @@ pub async fn get(
             Endpoint::Tcp(addr) => {
                 exchange(tokio::net::TcpStream::connect(addr).await?, &request).await?
             }
+            // DockerEngine talks to the tunnel's local socket instead.
+            Endpoint::Ssh(_) => {
+                return Err(std::io::Error::other("ssh:// needs a tunnel"));
+            }
         };
         Ok::<_, std::io::Error>(response)
     };
@@ -43,9 +73,9 @@ pub async fn get(
 
 async fn exchange<S: AsyncRead + AsyncWrite + Unpin>(
     mut stream: S,
-    request: &str,
+    request: &[u8],
 ) -> std::io::Result<Vec<u8>> {
-    stream.write_all(request.as_bytes()).await?;
+    stream.write_all(request).await?;
     let mut response = Vec::new();
     (&mut stream)
         .take(MAX_BODY as u64)

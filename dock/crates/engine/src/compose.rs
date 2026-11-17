@@ -126,6 +126,8 @@ pub enum ComposeAction {
     Up,
     Down,
     Restart,
+    /// Pull the services' images.
+    Pull,
 }
 
 impl ComposeAction {
@@ -135,6 +137,7 @@ impl ComposeAction {
             Self::Up => "up",
             Self::Down => "down",
             Self::Restart => "restart",
+            Self::Pull => "pull",
         }
     }
 }
@@ -175,6 +178,7 @@ pub fn compose_args(
         ComposeAction::Up => args.extend(["up".to_owned(), "-d".to_owned()]),
         ComposeAction::Down => args.push("down".to_owned()),
         ComposeAction::Restart => args.push("restart".to_owned()),
+        ComposeAction::Pull => args.push("pull".to_owned()),
     }
     args
 }
@@ -264,6 +268,10 @@ mod tests {
         assert_eq!(
             compose_args(&project, ComposeAction::Restart, |_| false).join(" "),
             "compose -p web restart"
+        );
+        assert_eq!(
+            compose_args(&project, ComposeAction::Pull, |_| true).join(" "),
+            "compose -p web --project-directory /src/web -f /src/web/compose.yaml -f /src/web/override.yaml pull"
         );
         assert_eq!(
             ContainerGroup {
