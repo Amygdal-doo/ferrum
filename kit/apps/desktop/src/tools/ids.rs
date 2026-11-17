@@ -127,6 +127,10 @@ impl super::KitTool for IdsTool {
         vec![self.count.clone()]
     }
 
+    fn outputs(&self) -> Vec<Entity<TextInput>> {
+        vec![self.output.clone()]
+    }
+
     fn rerun(&mut self, cx: &mut Context<Self>) {
         self.generate(cx);
         cx.notify();

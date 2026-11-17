@@ -30,6 +30,11 @@ pub trait KitTool: Render + EventEmitter<KitEvent> {
     /// saved inputs store their text.
     fn inputs(&self) -> Vec<Entity<TextInput>>;
 
+    /// Result fields (soft wrap applies to them as well).
+    fn outputs(&self) -> Vec<Entity<TextInput>> {
+        Vec::new()
+    }
+
     /// Recomputes the result after the inputs were replaced.
     fn rerun(&mut self, cx: &mut Context<Self>) {
         cx.notify();
@@ -41,6 +46,7 @@ pub trait KitTool: Render + EventEmitter<KitEvent> {
 pub struct ToolView {
     pub view: AnyView,
     inputs: Vec<Entity<TextInput>>,
+    outputs: Vec<Entity<TextInput>>,
     rerun: Rc<dyn Fn(&mut App)>,
 }
 
@@ -65,6 +71,18 @@ impl ToolView {
 
     pub fn inputs(&self) -> &[Entity<TextInput>] {
         &self.inputs
+    }
+
+    /// Soft wrap on or off in every multi-line field.
+    pub fn set_wrap(&self, wrap: bool, cx: &mut App) {
+        for field in self.inputs.iter().chain(&self.outputs) {
+            field.update(cx, |field, cx| field.set_soft_wrap(wrap, cx));
+        }
+    }
+
+    #[cfg(test)]
+    pub fn fields(&self) -> impl Iterator<Item = &Entity<TextInput>> {
+        self.inputs.iter().chain(&self.outputs)
     }
 }
 
@@ -96,7 +114,10 @@ pub fn build(
 
 fn wire<T: KitTool>(entity: Entity<T>, cx: &mut Context<FerrumKit>) -> (ToolView, Subscription) {
     let subscription = cx.subscribe(&entity, |this, _, event, cx| this.handle_event(event, cx));
-    let inputs = entity.read(cx).inputs();
+    let (inputs, outputs) = {
+        let tool = entity.read(cx);
+        (tool.inputs(), tool.outputs())
+    };
     let target = entity.clone();
     let rerun: Rc<dyn Fn(&mut App)> = Rc::new(move |cx: &mut App| {
         target.update(cx, |tool, cx| tool.rerun(cx));
@@ -104,6 +125,7 @@ fn wire<T: KitTool>(entity: Entity<T>, cx: &mut Context<FerrumKit>) -> (ToolView
     let view = ToolView {
         view: entity.into(),
         inputs,
+        outputs,
         rerun,
     };
     (view, subscription)

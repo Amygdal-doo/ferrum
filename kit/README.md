@@ -17,6 +17,7 @@ its input history and saved inputs (see "Local data"). Part of the Ferrum monore
 | Member of the Ferrum monorepo workspace, pinned toolchain, workspace lints | ✅ |
 | Shell: tool sidebar with search (name + keywords, all terms must match), ⌘K / Ctrl+K focuses search, Enter opens the first match; each tool keeps its last input in memory for the session; copy buttons with a "Copied" toast | ⚠️ filter unit-tested; UI wired (not hand-tested) |
 | **History and saved inputs** (clock button in the tool header, ⌘Y): the last 20 inputs per tool, recorded after a 1.5 s pause in typing (one entry per editing session), click to restore; save the current input under a name; delete entries or clear. A per-tool **Keep history** toggle; off by default for the JWT decoder, and turning it off deletes that tool's history. Stores the text of the input fields, not modes or toggles | ✅ store unit-tested; panel headless-tested |
+| **Wrap** (tool header, ⌥Z): soft-wraps long lines in every multi-line input and result field, at spaces when a row has one; ↑/↓ move by painted row. Remembered between launches | ✅ wrapping headless-tested in `ferrum-ui` |
 | **JSON / YAML / TOML**: format (2/4 spaces, tab), minify, validate with error line + column; JSON ⇄ YAML ⇄ TOML (key order kept; TOML errors for non-table roots and `null`); "use output as input" | ✅ tested |
 | **Base64**: encode / decode text, standard (padded) or URL-safe (unpadded); decode ignores whitespace and missing padding; non-UTF-8 results reported as binary | ✅ tested |
 | **JWT decoder**: header and payload pretty-printed, `alg`, `exp`/`iat`/`nbf` as UTC + local dates + relative time, Expired / Not yet valid / Not expired / No exp badge; accepts a `Bearer ` prefix; detects JWE. **Decode only — signatures are not verified** (stated in the UI) | ✅ tested |
@@ -37,9 +38,7 @@ text); Base64 of binary files and images; JWT signature verification and encodin
 files, HMAC, other algorithms (SHA-3, BLAKE3, CRC32); regex replace and other regex engines
 (PCRE/JavaScript syntax); character-level (intra-line) diff and side-by-side diff view; JSON
 path queries, JSON schema, XML / CSV conversion; colour picker, contrast ratio and named
-colours; keyboard navigation of the tool list (arrow keys) and ⌘1… shortcuts; soft-wrap in
-text fields (long lines such as JWTs scroll horizontally — the shared text field lays out
-unwrapped lines); a light theme; packaging, signing and a FerrumLauncher entry.
+colours; keyboard navigation of the tool list (arrow keys) and ⌘1… shortcuts; a light theme; packaging, signing and a FerrumLauncher entry.
 
 ## Prerequisites
 - Rust via rustup. `rust-toolchain.toml` installs the pinned toolchain automatically.
@@ -70,5 +69,5 @@ crates/core/             pure, unit-tested tool logic, no GPUI: catalog (tool li
 
 ## Local data
 `~/.ferrum/kit/inputs.json` (mode 0600): per tool, the last 20 inputs, the saved inputs and
-the Keep history choice. Delete the file to forget everything. Inputs not recorded (a tool
+the Keep history choice; and the Wrap setting. Delete the file to forget everything. Inputs not recorded (a tool
 with history off) live in memory only while the app runs.

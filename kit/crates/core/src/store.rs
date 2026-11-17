@@ -58,6 +58,8 @@ struct ToolState {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct KitStore {
+    /// Soft-wrap long lines in the text fields (all tools).
+    pub wrap: bool,
     /// By [`Tool::id`].
     tools: BTreeMap<String, ToolState>,
 }
@@ -314,7 +316,10 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("ferrumkit-store-{}", std::process::id()));
         let path = dir.join("kit").join("inputs.json");
         assert_eq!(KitStore::load(&path).unwrap(), KitStore::default());
-        let mut store = KitStore::default();
+        let mut store = KitStore {
+            wrap: true,
+            ..KitStore::default()
+        };
         store.record(Tool::Url, &inputs("https://x"), 7, false);
         store.save_named(Tool::Url, "x", &inputs("y")).unwrap();
         store.set_keeps_history(Tool::Jwt, true);

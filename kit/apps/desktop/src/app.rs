@@ -13,7 +13,10 @@ use ferrumkit_core::store::KitStore;
 use ferrumkit_core::{Tool, filter_tools};
 use std::collections::HashMap;
 
-actions!(ferrum_kit, [FocusSearch, ToggleSidebar, ToggleHistory]);
+actions!(
+    ferrum_kit,
+    [FocusSearch, ToggleSidebar, ToggleHistory, ToggleWrap]
+);
 
 const SIDEBAR_WIDTH: f32 = 232.;
 /// A pause in typing this long records the input in the history.
@@ -25,6 +28,7 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("ctrl-k", FocusSearch, None),
         KeyBinding::new("cmd-b", ToggleSidebar, None),
         KeyBinding::new("cmd-y", ToggleHistory, None),
+        KeyBinding::new("alt-z", ToggleWrap, None),
     ]);
 }
 
@@ -161,8 +165,20 @@ impl FerrumKit {
                     }
                 }));
         }
+        if self.store.wrap {
+            view.set_wrap(true, cx);
+        }
         self.views.insert(tool, view.clone());
         view
+    }
+
+    /// Soft wrap on or off in every tool (remembered).
+    pub fn toggle_wrap(&mut self, _: &ToggleWrap, _: &mut Window, cx: &mut Context<Self>) {
+        let wrap = !self.store.wrap;
+        for view in self.views.values() {
+            view.set_wrap(wrap, cx);
+        }
+        self.update_store(cx, |store| store.wrap = wrap);
     }
 
     /// Schedules recording `tool`'s input once typing pauses.
@@ -390,6 +406,19 @@ impl FerrumKit {
             )
             .child(div().flex_1())
             .child(
+                Button::new("toggle-wrap", "Wrap")
+                    .style(ButtonStyle::Subtle)
+                    .size(ButtonSize::Compact)
+                    .label_size(LabelSize::Small)
+                    .toggle_state(self.store.wrap)
+                    .tooltip(Tooltip::text("Wrap long lines in inputs and results (⌥Z)"))
+                    .on_click(
+                        cx.listener(|this, _, window, cx| {
+                            this.toggle_wrap(&ToggleWrap, window, cx)
+                        }),
+                    ),
+            )
+            .child(
                 ferrum_ui::title_button(
                     "toggle-history",
                     IconName::Clock,
@@ -436,6 +465,7 @@ impl Render for FerrumKit {
             .on_action(cx.listener(Self::focus_search))
             .on_action(cx.listener(Self::toggle_sidebar))
             .on_action(cx.listener(Self::toggle_history))
+            .on_action(cx.listener(Self::toggle_wrap))
             .when(sidebar_open, |root| {
                 root.child(self.render_sidebar(window, cx))
             })

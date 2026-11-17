@@ -116,6 +116,9 @@ pub struct TextInput {
     read_only: bool,
     bordered: bool,
     min_lines: usize,
+    /// Multi-line only: long lines continue on the next row instead of
+    /// scrolling sideways.
+    soft_wrap: bool,
     scroll_x: Pixels,
     /// Styled byte ranges (sorted, non-overlapping), e.g. syntax colours.
     highlights: Vec<(Range<usize>, HighlightStyle)>,
@@ -126,10 +129,13 @@ pub struct TextInput {
 
 #[derive(Clone)]
 struct TextLayout {
+    /// One per row: a text line, or with soft wrap a piece of one.
     lines: Vec<LayoutLine>,
     bounds: Bounds<Pixels>,
     line_height: Pixels,
     scroll_x: Pixels,
+    /// Length of the text this layout was made for (stale when it differs).
+    content_len: usize,
 }
 
 #[derive(Clone)]
@@ -159,6 +165,7 @@ impl TextInput {
             read_only: false,
             bordered: true,
             min_lines: 1,
+            soft_wrap: false,
             scroll_x: px(0.),
             highlights: Vec::new(),
             last_layout: None,
@@ -180,6 +187,12 @@ impl TextInput {
 
     pub fn masked(mut self, masked: bool) -> Self {
         self.masked = masked;
+        self
+    }
+
+    /// Wraps long lines at the field's width (multi-line fields only).
+    pub fn soft_wrap(mut self, soft_wrap: bool) -> Self {
+        self.soft_wrap = soft_wrap;
         self
     }
 
@@ -247,6 +260,17 @@ impl TextInput {
         cx.notify();
     }
 
+    pub fn set_soft_wrap(&mut self, soft_wrap: bool, cx: &mut Context<Self>) {
+        self.soft_wrap = soft_wrap;
+        self.scroll_x = px(0.);
+        cx.notify();
+    }
+
+    /// Whether long lines wrap (soft wrap on a multi-line field).
+    pub fn wraps(&self) -> bool {
+        self.soft_wrap && self.multiline
+    }
+
     pub fn set_read_only(&mut self, read_only: bool, cx: &mut Context<Self>) {
         self.read_only = read_only;
         cx.notify();
@@ -270,6 +294,14 @@ impl TextInput {
     ) {
         self.highlights = highlights;
         cx.notify();
+    }
+
+    /// Rows as last painted: lines, or with soft wrap the pieces of them
+    /// (`0` before the first paint).
+    pub fn painted_rows(&self) -> usize {
+        self.last_layout
+            .as_ref()
+            .map_or(0, |layout| layout.lines.len())
     }
 
     /// Height of one text row as last painted (`None` before the first paint).
@@ -621,6 +653,11 @@ impl TextInput {
 
     /// Offset one line above (`delta < 0`) or below, keeping the x position.
     fn vertical_offset(&self, offset: usize, delta: isize) -> usize {
+        if self.wraps()
+            && let Some(target) = self.wrapped_vertical_offset(offset, delta)
+        {
+            return target;
+        }
         let line_starts = self.line_starts();
         let line_index = line_starts
             .iter()
@@ -659,6 +696,36 @@ impl TextInput {
             .char_indices()
             .nth(column)
             .map_or(target_end, |(index, _)| target_start + index)
+    }
+
+    /// Like [`Self::vertical_offset`], by painted rows (pieces of wrapped
+    /// lines). `None` without a current layout.
+    fn wrapped_vertical_offset(&self, offset: usize, delta: isize) -> Option<usize> {
+        let layout = self.last_layout.as_ref().filter(|layout| {
+            layout.content_len == self.content.len() && !layout.lines.is_empty()
+        })?;
+        let row = layout
+            .lines
+            .iter()
+            .rposition(|line| line.content_range.start <= offset)
+            .unwrap_or(0);
+        let target = row as isize + delta;
+        if target < 0 {
+            return Some(0);
+        }
+        let current = layout.lines.get(row)?;
+        let Some(target) = layout.lines.get(target as usize) else {
+            return Some(self.content.len());
+        };
+        let (start, end) = (target.content_range.start, target.content_range.end);
+        if !self.content.is_char_boundary(start) || !self.content.is_char_boundary(end) {
+            return None;
+        }
+        let x = current
+            .shaped
+            .x_for_index(self.display_offset(current.content_range.start, offset));
+        let display_index = target.shaped.closest_index_for_x(x);
+        Some(self.content_offset(start, end, display_index))
     }
 
     fn line_starts(&self) -> Vec<usize> {
@@ -981,6 +1048,106 @@ fn highlight_runs(
     runs
 }
 
+/// Byte ranges of `text` (shaped as `shaped`) that fit in `width` each,
+/// broken after the last space of a row when there is one, else between
+/// characters. At least one character per row.
+fn wrap_ranges(shaped: &ShapedLine, text: &str, width: Pixels) -> Vec<Range<usize>> {
+    let mut rows = Vec::new();
+    let mut start = 0;
+    while start < text.len() {
+        let start_x = shaped.x_for_index(start);
+        if shaped.width - start_x <= width {
+            rows.push(start..text.len());
+            break;
+        }
+        let mut end = shaped.closest_index_for_x(start_x + width).min(text.len());
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        while end > start && shaped.x_for_index(end) - start_x > width {
+            end = text[..end]
+                .char_indices()
+                .next_back()
+                .map_or(start, |(i, _)| i);
+        }
+        if end <= start {
+            end = start + text[start..].chars().next().map_or(1, char::len_utf8);
+        } else if end < text.len()
+            && let Some((i, space)) = text[start..end]
+                .char_indices()
+                .rev()
+                .find(|(_, c)| c.is_whitespace())
+            && i > 0
+        {
+            end = start + i + space.len_utf8();
+        }
+        rows.push(start..end);
+        start = end;
+    }
+    if rows.is_empty() {
+        rows.push(0..0);
+    }
+    rows
+}
+
+/// Width rows wrap at: the field's, less room for the caret.
+fn wrap_width(field_width: Pixels) -> Pixels {
+    field_width - px(4.)
+}
+
+/// The runs of `runs` that cover `range` (byte offsets into their text).
+fn slice_runs(runs: &[TextRun], range: Range<usize>) -> Vec<TextRun> {
+    let mut sliced = Vec::new();
+    let mut pos = 0;
+    for run in runs {
+        let (start, end) = (pos.max(range.start), (pos + run.len).min(range.end));
+        if end > start {
+            sliced.push(TextRun {
+                len: end - start,
+                ..run.clone()
+            });
+        }
+        pos += run.len;
+    }
+    sliced
+}
+
+/// Rows the text takes at `width` with soft wrap (a line per row without).
+fn row_count(input: &TextInput, width: Option<Pixels>, window: &mut Window) -> usize {
+    let lines = input.content.split('\n');
+    let Some(width) = width.filter(|_| input.wraps() && !input.content.is_empty()) else {
+        return lines.count();
+    };
+    let style = window.text_style();
+    let font_size = style.font_size.to_pixels(window.rem_size());
+    lines
+        .map(|line| {
+            let display = display_text(input, line);
+            let run = TextRun {
+                len: display.len(),
+                font: style.font(),
+                color: style.color,
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            };
+            let shaped = window
+                .text_system()
+                .shape_line(display.clone(), font_size, &[run], None);
+            wrap_ranges(&shaped, &display, width).len()
+        })
+        .sum()
+}
+
+/// A line as painted: itself, or bullets when masked.
+fn display_text(input: &TextInput, line: &str) -> SharedString {
+    if input.masked {
+        MASK_CHAR.to_string().repeat(line.chars().count()).into()
+    } else {
+        line.to_string().into()
+    }
+}
+
 struct TextElement {
     input: Entity<TextInput>,
 }
@@ -1001,7 +1168,8 @@ impl IntoElement for TextElement {
 }
 
 impl Element for TextElement {
-    type RequestLayoutState = ();
+    /// Rows the height was laid out for.
+    type RequestLayoutState = usize;
     type PrepaintState = PrepaintState;
 
     fn id(&self) -> Option<ElementId> {
@@ -1021,14 +1189,20 @@ impl Element for TextElement {
     ) -> (LayoutId, Self::RequestLayoutState) {
         let input = self.input.read(cx);
         let rows = if input.multiline {
-            (input.content.matches('\n').count() + 1).max(input.min_lines)
+            // With soft wrap, at the width of the last paint (a width
+            // change is corrected on the next frame, see `prepaint`).
+            let width = input
+                .last_layout
+                .as_ref()
+                .map(|layout| wrap_width(layout.bounds.size.width));
+            row_count(input, width, window).max(input.min_lines)
         } else {
             1
         };
         let mut style = Style::default();
         style.size.width = relative(1.).into();
         style.size.height = (window.line_height() * rows as f32).into();
-        (window.request_layout(style, [], cx), ())
+        (window.request_layout(style, [], cx), rows)
     }
 
     fn prepaint(
@@ -1036,7 +1210,7 @@ impl Element for TextElement {
         _: Option<&GlobalElementId>,
         _: Option<&gpui::InspectorElementId>,
         bounds: Bounds<Pixels>,
-        _: &mut Self::RequestLayoutState,
+        requested_rows: &mut Self::RequestLayoutState,
         window: &mut Window,
         cx: &mut App,
     ) -> Self::PrepaintState {
@@ -1046,6 +1220,10 @@ impl Element for TextElement {
         let line_height = window.line_height();
         let colors = cx.theme().colors();
         let player = cx.theme().players().local();
+        let wrap_at = input
+            .wraps()
+            .then(|| wrap_width(bounds.size.width))
+            .filter(|width| *width > px(0.));
 
         let mut lines = Vec::new();
         if input.content.is_empty() {
@@ -1069,14 +1247,7 @@ impl Element for TextElement {
             let mut line_start = 0;
             for line_text in input.content.split('\n') {
                 let line_end = line_start + line_text.len();
-                let display: SharedString = if input.masked {
-                    MASK_CHAR
-                        .to_string()
-                        .repeat(line_text.chars().count())
-                        .into()
-                } else {
-                    line_text.to_string().into()
-                };
+                let display = display_text(input, line_text);
                 let base = TextRun {
                     len: display.len(),
                     font: style.font(),
@@ -1121,15 +1292,37 @@ impl Element for TextElement {
                     }
                     _ => vec![base],
                 };
-                let shaped = window
-                    .text_system()
-                    .shape_line(display, font_size, &runs, None);
-                lines.push(LayoutLine {
-                    shaped,
-                    content_range: line_start..line_end,
-                });
+                let shaped =
+                    window
+                        .text_system()
+                        .shape_line(display.clone(), font_size, &runs, None);
+                match wrap_at {
+                    Some(width) if shaped.width > width => {
+                        // One row per piece, each shaped on its own.
+                        for piece in wrap_ranges(&shaped, &display, width) {
+                            let start = input.content_offset(line_start, line_end, piece.start);
+                            let end = input.content_offset(line_start, line_end, piece.end);
+                            let text: SharedString = display[piece.clone()].to_string().into();
+                            let runs = slice_runs(&runs, piece);
+                            lines.push(LayoutLine {
+                                shaped: window
+                                    .text_system()
+                                    .shape_line(text, font_size, &runs, None),
+                                content_range: start..end,
+                            });
+                        }
+                    }
+                    _ => lines.push(LayoutLine {
+                        shaped,
+                        content_range: line_start..line_end,
+                    }),
+                }
                 line_start = line_end + 1;
             }
+        }
+        if wrap_at.is_some() && lines.len().max(input.min_lines) != *requested_rows {
+            // The height was laid out for another width: lay out again.
+            window.refresh();
         }
 
         let cursor_offset = input.cursor_offset();
@@ -1157,6 +1350,9 @@ impl Element for TextElement {
         scroll_x = scroll_x
             .min((widest - width + margin).max(px(0.)))
             .max(px(0.));
+        if wrap_at.is_some() {
+            scroll_x = px(0.);
+        }
 
         let row_top = |row: usize| bounds.top() + line_height * row as f32;
         let selected = input.selected_range.clone();
@@ -1252,6 +1448,7 @@ impl Element for TextElement {
             bounds,
             line_height,
             scroll_x,
+            content_len: self.input.read(cx).content.len(),
         };
         self.input.update(cx, |input, _| {
             input.scroll_x = scroll_x;
@@ -1350,5 +1547,97 @@ impl Render for TextInput {
 impl Focusable for TextInput {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gpui::{TestAppContext, VisualTestContext, div};
+
+    /// A 200px-wide multi-line field.
+    struct Narrow(Entity<TextInput>);
+
+    impl Render for Narrow {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div().w(px(200.)).child(self.0.clone())
+        }
+    }
+
+    fn field<'a>(
+        cx: &'a mut TestAppContext,
+        text: &str,
+    ) -> (Entity<TextInput>, &'a mut VisualTestContext) {
+        cx.update(crate::init_for_tests);
+        let text = text.to_string();
+        let (view, cx) = cx.add_window_view(move |window, cx| {
+            Narrow(cx.new(|cx| {
+                TextInput::new(window, cx)
+                    .multiline(1)
+                    .monospace()
+                    .with_text(text)
+            }))
+        });
+        let input = view.read_with(cx, |view, _| view.0.clone());
+        (input, cx)
+    }
+
+    fn draw(cx: &mut VisualTestContext) {
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+    }
+
+    #[gpui::test]
+    fn soft_wrap_splits_long_lines_into_rows(cx: &mut TestAppContext) {
+        let words = "lorem ipsum dolor sit amet ".repeat(20);
+        let (input, cx) = field(cx, &format!("{words}\nshort"));
+        draw(cx);
+        assert_eq!(input.read_with(cx, |i, _| i.painted_rows()), 2);
+
+        input.update(cx, |input, cx| input.set_soft_wrap(true, cx));
+        // The first frame lays out at the old height; the next one fits.
+        draw(cx);
+        draw(cx);
+        let rows = input.read_with(cx, |input, _| {
+            let layout = input.last_layout.clone().expect("layout");
+            // Pieces cover the text in order, breaking after spaces.
+            let first = &layout.lines[0].content_range;
+            assert_eq!(first.start, 0);
+            assert!(input.text()[..first.end].ends_with(' '), "{first:?}");
+            for pair in layout.lines.windows(2) {
+                let (a, b) = (&pair[0].content_range, &pair[1].content_range);
+                assert!(b.start == a.end || b.start == a.end + 1, "{a:?} {b:?}");
+            }
+            assert!(layout.lines.iter().all(|l| l.shaped.width <= px(200.)));
+            layout.lines.len()
+        });
+        assert!(rows > 3, "{rows} rows");
+
+        // Down moves by painted row: from the start into the second piece.
+        input.update(cx, |input, cx| {
+            input.select_range(0..0, cx);
+            let below = input.vertical_offset(0, 1);
+            let second = input.last_layout.as_ref().expect("layout").lines[1]
+                .content_range
+                .clone();
+            assert!(second.contains(&below) || below == second.end, "{below}");
+        });
+
+        input.update(cx, |input, cx| input.set_soft_wrap(false, cx));
+        draw(cx);
+        assert_eq!(input.read_with(cx, |i, _| i.painted_rows()), 2);
+    }
+
+    #[gpui::test]
+    fn a_word_longer_than_the_row_breaks_between_characters(cx: &mut TestAppContext) {
+        let (input, cx) = field(cx, &"x".repeat(400));
+        input.update(cx, |input, cx| input.set_soft_wrap(true, cx));
+        draw(cx);
+        draw(cx);
+        input.read_with(cx, |input, _| {
+            let layout = input.last_layout.as_ref().expect("layout");
+            assert!(layout.lines.len() > 1);
+            let covered: usize = layout.lines.iter().map(|l| l.content_range.len()).sum();
+            assert_eq!(covered, 400);
+        });
     }
 }

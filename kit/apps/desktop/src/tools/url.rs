@@ -173,6 +173,10 @@ impl super::KitTool for UrlTool {
         vec![self.input.clone()]
     }
 
+    fn outputs(&self) -> Vec<Entity<TextInput>> {
+        vec![self.output.clone()]
+    }
+
     fn rerun(&mut self, cx: &mut Context<Self>) {
         self.run(cx);
         cx.notify();

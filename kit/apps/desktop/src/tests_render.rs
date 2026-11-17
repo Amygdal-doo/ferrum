@@ -99,3 +99,26 @@ fn records_restores_and_saves_inputs(cx: &mut TestAppContext) {
         assert!(app.store.history(Tool::Jwt).is_empty());
     });
 }
+
+#[gpui::test]
+fn wrap_applies_to_every_tool_and_is_remembered(cx: &mut TestAppContext) {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("inputs.json");
+    let (app, cx) = window(cx, Some(path.clone()));
+    let wraps = |app: &Entity<FerrumKit>, tool: Tool, cx: &mut VisualTestContext| {
+        app.read_with(cx, |app, cx| {
+            app.view(tool)
+                .expect("view")
+                .fields()
+                .all(|field| field.read(cx).wraps())
+        })
+    };
+    assert!(!wraps(&app, Tool::Json, cx));
+    cx.dispatch_action(crate::app::ToggleWrap);
+    assert!(wraps(&app, Tool::Json, cx));
+    // A tool opened later wraps too.
+    app.update(cx, |app, cx| app.select(Tool::Jwt, cx));
+    draw(cx);
+    assert!(wraps(&app, Tool::Jwt, cx));
+    assert!(KitStore::load(&path).expect("load").wrap);
+}
