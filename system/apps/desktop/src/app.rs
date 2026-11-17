@@ -33,7 +33,10 @@ actions!(
         /// Choose a folder (or use the open project) and start its diagram.
         NewDiagram,
         /// Open a project folder.
-        OpenProject
+        OpenProject,
+        /// Generate the diagram from the project's docker-compose files,
+        /// Kubernetes manifests or package manifests.
+        GenerateFromProject
     ]
 );
 

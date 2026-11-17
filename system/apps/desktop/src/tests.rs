@@ -30,7 +30,7 @@ impl Fixture {
         prefs::load(Some(&self.prefs_file()))
     }
 
-    fn set_prefs(&self, prefs: &UiPrefs) {
+    pub(crate) fn set_prefs(&self, prefs: &UiPrefs) {
         prefs::save(Some(&self.prefs_file()), prefs).expect("save prefs");
     }
 
@@ -72,7 +72,7 @@ pub(crate) fn draw(cx: &mut VisualTestContext) {
     cx.update(|window, cx| window.draw(cx).clear(cx));
 }
 
-fn seen() -> UiPrefs {
+pub(crate) fn seen() -> UiPrefs {
     UiPrefs {
         demo_seen: true,
         ..UiPrefs::default()

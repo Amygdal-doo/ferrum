@@ -138,6 +138,7 @@ impl Node {
             image: None,
             selector: None,
             port: None,
+            health: None,
         });
         self
     }

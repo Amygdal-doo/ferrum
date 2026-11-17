@@ -10,6 +10,7 @@ mod app_info;
 mod canvas;
 mod component;
 mod dialogs;
+mod generate;
 mod icons;
 mod layout;
 mod live;

@@ -52,6 +52,26 @@ they were. Opening a project writes nothing. ⌘Z / ⇧⌘Z (Edit › Undo / Red
 arrows) undo and redo the edits; typing in one field undoes as one step, and undo puts the file
 back exactly as it was.
 
+## Generating a diagram
+**Generate from project files** (sidebar, the empty view, File › Generate from Project Files)
+reads the project — never `node_modules`, `target`, `.git` and the like — and builds a
+diagram, the same one every time for the same files:
+
+- **docker-compose** (`docker-compose*.yml`, `compose.yaml`): a Docker container per service;
+  its kind and technology from the image (`postgres:16` → relational database, PostgreSQL)
+  or, for `build:`, from the package manifest there; replicas, the first port and the
+  health check; connections from `depends_on`, `links` and addresses in `environment`
+  (`postgres://db:5432`).
+- **Kubernetes** (any YAML with `apiVersion` and `kind`): Deployments, StatefulSets,
+  DaemonSets, Jobs and CronJobs as pods (replicas, `app` label, port, probes), Ingresses in
+  front of the workloads their Services select, the namespace for the Runtime tab.
+- **Package manifests**, when there is neither: `package.json`, `Cargo.toml`,
+  `pyproject.toml` / `requirements.txt`, `go.mod`, `Gemfile`, `pom.xml` — one component per
+  app, plus the datastores its dependencies talk to (`pg`, `redis`, `kafkajs`, `pika`…).
+
+A project without a diagram gets this one as its `.architecture/system.json`; with a diagram,
+only the components and connections it lacks are added, as one edit (⌘Z takes it back).
+
 ## Preferences
 `~/.ferrum/ferrumsystem/ui.json` (`$FERRUM_HOME` overrides `~/.ferrum`):
 

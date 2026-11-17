@@ -133,6 +133,9 @@ pub struct Deploy {
     /// Docker container name.
     pub selector: Option<String>,
     pub port: Option<u16>,
+    /// How its health is checked (`GET /healthz`, a readiness probe…);
+    /// `None` = not at all.
+    pub health: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

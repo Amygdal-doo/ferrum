@@ -1,6 +1,6 @@
 [package]
 name = "ferrumsystem-core"
-description = "FerrumSystem (FeS) core: the architecture model, the technology and cloud catalogue, the .architecture folder, demo systems and live Kubernetes / Docker status (no GPUI)."
+description = "FerrumSystem (FeS) core: the architecture model, the technology and cloud catalogue, the .architecture folder, generating one from a project, demo systems and live Kubernetes / Docker status (no GPUI)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +11,10 @@ license.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+# Generating a diagram from docker-compose files, Kubernetes manifests and
+# package manifests (see `import`).
+serde_yaml_ng.workspace = true
+toml.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

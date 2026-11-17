@@ -83,6 +83,16 @@ impl FerrumSystem {
                                 cx.listener(|this, _, _, cx| this.create_architecture(None, cx)),
                             ),
                     )
+                    .child(
+                        Button::new("generate-architecture", "Generate from project files")
+                            .style(ButtonStyle::Outlined)
+                            .size(ButtonSize::Compact)
+                            .full_width()
+                            .tooltip(Tooltip::text(
+                                "From docker-compose files, Kubernetes manifests or package manifests",
+                            ))
+                            .on_click(cx.listener(|this, _, _, cx| this.generate_from_project(cx))),
+                    )
                     .when(self.is_demo(), |c| {
                         c.child(
                             Button::new("use-demo", "Start from this demo")

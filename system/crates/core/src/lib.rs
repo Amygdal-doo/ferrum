@@ -5,6 +5,7 @@
 pub mod catalog;
 pub mod demos;
 pub mod history;
+pub mod import;
 pub mod model;
 pub mod patch;
 pub mod runtime;
