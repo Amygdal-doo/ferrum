@@ -6,6 +6,7 @@ use std::process::Command;
 use std::time::Duration;
 
 use ferrum_ui::NoticeTone;
+use ferrumports_core::forward::ForwardStatus;
 use ferrumports_core::kill::{KillError, Signal};
 use ferrumports_core::{Listener, Protocol, Row, ScanError, Snapshot};
 use gpui::{Entity, TestAppContext, VisualTestContext};
@@ -256,4 +257,50 @@ fn remote_machine_lists_and_confirms_stops(cx: &mut TestAppContext) {
     draw(cx);
     cx.dispatch_action(ferrum_ui::menu::Cancel);
     app.read_with(cx, |app, _| assert!(app.add_host.is_none()));
+}
+
+/// Starts a real `ssh -N -L` to a host that cannot resolve: the forward
+/// shows up in the bar and ends as failed with ssh's message.
+#[gpui::test]
+fn forward_reports_ssh_failure(cx: &mut TestAppContext) {
+    let (app, cx) = window(cx);
+    app.update(cx, |app, cx| {
+        let name = app
+            .hosts
+            .add_typed("nobody@ferrumports-test.invalid")
+            .expect("host");
+        app.target = Some(name);
+        app.apply_scan(Ok(sample()), cx);
+        let postgres = app.listeners[1].clone();
+        app.start_forward(&postgres, cx);
+        assert_eq!(app.forwards.len(), 1);
+        assert_eq!(app.forwards[0].remote_port, 5432);
+        assert!(app.forward_of(5432).is_some());
+        let key = postgres.key();
+        app.select(key, cx);
+    });
+    draw(cx);
+    let mut failed = false;
+    for _ in 0..200 {
+        app.update(cx, |app, cx| app.poll_forwards(cx));
+        failed = app.read_with(cx, |app, _| {
+            matches!(app.forwards[0].status, ForwardStatus::Failed(_))
+        });
+        if failed {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    draw(cx);
+    app.update(cx, |app, cx| {
+        if failed {
+            assert!(app.forward_of(5432).is_none());
+            app.restart_forward(0, cx);
+        }
+        app.stop_forward(0, cx);
+        assert_eq!(app.forwards[0].status, ForwardStatus::Stopped);
+        app.remove_forward(0, cx);
+        assert!(app.forwards.is_empty());
+    });
+    draw(cx);
 }

@@ -7,6 +7,7 @@ mod app_info;
 mod chrome;
 mod commands;
 mod detail;
+mod forwards;
 mod remote;
 mod table;
 #[cfg(test)]

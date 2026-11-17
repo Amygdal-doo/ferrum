@@ -7,6 +7,7 @@ use std::time::Instant;
 use chrono::{DateTime, Local};
 use ferrum_ui::gpui::{KeyBinding, MouseButton};
 use ferrum_ui::prelude::*;
+use ferrumports_core::forward::Forward;
 use ferrumports_core::{Listener, ListenerKey, Row, View, remote, table};
 use ferrumterm_net::ssh_config::ConfigHost;
 use ferrumterm_net::{Host, HostStore};
@@ -91,6 +92,8 @@ pub struct FerrumPorts {
     pub(crate) last_scan: Option<Instant>,
     /// The "Add a machine" dialog's host field while it is open.
     pub(crate) add_host: Option<Entity<TextInput>>,
+    /// `ssh -L` forwards started here (stopped when the app quits).
+    pub(crate) forwards: Vec<Forward>,
     focus_handle: FocusHandle,
     _poll: Option<Task<()>>,
     pub(crate) _subscriptions: Vec<Subscription>,
@@ -172,6 +175,7 @@ impl FerrumPorts {
             target: None,
             last_scan: None,
             add_host: None,
+            forwards: Vec::new(),
             focus_handle: cx.focus_handle(),
             _poll: None,
             _subscriptions: subscriptions,
@@ -179,6 +183,11 @@ impl FerrumPorts {
         if let Some(e) = load_error {
             app.show_notice(Notice::error(e), cx);
         }
+        // ssh children would outlive the app otherwise.
+        app._subscriptions.push(cx.on_app_quit(|app, _| {
+            app.stop_forwards();
+            async {}
+        }));
         window.focus(&app.focus_handle, cx);
         if options.autostart {
             app._poll = Some(Self::start_polling(cx));
@@ -247,6 +256,7 @@ impl Render for FerrumPorts {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let text = cx.theme().colors().text;
         let header = chrome::table_header(self, window, cx);
+        let forwards = crate::forwards::bar(self, cx);
         let table = crate::table::render(self, cx);
         let detail = detail::render(self, window, cx);
         let footer = chrome::table_footer(self, cx);
@@ -263,6 +273,7 @@ impl Render for FerrumPorts {
                 cx.listener(|app, _, _, _| app.detail_active = false),
             )
             .child(header)
+            .children(forwards)
             .child(table)
             .child(footer);
         let detail_card = detail.map(|detail| {

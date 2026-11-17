@@ -39,6 +39,7 @@ impl FerrumPorts {
                     if !app.paused && due {
                         app.refresh(cx);
                     }
+                    app.poll_forwards(cx);
                 });
                 if alive.is_err() {
                     break;

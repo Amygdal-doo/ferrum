@@ -13,6 +13,7 @@ thiserror.workspace = true
 # SSH hosts (~/.ssh/config, typed hosts) and ssh command lines, shared
 # with FerrumTerm (no GUI).
 ferrumterm-net.workspace = true
+ferrumterm-protocol.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

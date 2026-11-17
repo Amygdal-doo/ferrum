@@ -61,6 +61,23 @@ pub fn render(
             .child(button("d-copy-url", "Copy URL", cx, move |app, cx| {
                 app.copy(url1.clone(), "URL", cx)
             }));
+    } else if let Some(forward) = app.forward_of(l.port) {
+        // Already forwarded: open the local end.
+        let local = forward.url();
+        actions = actions.child(button(
+            "d-open-forward",
+            format!("Open {}", local.trim_start_matches("http://")),
+            cx,
+            move |_, cx| cx.open_url(&local),
+        ));
+    } else {
+        let l1 = l.clone();
+        actions = actions.child(
+            button("d-forward", "Forward to this Mac", cx, move |app, cx| {
+                app.start_forward(&l1, cx)
+            })
+            .tooltip(Tooltip::text("ssh -L: reach this port at localhost")),
+        );
     }
     if let Some(pid) = l.pid {
         actions = actions.child(button("d-copy-pid", "Copy PID", cx, move |app, cx| {

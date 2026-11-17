@@ -3294,6 +3294,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "ferrumterm-net",
+ "ferrumterm-protocol",
  "tempfile",
  "thiserror 2.0.21",
 ]

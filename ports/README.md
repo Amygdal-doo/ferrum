@@ -32,6 +32,7 @@ same tools over the system `ssh`. It writes the shared recent-projects list
 | Empty states: scanning, nothing listening, no matches, scan failed | ✅ headless-rendered |
 | Project strip (`ProjectBar`): ⌥⌘O switcher; `ferrumports <folder>` starts with that project | ⚠️ wired |
 | **Remote machines** (machine picker at the start of the header): "Add a machine…" offers the `~/.ssh/config` aliases (FerrumTerm's parser, `ferrumterm-net`) or a typed `user@host[:port]`; the list is kept in `~/.ferrum/ports/ssh-hosts.json`. One `ssh -T -o BatchMode=yes` run per refresh (every 10 s) executes a small `sh` script: `ss -ltnpH` (Linux), else `lsof`, then `ps -A`; the existing parsers read the output. Stopping a remote process uses the same confirmation dialog ("… on prod over ssh"), sends `kill -TERM` (then offers `-KILL`) over ssh and checks once after 2 s. Keys must be in ssh-agent or the keychain: nothing can prompt for a password | ✅ command line, script and parsers tested (the script also run locally with `sh`); dialogs headless-tested. **Not run against a real remote host** |
+| **Port forwarding**: **Forward to this Mac** in the detail pane of a remote listener runs `ssh -N -L 127.0.0.1:<local>:localhost:<port> <host>` (FerrumTerm's command line from `ferrumterm-net`: `ExitOnForwardFailure`, `BatchMode`, keep-alives); the local port is the same number when free here, else the nearest free one. A bar under the header lists each forward with its status (Connecting… until the local port is bound, Running, Failed with ssh's message, Stopped), open, stop, start again and remove. Forwards are ssh child processes of FerrumPorts, stopped when it quits; they are not remembered between launches | ✅ command, port choice and process tracking tested; a real ssh that fails headless-tested. **Not run against a real remote host** |
 
 ## Known limitations
 - Without root, `lsof` on macOS only shows the sockets of your own processes. Ports held by
@@ -65,12 +66,14 @@ apps/desktop/      GPUI app: app.rs (root view, state, keys, project strip),
                    table.rs (listener table), detail.rs (detail pane),
                    chrome.rs (toolbar, status bar, kill dialog, notices),
                    remote.rs (machine picker, add-a-machine dialog),
+                   forwards.rs (forward bar, start / stop),
                    tests.rs (headless GPUI tests)
 crates/core/       pure logic, no GPUI: model (Listener, addresses, exposure, URL),
                    lsof / ps / ss parsers, scan (runs the tools, joins the output),
                    project (cwd to project), hints (well-known ports),
                    table (search, project filter, grouping), kill, free (port checks),
-                   remote (hosts, the ssh script and its parsing, remote kill)
+                   remote (hosts, the ssh script and its parsing, remote kill),
+                   forward (ssh -L child processes and their status)
 ```
 
 ## Local data
