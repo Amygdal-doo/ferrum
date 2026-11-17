@@ -1,7 +1,11 @@
 //! Painting a window's panes cell by cell from server frames: backgrounds,
-//! selection, text shaped per row and snapped to the cell grid, cursor, IME
-//! composition, and dividers between split panes.
+//! selection, find matches, text shaped per row and snapped to the cell
+//! grid, cursor, IME composition, command blocks (a line between commands,
+//! a bar beside a failed or selected one; collapsed outputs are
+//! left out, see `blocks`), and dividers between split panes.
 
+use crate::blocks;
+use crate::theme::Palette;
 use crate::view::{PADDING, TermView};
 use ferrum_ui::gpui::{
     self, Bounds, ElementInputHandler, Entity, Font, FontStyle, FontWeight, Hsla, Pixels, Point,
@@ -63,10 +67,6 @@ pub(crate) fn update_grid(entity: &Entity<TermView>, bounds: Bounds<Pixels>, cx:
     }
 }
 
-fn color(rgb: u32) -> Hsla {
-    gpui::rgb(rgb).into()
-}
-
 struct Pane {
     block: BlockId,
     rect: Rect,
@@ -114,13 +114,26 @@ pub(crate) fn paint_terminal(
     let cursor_on = view.cursor_on;
     let settings = crate::settings::get();
     let selection = view.selection.clone().filter(|s| !s.is_empty());
+    let search = view.find.as_ref().map(|bar| bar.search.clone());
+    let bell = view
+        .bell_flash
+        .filter(|(_, at)| at.elapsed() < crate::view::BELL_FLASH)
+        .map(|(block, _)| block);
+    let collapsed = view.collapsed.clone();
+    let selected_command = view.selected_command;
+    let no_folds = std::collections::HashSet::new();
+    let mut row_maps = std::collections::HashMap::new();
+    let palette = Palette::current(cx);
     let theme = cx.theme();
     let colors = Colors {
-        foreground: theme.colors().terminal_foreground,
+        foreground: palette.foreground,
         muted: theme.colors().text_muted,
         divider: theme.colors().border,
         accent: theme.colors().text_accent,
-        background: theme.colors().terminal_background,
+        background: palette.background,
+        found: theme.status().warning,
+        failed: theme.status().error,
+        palette,
     };
 
     let cell_width = metrics.cell_width;
@@ -151,22 +164,35 @@ pub(crate) fn paint_terminal(
             let focused = pane.block == focused_block;
             if let Some(frame) = &pane.frame {
                 let pane_bounds = Bounds::new(pane_origin, pane_size);
+                let rows =
+                    blocks::visible_rows(frame, collapsed.get(&pane.block).unwrap_or(&no_folds));
+                let shown = |row: u16| rows.iter().position(|r| *r == row);
                 window.with_content_mask(
                     Some(gpui::ContentMask {
                         bounds: pane_bounds,
                     }),
                     |window| {
-                        for (row, line) in frame.lines.iter().enumerate() {
-                            let row_origin = pane_origin + point(px(0.), cell_height * row as f32);
-                            paint_backgrounds(line, row_origin, cell_width, cell_height, window);
+                        if bell == Some(pane.block) {
+                            window.paint_quad(fill(pane_bounds, colors.foreground.opacity(0.12)));
+                        }
+                        for (at, &row) in rows.iter().enumerate() {
+                            let Some(line) = frame.lines.get(usize::from(row)) else {
+                                continue;
+                            };
+                            let row_origin = pane_origin + point(px(0.), cell_height * at as f32);
+                            paint_backgrounds(
+                                line,
+                                row_origin,
+                                cell_width,
+                                cell_height,
+                                &colors.palette,
+                                window,
+                            );
                             if let Some((from, to)) = selection
                                 .as_ref()
                                 .filter(|s| s.block == pane.block)
                                 .and_then(|s| {
-                                    s.columns(
-                                        crate::selection::line_of(frame, row as u16),
-                                        pane.rect.cols,
-                                    )
+                                    s.columns(crate::selection::line_of(frame, row), pane.rect.cols)
                                 })
                             {
                                 window.paint_quad(fill(
@@ -177,14 +203,51 @@ pub(crate) fn paint_terminal(
                                     colors.accent.opacity(0.3),
                                 ));
                             }
+                            if let Some(search) =
+                                search.as_ref().filter(|s| s.block == Some(pane.block))
+                            {
+                                for (from, to, current) in
+                                    search.row_highlights(frame, row, pane.rect.cols)
+                                {
+                                    let found = Bounds::new(
+                                        row_origin + point(cell_width * f32::from(from), px(0.)),
+                                        size(cell_width * f32::from(to - from), cell_height),
+                                    );
+                                    window.paint_quad(fill(
+                                        found,
+                                        colors.found.opacity(if current { 0.65 } else { 0.28 }),
+                                    ));
+                                    if current {
+                                        window.paint_quad(gpui::outline(
+                                            found,
+                                            colors.found,
+                                            gpui::BorderStyle::Solid,
+                                        ));
+                                    }
+                                }
+                            }
                             paint_row(line, row_origin, &metrics, font, &colors, window, cx);
                         }
-                        if let Some(cursor) = frame.cursor {
+                        paint_commands(
+                            frame,
+                            &shown,
+                            pane_origin,
+                            pane_size.width,
+                            cell_height,
+                            selected_command
+                                .filter(|(b, _)| *b == pane.block)
+                                .map(|(_, id)| id),
+                            &colors,
+                            window,
+                        );
+                        if let Some((cursor, at)) =
+                            frame.cursor.and_then(|c| shown(c.row).map(|at| (c, at)))
+                        {
                             let caret = Bounds::new(
                                 pane_origin
                                     + point(
                                         cell_width * f32::from(cursor.col),
-                                        cell_height * f32::from(cursor.row),
+                                        cell_height * at as f32,
                                     ),
                                 size(cell_width, cell_height),
                             );
@@ -203,6 +266,7 @@ pub(crate) fn paint_terminal(
                         }
                     },
                 );
+                row_maps.insert(pane.block, rows);
             }
 
             let divider = if focused && split {
@@ -234,7 +298,60 @@ pub(crate) fn paint_terminal(
     entity.update(cx, |view, _| {
         view.app.panes = pane_hits;
         view.cursor_bounds = cursor_bounds;
+        view.canvas_origin = (f32::from(bounds.origin.x), f32::from(bounds.origin.y));
+        view.row_maps = row_maps;
     });
+}
+
+/// Command blocks: a line above each command that starts on screen (but
+/// the first row), and a bar down the left edge of a failed (red) or
+/// selected (accent) one; the selected one is also tinted. `shown`
+/// gives a frame row's place on screen (`None`: folded away).
+#[allow(clippy::too_many_arguments)]
+fn paint_commands(
+    frame: &Frame,
+    shown: &dyn Fn(u16) -> Option<usize>,
+    origin: Point<Pixels>,
+    width: Pixels,
+    cell_height: Pixels,
+    selected: Option<u64>,
+    colors: &Colors,
+    window: &mut Window,
+) {
+    for command in &frame.commands {
+        let places: Vec<usize> = (command.top..=command.bottom).filter_map(shown).collect();
+        let (Some(&first), Some(&last)) = (places.first(), places.last()) else {
+            continue;
+        };
+        let top = origin.y + cell_height * first as f32;
+        let height = cell_height * (last - first + 1) as f32;
+        if command.starts && first > 0 {
+            window.paint_quad(fill(
+                Bounds::new(point(origin.x, top), size(width, px(1.))),
+                colors.divider.opacity(0.7),
+            ));
+        }
+        let is_selected = selected == Some(command.id);
+        if is_selected {
+            window.paint_quad(fill(
+                Bounds::new(point(origin.x, top), size(width, height)),
+                colors.accent.opacity(0.07),
+            ));
+        }
+        let bar = if blocks::failed(command) {
+            Some(colors.failed)
+        } else if is_selected {
+            Some(colors.accent)
+        } else {
+            None
+        };
+        if let Some(bar) = bar {
+            window.paint_quad(fill(
+                Bounds::new(point(origin.x, top), size(px(2.), height)),
+                bar,
+            ));
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -244,6 +361,11 @@ struct Colors {
     divider: Hsla,
     accent: Hsla,
     background: Hsla,
+    /// Find bar matches.
+    found: Hsla,
+    /// The bar beside a failed command.
+    failed: Hsla,
+    palette: Palette,
 }
 
 fn paint_backgrounds(
@@ -251,6 +373,7 @@ fn paint_backgrounds(
     origin: Point<Pixels>,
     cell_width: Pixels,
     cell_height: Pixels,
+    palette: &Palette,
     window: &mut Window,
 ) {
     let mut col = 0usize;
@@ -262,7 +385,7 @@ fn paint_backgrounds(
                     origin + point(cell_width * col as f32, px(0.)),
                     size(cell_width * width as f32, cell_height),
                 ),
-                color(background),
+                palette.color(background),
             ));
         }
         col += width;
@@ -277,7 +400,7 @@ fn span_run(span: &Span, len: usize, font: &Font, colors: &Colors, thin: Pixels)
     if span.f & flags::ITALIC != 0 {
         font.style = FontStyle::Italic;
     }
-    let mut foreground = span.fg.map_or(colors.foreground, color);
+    let mut foreground = colors.palette.foreground(span.fg);
     if span.f & flags::DIM != 0 {
         foreground = foreground.opacity(150.0 / 255.0);
     }

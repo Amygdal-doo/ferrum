@@ -76,6 +76,8 @@ pub struct SpawnContext<'a> {
     pub window: &'a str,
     pub socket: &'a str,
     pub wake: &'a Arc<Wake>,
+    /// The shell integration scripts (see `shell`).
+    pub shell_dir: Option<&'a std::path::Path>,
 }
 
 impl Block {
@@ -130,6 +132,18 @@ impl Block {
         cmd.env("FTERM_WINDOW", ctx.window);
         cmd.env("FTERM_BLOCK", id.to_string());
         cmd.env("FTERM_SOCKET", ctx.socket);
+        if let Some(dir) = ctx.shell_dir {
+            let var = |name: &str| {
+                spec.env
+                    .iter()
+                    .find(|(k, _)| k == name)
+                    .map(|(_, v)| v.clone())
+                    .or_else(|| std::env::var(name).ok())
+            };
+            for (k, v) in crate::shell::env(&spec.command, dir, &var) {
+                cmd.env(k, v);
+            }
+        }
         let mut child = pair
             .slave
             .spawn_command(cmd)
@@ -148,7 +162,14 @@ impl Block {
             cwd,
             pid,
             keep_open: spec.keep_open,
-            term: Mutex::new(Terminal::new(cols, rows)),
+            term: Mutex::new(Terminal::with_scrollback(
+                cols,
+                rows,
+                spec.scrollback
+                    .map_or(ferrumterm_emulator::SCROLLBACK, |n| {
+                        usize::try_from(n).unwrap_or(usize::MAX)
+                    }),
+            )),
             status: Mutex::new(None),
             exited: Mutex::new(None),
             writer: Mutex::new(writer),

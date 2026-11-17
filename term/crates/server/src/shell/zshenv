@@ -1,0 +1,18 @@
+# FerrumTerm starts zsh with ZDOTDIR pointing here, so that this file runs
+# first. It puts ZDOTDIR back, loads your own .zshenv as zsh would have,
+# and then (in interactive shells) FerrumTerm's shell integration. zsh
+# reads .zprofile, .zshrc and .zlogin from the restored ZDOTDIR.
+_fterm_si_dir=${${(%):-%x}:A:h}
+if [[ -n "${FTERM_ZSH_ZDOTDIR+x}" ]]; then
+  ZDOTDIR=$FTERM_ZSH_ZDOTDIR
+  unset FTERM_ZSH_ZDOTDIR
+else
+  unset ZDOTDIR
+fi
+if [[ -r "${ZDOTDIR:-$HOME}/.zshenv" ]]; then
+  source "${ZDOTDIR:-$HOME}/.zshenv"
+fi
+if [[ -o interactive && -r "$_fterm_si_dir/ferrumterm.zsh" ]]; then
+  source "$_fterm_si_dir/ferrumterm.zsh"
+fi
+unset _fterm_si_dir

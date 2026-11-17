@@ -93,6 +93,10 @@ pub enum Cmd {
     },
     /// List every listening TCP port and its process.
     Ports,
+    /// Print the shell integration script for zsh, bash or fish (command
+    /// blocks). FerrumTerm loads it into zsh and fish by itself; for bash add
+    /// `eval "$(fterm shell-integration bash)"` at the end of ~/.bashrc.
+    ShellIntegration { shell: String },
 }
 
 fn main() -> ExitCode {
@@ -130,6 +134,17 @@ async fn dispatch(cli: Cli) -> Result<ExitCode, String> {
         Cmd::Forward(c) => forward::run(c, &ctx).await,
         Cmd::Port { port, kill } => ports::port(port, kill, &ctx),
         Cmd::Ports => ports::list(&ctx),
+        Cmd::ShellIntegration { shell } => {
+            match ferrumterm_server::shell::script(shell.trim_start_matches('-')) {
+                Some(script) => {
+                    print!("{script}");
+                    Ok(ExitCode::SUCCESS)
+                }
+                None => Err(format!(
+                    "no shell integration for {shell}: zsh, bash or fish"
+                )),
+            }
+        }
         Cmd::Attach { target } => attach::run(&ctx, target).await,
         other => cmd::run(other, &ctx).await,
     }

@@ -38,6 +38,7 @@ impl SpawnArgs {
             label: self.label.clone(),
             keep_open: self.keep_open,
             env: passthrough_env(),
+            scrollback: None,
         }
     }
 }
@@ -404,7 +405,8 @@ pub async fn run(cmd: Cmd, ctx: &Ctx) -> Result<ExitCode, String> {
         | Cmd::Ssh(_)
         | Cmd::Forward(_)
         | Cmd::Port { .. }
-        | Cmd::Ports => {
+        | Cmd::Ports
+        | Cmd::ShellIntegration { .. } => {
             unreachable!("dispatched in main")
         }
     }

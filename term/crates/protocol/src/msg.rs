@@ -133,6 +133,10 @@ pub struct Spawn {
     /// Keep the block (showing its final screen) after the process exits.
     pub keep_open: bool,
     pub env: Vec<(String, String)>,
+    /// Scrollback lines (`None`: the server's default). Older servers
+    /// ignore it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scrollback: Option<u32>,
 }
 
 /// Keyboard / paste input for a block.
@@ -199,6 +203,27 @@ pub enum Request {
     Capture {
         target: Option<String>,
         scrollback: bool,
+    },
+    /// The pane's shell commands still in its scrollback or on its screen
+    /// (shell integration); answered with [`Response::Commands`].
+    Commands {
+        target: Option<String>,
+    },
+    /// The output of the command numbered `command` ([`CommandInfo::id`]),
+    /// as text. (Not `id`: that names the request.)
+    CommandOutput {
+        target: Option<String>,
+        command: u64,
+    },
+    /// Search the screen and scrollback for `query` (plain text, or a regex
+    /// with `regex`); answered with [`Response::Found`]. Server revision 3.
+    Find {
+        target: Option<String>,
+        query: String,
+        #[serde(default)]
+        case_sensitive: bool,
+        #[serde(default)]
+        regex: bool,
     },
     Inspect {
         target: String,
@@ -279,6 +304,34 @@ pub struct BlockInfo {
     /// sees it: the started program or the terminal's foreground process.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
+}
+
+/// A shell command of a pane (shell integration, OSC 133). Lines count
+/// from the oldest scrollback line, as in [`FindMatch`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommandInfo {
+    pub id: u64,
+    /// Its first line (the prompt's).
+    pub line: u32,
+    /// Where its output starts, once it has output.
+    pub output_line: Option<u32>,
+    pub end_line: u32,
+    /// The command line, when the shell sent it.
+    pub command: String,
+    pub exit: Option<i32>,
+    pub running: bool,
+}
+
+/// A match of [`Request::Find`]. Lines count from the oldest scrollback
+/// line (0), so row `r` of a [`Frame`] is line `history - display_offset + r`.
+/// Columns are cells; the end is exclusive, and a match across a wrapped
+/// line ends on a later line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FindMatch {
+    pub line: u32,
+    pub col: u16,
+    pub end_line: u32,
+    pub end_col: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -371,6 +424,15 @@ pub enum Response {
     },
     Text {
         text: String,
+    },
+    /// The pane's commands, oldest first.
+    Commands {
+        commands: Vec<CommandInfo>,
+    },
+    /// `Find`'s matches, oldest first; `truncated` when there were more.
+    Found {
+        matches: Vec<FindMatch>,
+        truncated: bool,
     },
     Inspected {
         item: Inspected,

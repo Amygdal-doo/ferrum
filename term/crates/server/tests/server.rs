@@ -516,3 +516,161 @@ async fn welcome_reports_the_build_and_revision() {
         .unwrap();
     assert!(matches!(old, Response::Welcome { .. }), "{old:?}");
 }
+
+/// An interactive zsh with an empty home: FerrumTerm's integration only.
+fn zsh(home: &std::path::Path, integration: bool) -> Spawn {
+    std::fs::write(home.join(".zshrc"), "PS1='%# '\n").unwrap();
+    let mut env = vec![("HOME".to_owned(), home.display().to_string())];
+    if !integration {
+        env.push(("FTERM_SHELL_INTEGRATION".into(), "0".into()));
+    }
+    Spawn {
+        command: vec!["/bin/zsh".into(), "-i".into()],
+        env,
+        ..Spawn::default()
+    }
+}
+
+async fn commands(c: &Client, target: &str) -> Vec<ferrumterm_protocol::CommandInfo> {
+    match c
+        .request(Request::Commands {
+            target: Some(target.into()),
+        })
+        .await
+        .unwrap()
+    {
+        Response::Commands { commands } => commands,
+        r => panic!("{r:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn zsh_commands_become_blocks_with_exit_codes_and_output() {
+    if !std::path::Path::new("/bin/zsh").exists() {
+        return;
+    }
+    let h = start(false).await;
+    let c = &h.client;
+    let home = tempfile::tempdir().unwrap();
+    let Response::Created { block, .. } = c
+        .request(Request::NewSession {
+            name: None,
+            spawn: zsh(home.path(), true),
+        })
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    let target = block.to_string();
+    eventually(c, &target, "%").await;
+    for line in ["echo one; echo two", "false", "echo $ZDOTDIR-x"] {
+        c.request(Request::Input {
+            target: Some(target.clone()),
+            input: vec![Input::Text(line.into()), Input::Key("Enter".into())],
+        })
+        .await
+        .unwrap();
+        tokio::time::sleep(Duration::from_millis(150)).await;
+    }
+    let mut found = Vec::new();
+    for _ in 0..200 {
+        found = commands(c, &target).await;
+        if found.len() >= 4 && found[2].exit.is_some() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    let summary: Vec<_> = found
+        .iter()
+        .map(|i| (i.command.as_str(), i.exit, i.running))
+        .collect();
+    assert_eq!(
+        summary,
+        [
+            ("echo one; echo two", Some(0), false),
+            ("false", Some(1), false),
+            ("echo $ZDOTDIR-x", Some(0), false),
+            ("", None, false),
+        ],
+        "{:?}",
+        capture(c, &target).await
+    );
+    let output = |id| Request::CommandOutput {
+        target: Some(target.clone()),
+        command: id,
+    };
+    let Response::Text { text } = c.request(output(found[0].id)).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(text, "one\ntwo");
+    // The user's ZDOTDIR (none here) was put back before .zshrc ran.
+    let Response::Text { text } = c.request(output(found[2].id)).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(text, "-x");
+
+    // Turned off: a plain shell.
+    let Response::Created { block, .. } = c
+        .request(Request::NewSession {
+            name: None,
+            spawn: zsh(home.path(), false),
+        })
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    let target = block.to_string();
+    eventually(c, &target, "%").await;
+    c.request(Request::Input {
+        target: Some(target.clone()),
+        input: vec![Input::Text("echo plain".into()), Input::Key("Enter".into())],
+    })
+    .await
+    .unwrap();
+    eventually(c, &target, "plain\n").await;
+    assert!(commands(c, &target).await.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn find_searches_the_scrollback() {
+    let h = start(false).await;
+    let c = &h.client;
+    let Response::Created { block, .. } = c
+        .request(Request::NewSession {
+            name: None,
+            spawn: sh(
+                "i=1; while [ $i -le 200 ]; do echo row-$i; i=$((i+1)); done; echo needle-x; cat",
+            ),
+        })
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    let target = block.to_string();
+    eventually(c, &target, "needle-x").await;
+    let find = |query: &str, regex: bool| Request::Find {
+        target: Some(target.clone()),
+        query: query.into(),
+        case_sensitive: false,
+        regex,
+    };
+    // Far back in the scrollback: rows 1, 10..19 and 100..199.
+    let Response::Found { matches, truncated } = c.request(find("ROW-1", false)).await.unwrap()
+    else {
+        panic!()
+    };
+    assert!(!truncated);
+    assert_eq!(matches.len(), 111);
+    let first = matches[0];
+    assert_eq!((first.line, first.col, first.end_col), (0, 0, 5));
+    let Response::Found { matches, .. } = c.request(find(r"needle-\w", true)).await.unwrap() else {
+        panic!()
+    };
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].line, 200);
+    let err = c.request(find("(", true)).await.unwrap_err().to_string();
+    assert!(err.contains("unclosed"), "{err}");
+}

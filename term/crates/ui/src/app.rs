@@ -37,6 +37,21 @@ pub enum UiEvent {
     IntoFolder(String, u64),
     Ports(crate::ssh::PortsResult),
     Killed(crate::ssh::KillOutcome),
+    /// The answer to a find bar search: (its number, the pane, the
+    /// matches and whether there were more, or the error).
+    Found(
+        u64,
+        BlockId,
+        Result<(Vec<ferrumterm_protocol::FindMatch>, bool), String>,
+    ),
+    /// A pane's shell commands, for ⌘↑ / ⌘↓.
+    Commands(
+        BlockId,
+        Vec<ferrumterm_protocol::CommandInfo>,
+        crate::blocks::Jump,
+    ),
+    /// Text for the clipboard, and what to say about it.
+    Copied(String, String),
 }
 
 pub type UiSender = futures::channel::mpsc::UnboundedSender<UiEvent>;
@@ -115,9 +130,15 @@ pub(crate) fn spawn_env() -> Spawn {
         .iter()
         .filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v)))
         .collect();
+    let settings = crate::settings::get();
+    let mut env: Vec<(String, String)> = env;
+    if !settings.shell_integration {
+        env.push(("FTERM_SHELL_INTEGRATION".into(), "0".into()));
+    }
     Spawn {
-        command: crate::settings::get().startup_argv(),
+        command: settings.startup_argv(),
         env,
+        scrollback: Some(settings.scrollback),
         ..Spawn::default()
     }
 }
@@ -569,8 +590,15 @@ impl App {
                     self.subscribed.clear();
                 }
             }
-            // The view owns the GPUI clipboard: it pastes (calling `paste`) and copies selections.
-            Shortcut::Paste | Shortcut::Copy => {}
+            // The view owns the GPUI clipboard (it pastes, calling `paste`,
+            // and copies selections) and the find bar.
+            Shortcut::Paste
+            | Shortcut::Copy
+            | Shortcut::Find
+            | Shortcut::FindNext
+            | Shortcut::FindPrevious
+            | Shortcut::PreviousCommand
+            | Shortcut::NextCommand => {}
             Shortcut::CopyScreen => {
                 let Some(c) = self.client.clone() else { return };
                 let proxy = self.proxy.clone();

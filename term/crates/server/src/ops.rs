@@ -23,6 +23,7 @@ fn spawn_block(
         window,
         socket: &socket,
         wake: &server.wake,
+        shell_dir: server.shell_dir.as_deref(),
     };
     Block::spawn(id, spawn, cols, rows, &ctx, server.internal.clone())
 }

@@ -517,8 +517,8 @@ impl Render for TermView {
         }
         self.app.ssh.reload_if_changed();
 
-        let colors = cx.theme().colors().clone();
         let status = cx.theme().status().clone();
+        let palette = crate::theme::Palette::of(crate::theme::by_id(&settings.theme), cx);
         let message = self
             .app
             .message
@@ -552,8 +552,10 @@ impl Render for TermView {
             .flex_1()
             .min_h_0()
             .w_full()
-            .bg(colors.terminal_background)
+            .bg(palette.background)
             .child(panes_area)
+            .children(self.render_command_bars(cx))
+            .children(self.render_find_bar(cx))
             .when_some(self.incompatible.clone(), |area, why| {
                 area.child(self.render_incompatible(why, cx))
             })
@@ -634,8 +636,8 @@ impl Render for TermView {
                     }
                 }),
             )
-            .when(!cards, |root| root.bg(colors.terminal_background))
-            .text_color(colors.terminal_foreground)
+            .when(!cards, |root| root.bg(palette.background))
+            .text_color(palette.foreground)
             .when_some(
                 self.project.as_ref().filter(|_| compact),
                 |root, project| root.child(project.bar.clone()),

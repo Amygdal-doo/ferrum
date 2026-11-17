@@ -3,7 +3,13 @@
 //! the transient message strip. Its public, embeddable API is in `api`.
 
 mod api;
+mod blocks;
+#[cfg(test)]
+mod blocks_tests;
 mod drag_scroll;
+mod find;
+#[cfg(test)]
+mod find_tests;
 mod ime;
 mod render;
 mod stale_server;
@@ -22,12 +28,17 @@ use ferrum_ui::gpui::{
 };
 use ferrumterm_protocol::{BlockId, Event};
 use futures::StreamExt as _;
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 
 pub(crate) use render::{TabKind, tab_label};
 
 pub(crate) const PADDING: f32 = 6.0;
 pub(crate) const MESSAGE_TTL: Duration = Duration::from_secs(6);
+/// How long a pane flashes for a bell (Settings › Terminal › Bell).
+pub(crate) const BELL_FLASH: Duration = Duration::from_millis(150);
+/// How often `config.toml` is checked for edits.
+const CONFIG_CHECK: Duration = Duration::from_secs(1);
 
 pub struct TermView {
     pub(crate) app: App,
@@ -79,6 +90,24 @@ pub struct TermView {
     pub(crate) git: Option<crate::git_pane::GitPane>,
     /// FerrumChat beside the terminal (see `agent_pane`).
     pub(crate) agent: crate::agent_pane::AgentState,
+    /// The find bar, while open (see `find`).
+    pub(crate) find: Option<find::FindBar>,
+    /// Top-left of the painted panes in window px (from the last paint),
+    /// for overlays positioned over a pane.
+    pub(crate) canvas_origin: (f32, f32),
+    /// Collapsed command outputs, by pane (see `blocks`).
+    pub(crate) collapsed: HashMap<BlockId, HashSet<u64>>,
+    /// The command under the pointer (its toolbar shows).
+    pub(crate) hovered_command: Option<(BlockId, u64)>,
+    /// The command ⌘↑ / ⌘↓ went to.
+    pub(crate) selected_command: Option<(BlockId, u64)>,
+    /// Which frame row each screen row of a pane shows (from the last
+    /// paint; differs while outputs are collapsed).
+    pub(crate) row_maps: HashMap<BlockId, Vec<u16>>,
+    /// The pane flashing for a bell, and since when.
+    pub(crate) bell_flash: Option<(BlockId, Instant)>,
+    _bell_timer: Option<Task<()>>,
+    _config_watch: Task<()>,
     _blink: Task<()>,
     _message_timer: Option<Task<()>>,
     _events: Task<()>,
@@ -115,6 +144,18 @@ impl TermView {
                     }
                 });
                 if alive.is_err() {
+                    break;
+                }
+            }
+        });
+        // Edits to config.toml (by hand or by another app) apply live.
+        let config_watch = cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(CONFIG_CHECK).await;
+                if crate::settings::reload_if_changed() {
+                    cx.update(|cx| cx.refresh_windows());
+                }
+                if this.upgrade().is_none() {
                     break;
                 }
             }
@@ -159,6 +200,15 @@ impl TermView {
             font_key: None,
             git: None,
             agent,
+            find: None,
+            canvas_origin: (0., 0.),
+            collapsed: HashMap::new(),
+            hovered_command: None,
+            selected_command: None,
+            row_maps: HashMap::new(),
+            bell_flash: None,
+            _bell_timer: None,
+            _config_watch: config_watch,
             _blink: blink,
             _message_timer: None,
             _events: events,
@@ -212,6 +262,7 @@ impl TermView {
                 if let Some(block) = frame {
                     self.on_drag_frame(block);
                     self.focused_frame(block, cx);
+                    self.find_on_frame(block, cx);
                     cx.notify();
                     return;
                 }
@@ -237,6 +288,18 @@ impl TermView {
             UiEvent::IntoFolder(item, folder) => self.move_to_folder(&item, Some(folder)),
             UiEvent::Ports(result) => self.on_ports_result(result),
             UiEvent::Killed(outcome) => self.on_killed(outcome, cx),
+            UiEvent::Found(generation, block, found) => {
+                self.on_found(generation, block, found, cx);
+                return;
+            }
+            UiEvent::Commands(block, commands, to) => {
+                self.on_commands(block, &commands, to, cx);
+                return;
+            }
+            UiEvent::Copied(text, message) => {
+                cx.write_to_clipboard(ClipboardItem::new_string(text));
+                self.app.notify(message);
+            }
         }
         self.after_change(cx);
     }
@@ -275,8 +338,33 @@ impl TermView {
                 }
             }
             Event::Bell { block } if self.app.shows_block(*block) => {
+                self.ring(*block, cx);
                 cx.emit(TermViewEvent::Bell { block: *block });
             }
+            _ => {}
+        }
+    }
+
+    /// A bell in `block`: the pane flashes (when on screen) or the system
+    /// alert sounds, per Settings › Terminal › Bell.
+    fn ring(&mut self, block: BlockId, cx: &mut Context<Self>) {
+        let on_screen = self
+            .app
+            .window()
+            .is_some_and(|w| w.blocks.iter().any(|b| b.id == block));
+        match crate::settings::get().bell {
+            crate::settings::Bell::Visual if on_screen => {
+                self.bell_flash = Some((block, Instant::now()));
+                self._bell_timer = Some(cx.spawn(async move |this, cx| {
+                    cx.background_executor().timer(BELL_FLASH).await;
+                    let _ = this.update(cx, |view, cx| {
+                        view.bell_flash = None;
+                        cx.notify();
+                    });
+                }));
+                cx.notify();
+            }
+            crate::settings::Bell::System => system_beep(),
             _ => {}
         }
     }
@@ -395,6 +483,7 @@ impl TermView {
             action => {
                 if matches!(action, Action::Send(_)) {
                     self.clear_selection();
+                    self.selected_command = None;
                 }
                 self.app.act(action);
             }
@@ -405,6 +494,21 @@ impl TermView {
     fn key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         // Keys typed into the sidebar's text field are not for the terminal.
         if !self.focus_handle.is_focused(window) {
+            let in_find = self
+                .find
+                .as_ref()
+                .is_some_and(|bar| bar.focused(window, cx));
+            if in_find {
+                match event.keystroke.key.as_str() {
+                    "escape" => self.close_find(window, cx),
+                    "enter" if event.keystroke.modifiers.shift => {
+                        self.find_step(crate::find::Step::Newer, cx);
+                    }
+                    _ => return,
+                }
+                cx.stop_propagation();
+                return;
+            }
             if event.keystroke.key == "escape" {
                 if self.dialog.is_some() {
                     self.close_dialog(window, cx);
@@ -446,10 +550,13 @@ impl TermView {
 
     /// Extends the selection while the left button is held.
     fn mouse_move(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+        let (x, y) = (f32::from(event.position.x), f32::from(event.position.y));
+        if event.pressed_button.is_none() && self.hover_command(x, y) {
+            cx.notify();
+        }
         if !self.selecting || event.pressed_button != Some(MouseButton::Left) {
             return;
         }
-        let (x, y) = (f32::from(event.position.x), f32::from(event.position.y));
         self.drag_pointer = Some((x, y));
         if self.drag_to(x, y) {
             cx.notify();
@@ -506,7 +613,14 @@ impl TermView {
             f32::from(metrics.cell_width),
             f32::from(metrics.cell_height),
         );
-        let row = self.line_at(pane.0, cell.row);
+        // The frame row shown there (collapsed outputs are left out); below
+        // the last one, the last.
+        let at = usize::try_from(cell.row).unwrap_or(0);
+        let row = self
+            .frame_row(pane.0, at)
+            .or_else(|| self.row_maps.get(&pane.0).and_then(|r| r.last().copied()))
+            .map_or(cell.row, i64::from);
+        let row = self.line_at(pane.0, row);
         Some((pane.0, Cell { row, ..cell }))
     }
 
@@ -529,6 +643,14 @@ impl TermView {
         self.app.scroll(lines as i32);
     }
 }
+
+#[cfg(target_os = "macos")]
+fn system_beep() {
+    objc2_app_kit::NSBeep();
+}
+
+#[cfg(not(target_os = "macos"))]
+fn system_beep() {}
 
 impl Focusable for TermView {
     fn focus_handle(&self, _: &gpui::App) -> FocusHandle {

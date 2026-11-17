@@ -30,9 +30,12 @@ mod app;
 mod app_info;
 #[cfg(test)]
 mod app_tests;
+mod blocks;
+mod config;
 mod connection;
 mod dialogs;
 mod events;
+mod find;
 mod folders;
 mod git_pane;
 mod input;
@@ -47,16 +50,17 @@ mod settings_pages;
 mod sidebar;
 mod ssh;
 mod tab_style;
+mod theme;
 mod ui_state;
 mod view;
 mod worktree;
 
 pub use actions::{
     ActivateTab1, ActivateTab2, ActivateTab3, ActivateTab4, ActivateTab5, ActivateTab6,
-    ActivateTab7, ActivateTab8, ActivateTab9, ClosePane, Copy, CopyScreen, DecreaseFontSize,
-    IncreaseFontSize, KEY_CONTEXT, NewSession, NewTab, NextPane, NextSession, NextTab, Paste,
-    PreviousPane, PreviousTab, ResetFontSize, ScrollPageDown, ScrollPageUp, SplitDown, SplitRight,
-    ToggleSidebar, key_bindings,
+    ActivateTab7, ActivateTab8, ActivateTab9, ClosePane, Copy, CopyScreen, DecreaseFontSize, Find,
+    FindNext, FindPrevious, IncreaseFontSize, KEY_CONTEXT, NewSession, NewTab, NextPane,
+    NextSession, NextTab, Paste, PreviousPane, PreviousTab, ResetFontSize, ScrollPageDown,
+    ScrollPageUp, SplitDown, SplitRight, ToggleSidebar, key_bindings,
 };
 pub use app_info::app_info;
 pub use connection::Backend;

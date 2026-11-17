@@ -10,6 +10,7 @@ mod detect;
 mod forward;
 mod listen;
 mod ops;
+pub mod shell;
 mod state;
 mod system;
 
@@ -72,6 +73,8 @@ pub struct Server {
     pub(crate) listeners: Mutex<Vec<String>>,
     pub(crate) forwards: Mutex<ForwardTable>,
     pub(crate) shutdown: Notify,
+    /// Where the shell integration scripts are (see `shell`), once written.
+    pub(crate) shell_dir: Option<PathBuf>,
 }
 
 pub(crate) fn now_ms() -> u64 {
@@ -366,6 +369,14 @@ pub async fn run_until(
     let (internal, mut internal_rx) = mpsc::unbounded_channel();
     let (events, _) = broadcast::channel(4096);
     let awake = system::Awake::new(config.awake);
+    let shell_dir = config.state_dir.join("shell-integration");
+    let shell_dir = match shell::install(&shell_dir) {
+        Ok(()) => Some(shell_dir),
+        Err(error) => {
+            tracing::warn!(%error, "could not write the shell integration scripts");
+            None
+        }
+    };
     let server = Arc::new(Server {
         state: Mutex::new(State::default()),
         events,
@@ -381,6 +392,7 @@ pub async fn run_until(
         listeners: Mutex::new(Vec::new()),
         forwards: Mutex::new(ForwardTable::default()),
         shutdown: Notify::new(),
+        shell_dir,
         config,
     });
     server.update_awake();

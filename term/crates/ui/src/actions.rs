@@ -46,6 +46,11 @@ pub(crate) const BINDINGS: &[(&str, Shortcut)] = &[
     ("cmd-b", Shortcut::ToggleSidebar),
     ("cmd-pageup", Shortcut::ScrollPageUp),
     ("cmd-pagedown", Shortcut::ScrollPageDown),
+    ("cmd-f", Shortcut::Find),
+    ("cmd-g", Shortcut::FindNext),
+    ("cmd-shift-g", Shortcut::FindPrevious),
+    ("cmd-up", Shortcut::PreviousCommand),
+    ("cmd-down", Shortcut::NextCommand),
 ];
 
 /// Declares the actions, maps each to its [`Shortcut`], and registers a
@@ -107,6 +112,11 @@ shortcut_actions! {
     ScrollPageUp => Shortcut::ScrollPageUp,
     ScrollPageDown => Shortcut::ScrollPageDown,
     ToggleSidebar => Shortcut::ToggleSidebar,
+    Find => Shortcut::Find,
+    FindNext => Shortcut::FindNext,
+    FindPrevious => Shortcut::FindPrevious,
+    PreviousCommand => Shortcut::PreviousCommand,
+    NextCommand => Shortcut::NextCommand,
 }
 
 /// FerrumTerm's key bindings, all in the [`KEY_CONTEXT`] context.
@@ -122,9 +132,29 @@ pub fn key_bindings() -> Vec<KeyBinding> {
 
 impl TermView {
     fn shortcut_action(&mut self, shortcut: Shortcut, window: &mut Window, cx: &mut Context<Self>) {
+        // The find shortcuts also work in the find bar's field.
+        let in_find = self
+            .find
+            .as_ref()
+            .is_some_and(|bar| bar.focused(window, cx));
+        if in_find || self.focus_handle.is_focused(window) {
+            match shortcut {
+                Shortcut::Find => return self.open_find(window, cx),
+                Shortcut::FindNext => return self.find_step(crate::find::Step::Older, cx),
+                Shortcut::FindPrevious => return self.find_step(crate::find::Step::Newer, cx),
+                _ => {}
+            }
+        }
         if !self.focus_handle.is_focused(window) {
             cx.propagate();
             return;
+        }
+        match shortcut {
+            Shortcut::PreviousCommand => {
+                return self.jump_command(crate::blocks::Jump::Previous, cx);
+            }
+            Shortcut::NextCommand => return self.jump_command(crate::blocks::Jump::Next, cx),
+            _ => {}
         }
         self.ime_marked = None;
         self.act(Action::Shortcut(shortcut), cx);
