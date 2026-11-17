@@ -72,6 +72,12 @@ diagram, the same one every time for the same files:
 A project without a diagram gets this one as its `.architecture/system.json`; with a diagram,
 only the components and connections it lacks are added, as one edit (⌘Z takes it back).
 
+## Export
+**Export** (the toolbar's download button, or File › Export ›) saves the whole diagram, laid
+out as on the canvas on a white background with its name on top, as a **PNG** image (twice
+the size, rendered with resvg in the system fonts), an **SVG** drawing or a vector **PDF**
+(one page, the standard Helvetica fonts; written without a PDF library).
+
 ## Preferences
 `~/.ferrum/ferrumsystem/ui.json` (`$FERRUM_HOME` overrides `~/.ferrum`):
 

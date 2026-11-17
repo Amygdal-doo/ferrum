@@ -40,6 +40,13 @@ actions!(
     ]
 );
 
+/// Export the diagram shown as a file of this format.
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = ferrum_system, no_json)]
+pub struct ExportAs {
+    pub format: crate::export::Format,
+}
+
 /// Show demo `index` (of [`demos::all`]).
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
 #[action(namespace = ferrum_system, no_json)]
@@ -150,6 +157,8 @@ pub enum Dialog {
     Layer(Entity<TextInput>, u32),
     /// Name a custom technology before choosing its icon.
     CustomTech(Entity<TextInput>),
+    /// Export the diagram: PNG, SVG or PDF.
+    Export,
 }
 
 /// Live status for the Runtime tab.

@@ -22,6 +22,8 @@ serde.workspace = true
 ferrumagent-ui.workspace = true
 async-trait.workspace = true
 serde_json.workspace = true
+# Export: the diagram's SVG rendered to PNG (with text in the system fonts).
+resvg = { workspace = true, features = ["text", "system-fonts"] }
 
 [dev-dependencies]
 # Headless GPUI test harness (TestAppContext); no window is shown.

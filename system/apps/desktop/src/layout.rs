@@ -142,6 +142,32 @@ pub fn compute(system: &System) -> Layout {
     }
 }
 
+/// The route of every connection whose ends are laid out, with its index:
+/// between the sides it names, else chosen from the layout with a lane
+/// per source so parallel routes separate.
+pub fn routes(system: &System, layout: &Layout) -> Vec<(usize, Vec<(f32, f32)>)> {
+    let mut lanes: HashMap<&str, usize> = HashMap::new();
+    let mut out = Vec::new();
+    for (index, edge) in system.edges.iter().enumerate() {
+        let (Some(a), Some(b)) = (layout.nodes.get(&edge.from), layout.nodes.get(&edge.to)) else {
+            continue;
+        };
+        let lane = lanes.entry(edge.from.as_str()).or_insert(0);
+        let points = match (edge.from_side, edge.to_side) {
+            (None, None) => route(a, b, *lane),
+            (sa, sb) => {
+                let sa = sa.unwrap_or_else(|| a.nearest_side(b.cx(), b.cy()));
+                let (ax, ay) = a.side(sa);
+                let sb = sb.unwrap_or_else(|| b.nearest_side(ax, ay));
+                route_sides(a, sa, b, sb)
+            }
+        };
+        *lane += 1;
+        out.push((index, points));
+    }
+    out
+}
+
 /// Points of the route from `a` to `b`: down (or up) out of `a`, across in
 /// `a`'s band padding, then into `b`; side to side within one band.
 /// `lane` (0, 1, 2…) separates routes leaving the same component.

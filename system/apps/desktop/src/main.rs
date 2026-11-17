@@ -10,6 +10,7 @@ mod app_info;
 mod canvas;
 mod component;
 mod dialogs;
+mod export;
 mod generate;
 mod icons;
 mod layout;

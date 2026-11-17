@@ -8,8 +8,8 @@ use ferrum_ui::settings::widgets::Segmented;
 use ferrumsystem_core::{EdgeStyle, Provider};
 
 use crate::app::{
-    DeleteSelected, Escape, FerrumSystem, GenerateFromProject, KEY_CONTEXT, NewDiagram, OpenDemo,
-    OpenProject, Redo, TogglePanel, ToggleSidebar, Undo, ZoomFit, ZoomIn, ZoomOut,
+    DeleteSelected, Escape, ExportAs, FerrumSystem, GenerateFromProject, KEY_CONTEXT, NewDiagram,
+    OpenDemo, OpenProject, Redo, TogglePanel, ToggleSidebar, Undo, ZoomFit, ZoomIn, ZoomOut,
 };
 
 const PANEL_W: f32 = 430.;
@@ -258,6 +258,15 @@ impl FerrumSystem {
                 )
             })
             .child(
+                IconButton::new("export", IconName::Download)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("Export as PNG, SVG or PDF"))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.dialog = Some(crate::app::Dialog::Export);
+                        cx.notify();
+                    })),
+            )
+            .child(
                 Button::new("connect", "Connect")
                     .size(ButtonSize::Compact)
                     .style(ButtonStyle::Subtle)
@@ -357,6 +366,7 @@ impl Render for FerrumSystem {
             )
             .on_action(cx.listener(|this, a: &OpenDemo, _, cx| this.show_demo(a.index, cx)))
             .on_action(cx.listener(|this, _: &Undo, _, cx| this.undo(false, cx)))
+            .on_action(cx.listener(|this, a: &ExportAs, _, cx| this.export(a.format, cx)))
             .on_action(
                 cx.listener(|this, _: &GenerateFromProject, _, cx| this.generate_from_project(cx)),
             )

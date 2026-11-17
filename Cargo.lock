@@ -3293,6 +3293,7 @@ dependencies = [
  "ferrumsystem-core",
  "futures",
  "gpui",
+ "resvg",
  "serde",
  "serde_json",
  "tempfile",

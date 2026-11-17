@@ -11,8 +11,8 @@ use ferrum_ui::{AppInfo, ToggleProjectSwitcher};
 use ferrumsystem_core::demos;
 
 use crate::app::{
-    GenerateFromProject, NewDiagram, OpenDemo, OpenProject, Redo, TogglePanel, ToggleSidebar, Undo,
-    ZoomFit, ZoomIn, ZoomOut,
+    ExportAs, GenerateFromProject, NewDiagram, OpenDemo, OpenProject, Redo, TogglePanel,
+    ToggleSidebar, Undo, ZoomFit, ZoomIn, ZoomOut,
 };
 
 #[must_use]
@@ -44,6 +44,10 @@ pub fn menus(info: &AppInfo) -> Vec<Menu> {
             MenuItem::action("Switch Project…", ToggleProjectSwitcher),
             MenuItem::separator(),
             MenuItem::submenu(Menu::new("Open Demo").items(demo_items)),
+            MenuItem::separator(),
+            MenuItem::submenu(Menu::new("Export").items(crate::export::Format::ALL.map(
+                |format| MenuItem::action(format!("As {}…", format.label()), ExportAs { format }),
+            ))),
             MenuItem::separator(),
             MenuItem::action("Close Window", CloseWindow),
         ]),

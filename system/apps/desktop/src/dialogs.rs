@@ -102,6 +102,11 @@ impl FerrumSystem {
                     .on_dismiss(close)
                     .into_any_element()
             }
+            Dialog::Export => self
+                .export_dialog(cx)
+                .on_dismiss(close)
+                .dismiss_on_backdrop(true)
+                .into_any_element(),
         })
     }
 

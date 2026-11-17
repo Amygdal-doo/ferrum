@@ -59,26 +59,11 @@ impl FerrumSystem {
         }
 
         // Connections, with a lane per source so parallel routes separate.
-        let mut lanes: std::collections::HashMap<&str, usize> = Default::default();
         let mut edges = Vec::new();
         let mut labels = Vec::new();
         let mut routes = Vec::new();
-        for (index, edge) in self.system.edges.iter().enumerate() {
-            let (Some(a), Some(b)) = (layout.nodes.get(&edge.from), layout.nodes.get(&edge.to))
-            else {
-                continue;
-            };
-            let lane = lanes.entry(edge.from.as_str()).or_insert(0);
-            let route = match (edge.from_side, edge.to_side) {
-                (None, None) => layout::route(a, b, *lane),
-                (sa, sb) => {
-                    let sa = sa.unwrap_or_else(|| a.nearest_side(b.cx(), b.cy()));
-                    let (ax, ay) = a.side(sa);
-                    let sb = sb.unwrap_or_else(|| b.nearest_side(ax, ay));
-                    layout::route_sides(a, sa, b, sb)
-                }
-            };
-            *lane += 1;
+        for (index, route) in layout::routes(&self.system, &layout) {
+            let edge = &self.system.edges[index];
             let on_step = step
                 .as_ref()
                 .is_some_and(|(x, y)| *x == edge.from && *y == edge.to);
