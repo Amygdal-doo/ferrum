@@ -123,6 +123,16 @@ pub fn join(dir: &str, name: &str) -> String {
     normalize(&format!("{dir}/{name}"))
 }
 
+/// Where a link in `dir` pointing at `target` leads (absolute targets stay).
+#[must_use]
+pub fn resolve(dir: &str, target: &str) -> String {
+    if target.starts_with('/') {
+        normalize(target)
+    } else {
+        join(dir, target)
+    }
+}
+
 /// The last part of `path` (`/` for the root).
 #[must_use]
 pub fn base_name(path: &str) -> String {
@@ -518,6 +528,11 @@ mod tests {
         assert_eq!(parent("/etc/ssl"), "/etc");
         assert_eq!(parent("/"), "/");
         assert_eq!(join("/etc", "hosts"), "/etc/hosts");
+        assert_eq!(
+            resolve("/etc", "/usr/share/zoneinfo/UTC"),
+            "/usr/share/zoneinfo/UTC"
+        );
+        assert_eq!(resolve("/usr/lib", "../share/x"), "/usr/share/x");
         assert_eq!(base_name("/etc/hosts"), "hosts");
         assert_eq!(base_name("/"), "/");
         assert_eq!(child_name("etc", "etc/ssl/"), Some("ssl".into()));

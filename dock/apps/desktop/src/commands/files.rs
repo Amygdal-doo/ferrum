@@ -68,15 +68,21 @@ impl FerrumContainers {
             return;
         };
         let path = files::join(&files.path, name);
+        // A link's target, from the folder it is in (absolute targets stay).
+        let target = entry
+            .link
+            .as_ref()
+            .map(|link| files::resolve(&files.path, link));
         match entry.kind {
             EntryKind::Dir => self.load_dir(path, cx),
-            EntryKind::Symlink => self.open_link(path, cx),
+            EntryKind::Symlink => self.open_link(path, target, cx),
             EntryKind::File | EntryKind::Other => self.preview_file(path, cx),
         }
     }
 
-    /// Follows a link: lists it when it is a folder, else views it.
-    fn open_link(&mut self, path: String, cx: &mut Context<Self>) {
+    /// Follows a link: lists it when it is a folder, else views its target
+    /// (the archive of a link holds the link itself, not the file).
+    fn open_link(&mut self, path: String, target_path: Option<String>, cx: &mut Context<Self>) {
         let Some(id) = self.files_container() else {
             return;
         };
@@ -95,7 +101,7 @@ impl FerrumContainers {
                         .files_path
                         .update(cx, |input, cx| input.set_text(path, cx));
                 }
-                Err(_) => app.preview_file(path, cx),
+                Err(_) => app.preview_file(target_path.unwrap_or(path), cx),
             },
         );
     }
