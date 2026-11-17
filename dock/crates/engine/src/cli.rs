@@ -90,20 +90,91 @@ pub async fn run_capture(
     endpoint: &Endpoint,
     args: &[String],
 ) -> EngineResult<String> {
-    run(cli, Some(endpoint), args).await
+    run(cli, Some(endpoint), args, None).await
+}
+
+/// [`run_capture`] with `input` on stdin (`docker compose -f - config`).
+pub async fn run_input(
+    cli: &DockerCli,
+    endpoint: &Endpoint,
+    args: &[String],
+    input: &str,
+) -> EngineResult<String> {
+    run(cli, Some(endpoint), args, Some(input)).await
+}
+
+/// Runs `docker <args>` against `endpoint`, calling `on_line` with every
+/// line of stdout and stderr as it arrives (ANSI stripped; for a `\r`
+/// progress line, its last state). A non-zero exit becomes
+/// [`EngineError::Command`] with the last lines.
+pub async fn run_lines(
+    cli: &DockerCli,
+    endpoint: &Endpoint,
+    args: &[String],
+    mut on_line: impl FnMut(String) + Send,
+) -> EngineResult<()> {
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    let mut child = command(cli, Some(endpoint), args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| EngineError::Command(format!("could not run {}: {e}", cli.path.display())))?;
+    let mut out = child.stdout.take().map(|s| BufReader::new(s).lines());
+    let mut err = child.stderr.take().map(|s| BufReader::new(s).lines());
+    let mut tail: std::collections::VecDeque<String> = std::collections::VecDeque::new();
+    let mut emit = |line: String| {
+        let line = crate::ansi::strip(line.rsplit('\r').find(|l| !l.is_empty()).unwrap_or(""));
+        if tail.len() == 5 {
+            tail.pop_front();
+        }
+        tail.push_back(line.clone());
+        on_line(line);
+    };
+    while out.is_some() || err.is_some() {
+        tokio::select! {
+            line = async { out.as_mut()?.next_line().await.ok().flatten() }, if out.is_some() => {
+                match line {
+                    Some(line) => emit(line),
+                    None => out = None,
+                }
+            }
+            line = async { err.as_mut()?.next_line().await.ok().flatten() }, if err.is_some() => {
+                match line {
+                    Some(line) => emit(line),
+                    None => err = None,
+                }
+            }
+        }
+    }
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| EngineError::Command(e.to_string()))?;
+    if status.success() {
+        Ok(())
+    } else {
+        let last: Vec<String> = tail.into_iter().filter(|l| !l.trim().is_empty()).collect();
+        Err(EngineError::Command(if last.is_empty() {
+            format!("docker exited with {status}")
+        } else {
+            last.join("\n")
+        }))
+    }
 }
 
 /// Runs `docker <args>` on the CLI's own settings (`docker context …`):
 /// without `DOCKER_HOST` and `DOCKER_CONTEXT`, which would override them.
 pub async fn run_settings(cli: &DockerCli, args: &[String]) -> EngineResult<String> {
-    run(cli, None, args).await
+    run(cli, None, args, None).await
 }
 
-async fn run(
+/// `docker <args>` with `DOCKER_HOST` set to `endpoint` (removed, with
+/// `DOCKER_CONTEXT`, for `None`) and no input.
+fn command(
     cli: &DockerCli,
     endpoint: Option<&Endpoint>,
     args: &[String],
-) -> EngineResult<String> {
+) -> tokio::process::Command {
     let mut command = tokio::process::Command::new(&cli.path);
     command
         .args(args)
@@ -116,10 +187,41 @@ async fn run(
             .env_remove("DOCKER_HOST")
             .env_remove("DOCKER_CONTEXT"),
     };
-    let output = command
-        .output()
-        .await
-        .map_err(|e| EngineError::Command(format!("could not run {}: {e}", cli.path.display())))?;
+    command
+}
+
+async fn run(
+    cli: &DockerCli,
+    endpoint: Option<&Endpoint>,
+    args: &[String],
+    input: Option<&str>,
+) -> EngineResult<String> {
+    let mut command = command(cli, endpoint, args);
+    let spawn_error = |e: std::io::Error| {
+        EngineError::Command(format!("could not run {}: {e}", cli.path.display()))
+    };
+    let output = match input {
+        None => command.output().await.map_err(spawn_error)?,
+        Some(input) => {
+            use tokio::io::AsyncWriteExt;
+            let mut child = command
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .map_err(spawn_error)?;
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin
+                    .write_all(input.as_bytes())
+                    .await
+                    .map_err(|e| EngineError::Command(e.to_string()))?;
+            }
+            child
+                .wait_with_output()
+                .await
+                .map_err(|e| EngineError::Command(e.to_string()))?
+        }
+    };
     let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
     text.push_str(&String::from_utf8_lossy(&output.stderr));
     let text = strip_lines(&text);

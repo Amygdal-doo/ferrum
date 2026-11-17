@@ -2918,6 +2918,8 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "tree-sitter-highlight",
+ "tree-sitter-yaml",
 ]
 
 [[package]]

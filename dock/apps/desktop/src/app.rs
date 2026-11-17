@@ -47,6 +47,8 @@ pub struct Inputs {
     pub files_path: Entity<TextInput>,
     /// The file viewer (read-only).
     pub file_view: Entity<TextInput>,
+    /// The compose file editor (YAML highlighted).
+    pub compose_editor: Entity<TextInput>,
 }
 
 /// The registry sign-in form.
@@ -188,6 +190,12 @@ impl FerrumContainers {
                 .read_only(true)
                 .borderless()
         });
+        let compose_editor = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .monospace()
+                .multiline(12)
+                .borderless()
+        });
         let context_name = cx.new(|cx| {
             TextInput::new(window, cx)
                 .placeholder("name, e.g. build-box")
@@ -232,6 +240,11 @@ impl FerrumContainers {
                     app.submit_files_path(cx);
                 }
             }),
+            cx.subscribe(&compose_editor, |app: &mut Self, _, event, cx| {
+                if *event == TextInputEvent::Changed {
+                    app.compose_text_changed(cx);
+                }
+            }),
             cx.subscribe(&context_host, |app: &mut Self, _, event, cx| {
                 if *event == TextInputEvent::Submit {
                     app.add_ssh_context(cx);
@@ -262,6 +275,7 @@ impl FerrumContainers {
                 context_host,
                 files_path,
                 file_view,
+                compose_editor,
             },
             project_bar,
             log_scroll: UniformListScrollHandle::new(),

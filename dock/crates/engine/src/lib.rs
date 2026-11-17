@@ -8,6 +8,7 @@ pub mod archive;
 pub mod cli;
 pub mod compose;
 pub mod compose_ps;
+pub mod compose_run;
 pub mod context;
 mod convert;
 pub mod create;

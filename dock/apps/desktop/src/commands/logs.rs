@@ -180,6 +180,9 @@ impl FerrumContainers {
         if let Some(path) = list_files {
             self.load_dir(path, cx);
         }
+        if tab == DetailTab::Compose {
+            self.open_compose_file(cx);
+        }
         cx.notify();
     }
 

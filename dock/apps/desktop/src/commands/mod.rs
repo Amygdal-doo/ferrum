@@ -1,6 +1,7 @@
 //! UI commands, as methods on the root view. Engine I/O runs on the services
 //! runtime; results are applied on the GPUI foreground thread.
 
+pub mod compose;
 pub mod connection;
 pub mod containers;
 pub mod engines;

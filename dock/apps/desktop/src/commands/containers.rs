@@ -2,7 +2,7 @@
 
 use crate::app::FerrumContainers;
 use crate::state::{Confirm, Dialog, EngineStatus, PendingAction, Section};
-use ferrumdock_engine::compose::{self, ComposeAction, ComposeProject};
+use ferrumdock_engine::compose::{ComposeAction, ComposeProject};
 use ferrumdock_engine::shell::Shell;
 use ferrumdock_engine::{Container, ContainerAction, DockerCli, ops, shell};
 use gpui::Context;
@@ -93,45 +93,6 @@ impl FerrumContainers {
             return;
         }
         self.run_compose(project, action, cx);
-    }
-
-    pub fn run_compose(
-        &mut self,
-        project: ComposeProject,
-        action: ComposeAction,
-        cx: &mut Context<Self>,
-    ) {
-        let EngineStatus::Connected(connection) = &self.status else {
-            return;
-        };
-        let Some(cli) = self.docker_cli.clone() else {
-            self.notify(
-                "The docker CLI was not found; it is needed for compose projects.",
-                true,
-                cx,
-            );
-            return;
-        };
-        let key = format!("compose:{}", project.name);
-        if !self.state.busy.insert(key.clone()) {
-            return;
-        }
-        let endpoint = connection.candidate.endpoint.clone();
-        let name = project.name.clone();
-        self.spawn_run(
-            cx,
-            async move { compose::run_compose(&cli, &endpoint, &project, action).await },
-            move |app, result, cx| {
-                app.state.busy.remove(&key);
-                app.report(
-                    &result,
-                    format!("docker compose {} finished for {name}", action.verb()),
-                    cx,
-                );
-                app.refresh(Section::Containers, cx);
-            },
-        );
-        cx.notify();
     }
 
     /// `docker exec -it <id> <shell>` in FerrumTerm (if installed), else

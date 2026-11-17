@@ -250,3 +250,37 @@ async fn browses_a_container_and_checks_auth() {
     );
     assert!(refused.is_err());
 }
+
+/// `docker compose config` on a temporary compose file, saved and unsaved
+/// (stdin). Compose only reads it; nothing is created.
+#[tokio::test]
+#[ignore = "needs the docker CLI with the compose plugin"]
+async fn validates_compose_files_with_the_cli() {
+    use ferrumdock_engine::compose::ComposeProject;
+    use ferrumdock_engine::compose_run::validate;
+    let cli = ferrumdock_engine::DockerCli::detect().unwrap_or_else(|| panic!("no docker CLI"));
+    let connection = connect(None)
+        .await
+        .unwrap_or_else(|e| panic!("no engine reachable: {e}"));
+    let dir = tempfile::tempdir().unwrap_or_else(|e| panic!("{e}"));
+    let file = dir.path().join("compose.yaml");
+    std::fs::write(&file, "services:\n  web:\n    image: nginx:alpine\n")
+        .unwrap_or_else(|e| panic!("{e}"));
+    let project = ComposeProject {
+        name: "ferrumdock-live-check".into(),
+        working_dir: Some(dir.path().display().to_string()),
+        config_files: vec![file.display().to_string()],
+    };
+    let endpoint = &connection.candidate.endpoint;
+    let saved = validate(&cli, endpoint, &project, Some(&file), None).await;
+    println!("saved: {saved:?}");
+    assert!(saved.is_ok_and(|text| text.contains("nginx:alpine")));
+    let broken = "services:\n  web:\n    image: nginx\n    ports: \"not a list\n";
+    let unsaved = validate(&cli, endpoint, &project, Some(&file), Some(broken)).await;
+    println!("unsaved, broken: {unsaved:?}");
+    assert!(unsaved.is_err());
+    let undefined = "services:\n  web:\n    image: nginx\n    volumes: [data:/d]\n";
+    let unsaved = validate(&cli, endpoint, &project, Some(&file), Some(undefined)).await;
+    println!("unsaved, undefined volume: {unsaved:?}");
+    assert!(unsaved.is_err_and(|e| e.to_string().contains("data")));
+}

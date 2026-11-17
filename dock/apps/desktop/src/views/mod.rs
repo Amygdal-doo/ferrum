@@ -1,6 +1,7 @@
 //! Rendering. Each section is a function of the root view's state.
 
 pub mod chrome;
+pub mod compose_file;
 pub mod compose_rows;
 pub mod containers;
 pub mod detail;

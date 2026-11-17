@@ -18,6 +18,8 @@ pub enum DetailTab {
     Services,
     /// The container's file system.
     Files,
+    /// A project's compose file (editor, validate) and command output.
+    Compose,
 }
 
 /// The Files tab: the folder shown and the file open in the viewer.
@@ -90,6 +92,7 @@ pub struct DetailState {
     pub shells: Option<Vec<Shell>>,
     pub services: Option<Result<Vec<ServiceStatus>, String>>,
     pub files: FilesState,
+    pub compose: super::ComposeEditor,
     /// Container refreshes that may still miss the container before the
     /// panel closes (a just-created one can be absent from an older poll).
     pub grace: u8,
@@ -118,6 +121,7 @@ impl DetailState {
             shells: None,
             services: None,
             files: FilesState::default(),
+            compose: super::ComposeEditor::default(),
             grace: 0,
         }
     }

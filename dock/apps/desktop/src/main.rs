@@ -9,6 +9,7 @@ mod project;
 mod services;
 mod state;
 mod views;
+mod yaml;
 
 use ferrum_ui::AppConfig;
 use gpui::AppContext as _;

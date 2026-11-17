@@ -81,6 +81,9 @@ impl FerrumContainers {
         let mut detail = DetailState::for_project(project, ids);
         detail.tab = tab;
         self.state.detail = Some(detail);
+        if tab == DetailTab::Compose {
+            self.open_compose_file(cx);
+        }
         self.detail_active = true;
         self.inputs
             .log_search

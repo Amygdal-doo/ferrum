@@ -1,9 +1,11 @@
 //! UI state owned by the root view. Plain data plus pure helpers (tested);
 //! the view mutates it and calls `cx.notify()`.
 
+mod compose_tab;
 mod detail;
 mod dialogs;
 
+pub use compose_tab::{ComposeEditor, ComposeRun};
 pub use detail::{DetailState, DetailTab};
 pub use dialogs::{
     Confirm, Dialog, EnginePicker, LayersState, PendingAction, PullState, RegistryPreset,
@@ -86,6 +88,8 @@ pub struct AppState {
     pub layers: Option<LayersState>,
     pub engines: EnginePicker,
     pub registries: RegistryState,
+    /// The last `docker compose` run of each project (Compose tab output).
+    pub compose_runs: HashMap<String, ComposeRun>,
     /// Engine picked in the toolbar; tried first when (re)connecting.
     pub preferred: Option<Candidate>,
 }
