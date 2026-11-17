@@ -30,8 +30,9 @@ monorepo, alongside [FerrumAPI](../api), [FerrumGIT](../git), [FerrumData](../da
 | Area | State |
 |------|-------|
 | Member of the Ferrum workspace (edition 2024, toolchain 1.99.1, workspace lints) | ✅ |
-| Engine detection: `DOCKER_HOST` (`unix://`, `tcp://`, bare socket path), then the **current Docker context**, then `~/.docker/run/docker.sock`, `~/.orbstack/run/docker.sock`, `~/.colima/default/docker.sock`, `/var/run/docker.sock`, then the other Docker contexts. The first one that answers `/version` wins, so a stale socket is skipped | ✅ unit-tested (ordering, dedupe, stale socket fallback, context ordering). Live check connected to Docker Desktop through its `desktop-linux` context |
-| Docker contexts: read from `$DOCKER_CONFIG` or `~/.docker` (`$DOCKER_CONTEXT`, else `currentContext` in `config.json`, and `contexts/meta/*/meta.json`). `ssh://` and other unsupported hosts are listed as "not supported" and skipped. **Engine… picker** in the toolbar lists every engine present; the picked one is tried first on every reconnect (for the session). The connected context's name is shown in the toolbar | ⚠️ parsing and loading unit-tested (temp folder). Live check read the real contexts. Picker UI compiled only |
+| Engine detection: `DOCKER_HOST` (`unix://`, `tcp://`, `ssh://`, bare socket path), then the **current Docker context**, then `~/.docker/run/docker.sock`, `~/.orbstack/run/docker.sock`, `~/.colima/default/docker.sock`, `/var/run/docker.sock`, then the other Docker contexts. The first one that answers `/version` wins, so a stale socket is skipped | ✅ unit-tested (ordering, dedupe, stale socket fallback, context ordering). Live check connected to Docker Desktop through its `desktop-linux` context |
+| Docker contexts: read from `$DOCKER_CONFIG` or `~/.docker` (`$DOCKER_CONTEXT`, else `currentContext` in `config.json`, and `contexts/meta/*/meta.json`). **Engine… picker** in the toolbar lists every engine present plus the remote (`ssh://`) contexts; the picked one is tried first on every reconnect (for the session). It also lists the CLI's contexts with the current one marked: **Use** runs `docker context use <name>` and connects to it, **Remove** runs `docker context rm` (confirm). npipe and TLS contexts are listed as "not supported". The toolbar shows the connected context and, for a remote engine, its address | ⚠️ parsing, loading, ordering and the `docker context` arguments unit-tested. Live check read the real contexts. `docker context use/create/rm` never run. Picker UI compiled only |
+| **Remote engines over SSH**: "Add a remote engine over SSH" in the picker runs `docker context create <name> --docker host=ssh://[user@]host[:port]` and connects. An `ssh://` engine (context or `DOCKER_HOST`) is reached through `ssh -L <temp socket>:/var/run/docker.sock` with `BatchMode=yes` (keys or the SSH agent, no prompt), so every Engine API call works as on a local socket; compose and shell actions pass the `ssh://` address to the `docker` CLI, which connects on its own. A non-current remote context is only tried when picked, so reconnects never wait on SSH | ⚠️ address parsing (refuses `-o…` hosts), the tunnel command, waiting for the socket, ssh's error message and cleanup unit-tested with a stand-in `ssh`. Never run against a real remote engine |
 | Engine version and platform in the toolbar, endpoint and API version in the status bar | ⚠️ data live-checked. UI compiled only |
 | No-engine screen ("Start Docker Desktop, OrbStack or Colima, then Retry") with the error, a Retry button, and a quiet auto-retry every ~6 s. Losing the engine mid-session returns to this screen | ⚠️ compiled only |
 | Containers list: name, image, status, ports, CPU % and memory (polled every 2 s from `/stats`, CPU computed like `docker stats`, page cache excluded from memory), grouped by `com.docker.compose.project`, collapsible groups, filter (name, image, project, service, id, state) | ✅ grouping, filtering, port and size formatting, and the CPU/memory maths are unit-tested. Live check listed real compose projects with stats. UI compiled only |
@@ -78,9 +79,9 @@ Docker.app and OrbStack.app bundles. If it finds none, compose and shell actions
 is missing.
 
 ## Not built yet
-TLS (`DOCKER_CERT_PATH`) and `ssh://` engines, so `ssh://` and TLS Docker contexts are listed
-but cannot be used. Switching the CLI's current context (`docker context use`): the picker
-only changes what FerrumContainers connects to, and is not remembered across launches. Run
+TLS (`DOCKER_CERT_PATH`) engines, so TLS Docker contexts are listed but cannot be used.
+`ssh://` engines whose Docker socket is not `/var/run/docker.sock` (rootless Docker), and SSH
+logins that need a password prompt. The picked engine is not remembered across launches. Run
 options beyond the dialog (networks, labels, user, entrypoint, resource limits, `--rm`,
 interactive `-it` attach), editing or renaming containers, `docker cp`, file browser, port
 forwarding UI. Compose: profiles, `.env` selection, per-service actions, `pull`/`build`, and
@@ -131,7 +132,7 @@ crates/engine/       ferrumdock-engine, no UI: Engine trait (engine.rs) + bollar
                      pull references/progress (pull.rs), compose grouping + `docker compose` (compose.rs),
                      `compose ps` (compose_ps.rs), project folders + compose files (project.rs),
                      run form + create body (create.rs), docker CLI lookup (cli.rs), open-shell plans and
-                     shell choice (shell.rs), UI policies incl. run and tag (ops.rs), raw `/system/df` GET and `/auth` POST (rawhttp.rs),
+                     shell choice (shell.rs), UI policies incl. run, tag and sign-in (ops.rs), SSH tunnels (tunnel.rs), raw `/system/df` GET and `/auth` POST (rawhttp.rs),
                      registry keys + config.json (registry.rs), credential helpers / keychain (credentials.rs)
 ```
 

@@ -27,6 +27,7 @@ mod rawhttp;
 pub mod registry;
 pub mod shell;
 pub mod stats;
+pub mod tunnel;
 pub mod vm;
 
 pub use cli::DockerCli;
@@ -38,7 +39,7 @@ pub use model::*;
 
 /// Detects the present candidates (Docker contexts included) and connects to
 /// the first engine that answers, trying `preferred` (picked in the UI) first.
-pub async fn connect(preferred: Option<Endpoint>) -> EngineResult<Connection> {
+pub async fn connect(preferred: Option<Candidate>) -> EngineResult<Connection> {
     let candidates = endpoint::prefer(endpoint::detect(), preferred.as_ref());
     connect_first(&candidates, |candidate| async move {
         let engine = DockerEngine::connect(&candidate.endpoint).await?;

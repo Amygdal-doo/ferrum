@@ -90,12 +90,33 @@ pub async fn run_capture(
     endpoint: &Endpoint,
     args: &[String],
 ) -> EngineResult<String> {
-    let output = tokio::process::Command::new(&cli.path)
+    run(cli, Some(endpoint), args).await
+}
+
+/// Runs `docker <args>` on the CLI's own settings (`docker context …`):
+/// without `DOCKER_HOST` and `DOCKER_CONTEXT`, which would override them.
+pub async fn run_settings(cli: &DockerCli, args: &[String]) -> EngineResult<String> {
+    run(cli, None, args).await
+}
+
+async fn run(
+    cli: &DockerCli,
+    endpoint: Option<&Endpoint>,
+    args: &[String],
+) -> EngineResult<String> {
+    let mut command = tokio::process::Command::new(&cli.path);
+    command
         .args(args)
-        .env("DOCKER_HOST", endpoint.docker_host())
         .env("PATH", cli.child_path())
         .stdin(std::process::Stdio::null())
-        .kill_on_drop(true)
+        .kill_on_drop(true);
+    match endpoint {
+        Some(endpoint) => command.env("DOCKER_HOST", endpoint.docker_host()),
+        None => command
+            .env_remove("DOCKER_HOST")
+            .env_remove("DOCKER_CONTEXT"),
+    };
+    let output = command
         .output()
         .await
         .map_err(|e| EngineError::Command(format!("could not run {}: {e}", cli.path.display())))?;

@@ -17,6 +17,8 @@ pub enum PendingAction {
     PruneVolumes,
     RemoveNetwork(Network),
     PruneNetworks,
+    /// `docker context rm`.
+    RemoveContext(String),
     ComposeDown(ComposeProject),
 }
 
@@ -125,10 +127,16 @@ pub struct LayersState {
 /// Engines the picker offers.
 #[derive(Default)]
 pub struct EnginePicker {
+    /// Engines present on this machine, then remote (`ssh://`) contexts.
     pub candidates: Vec<Candidate>,
-    /// Docker contexts FerrumContainers cannot use (ssh…), listed for clarity.
+    /// Every Docker context (`docker context ls`), the CLI's current one marked.
+    pub contexts: Vec<DockerContext>,
+    /// Docker contexts FerrumContainers cannot use (npipe, TLS…), listed for clarity.
     pub unsupported: Vec<DockerContext>,
     pub loading: bool,
+    /// A `docker context` command is running.
+    pub busy: bool,
+    pub error: Option<String>,
 }
 
 #[derive(Default)]

@@ -57,6 +57,10 @@ async fn send(
             Endpoint::Tcp(addr) => {
                 exchange(tokio::net::TcpStream::connect(addr).await?, &request).await?
             }
+            // DockerEngine talks to the tunnel's local socket instead.
+            Endpoint::Ssh(_) => {
+                return Err(std::io::Error::other("ssh:// needs a tunnel"));
+            }
         };
         Ok::<_, std::io::Error>(response)
     };

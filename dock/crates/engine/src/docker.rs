@@ -11,6 +11,7 @@ use crate::model::{
 };
 use crate::rawhttp;
 use crate::registry::{AuthOutcome, RegistryAuth};
+use crate::tunnel::{self, SshTarget, Tunnel};
 use async_trait::async_trait;
 use bollard::Docker;
 use bollard::auth::DockerCredentials;
@@ -18,6 +19,7 @@ use bollard::container::LogOutput;
 use bollard::query_parameters as q;
 use futures::{StreamExt, TryStreamExt};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Seconds before a request without a response fails (streams are not cut).
 const TIMEOUT_SECS: u64 = 30;
@@ -28,17 +30,47 @@ const AUTH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(45);
 #[derive(Clone)]
 pub struct DockerEngine {
     docker: Docker,
+    /// Where requests go: the engine's socket or address, or the local end
+    /// of the SSH tunnel for an `ssh://` engine.
     endpoint: Endpoint,
+    /// Kept open as long as the engine (and its clones) live.
+    _tunnel: Option<Arc<Tunnel>>,
 }
 
 impl DockerEngine {
     /// Connects to `endpoint` and negotiates the API version with the engine.
+    /// An `ssh://` endpoint first gets an SSH tunnel to the remote socket.
     pub async fn connect(endpoint: &Endpoint) -> EngineResult<Self> {
+        let (local, tunnel) = match endpoint {
+            Endpoint::Ssh(target) => {
+                let parsed = SshTarget::parse(target).ok_or_else(|| EngineError::Unreachable {
+                    endpoint: endpoint.to_string(),
+                    message: "invalid ssh:// address".into(),
+                })?;
+                let ssh = tunnel::find_ssh().ok_or_else(|| EngineError::Unreachable {
+                    endpoint: endpoint.to_string(),
+                    message: "ssh was not found".into(),
+                })?;
+                let tunnel = Tunnel::open(&ssh, &parsed).await?;
+                (
+                    Endpoint::Unix(tunnel.socket.clone()),
+                    Some(Arc::new(tunnel)),
+                )
+            }
+            other => (other.clone(), None),
+        };
         let unreachable = |e: bollard::errors::Error| EngineError::Unreachable {
             endpoint: endpoint.to_string(),
-            message: e.to_string(),
+            message: if tunnel.is_some() {
+                format!(
+                    "{e} (through SSH to {}: is the engine running there, and may this user use it?)",
+                    tunnel::REMOTE_SOCKET
+                )
+            } else {
+                e.to_string()
+            },
         };
-        let docker = match endpoint {
+        let docker = match &local {
             Endpoint::Unix(path) => Docker::connect_with_unix(
                 &path.to_string_lossy(),
                 TIMEOUT_SECS,
@@ -47,12 +79,20 @@ impl DockerEngine {
             Endpoint::Tcp(addr) => {
                 Docker::connect_with_http(addr, TIMEOUT_SECS, bollard::API_DEFAULT_VERSION)
             }
+            // Replaced by the tunnel's socket above.
+            Endpoint::Ssh(_) => {
+                return Err(EngineError::Unreachable {
+                    endpoint: endpoint.to_string(),
+                    message: "no SSH tunnel".into(),
+                });
+            }
         }
         .map_err(unreachable)?;
         let docker = docker.negotiate_version().await.map_err(unreachable)?;
         Ok(Self {
             docker,
-            endpoint: endpoint.clone(),
+            endpoint: local,
+            _tunnel: tunnel,
         })
     }
 }

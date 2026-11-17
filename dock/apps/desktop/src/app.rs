@@ -40,6 +40,9 @@ pub struct Inputs {
     /// New reference in the tag dialog.
     pub tag: Entity<TextInput>,
     pub registry: RegistryInputs,
+    /// New `ssh://` Docker context in the engine picker.
+    pub context_name: Entity<TextInput>,
+    pub context_host: Entity<TextInput>,
 }
 
 /// The registry sign-in form.
@@ -168,6 +171,16 @@ impl FerrumContainers {
         });
         let run = RunInputs::new(window, cx);
         let registry = RegistryInputs::new(window, cx);
+        let context_name = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("name, e.g. build-box")
+                .monospace()
+        });
+        let context_host = cx.new(|cx| {
+            TextInput::new(window, cx)
+                .placeholder("ssh://me@build-box")
+                .monospace()
+        });
         let project_bar = cx.new(|cx| ProjectBar::new(APP_BINARY, window, cx).inline(true));
         let subscriptions = vec![
             cx.subscribe(&filter, |app: &mut Self, input, event, cx| {
@@ -197,6 +210,11 @@ impl FerrumContainers {
                     app.sign_in(cx);
                 }
             }),
+            cx.subscribe(&context_host, |app: &mut Self, _, event, cx| {
+                if *event == TextInputEvent::Submit {
+                    app.add_ssh_context(cx);
+                }
+            }),
             cx.subscribe(&run.image, |app: &mut Self, _, event, cx| {
                 if *event == TextInputEvent::Submit {
                     app.submit_run(cx);
@@ -218,6 +236,8 @@ impl FerrumContainers {
                 run,
                 tag,
                 registry,
+                context_name,
+                context_host,
             },
             project_bar,
             log_scroll: UniformListScrollHandle::new(),

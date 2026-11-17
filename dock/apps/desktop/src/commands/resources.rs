@@ -55,6 +55,7 @@ impl FerrumContainers {
             PendingAction::PruneImages => self.prune(Section::Images, "dangling image", cx),
             PendingAction::PruneVolumes => self.prune(Section::Volumes, "volume", cx),
             PendingAction::PruneNetworks => self.prune(Section::Networks, "network", cx),
+            PendingAction::RemoveContext(name) => self.remove_context(name, cx),
         }
         cx.notify();
     }

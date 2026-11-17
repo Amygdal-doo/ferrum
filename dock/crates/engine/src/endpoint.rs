@@ -9,14 +9,21 @@ pub enum Endpoint {
     Unix(PathBuf),
     /// `host:port`, plain HTTP (TLS endpoints are not supported yet).
     Tcp(String),
+    /// `[user@]host[:port]` of an `ssh://` engine, reached through an SSH
+    /// tunnel to its Docker socket (see [`crate::tunnel`]).
+    Ssh(String),
 }
 
 impl Endpoint {
-    /// Parses a `DOCKER_HOST` value: `unix:///path`, `tcp://host:port`, `http://…`
-    /// or a bare absolute socket path. `ssh://` and `npipe://` are not supported.
+    /// Parses a `DOCKER_HOST` value: `unix:///path`, `tcp://host:port`, `http://…`,
+    /// `ssh://[user@]host[:port]` or a bare absolute socket path. `npipe://` is not supported.
     #[must_use]
     pub fn parse(value: &str) -> Option<Self> {
         let value = value.trim();
+        if let Some(target) = value.strip_prefix("ssh://") {
+            let target = target.trim_end_matches('/');
+            return crate::tunnel::SshTarget::parse(target).map(|_| Self::Ssh(target.to_owned()));
+        }
         if let Some(path) = value.strip_prefix("unix://") {
             return (!path.is_empty()).then(|| Self::Unix(PathBuf::from(path)));
         }
@@ -38,7 +45,14 @@ impl Endpoint {
         match self {
             Self::Unix(path) => format!("unix://{}", path.display()),
             Self::Tcp(addr) => format!("tcp://{addr}"),
+            Self::Ssh(target) => format!("ssh://{target}"),
         }
+    }
+
+    /// An engine on another machine (the UI says so).
+    #[must_use]
+    pub fn is_remote(&self) -> bool {
+        matches!(self, Self::Ssh(_) | Self::Tcp(_))
     }
 }
 
@@ -47,6 +61,7 @@ impl fmt::Display for Endpoint {
         match self {
             Self::Unix(path) => write!(f, "{}", path.display()),
             Self::Tcp(addr) => write!(f, "tcp://{addr}"),
+            Self::Ssh(target) => write!(f, "ssh://{target}"),
         }
     }
 }
@@ -114,33 +129,64 @@ pub fn candidates(docker_host: Option<&str>, home: Option<&Path>) -> Vec<Candida
     dedupe(list)
 }
 
+fn context_candidate(c: &DockerContext) -> Option<Candidate> {
+    c.endpoint.clone().map(|endpoint| Candidate {
+        endpoint,
+        source: "Docker context",
+        context: Some(c.name.clone()),
+    })
+}
+
 /// Adds Docker contexts: the current one right after `DOCKER_HOST` (as the
 /// CLI would use it), the others last. Contexts FerrumContainers cannot reach
-/// (ssh…) are left out; a context on an already listed socket replaces nothing.
+/// (npipe, TLS…) are left out, and so are remote (`ssh://`) ones that are not
+/// current: they are only tried when picked (see [`remote_contexts`]), so a
+/// reconnect never waits on an SSH timeout. A context on an already listed
+/// socket replaces nothing.
 #[must_use]
 pub fn with_contexts(list: Vec<Candidate>, contexts: &[DockerContext]) -> Vec<Candidate> {
-    let candidate = |c: &DockerContext| {
-        c.endpoint.clone().map(|endpoint| Candidate {
-            endpoint,
-            source: "Docker context",
-            context: Some(c.name.clone()),
-        })
-    };
     let split = usize::from(list.first().is_some_and(|c| c.source == "DOCKER_HOST"));
     let mut ordered: Vec<Candidate> = list[..split].to_vec();
-    ordered.extend(contexts.iter().filter(|c| c.current).filter_map(candidate));
+    ordered.extend(
+        contexts
+            .iter()
+            .filter(|c| c.current)
+            .filter_map(context_candidate),
+    );
     ordered.extend(list[split..].iter().cloned());
-    ordered.extend(contexts.iter().filter(|c| !c.current).filter_map(candidate));
+    ordered.extend(
+        contexts
+            .iter()
+            .filter(|c| !c.current)
+            .filter_map(context_candidate)
+            .filter(|c| !matches!(c.endpoint, Endpoint::Ssh(_))),
+    );
     dedupe(ordered)
 }
 
-/// Moves the candidate at `endpoint` to the front (the engine picked in the toolbar).
+/// The `ssh://` contexts that are not current, for the engine picker.
 #[must_use]
-pub fn prefer(mut list: Vec<Candidate>, endpoint: Option<&Endpoint>) -> Vec<Candidate> {
-    if let Some(index) = endpoint.and_then(|e| list.iter().position(|c| &c.endpoint == e)) {
-        let chosen = list.remove(index);
-        list.insert(0, chosen);
-    }
+pub fn remote_contexts(contexts: &[DockerContext]) -> Vec<Candidate> {
+    contexts
+        .iter()
+        .filter(|c| !c.current)
+        .filter_map(context_candidate)
+        .filter(|c| matches!(c.endpoint, Endpoint::Ssh(_)))
+        .collect()
+}
+
+/// Puts the engine picked in the toolbar first, adding it when detection
+/// did not list it (a remote context).
+#[must_use]
+pub fn prefer(mut list: Vec<Candidate>, picked: Option<&Candidate>) -> Vec<Candidate> {
+    let Some(picked) = picked else {
+        return list;
+    };
+    let chosen = list
+        .iter()
+        .position(|c| c.endpoint == picked.endpoint)
+        .map_or_else(|| picked.clone(), |index| list.remove(index));
+    list.insert(0, chosen);
     list
 }
 
@@ -151,7 +197,7 @@ pub fn present(candidates: Vec<Candidate>, exists: impl Fn(&Path) -> bool) -> Ve
         .into_iter()
         .filter(|c| match &c.endpoint {
             Endpoint::Unix(path) => exists(path),
-            Endpoint::Tcp(_) => true,
+            Endpoint::Tcp(_) | Endpoint::Ssh(_) => true,
         })
         .collect()
 }
@@ -186,14 +232,20 @@ mod tests {
             Endpoint::parse("/tmp/podman.sock"),
             Some(Endpoint::Unix("/tmp/podman.sock".into()))
         );
-        assert_eq!(Endpoint::parse("ssh://me@box"), None);
+        assert_eq!(
+            Endpoint::parse("ssh://me@box:2222/"),
+            Some(Endpoint::Ssh("me@box:2222".into()))
+        );
+        assert_eq!(Endpoint::parse("ssh://"), None);
+        assert_eq!(Endpoint::parse("ssh://me@box/path"), None);
+        assert_eq!(Endpoint::parse("npipe:////./pipe/docker_engine"), None);
         assert_eq!(Endpoint::parse("unix://"), None);
         assert_eq!(Endpoint::parse(""), None);
     }
 
     #[test]
     fn round_trips_docker_host() {
-        for value in ["unix:///a/b.sock", "tcp://10.0.0.2:2375"] {
+        for value in ["unix:///a/b.sock", "tcp://10.0.0.2:2375", "ssh://me@box"] {
             assert_eq!(
                 Endpoint::parse(value).map(|e| e.docker_host()).as_deref(),
                 Some(value)
@@ -262,19 +314,22 @@ mod tests {
                 "Docker",
                 "context lab"
             ],
-            "orb's socket is already OrbStack; ssh is skipped"
+            "orb's socket is already OrbStack; a remote context is only tried when picked"
         );
+        let remote = remote_contexts(&contexts);
+        assert_eq!(remote.len(), 1);
+        assert_eq!(remote[0].endpoint, Endpoint::Ssh("me@box".into()));
+        assert!(remote[0].endpoint.is_remote());
         let without_host = with_contexts(candidates(None, None), &contexts[..1]);
         assert_eq!(without_host[0].context.as_deref(), Some("colima-dev"));
 
-        let picked = Endpoint::Unix("/var/run/docker.sock".into());
+        let picked = Candidate::new(Endpoint::Unix("/var/run/docker.sock".into()), "Docker");
         let preferred = prefer(list.clone(), Some(&picked));
         assert_eq!(preferred[0].source, "Docker");
         assert_eq!(preferred.len(), list.len());
         assert_eq!(prefer(list.clone(), None), list);
-        assert_eq!(
-            prefer(list.clone(), Some(&Endpoint::Tcp("x:1".into()))),
-            list
-        );
+        let added = prefer(list.clone(), Some(&remote[0]));
+        assert_eq!(added[0].label(), "context remote");
+        assert_eq!(added.len(), list.len() + 1);
     }
 }

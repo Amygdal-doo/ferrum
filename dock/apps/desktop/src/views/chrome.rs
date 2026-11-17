@@ -74,7 +74,7 @@ pub fn card_header(
     let connected = matches!(app.status, EngineStatus::Connected(_));
     let sidebar = app.sidebar_shown();
     let context = match &app.status {
-        EngineStatus::Connected(c) => c.candidate.context.clone(),
+        EngineStatus::Connected(c) => crate::state::engine_label(&c.candidate),
         _ => None,
     };
     ferrum_ui::title_row("card-header", !sidebar, window)
