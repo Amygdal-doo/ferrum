@@ -13,7 +13,10 @@ fn window(
     cx: &mut TestAppContext,
     store: Option<std::path::PathBuf>,
 ) -> (Entity<FerrumKit>, &mut VisualTestContext) {
-    cx.update(ferrum_ui::init_for_tests);
+    cx.update(|cx| {
+        ferrum_ui::init_for_tests(cx);
+        crate::app::bind_keys(cx);
+    });
     let (app, cx) = cx.add_window_view(|window, cx| FerrumKit::with_store(store, window, cx));
     cx.run_until_parked();
     (app, cx)
@@ -121,6 +124,53 @@ fn wrap_applies_to_every_tool_and_is_remembered(cx: &mut TestAppContext) {
     draw(cx);
     assert!(wraps(&app, Tool::Jwt, cx));
     assert!(KitStore::load(&path).expect("load").wrap);
+}
+
+/// Dispatches a text-field action by name to the focused element (the
+/// headless harness binds no text-field keys).
+fn press(name: &str, cx: &mut VisualTestContext) {
+    cx.update(|window, cx| {
+        let action = cx.build_action(name, None).expect("action");
+        window.dispatch_action(action, cx);
+    });
+}
+
+#[gpui::test]
+fn palette_jumps_to_a_tool(cx: &mut TestAppContext) {
+    let (app, cx) = window(cx, None);
+    cx.simulate_keystrokes("cmd-k");
+    draw(cx);
+    let palette = app.read_with(cx, |app, _| app.palette().cloned().expect("open"));
+    let input = palette.read_with(cx, |palette, _| palette.input().clone());
+    cx.update(|window, cx| {
+        input.update(cx, |input, cx| input.insert("base64", window, cx));
+    });
+    draw(cx);
+    press("text_input::Enter", cx);
+    draw(cx);
+    app.read_with(cx, |app, _| {
+        assert_eq!(app.selected(), Tool::Base64);
+        assert!(app.palette().is_none());
+    });
+
+    // ⌘P too; ↓ then Enter takes the second match; Esc closes.
+    cx.simulate_keystrokes("cmd-p");
+    draw(cx);
+    let palette = app.read_with(cx, |app, _| app.palette().cloned().expect("open"));
+    let input = palette.read_with(cx, |palette, _| palette.input().clone());
+    cx.update(|window, cx| {
+        input.update(cx, |input, cx| input.insert("json", window, cx));
+    });
+    draw(cx);
+    press("text_input::Down", cx);
+    press("text_input::Enter", cx);
+    draw(cx);
+    app.read_with(cx, |app, _| assert_eq!(app.selected(), Tool::JsonSchema));
+    cx.simulate_keystrokes("cmd-k");
+    draw(cx);
+    cx.dispatch_action(ferrum_ui::menu::Cancel);
+    draw(cx);
+    app.read_with(cx, |app, _| assert!(app.palette().is_none()));
 }
 
 #[gpui::test]

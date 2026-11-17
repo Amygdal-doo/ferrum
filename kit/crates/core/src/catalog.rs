@@ -163,9 +163,119 @@ pub fn filter_tools(query: &str) -> Vec<Tool> {
         .collect()
 }
 
+/// A tool found by [`fuzzy_tools`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ToolMatch {
+    pub tool: Tool,
+    /// Char indices of [`Tool::name`] that matched (for highlighting).
+    pub name_chars: Vec<usize>,
+    score: i32,
+}
+
+/// Char indices where `query` occurs in order in `text` (both lowercase),
+/// with a score that favours word starts and runs; `None` when it does not.
+fn subsequence(query: &[char], text: &str) -> Option<(i32, Vec<usize>)> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut indices = Vec::with_capacity(query.len());
+    let mut score = 0;
+    let mut from = 0;
+    for q in query {
+        let at = (from..chars.len()).find(|i| chars[*i] == *q)?;
+        let word_start = at == 0 || !chars[at - 1].is_alphanumeric();
+        let follows = indices.last().is_some_and(|last| at == last + 1);
+        score += 10 + if word_start { 8 } else { 0 } + if follows { 5 } else { 0 };
+        score -= (at - from).min(10) as i32;
+        indices.push(at);
+        from = at + 1;
+    }
+    Some((score, indices))
+}
+
+/// Tools for a command palette, best first: an exact name, id or keyword
+/// beats a prefix, which beats a substring, which beats letters in order
+/// (`b64` finds Base64). Ties keep sidebar order; an empty query lists all.
+pub fn fuzzy_tools(query: &str) -> Vec<ToolMatch> {
+    let query = query.trim().to_lowercase();
+    let mut found: Vec<ToolMatch> = Tool::ALL
+        .into_iter()
+        .filter_map(|tool| {
+            let name = tool.name().to_lowercase();
+            if query.is_empty() {
+                return Some(ToolMatch {
+                    tool,
+                    name_chars: Vec::new(),
+                    score: 0,
+                });
+            }
+            let words: Vec<&str> = std::iter::once(tool.id())
+                .chain(tool.keywords().split_whitespace())
+                .chain(name.split(|c: char| !c.is_alphanumeric()))
+                .filter(|w| !w.is_empty())
+                .collect();
+            let named = subsequence(&query.chars().collect::<Vec<_>>(), &name);
+            let text_score = if name == query || words.contains(&query.as_str()) {
+                1000
+            } else if name.starts_with(&query) {
+                800
+            } else if words.iter().any(|w| w.starts_with(&query)) {
+                700
+            } else if name.contains(&query) || words.iter().any(|w| w.contains(&query)) {
+                600
+            } else {
+                0
+            };
+            let fuzzy = named.as_ref().map_or(0, |(score, _)| *score);
+            let keyword_fuzzy = || {
+                let q: Vec<char> = query.chars().collect();
+                words
+                    .iter()
+                    .filter_map(|w| subsequence(&q, w).map(|(s, _)| s))
+                    .max()
+            };
+            let score = match (text_score, fuzzy) {
+                (0, 0) => keyword_fuzzy()? / 2,
+                (text, fuzzy) => text + fuzzy,
+            };
+            Some(ToolMatch {
+                tool,
+                name_chars: named.map(|(_, indices)| indices).unwrap_or_default(),
+                score,
+            })
+        })
+        .collect();
+    // Stable: equal scores stay in sidebar order.
+    found.sort_by_key(|m| std::cmp::Reverse(m.score));
+    found
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn first(query: &str) -> Option<Tool> {
+        fuzzy_tools(query).first().map(|m| m.tool)
+    }
+
+    #[test]
+    fn fuzzy_finds_tools_by_name_id_keyword_and_letters() {
+        assert_eq!(first("base64"), Some(Tool::Base64));
+        assert_eq!(first("Base64"), Some(Tool::Base64));
+        assert_eq!(first("b64"), Some(Tool::Base64));
+        assert_eq!(first("jwt"), Some(Tool::Jwt));
+        assert_eq!(first("cron"), Some(Tool::Cron));
+        assert_eq!(first("qr"), Some(Tool::Qr));
+        assert_eq!(first("sql"), Some(Tool::Sql));
+        assert_eq!(first("schema"), Some(Tool::JsonSchema));
+        assert_eq!(first("oklch"), Some(Tool::Color));
+        assert_eq!(first("sha256"), Some(Tool::Hash));
+        assert_eq!(first("rgx"), Some(Tool::Regex));
+        assert_eq!(first("tstmp"), Some(Tool::Timestamp));
+        assert!(fuzzy_tools("zzzz").is_empty());
+        assert_eq!(fuzzy_tools("").len(), Tool::ALL.len());
+        let m = &fuzzy_tools("b64")[0];
+        // "Base64": b, 6, 4.
+        assert_eq!(m.name_chars, [0, 4, 5]);
+    }
 
     #[test]
     fn empty_query_lists_everything_in_order() {

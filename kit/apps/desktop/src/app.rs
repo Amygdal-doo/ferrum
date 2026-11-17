@@ -1,13 +1,15 @@
 //! Root view: searchable tool list in a sidebar on the window backdrop, the
 //! selected tool in a pane card on the right, and the tool's history and
-//! saved inputs in a panel at the card's right edge.
+//! saved inputs in a panel at the card's right edge. ⌘K / ⌘P open the
+//! command palette over everything.
 
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::palette::{Palette, PaletteEvent};
 use crate::tools::{self, ToolView};
 use crate::widgets::KitEvent;
-use ferrum_ui::gpui::KeyBinding;
+use ferrum_ui::gpui::{KeyBinding, MouseButton, hsla};
 use ferrum_ui::prelude::*;
 use ferrumkit_core::store::KitStore;
 use ferrumkit_core::{Tool, filter_tools};
@@ -15,7 +17,13 @@ use std::collections::HashMap;
 
 actions!(
     ferrum_kit,
-    [FocusSearch, ToggleSidebar, ToggleHistory, ToggleWrap]
+    [
+        FocusSearch,
+        TogglePalette,
+        ToggleSidebar,
+        ToggleHistory,
+        ToggleWrap
+    ]
 );
 
 const SIDEBAR_WIDTH: f32 = 232.;
@@ -24,8 +32,11 @@ const RECORD_AFTER: Duration = Duration::from_millis(1500);
 
 pub fn bind_keys(cx: &mut App) {
     cx.bind_keys([
-        KeyBinding::new("cmd-k", FocusSearch, None),
-        KeyBinding::new("ctrl-k", FocusSearch, None),
+        KeyBinding::new("cmd-k", TogglePalette, None),
+        KeyBinding::new("ctrl-k", TogglePalette, None),
+        KeyBinding::new("cmd-p", TogglePalette, None),
+        KeyBinding::new("ctrl-p", TogglePalette, None),
+        KeyBinding::new("cmd-f", FocusSearch, None),
         KeyBinding::new("cmd-b", ToggleSidebar, None),
         KeyBinding::new("cmd-y", ToggleHistory, None),
         KeyBinding::new("alt-z", ToggleWrap, None),
@@ -55,6 +66,8 @@ pub struct FerrumKit {
     /// The tool whose newest history entry belongs to the current editing
     /// session (it is updated instead of adding one per pause).
     session: Option<Tool>,
+    /// The command palette while it is open.
+    palette: Option<(Entity<Palette>, Subscription)>,
     /// Keeps the root in the dispatch path so ⌘K works with nothing focused.
     focus_handle: FocusHandle,
     /// Inside the tool card; the card is lighter while it holds focus.
@@ -114,6 +127,7 @@ impl FerrumKit {
             save_name,
             pending_record: None,
             session: None,
+            palette: None,
             focus_handle: cx.focus_handle(),
             card_focus: cx.focus_handle(),
             sidebar_open: true,
@@ -279,11 +293,56 @@ impl FerrumKit {
     }
 
     fn focus_search(&mut self, _: &FocusSearch, window: &mut Window, cx: &mut Context<Self>) {
+        self.sidebar_open = true;
         self.search.update(cx, |search, cx| {
             let len = search.text().len();
             search.select_range(0..len, cx);
             search.focus(window, cx);
         });
+        cx.notify();
+    }
+
+    pub fn toggle_palette(
+        &mut self,
+        _: &TogglePalette,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.palette.is_some() {
+            self.close_palette(window, cx);
+            return;
+        }
+        let palette = cx.new(|cx| Palette::new(window, cx));
+        let subscription =
+            cx.subscribe_in(&palette, window, |this: &mut Self, _, event, window, cx| {
+                this.close_palette(window, cx);
+                if let PaletteEvent::Open(tool) = event {
+                    this.select(*tool, cx);
+                    this.focus_tool(*tool, window, cx);
+                }
+            });
+        self.palette = Some((palette, subscription));
+        cx.notify();
+    }
+
+    fn close_palette(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.palette.take().is_some() {
+            window.focus(&self.focus_handle, cx);
+            cx.notify();
+        }
+    }
+
+    #[cfg(test)]
+    pub fn palette(&self) -> Option<&Entity<Palette>> {
+        self.palette.as_ref().map(|(palette, _)| palette)
+    }
+
+    /// Puts the caret in `tool`'s first input field.
+    fn focus_tool(&mut self, tool: Tool, window: &mut Window, cx: &mut Context<Self>) {
+        let view = self.ensure_view(tool, window, cx);
+        if let Some(input) = view.inputs().first() {
+            input.update(cx, |input, cx| input.focus(window, cx));
+        }
     }
 
     fn toggle_sidebar(&mut self, _: &ToggleSidebar, _: &mut Window, cx: &mut Context<Self>) {
@@ -312,11 +371,9 @@ impl FerrumKit {
             )
             .child(ferrum_ui::settings_button("open-settings"))
             .child(
-                ferrum_ui::command_button("search-tools", "Search tools (⌘K)").on_click(
+                ferrum_ui::command_button("go-to-tool", "Go to a tool (⌘K / ⌘P)").on_click(
                     cx.listener(|this, _, window, cx| {
-                        this.sidebar_open = true;
-                        this.focus_search(&FocusSearch, window, cx);
-                        cx.notify();
+                        this.toggle_palette(&TogglePalette, window, cx)
                     }),
                 ),
             )
@@ -466,6 +523,7 @@ impl Render for FerrumKit {
             .on_action(cx.listener(Self::toggle_sidebar))
             .on_action(cx.listener(Self::toggle_history))
             .on_action(cx.listener(Self::toggle_wrap))
+            .on_action(cx.listener(Self::toggle_palette))
             .when(sidebar_open, |root| {
                 root.child(self.render_sidebar(window, cx))
             })
@@ -480,6 +538,26 @@ impl Render for FerrumKit {
                     .pl(ferrum_ui::PANE_GAP)
                     .child(card),
             )
+            .when_some(self.palette.as_ref(), |root, (palette, _)| {
+                // Over a dimmed window, near the top; a click outside closes it.
+                root.child(
+                    div()
+                        .id("palette-backdrop")
+                        .absolute()
+                        .inset_0()
+                        .flex()
+                        .flex_col()
+                        .items_center()
+                        .pt(px(72.))
+                        .bg(hsla(0., 0., 0., 0.3))
+                        .occlude()
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(|this, _, window, cx| this.close_palette(window, cx)),
+                        )
+                        .child(palette.clone()),
+                )
+            })
             .when_some(self.notice.as_ref(), |this, notice| {
                 this.child(render_notice(
                     notice,

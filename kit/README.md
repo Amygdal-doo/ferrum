@@ -15,7 +15,8 @@ its input history and saved inputs (see "Local data"). Part of the Ferrum monore
 | Tool | State |
 |------|-------|
 | Member of the Ferrum monorepo workspace, pinned toolchain, workspace lints | ✅ |
-| Shell: tool sidebar with search (name + keywords, all terms must match), ⌘K / Ctrl+K focuses search, Enter opens the first match; each tool keeps its last input in memory for the session; copy buttons with a "Copied" toast | ⚠️ filter unit-tested; UI wired (not hand-tested) |
+| Shell: tool sidebar with search (name + keywords, all terms must match), ⌘F focuses it, Enter opens the first match; each tool keeps its last input in memory for the session; copy buttons with a "Copied" toast | ⚠️ filter unit-tested; UI wired (not hand-tested) |
+| **Command palette** (⌘K / ⌘P / Ctrl+K / Ctrl+P, or the ⌘ button): every tool with its description, fuzzy-ranked (exact name, id or keyword, then prefix, substring, letters in order: `b64` → Base64), matched letters highlighted; ↑/↓, Enter opens the tool with the caret in its input, Esc or a click outside closes | ✅ ranking unit-tested; palette headless-tested |
 | **History and saved inputs** (clock button in the tool header, ⌘Y): the last 20 inputs per tool, recorded after a 1.5 s pause in typing (one entry per editing session), click to restore; save the current input under a name; delete entries or clear. A per-tool **Keep history** toggle; off by default for the JWT decoder, and turning it off deletes that tool's history. Stores the text of the input fields, not modes or toggles | ✅ store unit-tested; panel headless-tested |
 | **Wrap** (tool header, ⌥Z): soft-wraps long lines in every multi-line input and result field, at spaces when a row has one; ↑/↓ move by painted row. Remembered between launches | ✅ wrapping headless-tested in `ferrum-ui` |
 | **JSON / YAML / TOML**: format (2/4 spaces, tab), minify, validate with error line + column; JSON ⇄ YAML ⇄ TOML (key order kept; TOML errors for non-table roots and `null`); "use output as input" | ✅ tested |
@@ -61,11 +62,12 @@ cargo fmt --all
 
 ## Layout
 ```
-apps/desktop/            GPUI app: app.rs (root view: search, sidebar, tool host, ⌘K,
+apps/desktop/            GPUI app: app.rs (root view: search, sidebar, tool host,
                          recording history), history.rs (history / saved inputs panel),
+                         palette.rs (⌘K / ⌘P command palette),
                          widgets.rs (fields, copy button, choice buttons, value rows),
                          tools/ (one view per tool; the KitTool trait names its input fields)
-crates/core/             pure, unit-tested tool logic, no GPUI: catalog (tool list + search),
+crates/core/             pure, unit-tested tool logic, no GPUI: catalog (tool list, search, fuzzy rank),
                          data_format (JSON/YAML/TOML), base64, jwt, url_tool, timestamp, ids,
                          hash, regex_tool, diff, number_base, color, case, lines, cron, sql, json_schema, qr,
                          store (history and saved inputs)

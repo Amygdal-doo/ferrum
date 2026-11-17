@@ -28,4 +28,4 @@ pub mod store;
 pub mod timestamp;
 pub mod url_tool;
 
-pub use catalog::{Tool, filter_tools};
+pub use catalog::{Tool, ToolMatch, filter_tools, fuzzy_tools};
