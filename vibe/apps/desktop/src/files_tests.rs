@@ -150,7 +150,7 @@ fn enter_opens_the_selected_file_in_the_editor(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn images_open_in_the_editor_like_any_file(cx: &mut TestAppContext) {
-    // FerrumIDE shows them in its image viewer; nothing here filters them.
+    // The Editor column shows them in its image viewer; nothing here filters them.
     let fx = Fixture::new();
     let root = project(&fx);
     let png = root.join("icon.png");
@@ -166,13 +166,12 @@ fn images_open_in_the_editor_like_any_file(cx: &mut TestAppContext) {
         });
     });
     draw(cx);
-    assert_eq!(
-        *fx.opened.borrow(),
-        [
-            (Some(root.clone()), png.clone(), None),
-            (Some(root.clone()), png, None)
-        ]
-    );
+    let editor = read(&app, cx, |a| a.editor.clone().expect("editor"));
+    editor.read_with(cx, |e, _| {
+        assert_eq!(e.paths(), std::slice::from_ref(&png));
+        assert_eq!(e.active_path(), Some(png.as_path()));
+    });
+    assert!(fx.opened.borrow().is_empty());
 }
 
 #[gpui::test]
