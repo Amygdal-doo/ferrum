@@ -21,7 +21,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::acp::{self, AcpAgentConfig, AcpBridge, AcpClient};
 use crate::agent::{NativeAgent, TurnSink};
-use crate::changeset::{ChangeSet, CheckpointInfo};
+use crate::changeset::{ChangeSet, CheckpointId, CheckpointInfo};
 use crate::context::{self, Mention};
 use crate::host::{AppHost, Workspace};
 use crate::mcp::{McpClient, McpConfig};
@@ -708,15 +708,23 @@ impl ChatSession {
     /// `message_id` was sent. The conversation is kept; the restore can be
     /// undone until the next turn.
     pub fn restore_checkpoint(&self, message_id: u64) -> Result<Vec<PathBuf>, String> {
-        if self.is_busy() {
-            return Err("Stop the running turn first.".into());
-        }
         let checkpoint = lock(&self.inner.thread)
             .messages
             .iter()
             .find(|m| m.id == message_id)
             .and_then(|m| m.checkpoint)
             .ok_or("that message has no checkpoint")?;
+        self.restore_to_checkpoint(checkpoint)
+    }
+
+    /// Puts the files back as they were before the turn that started
+    /// `checkpoint` (one of [`ChatSession::checkpoints`], of any thread of
+    /// this session); later checkpoints are dropped. Undoable like
+    /// [`ChatSession::restore_checkpoint`].
+    pub fn restore_to_checkpoint(&self, checkpoint: CheckpointId) -> Result<Vec<PathBuf>, String> {
+        if self.is_busy() {
+            return Err("Stop the running turn first.".into());
+        }
         let files = self.review(|c| c.restore(checkpoint).map_err(|e| e.to_string()))?;
         self.inner.notice(format!(
             "Restored {} file{} to before that message.",

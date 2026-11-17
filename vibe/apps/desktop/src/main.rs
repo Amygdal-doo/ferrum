@@ -6,6 +6,7 @@
 mod app;
 mod app_info;
 mod automations;
+mod checkpoints;
 mod chrome;
 mod columns;
 mod editor;

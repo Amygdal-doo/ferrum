@@ -3,8 +3,9 @@
 //! the thread commands of the header's ⋯ menu (rename, delete, copy).
 
 use ferrum_ui::{Notice, TextInput, TextInputEvent};
+use ferrumagent_core::changeset::{CheckpointId, CheckpointInfo};
 use ferrumagent_core::modes::Mode;
-use ferrumagent_core::session::McpServerStatus;
+use ferrumagent_core::session::{ChatSession, McpServerStatus};
 use gpui::{AppContext as _, ClipboardItem, Context, Window};
 
 use crate::live::Target;
@@ -114,6 +115,22 @@ impl ChatView {
 
     pub fn is_review_open(&self) -> bool {
         self.show_changes
+    }
+
+    /// The session's turn checkpoints, oldest first (each turn of any of
+    /// the project's threads starts one; `files` are those it wrote).
+    pub fn checkpoints(&self) -> Vec<CheckpointInfo> {
+        self.session
+            .as_ref()
+            .map(ChatSession::checkpoints)
+            .unwrap_or_default()
+    }
+
+    /// Puts the files back as they were before checkpoint `id`'s turn, off
+    /// the UI thread; the review then offers "Undo restore" until the next
+    /// turn. A running turn must be stopped first (a notice says so).
+    pub fn restore_to_checkpoint(&mut self, id: CheckpointId, cx: &mut Context<Self>) {
+        self.run_blocking(cx, move |s| s.restore_to_checkpoint(id).map(|_| ()));
     }
 
     /// The MCP servers' state after the first turn connected them.

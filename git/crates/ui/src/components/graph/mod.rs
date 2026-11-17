@@ -1,6 +1,7 @@
 //! History: commits grouped by month, with graph rails, virtualized with a GPUI `list`.
 
 mod lanes;
+mod markers;
 mod row;
 
 pub use row::ref_badge;
@@ -185,6 +186,9 @@ pub fn commit_list(app: &mut GitView, _: &mut Window, cx: &mut Context<GitView>)
     let weak = cx.entity().downgrade();
     let item_theme = theme.clone();
     let hide_invisibles = app.state.settings.hide_invisibles;
+    let markers = (!searching)
+        .then(|| markers::markers_section(app, cx))
+        .flatten();
 
     v_flex()
         .size_full()
@@ -240,6 +244,7 @@ pub fn commit_list(app: &mut GitView, _: &mut Window, cx: &mut Context<GitView>)
                         })),
                 ),
         )
+        .children(markers)
         .child(
             list(app.history.clone(), move |ix, _, cx| {
                 render_item(&history, ix, weak.clone(), item_theme.clone(), cx)

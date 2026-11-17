@@ -20,6 +20,8 @@ use crate::automations::{Automation, Schedule};
 use crate::layout::{self, Column, Layout};
 use crate::nav::Page;
 
+#[path = "checkpoints_tests.rs"]
+mod checkpoints;
 #[path = "editor_tests.rs"]
 mod editor_column;
 #[path = "files_tests.rs"]
@@ -98,6 +100,14 @@ impl Fixture {
         cx: &'a mut TestAppContext,
         project: Option<PathBuf>,
     ) -> (Entity<FerrumEngineer>, &'a mut VisualTestContext) {
+        self.open_with(cx, self.options(project))
+    }
+
+    fn open_with<'a>(
+        &self,
+        cx: &'a mut TestAppContext,
+        options: Options,
+    ) -> (Entity<FerrumEngineer>, &'a mut VisualTestContext) {
         cx.executor().allow_parking();
         let git_data = self.path("git-data");
         cx.update(|cx| {
@@ -108,7 +118,6 @@ impl Fixture {
             ferrumterm_ui::init(cx);
             crate::app::bind_keys(cx);
         });
-        let options = self.options(project);
         let (app, cx) = cx.add_window_view(|window, cx| FerrumEngineer::new(options, window, cx));
         cx.simulate_resize(size(px(1500.), px(900.)));
         draw(cx);

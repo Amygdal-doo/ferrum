@@ -160,6 +160,9 @@ pub struct FerrumEngineer {
     pub(crate) pending_changes: usize,
     /// Times the git pane was asked to reload (the chat changed files).
     pub(crate) git_refreshes: usize,
+    /// "Restore to here…" on a checkpoint in the git history, waiting for
+    /// confirmation.
+    pub(crate) restore_prompt: Option<crate::checkpoints::RestorePrompt>,
     pub(crate) notice: Option<Notice>,
     notice_task: Option<Task<()>>,
     save_task: Option<Task<()>>,
@@ -223,6 +226,7 @@ impl FerrumEngineer {
             git_summary: None,
             pending_changes: 0,
             git_refreshes: 0,
+            restore_prompt: None,
             notice: None,
             notice_task: None,
             save_task: None,
@@ -299,6 +303,7 @@ impl FerrumEngineer {
         }
         self.reload_recent();
         self.ensure_views(window, cx);
+        self.sync_checkpoints(cx);
         self.pages.project_changed(&path, cx);
         self.refresh_index(cx);
         cx.notify();

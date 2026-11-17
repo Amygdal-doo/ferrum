@@ -78,6 +78,9 @@ pub struct GitView {
     pub(crate) width: Rc<Cell<Option<Pixels>>>,
     /// The stand-alone app's file editor (see `components::editor::pane`).
     pub(crate) editor: Option<crate::components::editor::pane::OpenEditor>,
+    /// A host's markers above the history, under their section title (see
+    /// [`GitView::set_history_markers`]).
+    pub(crate) markers: Option<(gpui::SharedString, Vec<crate::embed::HistoryMarker>)>,
     focus_handle: FocusHandle,
     _poll: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -251,6 +254,7 @@ impl GitView {
             active_pane: 0,
             width: Rc::default(),
             editor: None,
+            markers: None,
             focus_handle: cx.focus_handle(),
             _poll: Self::start_polling(cx),
             _subscriptions: subscriptions,

@@ -299,6 +299,7 @@ impl Render for FerrumEngineer {
                     ))
             })
             .child(main)
+            .children(self.render_restore_prompt(cx))
             .children(notice)
     }
 }

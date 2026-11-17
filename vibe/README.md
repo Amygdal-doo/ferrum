@@ -42,6 +42,7 @@ cargo vibe ~/code/my-app      # ferrumvibe <folder> once installed (shell comman
 | `ferrumvibe <folder>` opens on that folder; without one, the last project FerrumEngineer opened | ✅ argument parsing tested |
 | Chat **Run in terminal** shows the terminal column if it was closed, runs the command in a new tab there and focuses it | ✅ tested (column reopened, command queued); the command's output is not checked |
 | Chat **changes** (`ChangesUpdated`) reload the git column at once instead of at its next 3 s poll, and the chat header shows "N changed". Reopening the git column reloads it too | ⚠️ the reload is dispatched as FerrumGIT's own `Reload` action; tested that it is sent, not that the list changed |
+| **Agent checkpoints in the git history**: every chat turn that wrote files (FerrumChat's change set: the files as they were before the turn) shows above the commits in the git column's History, newest first, as "Before: <prompt>" with its file count and time, under "Agent checkpoints · not committed". **Restore to here…** lists the files that go back and asks; Restore puts them as they were before that turn (later checkpoints are dropped, the conversation is kept, the chat's review offers Undo restore until the next turn). Refused while a turn runs | ✅ headless-tested with a scripted agent edit (marker shown, Cancel, Restore) |
 | **Per-hunk review of the whole session**: the chat header's "N changed", View › Review Agent Changes or ⌥⌘R (anywhere in the window) open FerrumChat's review below the conversation: every file changed since the chat's session started (its snapshot: a git tree, or the folder's text files), with Accept / Reject per hunk, per file and for all. Accepting moves that hunk's baseline; rejecting writes the file back. Changes made outside the agent (a shell command, you) since the session started are listed too | ✅ headless-tested on a git project (two hunks: one kept, one undone) |
 | **Editor column** (⌥⌘4, View › Toggle Editor, the `</>` toggle): files opened from the chat, git diffs, the Files pane or the Knowledge page open there in tabs instead of launching FerrumIDE. Text is edited with FerrumGIT's editor (`ferrumgit_ui::CodeEditor`: FerrumIDE's buffer, undo, tree-sitter highlighting and keys, ⌘S, find; no language servers); images (png, jpg, gif, webp, bmp, svg, tiff) are drawn; binary or non-UTF-8 files are described. Closing a tab with unsaved changes asks Save / Discard / Cancel. Files without edits reload when the agent changes them | ✅ headless-tested (text, image, binary, save on close, reload) |
 | Editor header: **Open in FerrumIDE** (`ferrumeditor <project> <file>:<line>` at the cursor's line, through `ferrum_ui::project::open_file_in_editor`), Save, and ⋯ → Move Left / Move Right / Close Editor. View › Move Pane Left / Right (⌥⇧⌘← / →) move the active pane; the chat stays first. Resized like the others; shown, order and width saved per project with the layout (layouts saved before it get it hidden) | ✅ moves, close, per-project round trip and the IDE stub tested; image pixels and the drag are not checked |
@@ -60,6 +61,9 @@ FerrumTerm's own sessions.
   not restored after a restart, and quitting the window does not ask about
   unsaved tabs.
 - Deleting a thread from the list does not ask first.
+- Checkpoints live as long as the chat's session (they are not saved): after
+  a restart the git column shows none. Writes made by shell commands are not
+  in checkpoints (they still show in the review).
 - The terminal session keeps the name of the project it started in after a
   project switch.
 - No Windows build: FerrumTerm's server uses Unix sockets
@@ -79,6 +83,7 @@ vibe/apps/desktop/src/
   app.rs         FerrumEngineer: state, project switch, column show/hide/move/resize, layout saving
   panes.rs       the embedded views, created on first show, and their events
   editor/        the Editor column: tabs over ferrumgit_ui::CodeEditor, images, other files
+  checkpoints.rs the chat's checkpoints as markers in the git history, Restore to here
   columns.rs     column headers (drag, ⋯ menu, close), bodies, splitters
   chrome.rs      top bar with the toggles, Render
   menus.rs       the menu bar (File › Open Folder…, View toggles)

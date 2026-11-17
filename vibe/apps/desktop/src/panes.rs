@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 use ferrum_ui::prelude::*;
 use ferrum_ui::project;
 use ferrumagent_ui::{ChatEvent, ChatView, GitRequest, GitStatus};
-use ferrumgit_ui::{GitView, GitViewEvent, GitViewOptions, RemoteCommand, RepoSummary};
+use ferrumgit_ui::{
+    GitView, GitViewEvent, GitViewOptions, RemoteCommand, RepoSummary, RestoreMarker,
+};
 use ferrumterm_ui::{TermView, TermViewOptions};
 
 use crate::app::{ChatAction, ChatSlot, FerrumEngineer};
@@ -167,6 +169,7 @@ impl FerrumEngineer {
             ChatEvent::ChangesUpdated { files } if current => {
                 self.pending_changes = *files;
                 self.refresh_git(window, cx);
+                self.sync_checkpoints(cx);
                 // A hidden Files pane catches up when it is shown again.
                 if let Some(tree) = self.files.as_ref().filter(|_| self.layout.files.visible) {
                     tree.update(cx, |tree, cx| tree.refresh_in_background(cx));
@@ -235,8 +238,12 @@ impl FerrumEngineer {
             let summary = git.read(cx).summary();
             this.git_summary_changed(summary, cx);
         });
-        self.git_subscriptions = vec![events, status];
+        let restores = cx.subscribe(&git, |this, _, event: &RestoreMarker, cx| {
+            this.ask_restore(event.id, cx);
+        });
+        self.git_subscriptions = vec![events, status, restores];
         self.git = Some(git);
+        self.sync_checkpoints(cx);
     }
 
     /// Mirrors the head into the chat's footer; a failure while the Git
