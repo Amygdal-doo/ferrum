@@ -122,9 +122,11 @@ pub(crate) fn spawn_env() -> Spawn {
         .iter()
         .filter_map(|k| std::env::var(k).ok().map(|v| ((*k).to_owned(), v)))
         .collect();
+    let settings = crate::settings::get();
     Spawn {
-        command: crate::settings::get().startup_argv(),
+        command: settings.startup_argv(),
         env,
+        scrollback: Some(settings.scrollback),
         ..Spawn::default()
     }
 }

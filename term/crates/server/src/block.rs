@@ -148,7 +148,14 @@ impl Block {
             cwd,
             pid,
             keep_open: spec.keep_open,
-            term: Mutex::new(Terminal::new(cols, rows)),
+            term: Mutex::new(Terminal::with_scrollback(
+                cols,
+                rows,
+                spec.scrollback
+                    .map_or(ferrumterm_emulator::SCROLLBACK, |n| {
+                        usize::try_from(n).unwrap_or(usize::MAX)
+                    }),
+            )),
             status: Mutex::new(None),
             exited: Mutex::new(None),
             writer: Mutex::new(writer),

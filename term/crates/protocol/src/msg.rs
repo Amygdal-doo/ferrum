@@ -133,6 +133,10 @@ pub struct Spawn {
     /// Keep the block (showing its final screen) after the process exits.
     pub keep_open: bool,
     pub env: Vec<(String, String)>,
+    /// Scrollback lines (`None`: the server's default). Older servers
+    /// ignore it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scrollback: Option<u32>,
 }
 
 /// Keyboard / paste input for a block.

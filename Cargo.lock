@@ -3399,6 +3399,7 @@ dependencies = [
  "ferrumagent-ui",
  "ferrumgit-ui",
  "ferrumterm-client",
+ "ferrumterm-emulator",
  "ferrumterm-net",
  "ferrumterm-protocol",
  "ferrumterm-server",
@@ -3409,6 +3410,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "toml 0.9.8",
  "tracing",
  "unicode-width 0.2.2",
 ]

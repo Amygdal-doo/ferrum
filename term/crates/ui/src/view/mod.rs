@@ -31,6 +31,10 @@ pub(crate) use render::{TabKind, tab_label};
 
 pub(crate) const PADDING: f32 = 6.0;
 pub(crate) const MESSAGE_TTL: Duration = Duration::from_secs(6);
+/// How long a pane flashes for a bell (Settings › Terminal › Bell).
+pub(crate) const BELL_FLASH: Duration = Duration::from_millis(150);
+/// How often `config.toml` is checked for edits.
+const CONFIG_CHECK: Duration = Duration::from_secs(1);
 
 pub struct TermView {
     pub(crate) app: App,
@@ -87,6 +91,10 @@ pub struct TermView {
     /// Top-left of the painted panes in window px (from the last paint),
     /// for overlays positioned over a pane.
     pub(crate) canvas_origin: (f32, f32),
+    /// The pane flashing for a bell, and since when.
+    pub(crate) bell_flash: Option<(BlockId, Instant)>,
+    _bell_timer: Option<Task<()>>,
+    _config_watch: Task<()>,
     _blink: Task<()>,
     _message_timer: Option<Task<()>>,
     _events: Task<()>,
@@ -123,6 +131,18 @@ impl TermView {
                     }
                 });
                 if alive.is_err() {
+                    break;
+                }
+            }
+        });
+        // Edits to config.toml (by hand or by another app) apply live.
+        let config_watch = cx.spawn(async move |this, cx| {
+            loop {
+                cx.background_executor().timer(CONFIG_CHECK).await;
+                if crate::settings::reload_if_changed() {
+                    cx.update(|cx| cx.refresh_windows());
+                }
+                if this.upgrade().is_none() {
                     break;
                 }
             }
@@ -169,6 +189,9 @@ impl TermView {
             agent,
             find: None,
             canvas_origin: (0., 0.),
+            bell_flash: None,
+            _bell_timer: None,
+            _config_watch: config_watch,
             _blink: blink,
             _message_timer: None,
             _events: events,
@@ -290,8 +313,33 @@ impl TermView {
                 }
             }
             Event::Bell { block } if self.app.shows_block(*block) => {
+                self.ring(*block, cx);
                 cx.emit(TermViewEvent::Bell { block: *block });
             }
+            _ => {}
+        }
+    }
+
+    /// A bell in `block`: the pane flashes (when on screen) or the system
+    /// alert sounds, per Settings › Terminal › Bell.
+    fn ring(&mut self, block: BlockId, cx: &mut Context<Self>) {
+        let on_screen = self
+            .app
+            .window()
+            .is_some_and(|w| w.blocks.iter().any(|b| b.id == block));
+        match crate::settings::get().bell {
+            crate::settings::Bell::Visual if on_screen => {
+                self.bell_flash = Some((block, Instant::now()));
+                self._bell_timer = Some(cx.spawn(async move |this, cx| {
+                    cx.background_executor().timer(BELL_FLASH).await;
+                    let _ = this.update(cx, |view, cx| {
+                        view.bell_flash = None;
+                        cx.notify();
+                    });
+                }));
+                cx.notify();
+            }
+            crate::settings::Bell::System => system_beep(),
             _ => {}
         }
     }
@@ -559,6 +607,14 @@ impl TermView {
         self.app.scroll(lines as i32);
     }
 }
+
+#[cfg(target_os = "macos")]
+fn system_beep() {
+    objc2_app_kit::NSBeep();
+}
+
+#[cfg(not(target_os = "macos"))]
+fn system_beep() {}
 
 impl Focusable for TermView {
     fn focus_handle(&self, _: &gpui::App) -> FocusHandle {

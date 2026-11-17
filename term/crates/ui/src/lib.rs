@@ -30,6 +30,7 @@ mod app;
 mod app_info;
 #[cfg(test)]
 mod app_tests;
+mod config;
 mod connection;
 mod dialogs;
 mod events;
@@ -48,6 +49,7 @@ mod settings_pages;
 mod sidebar;
 mod ssh;
 mod tab_style;
+mod theme;
 mod ui_state;
 mod view;
 mod worktree;

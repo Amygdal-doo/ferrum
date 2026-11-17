@@ -1,7 +1,8 @@
-//! FerrumTerm's Terminal page in the shared Settings window (font, cursor,
-//! Option key, selection, shell, tabs), also shown by FerrumIDE and
-//! FerrumEngineer. Keyboard and Machines are in `settings_keyboard` and
-//! `settings_machines`.
+//! FerrumTerm's Terminal page in the shared Settings window (theme, font,
+//! cursor, Option key, selection, scrollback, bell, shell, tabs), also
+//! shown by FerrumIDE and FerrumEngineer. Keyboard and Machines are in
+//! `settings_keyboard` and `settings_machines`. What it sets is also in
+//! `~/.ferrum/term/config.toml` (see `config`).
 
 use std::cell::RefCell;
 
@@ -18,7 +19,18 @@ use ferrum_ui::settings::widgets::{Row, Section, Segmented, Switch, select};
 use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{TextInput, TextInputEvent};
 
-use crate::settings::{self, Blink, CursorStyle};
+use crate::settings::{self, Bell, Blink, CursorStyle};
+use crate::theme::{self, Palette, THEMES};
+
+/// Scrollback choices, in lines.
+const SCROLLBACK: [u32; 5] = [1_000, 5_000, 10_000, 50_000, 100_000];
+const SCROLLBACK_LABELS: [&str; 5] = [
+    "1,000 lines",
+    "5,000 lines",
+    "10,000 lines",
+    "50,000 lines",
+    "100,000 lines",
+];
 
 fn tint(rgb: u32) -> Hsla {
     gpui::rgb(rgb).into()
@@ -45,6 +57,13 @@ impl SettingsPage for TerminalPage {
     }
     fn keywords(&self) -> &'static [&'static str] {
         &[
+            "theme",
+            "colors",
+            "colours",
+            "config",
+            "toml",
+            "scrollback",
+            "bell",
             "font",
             "cursor",
             "blink",
@@ -67,6 +86,8 @@ impl SettingsPage for TerminalPage {
 
 pub struct TerminalSettingsView {
     hooks_message: Option<String>,
+    /// Why `config.toml` could not be opened.
+    config_message: Option<String>,
     font_family: Entity<TextInput>,
     startup: Entity<TextInput>,
     _subscriptions: Vec<Subscription>,
@@ -101,6 +122,7 @@ impl TerminalSettingsView {
         });
         Self {
             hooks_message: None,
+            config_message: None,
             font_family,
             startup,
             _subscriptions: vec![font_changed, startup_saved],
@@ -157,6 +179,54 @@ fn switch_row(
         row = row.detail(detail);
     }
     row
+}
+
+/// The theme's background with its foreground and sixteen colours.
+fn theme_preview(cx: &App) -> impl IntoElement {
+    let palette = Palette::current(cx);
+    let colors = cx.theme().colors();
+    let swatch = |color: Hsla| div().size(px(14.)).rounded_sm().bg(color);
+    h_flex()
+        .w_full()
+        .my_2()
+        .px_3()
+        .py_2()
+        .gap_1()
+        .rounded_md()
+        .border_1()
+        .border_color(colors.border_variant)
+        .bg(palette.background)
+        .text_color(palette.foreground)
+        .font_buffer(cx)
+        .child(div().pr_2().child("~/ferrum $ ls"))
+        .children(palette.ansi.into_iter().map(swatch))
+}
+
+/// `path` with the home folder as `~`.
+fn tilde(path: &str) -> String {
+    match std::env::var("HOME") {
+        Ok(home) if !home.is_empty() && path.starts_with(&home) => {
+            format!("~{}", &path[home.len()..])
+        }
+        _ => path.to_owned(),
+    }
+}
+
+/// Opens `config.toml` in the default text editor, writing it first when
+/// it doesn't exist yet.
+fn open_config() -> Option<String> {
+    let path = crate::config::path()?;
+    if !path.exists() {
+        settings::write_config(&settings::get());
+    }
+    let opened = std::process::Command::new("open")
+        .arg("-t")
+        .arg(&path)
+        .status();
+    match opened {
+        Ok(status) if status.success() => None,
+        _ => Some(format!("Could not open {}", path.display())),
+    }
 }
 
 /// A line of terminal text with the cursor drawn in the chosen style.
@@ -222,9 +292,40 @@ impl Render for TerminalSettingsView {
             );
 
         let tab_index = usize::from(s.tab_position == settings::TabPosition::Sidebar);
+        let theme_index = THEMES
+            .iter()
+            .position(|t| t.id == theme::by_id(&s.theme).id)
+            .unwrap_or(0);
+        let scrollback_index = SCROLLBACK
+            .iter()
+            .position(|n| *n >= s.scrollback)
+            .unwrap_or(SCROLLBACK.len() - 1);
+        let bell_index = Bell::ALL.iter().position(|b| *b == s.bell).unwrap_or(0);
+        let config_path = crate::config::path()
+            .map(|p| tilde(&p.display().to_string()))
+            .unwrap_or_default();
         v_flex()
             .w_full()
             .gap_6()
+            .child(
+                Section::new("Theme")
+                    .row(theme_preview(cx))
+                    .row(
+                        Row::new("theme", "Colour theme")
+                            .detail("Ferrum follows the app's light or dark theme.")
+                            .control(select(
+                                "theme-select",
+                                &THEMES.map(|t| t.name),
+                                theme_index,
+                                |i, _, cx| {
+                                    settings::update(|s| s.theme = THEMES[i].id.to_owned());
+                                    cx.refresh_windows();
+                                },
+                                window,
+                                cx,
+                            )),
+                    ),
+            )
             .child(
                 Section::new("Tabs and Sidebar")
                     .row(
@@ -327,6 +428,39 @@ impl Render for TerminalSettingsView {
                 )),
             )
             .child(
+                Section::new("Scrollback and Bell")
+                    .row(
+                        Row::new("scrollback", "Scrollback")
+                            .detail("Lines each new terminal keeps; ⌘F searches them.")
+                            .control(select(
+                                "scrollback-select",
+                                &SCROLLBACK_LABELS,
+                                scrollback_index,
+                                |i, _, cx| {
+                                    settings::update(|s| s.scrollback = SCROLLBACK[i]);
+                                    cx.refresh_windows();
+                                },
+                                window,
+                                cx,
+                            )),
+                    )
+                    .row(
+                        Row::new("bell", "Bell")
+                            .detail("When a program rings the terminal bell.")
+                            .control(select(
+                                "bell-select",
+                                &Bell::ALL.map(Bell::label),
+                                bell_index,
+                                |i, _, cx| {
+                                    settings::update(|s| s.bell = Bell::ALL[i]);
+                                    cx.refresh_windows();
+                                },
+                                window,
+                                cx,
+                            )),
+                    ),
+            )
+            .child(
                 Section::new("Tabs").row(switch_row(
                     "activity-in-tabs",
                     "Show activity in tabs",
@@ -366,6 +500,26 @@ impl Render for TerminalSettingsView {
                         "Executable and arguments; quotes group arguments. Applies to new \
                          terminals, tabs and splits. SSH hosts use their own shell.",
                     ),
+            )
+            .child(
+                Section::new("Config File")
+                    .row(
+                        Row::new("config-file", "config.toml")
+                            .detail(
+                                "Theme, font, cursor, scrollback, Option key, copy on selection \
+                                 and bell as a plain file. Edits apply within a second; changes \
+                                 here are written to it.",
+                            )
+                            .control(
+                                Button::new("open-config", "Open")
+                                    .style(ButtonStyle::Subtle)
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.config_message = open_config();
+                                        cx.notify();
+                                    })),
+                            ),
+                    )
+                    .footnote(self.config_message.clone().unwrap_or(config_path)),
             )
     }
 }

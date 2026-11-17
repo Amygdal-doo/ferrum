@@ -38,6 +38,7 @@ impl SpawnArgs {
             label: self.label.clone(),
             keep_open: self.keep_open,
             env: passthrough_env(),
+            scrollback: None,
         }
     }
 }

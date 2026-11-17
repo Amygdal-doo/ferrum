@@ -1,12 +1,15 @@
 //! FerrumTerm's terminal settings (Settings › Terminal), kept in
 //! `~/.ferrum/ferrumterm/settings.json` and shared by every place a
 //! terminal is shown: the FerrumTerm window and the panes embedded in
-//! FerrumIDE and FerrumEngineer.
+//! FerrumIDE and FerrumEngineer. The everyday ones are also in the plain
+//! `~/.ferrum/term/config.toml` (see `config`), which wins over the JSON
+//! file and is rewritten whenever Settings changes something.
 //!
 //! Held in a process-wide cell so non-UI code (key translation, spawning)
 //! reads them without an `App`.
 
-use std::sync::RwLock;
+use std::sync::{Mutex, PoisonError, RwLock};
+use std::time::SystemTime;
 
 use ferrum_ui::prefs;
 use ferrumterm_protocol::CursorShape;
@@ -18,6 +21,7 @@ use serde::{Deserialize, Serialize};
 pub enum CursorStyle {
     #[default]
     Block,
+    #[serde(alias = "bar")]
     Beam,
     Underline,
 }
@@ -71,6 +75,30 @@ impl Blink {
             Self::Slow => Some(800),
             Self::Normal => Some(530),
             Self::Fast => Some(300),
+        }
+    }
+}
+
+/// What a bell (BEL from a program) does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Bell {
+    /// The pane flashes briefly.
+    #[default]
+    Visual,
+    /// The system alert sound.
+    System,
+    Off,
+}
+
+impl Bell {
+    pub const ALL: [Self; 3] = [Self::Visual, Self::System, Self::Off];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Visual => "Flash the pane",
+            Self::System => "System sound",
+            Self::Off => "Off",
         }
     }
 }
@@ -186,6 +214,11 @@ pub struct TermSettings {
     pub startup_command: String,
     /// Show agent status (working / blocked / done) on tabs.
     pub activity_in_tabs: bool,
+    /// Colour theme (see `theme::THEMES`); "ferrum" follows the app theme.
+    pub theme: String,
+    /// Scrollback lines of new terminals.
+    pub scrollback: u32,
+    pub bell: Bell,
 }
 
 impl Default for TermSettings {
@@ -204,6 +237,9 @@ impl Default for TermSettings {
             option: None,
             startup_command: String::new(),
             activity_in_tabs: true,
+            theme: "ferrum".to_owned(),
+            scrollback: DEFAULT_SCROLLBACK,
+            bell: Bell::Visual,
         }
     }
 }
@@ -236,10 +272,25 @@ impl TermSettings {
     }
 }
 
+/// Scrollback lines unless set (the server's default).
+pub const DEFAULT_SCROLLBACK: u32 = ferrumterm_emulator::SCROLLBACK as u32;
+
 static SETTINGS: RwLock<Option<TermSettings>> = RwLock::new(None);
+/// When `config.toml` was last read or written (to notice edits).
+static CONFIG_SEEN: Mutex<Option<SystemTime>> = Mutex::new(None);
 
 fn file() -> Option<std::path::PathBuf> {
     prefs::path("ferrumterm/settings.json")
+}
+
+/// The JSON settings with `config.toml` on top.
+fn load() -> TermSettings {
+    let mut settings: TermSettings = file().map(|f| prefs::read(&f)).unwrap_or_default();
+    if let Some(path) = crate::config::path() {
+        *CONFIG_SEEN.lock().unwrap_or_else(PoisonError::into_inner) = prefs::modified(&path);
+        crate::config::overlay(&path, &mut settings);
+    }
+    settings
 }
 
 /// The current settings (read from disk the first time).
@@ -249,14 +300,32 @@ pub fn get() -> TermSettings {
     {
         return settings.clone();
     }
-    let loaded: TermSettings = file().map(|f| prefs::read(&f)).unwrap_or_default();
+    let loaded = load();
     if let Ok(mut guard) = SETTINGS.write() {
         *guard = Some(loaded.clone());
     }
     loaded
 }
 
-/// Changes the settings with `f` and saves them.
+/// Reads the settings again when `config.toml` changed since it was last
+/// read or written (edited by hand, or by another app's Settings); `true`
+/// when it did, so windows repaint with them.
+pub fn reload_if_changed() -> bool {
+    let Some(path) = crate::config::path() else {
+        return false;
+    };
+    let modified = prefs::modified(&path);
+    if *CONFIG_SEEN.lock().unwrap_or_else(PoisonError::into_inner) == modified {
+        return false;
+    }
+    let loaded = load();
+    if let Ok(mut guard) = SETTINGS.write() {
+        *guard = Some(loaded);
+    }
+    true
+}
+
+/// Changes the settings with `f` and saves them (and `config.toml`).
 pub fn update(f: impl FnOnce(&mut TermSettings)) -> TermSettings {
     let mut settings = get();
     f(&mut settings);
@@ -268,7 +337,22 @@ pub fn update(f: impl FnOnce(&mut TermSettings)) -> TermSettings {
     {
         tracing::warn!(%error, "could not save terminal settings");
     }
+    write_config(&settings);
     settings
+}
+
+/// Writes `config.toml` from `settings` (also creating it, for
+/// Settings' "Open config.toml").
+pub fn write_config(settings: &TermSettings) {
+    let Some(path) = crate::config::path() else {
+        return;
+    };
+    match crate::config::write(&path, settings) {
+        Ok(()) => {
+            *CONFIG_SEEN.lock().unwrap_or_else(PoisonError::into_inner) = prefs::modified(&path);
+        }
+        Err(error) => tracing::warn!(%error, "could not write {}", path.display()),
+    }
 }
 
 /// Shell-like word splitting: whitespace separates, single or double

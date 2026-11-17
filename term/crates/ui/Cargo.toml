@@ -13,6 +13,8 @@ workspace = true
 [dependencies]
 ferrumterm-protocol.workspace = true
 ferrumterm-client.workspace = true
+# The default palette, mapped onto the colour themes.
+ferrumterm-emulator.workspace = true
 ferrumterm-net.workspace = true
 # Private in-process server when the shared one can't be reached or started.
 ferrumterm-server.workspace = true
@@ -33,10 +35,13 @@ tokio.workspace = true
 tracing.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# ~/.ferrum/term/config.toml.
+toml.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# Which Option key is down (Settings › Keyboard › Option key: left / right).
-objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSEvent"] }
+# Which Option key is down (Settings › Keyboard › Option key: left / right),
+# and the system alert sound (Settings › Terminal › Bell).
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSEvent", "NSGraphics"] }
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }

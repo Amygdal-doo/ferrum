@@ -20,8 +20,10 @@ use ferrumterm_protocol::status::{OscScanner, StatusUpdate, parse_osc_body};
 use ferrumterm_protocol::{FindMatch, Frame, Input};
 use std::sync::{Arc, Mutex, PoisonError};
 
-/// Scrollback lines kept per block.
+/// Scrollback lines kept per block, unless the spawn asks for another number.
 pub const SCROLLBACK: usize = 10_000;
+/// The most scrollback lines a block may keep.
+pub const MAX_SCROLLBACK: usize = 200_000;
 
 #[derive(Clone, Default)]
 struct Listener(Arc<Mutex<Vec<TermEvent>>>);
@@ -56,9 +58,15 @@ pub struct Terminal {
 impl Terminal {
     #[must_use]
     pub fn new(cols: u16, rows: u16) -> Self {
+        Self::with_scrollback(cols, rows, SCROLLBACK)
+    }
+
+    /// A terminal keeping `scrollback` lines (at most [`MAX_SCROLLBACK`]).
+    #[must_use]
+    pub fn with_scrollback(cols: u16, rows: u16, scrollback: usize) -> Self {
         let events = Listener::default();
         let config = Config {
-            scrolling_history: SCROLLBACK,
+            scrolling_history: scrollback.min(MAX_SCROLLBACK),
             ..Config::default()
         };
         let size = TermSize::new(usize::from(cols.max(2)), usize::from(rows.max(1)));
@@ -269,6 +277,18 @@ mod tests {
         assert!(t.find("(", false, true).is_err(), "invalid regex");
         assert_eq!(t.find("(", false, false).expect("plain").0.len(), 0);
         assert!(t.find("", false, false).expect("empty").0.is_empty());
+    }
+
+    #[test]
+    fn keeps_the_scrollback_it_was_given() {
+        let mut t = Terminal::with_scrollback(10, 3, 5);
+        for i in 0..20 {
+            t.feed(format!("line{i}\r\n").as_bytes());
+        }
+        assert_eq!(t.frame().history, 5);
+        assert!(t.capture(true).starts_with("line13\n"));
+        let huge = Terminal::with_scrollback(10, 3, usize::MAX);
+        assert_eq!(huge.term.grid().history_size(), 0, "nothing scrolled yet");
     }
 
     #[test]

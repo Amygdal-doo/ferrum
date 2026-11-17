@@ -2,6 +2,7 @@
 //! selection, text shaped per row and snapped to the cell grid, cursor, IME
 //! composition, and dividers between split panes.
 
+use crate::theme::Palette;
 use crate::view::{PADDING, TermView};
 use ferrum_ui::gpui::{
     self, Bounds, ElementInputHandler, Entity, Font, FontStyle, FontWeight, Hsla, Pixels, Point,
@@ -63,10 +64,6 @@ pub(crate) fn update_grid(entity: &Entity<TermView>, bounds: Bounds<Pixels>, cx:
     }
 }
 
-fn color(rgb: u32) -> Hsla {
-    gpui::rgb(rgb).into()
-}
-
 struct Pane {
     block: BlockId,
     rect: Rect,
@@ -115,14 +112,20 @@ pub(crate) fn paint_terminal(
     let settings = crate::settings::get();
     let selection = view.selection.clone().filter(|s| !s.is_empty());
     let search = view.find.as_ref().map(|bar| bar.search.clone());
+    let bell = view
+        .bell_flash
+        .filter(|(_, at)| at.elapsed() < crate::view::BELL_FLASH)
+        .map(|(block, _)| block);
+    let palette = Palette::current(cx);
     let theme = cx.theme();
     let colors = Colors {
-        foreground: theme.colors().terminal_foreground,
+        foreground: palette.foreground,
         muted: theme.colors().text_muted,
         divider: theme.colors().border,
         accent: theme.colors().text_accent,
-        background: theme.colors().terminal_background,
+        background: palette.background,
         found: theme.status().warning,
+        palette,
     };
 
     let cell_width = metrics.cell_width;
@@ -158,9 +161,19 @@ pub(crate) fn paint_terminal(
                         bounds: pane_bounds,
                     }),
                     |window| {
+                        if bell == Some(pane.block) {
+                            window.paint_quad(fill(pane_bounds, colors.foreground.opacity(0.12)));
+                        }
                         for (row, line) in frame.lines.iter().enumerate() {
                             let row_origin = pane_origin + point(px(0.), cell_height * row as f32);
-                            paint_backgrounds(line, row_origin, cell_width, cell_height, window);
+                            paint_backgrounds(
+                                line,
+                                row_origin,
+                                cell_width,
+                                cell_height,
+                                &colors.palette,
+                                window,
+                            );
                             if let Some((from, to)) = selection
                                 .as_ref()
                                 .filter(|s| s.block == pane.block)
@@ -272,6 +285,7 @@ struct Colors {
     background: Hsla,
     /// Find bar matches.
     found: Hsla,
+    palette: Palette,
 }
 
 fn paint_backgrounds(
@@ -279,6 +293,7 @@ fn paint_backgrounds(
     origin: Point<Pixels>,
     cell_width: Pixels,
     cell_height: Pixels,
+    palette: &Palette,
     window: &mut Window,
 ) {
     let mut col = 0usize;
@@ -290,7 +305,7 @@ fn paint_backgrounds(
                     origin + point(cell_width * col as f32, px(0.)),
                     size(cell_width * width as f32, cell_height),
                 ),
-                color(background),
+                palette.color(background),
             ));
         }
         col += width;
@@ -305,7 +320,7 @@ fn span_run(span: &Span, len: usize, font: &Font, colors: &Colors, thin: Pixels)
     if span.f & flags::ITALIC != 0 {
         font.style = FontStyle::Italic;
     }
-    let mut foreground = span.fg.map_or(colors.foreground, color);
+    let mut foreground = colors.palette.foreground(span.fg);
     if span.f & flags::DIM != 0 {
         foreground = foreground.opacity(150.0 / 255.0);
     }
