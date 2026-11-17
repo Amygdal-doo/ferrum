@@ -30,7 +30,7 @@ impl Fixture {
         prefs::load(Some(&self.prefs_file()))
     }
 
-    fn set_prefs(&self, prefs: &UiPrefs) {
+    pub(crate) fn set_prefs(&self, prefs: &UiPrefs) {
         prefs::save(Some(&self.prefs_file()), prefs).expect("save prefs");
     }
 
@@ -72,7 +72,7 @@ pub(crate) fn draw(cx: &mut VisualTestContext) {
     cx.update(|window, cx| window.draw(cx).clear(cx));
 }
 
-fn seen() -> UiPrefs {
+pub(crate) fn seen() -> UiPrefs {
     UiPrefs {
         demo_seen: true,
         ..UiPrefs::default()
@@ -198,4 +198,117 @@ fn the_panel_and_sidebar_fold_with_their_shortcuts_and_stay_folded(cx: &mut Test
     draw(cx);
     app.read_with(cx, |app, _| assert!(app.panel_open()));
     assert!(f.prefs().panel_open);
+}
+
+/// A project whose `system.json` is hand-written: two-space indent, a
+/// field FerrumSystem does not know, and no `slot`s.
+fn hand_written(f: &Fixture) -> (PathBuf, String) {
+    let project = f.project("hand", false);
+    let text = r#"{
+  "name": "Hand",
+  "x-owner": "platform",
+  "layers": [
+    { "id": "services", "name": "Services", "color": 2278750 },
+    { "id": "data", "name": "Data", "color": 15485081 }
+  ],
+  "nodes": [
+    { "id": "api", "name": "API", "kind": "service", "layer": "services", "x-sla": "99.9" },
+    { "id": "db", "name": "DB", "kind": "sql-db", "layer": "data" }
+  ],
+  "edges": [{ "from": "api", "to": "db", "style": "request" }]
+}
+"#;
+    let file = store::system_file(&project);
+    std::fs::create_dir_all(file.parent().expect("dir")).expect("mkdir");
+    std::fs::write(&file, text).expect("write");
+    (project, text.to_owned())
+}
+
+#[gpui::test]
+fn edits_keep_the_files_formatting_and_undo_and_redo(cx: &mut TestAppContext) {
+    let f = Fixture::new();
+    f.set_prefs(&seen());
+    let (project, text) = hand_written(&f);
+    let file = store::system_file(&project);
+    let (app, cx) = f.open(cx, Some(project.clone()));
+    let read = || std::fs::read_to_string(&file).expect("read");
+    // Opening, selecting and an edit that changes nothing write nothing.
+    app.update(cx, |app, cx| {
+        app.select(Some("api".into()), cx);
+        app.edit(cx, |_| {});
+    });
+    draw(cx);
+    assert_eq!(read(), text);
+    assert!(!project.join(".architecture/README.md").exists());
+
+    // Rename (typed: one undo step), connect, then delete.
+    app.update(cx, |app, cx| {
+        for name in ["A", "Ap", "Api gateway"] {
+            app.edit_grouped(Some("api:name"), cx, |s| s.nodes[0].name = name.into());
+        }
+        app.edit(cx, |s| {
+            s.connect(
+                "db",
+                "api",
+                (None, None),
+                ferrumsystem_core::EdgeStyle::Async,
+            )
+        });
+        app.select(Some("db".into()), cx);
+        app.delete_selected(cx);
+    });
+    let saved = read();
+    assert!(saved.contains(r#""x-owner": "platform""#), "{saved}");
+    assert!(
+        saved.contains(r#"{ "id": "api", "name": "Api gateway", "kind": "service", "layer": "services", "x-sla": "99.9" }"#),
+        "{saved}"
+    );
+    assert!(!saved.contains(r#""id": "db""#), "{saved}");
+
+    // Undo the delete, the connection and the rename; the file follows.
+    app.update(cx, |app, cx| app.undo(false, cx));
+    assert!(read().contains(r#"{ "id": "db", "name": "DB", "kind": "sql-db", "layer": "data" }"#));
+    app.update(cx, |app, cx| {
+        app.undo(false, cx);
+        app.undo(false, cx);
+        assert!(!app.history.can_undo());
+        assert_eq!(app.system.nodes[0].name, "API");
+    });
+    assert_eq!(read(), text, "undone back to the very same text");
+    cx.simulate_keystrokes("cmd-shift-z");
+    app.read_with(cx, |app, _| {
+        assert_eq!(app.system.nodes[0].name, "Api gateway")
+    });
+    cx.simulate_keystrokes("cmd-z");
+    app.read_with(cx, |app, _| assert_eq!(app.system.nodes[0].name, "API"));
+}
+
+#[gpui::test]
+fn drag_and_drop_moves_a_component_and_undo_puts_it_back(cx: &mut TestAppContext) {
+    let f = Fixture::new();
+    f.set_prefs(&seen());
+    let (project, _) = hand_written(&f);
+    let (app, cx) = f.open(cx, Some(project.clone()));
+    app.update(cx, |app, cx| {
+        app.drop_node("db", "services", cx);
+        assert_eq!(
+            app.system.node("db").map(|n| n.layer.as_str()),
+            Some("services")
+        );
+        app.drop_handle("db", ferrumsystem_core::Side::Right, "api", cx);
+        assert!(
+            app.system
+                .edges
+                .iter()
+                .any(|e| e.from == "db" && e.to == "api")
+        );
+        app.undo(false, cx);
+        app.undo(false, cx);
+        assert_eq!(
+            app.system.node("db").map(|n| n.layer.as_str()),
+            Some("data")
+        );
+    });
+    let reloaded = store::load(&project).expect("load").expect("system");
+    assert_eq!(reloaded.node("db").map(|n| n.layer.as_str()), Some("data"));
 }

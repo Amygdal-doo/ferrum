@@ -49,18 +49,21 @@ pub fn load(project: &Path) -> Result<Option<System>, StoreError> {
         .map_err(|source| StoreError::Parse { path, source })
 }
 
+/// Writes `path` atomically (through `<path>.partial`), making its folder.
+fn write(path: PathBuf, text: String) -> Result<(), StoreError> {
+    let dir = path.parent().map(Path::to_path_buf).unwrap_or_default();
+    std::fs::create_dir_all(&dir)
+        .and_then(|()| {
+            let partial = path.with_extension("partial");
+            std::fs::write(&partial, text)?;
+            std::fs::rename(&partial, &path)
+        })
+        .map_err(|source| StoreError::Write { path, source })
+}
+
 /// Writes `system` (pretty JSON, atomically) and a short README.
 pub fn save(project: &Path, system: &System) -> Result<(), StoreError> {
     let dir = project.join(DIR);
-    let write = |path: PathBuf, text: String| {
-        std::fs::create_dir_all(&dir)
-            .and_then(|()| {
-                let partial = path.with_extension("partial");
-                std::fs::write(&partial, text)?;
-                std::fs::rename(&partial, &path)
-            })
-            .map_err(|source| StoreError::Write { path, source })
-    };
     let json = serde_json::to_string_pretty(system).expect("a System always serializes");
     write(dir.join(SYSTEM_FILE), json + "\n")?;
     let readme = dir.join("README.md");
@@ -68,6 +71,48 @@ pub fn save(project: &Path, system: &System) -> Result<(), StoreError> {
         write(readme, README.to_owned())?;
     }
     Ok(())
+}
+
+/// Saves an edit of the project's system into the `system.json` there:
+/// only what changed is rewritten, the file's formatting and the fields
+/// FerrumSystem does not know are kept (see [`crate::patch`]). Nothing is
+/// written when the file already says the same; a missing or unreadable
+/// file is written afresh.
+pub fn save_edit(project: &Path, system: &System) -> Result<(), StoreError> {
+    let path = system_file(project);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return save(project, system),
+        Err(source) => return Err(StoreError::Read { path, source }),
+    };
+    match updated(&text, system) {
+        Some(None) => Ok(()),
+        Some(Some(new)) => write(path, new),
+        None => save(project, system),
+    }
+}
+
+/// The text of the project's `system.json`, if it can be read.
+pub fn read_text(project: &Path) -> Option<String> {
+    std::fs::read_to_string(system_file(project)).ok()
+}
+
+/// Puts back `text` as the project's `system.json` (undo restores the file
+/// exactly as it was, unknown fields of a deleted component included).
+pub fn restore_text(project: &Path, text: &str) -> Result<(), StoreError> {
+    write(system_file(project), text.to_owned())
+}
+
+/// `text` (a `system.json`) rewritten to say `system`: `Some(None)` when it
+/// already does, `None` when it cannot be patched.
+fn updated(text: &str, system: &System) -> Option<Option<String>> {
+    let read: System = serde_json::from_str(text).ok()?;
+    let before = serde_json::to_value(&read).ok()?;
+    let after = serde_json::to_value(system).ok()?;
+    if before == after {
+        return Some(None);
+    }
+    crate::patch::update(text, &before, &after).map(Some)
 }
 
 const README: &str = "# Architecture\n\n\
@@ -128,5 +173,50 @@ mod tests {
         let icon_path = add_icon(dir.path(), "acme", &png).expect("icon");
         assert_eq!(icon(dir.path(), "acme"), Some(icon_path));
         assert!(add_icon(dir.path(), "acme", &dir.path().join("x.gif")).is_err());
+    }
+
+    #[test]
+    fn an_edit_keeps_the_files_formatting_and_unknown_fields() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = system_file(dir.path());
+        std::fs::create_dir_all(file.parent().expect("test")).expect("test");
+        let text = r#"{
+  "name": "Shop",
+  "x-owner": "platform-team",
+  "layers": [{ "id": "services", "name": "Services", "color": 2278750 }],
+  "nodes": [
+    { "id": "api", "name": "API", "kind": "service", "layer": "services", "sla": "99.9" },
+    { "id": "db", "name": "DB", "kind": "sql-db", "layer": "services" }
+  ]
+}
+"#;
+        std::fs::write(&file, text).expect("test");
+        let mut system = load(dir.path()).expect("test").expect("test");
+        save_edit(dir.path(), &system).expect("test");
+        assert_eq!(
+            std::fs::read_to_string(&file).expect("test"),
+            text,
+            "no change, no write"
+        );
+
+        system.nodes[1].name = "Orders DB".into();
+        system.remove_node("api");
+        save_edit(dir.path(), &system).expect("test");
+        let saved = std::fs::read_to_string(&file).expect("test");
+        assert!(saved.contains(r#""x-owner": "platform-team""#), "{saved}");
+        assert!(
+            saved.contains(
+                r#"{ "id": "db", "name": "Orders DB", "kind": "sql-db", "layer": "services" }"#
+            ),
+            "{saved}"
+        );
+        assert!(!saved.contains("sla"), "{saved}");
+        assert_eq!(load(dir.path()).expect("test"), Some(system));
+        assert!(!dir.path().join(".architecture/README.md").exists());
+
+        std::fs::write(&file, "not json").expect("test");
+        let fresh = crate::demos::starter("x");
+        save_edit(dir.path(), &fresh).expect("test");
+        assert_eq!(load(dir.path()).expect("test"), Some(fresh));
     }
 }

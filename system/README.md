@@ -17,7 +17,7 @@ project folder (custom icons in `.architecture/icons/`).
 - **Diagram card**: header (name, tagline, a *Demo* badge for demos, the tools toggle and the
   ◨ panel toggle), the toolbar (cloud switch, Connect, Add) and the canvas.
 - **Right panel**: Add, Overview, Component, APIs, Sockets, Data, Flows, Reliability, Deploy,
-  Runtime.
+  Runtime, Problems.
 
 Both side panes fold away and the canvas takes their room:
 
@@ -40,6 +40,71 @@ banking, Atlas Knowledge — RAG assistant, Swift Courier — delivery tracking)
 in memory; *Start from this demo* (sidebar, when the project has no diagram) saves it as the
 project's diagram.
 
+## Editing
+Everything is edited with the mouse: **Add** (toolbar or the Add tab), drag a card to another
+place or layer, drag from a card's side handle onto another card to connect them (or
+**Connect**, then click two cards), and the **Component** tab for the name, description,
+look, deployment and connections. ⌫ or *Delete component* removes one.
+
+Each edit is saved into `.architecture/system.json` at once, rewriting only the values that
+changed: the file's indentation, key order and any fields FerrumSystem does not know stay as
+they were. Opening a project writes nothing. ⌘Z / ⇧⌘Z (Edit › Undo / Redo, or the toolbar's
+arrows) undo and redo the edits; typing in one field undoes as one step, and undo puts the file
+back exactly as it was.
+
+## Generating a diagram
+**Generate from project files** (sidebar, the empty view, File › Generate from Project Files)
+reads the project — never `node_modules`, `target`, `.git` and the like — and builds a
+diagram, the same one every time for the same files:
+
+- **docker-compose** (`docker-compose*.yml`, `compose.yaml`): a Docker container per service;
+  its kind and technology from the image (`postgres:16` → relational database, PostgreSQL)
+  or, for `build:`, from the package manifest there; replicas, the first port and the
+  health check; connections from `depends_on`, `links` and addresses in `environment`
+  (`postgres://db:5432`).
+- **Kubernetes** (any YAML with `apiVersion` and `kind`): Deployments, StatefulSets,
+  DaemonSets, Jobs and CronJobs as pods (replicas, `app` label, port, probes), Ingresses in
+  front of the workloads their Services select, the namespace for the Runtime tab.
+- **Package manifests**, when there is neither: `package.json`, `Cargo.toml`,
+  `pyproject.toml` / `requirements.txt`, `go.mod`, `Gemfile`, `pom.xml` — one component per
+  app, plus the datastores its dependencies talk to (`pg`, `redis`, `kafkajs`, `pika`…).
+
+A project without a diagram gets this one as its `.architecture/system.json`; with a diagram,
+only the components and connections it lacks are added, as one edit (⌘Z takes it back).
+
+## Agent
+The Agent toggle (top right) opens FerrumChat beside the diagram. It knows what is shown and
+has read tools (`system_overview`, `system_component`, `system_details`) and edit tools:
+`system_add_component`, `system_connect`, `system_rename` and `system_propose_diagram`. Every
+edit asks for approval first (the chat's usual permission prompt), then goes through the same
+path as the user's own: saved into `system.json` keeping its formatting, undone with ⌘Z.
+
+**Ask agent to draft the architecture** (sidebar, the empty view, File menu) opens the chat
+with the request in the composer; while it drafts, the chat's context carries the project's
+compose / Kubernetes / package manifests (quoted) and what the importer made of them. The
+agent answers with `system_propose_diagram`; nothing is written until the user approves it.
+A project without a diagram gets it as its diagram; an existing one gains what it lacks.
+
+## Problems
+The **Problems** tab (and the toolbar's ⚠ count) lists what the diagram itself shows to be
+wrong; click one to select its component:
+
+| Problem | When |
+|---|---|
+| Database reachable from a public layer | a client or edge component connects straight to a datastore |
+| Connection without auth | a request from a client or edge component into a service or gateway that says no auth (the connection's *Auth*, or a label like "JWT"); a gateway that calls an identity service counts as checking |
+| Single replica on a critical path | a pod, container or VM with one replica that is in a flow or reached synchronously from a public component |
+| No health check | a pod, container or VM without one (Component tab › *Health*) |
+| Unknown reference | a connection, API, socket, flow step, layer or database naming something missing |
+| Image without a version | an image with no tag or `:latest` (info) |
+| Not connected | a component with no connections (info) |
+
+## Export
+**Export** (the toolbar's download button, or File › Export ›) saves the whole diagram, laid
+out as on the canvas on a white background with its name on top, as a **PNG** image (twice
+the size, rendered with resvg in the system fonts), an **SVG** drawing or a vector **PDF**
+(one page, the standard Helvetica fonts; written without a PDF library).
+
 ## Preferences
 `~/.ferrum/ferrumsystem/ui.json` (`$FERRUM_HOME` overrides `~/.ferrum`):
 
@@ -58,6 +123,7 @@ file to see the demo open by itself again.
 | ⌘B / ⌥⌘B | Toggle sidebar / right panel |
 | ⌘= / ⌘- / ⌘0 | Zoom in / out / fit |
 | ⌫ | Delete the selected component |
+| ⌘Z / ⇧⌘Z | Undo / redo an edit of the diagram |
 | Esc | Cancel connect / close dialog / clear selection |
 
 ## Commands

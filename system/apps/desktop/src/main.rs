@@ -5,17 +5,22 @@
 
 mod agent;
 mod agent_tools;
+mod agent_write;
 mod app;
 mod app_info;
 mod canvas;
 mod component;
 mod dialogs;
+mod draft;
+mod export;
+mod generate;
 mod icons;
 mod layout;
 mod live;
 mod menus;
 mod panel;
 mod prefs;
+mod problems;
 mod sidebar;
 #[cfg(test)]
 mod tests;

@@ -8,8 +8,9 @@ use ferrum_ui::settings::widgets::Segmented;
 use ferrumsystem_core::{EdgeStyle, Provider};
 
 use crate::app::{
-    DeleteSelected, Escape, FerrumSystem, KEY_CONTEXT, NewDiagram, OpenDemo, OpenProject,
-    TogglePanel, ToggleSidebar, ZoomFit, ZoomIn, ZoomOut,
+    AskAgentToDraft, DeleteSelected, Escape, ExportAs, FerrumSystem, GenerateFromProject,
+    KEY_CONTEXT, NewDiagram, OpenDemo, OpenProject, Redo, TogglePanel, ToggleSidebar, Undo,
+    ZoomFit, ZoomIn, ZoomOut,
 };
 
 const PANEL_W: f32 = 430.;
@@ -156,6 +157,31 @@ impl FerrumSystem {
                                 cx.listener(|this, _, window, cx| this.new_diagram(window, cx)),
                             ),
                     )
+                    .when(self.project.is_some(), |row| {
+                        row.child(
+                            Button::new("empty-generate", "Generate from project")
+                                .style(ButtonStyle::Outlined)
+                                .start_icon(Icon::new(IconName::Sparkle).size(IconSize::Small))
+                                .tooltip(Tooltip::text(
+                                    "Read docker-compose files, Kubernetes manifests and package manifests",
+                                ))
+                                .on_click(
+                                    cx.listener(|this, _, _, cx| this.generate_from_project(cx)),
+                                ),
+                        )
+                    })
+                    .when(self.project.is_some(), |row| {
+                        row.child(
+                            Button::new("empty-draft", "Ask agent to draft")
+                                .style(ButtonStyle::Subtle)
+                                .tooltip(Tooltip::text(
+                                    "The agent proposes a diagram from the project's files; you approve it",
+                                ))
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.ask_agent_to_draft(window, cx)
+                                })),
+                        )
+                    })
                     .child(
                         Button::new("empty-open", "Open…")
                             .style(ButtonStyle::Outlined)
@@ -211,6 +237,21 @@ impl FerrumSystem {
             )
             .child(cloud)
             .child(div().flex_1())
+            .children(self.problems_button(cx))
+            .child(
+                IconButton::new("undo", IconName::Undo)
+                    .icon_size(IconSize::Small)
+                    .disabled(!self.history.can_undo())
+                    .tooltip(Tooltip::text("Undo (⌘Z)"))
+                    .on_click(cx.listener(|this, _, _, cx| this.undo(false, cx))),
+            )
+            .child(
+                IconButton::new("redo", IconName::RotateCw)
+                    .icon_size(IconSize::Small)
+                    .disabled(!self.history.can_redo())
+                    .tooltip(Tooltip::text("Redo (⇧⌘Z)"))
+                    .on_click(cx.listener(|this, _, _, cx| this.undo(true, cx))),
+            )
             .when(connecting, |row| {
                 row.child(
                     Button::new("edge-style", style.label())
@@ -230,6 +271,15 @@ impl FerrumSystem {
                         })),
                 )
             })
+            .child(
+                IconButton::new("export", IconName::Download)
+                    .icon_size(IconSize::Small)
+                    .tooltip(Tooltip::text("Export as PNG, SVG or PDF"))
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.dialog = Some(crate::app::Dialog::Export);
+                        cx.notify();
+                    })),
+            )
             .child(
                 Button::new("connect", "Connect")
                     .size(ButtonSize::Compact)
@@ -329,6 +379,15 @@ impl Render for FerrumSystem {
                 cx.listener(|this, _: &OpenProject, window, cx| this.open_folder(window, cx)),
             )
             .on_action(cx.listener(|this, a: &OpenDemo, _, cx| this.show_demo(a.index, cx)))
+            .on_action(cx.listener(|this, _: &Undo, _, cx| this.undo(false, cx)))
+            .on_action(cx.listener(|this, a: &ExportAs, _, cx| this.export(a.format, cx)))
+            .on_action(
+                cx.listener(|this, _: &GenerateFromProject, _, cx| this.generate_from_project(cx)),
+            )
+            .on_action(cx.listener(|this, _: &AskAgentToDraft, window, cx| {
+                this.ask_agent_to_draft(window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &Redo, _, cx| this.undo(true, cx)))
             .on_action(cx.listener(|this, _: &DeleteSelected, _, cx| {
                 if this.dialog.is_none() && this.fields.is_none() {
                     this.delete_selected(cx)

@@ -83,6 +83,28 @@ impl FerrumSystem {
                                 cx.listener(|this, _, _, cx| this.create_architecture(None, cx)),
                             ),
                     )
+                    .child(
+                        Button::new("generate-architecture", "Generate from project files")
+                            .style(ButtonStyle::Outlined)
+                            .size(ButtonSize::Compact)
+                            .full_width()
+                            .tooltip(Tooltip::text(
+                                "From docker-compose files, Kubernetes manifests or package manifests",
+                            ))
+                            .on_click(cx.listener(|this, _, _, cx| this.generate_from_project(cx))),
+                    )
+                    .child(
+                        Button::new("draft-architecture", "Ask agent to draft the architecture")
+                            .style(ButtonStyle::Subtle)
+                            .size(ButtonSize::Compact)
+                            .full_width()
+                            .tooltip(Tooltip::text(
+                                "The agent proposes a diagram from the project's files; you approve it",
+                            ))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.ask_agent_to_draft(window, cx)
+                            })),
+                    )
                     .when(self.is_demo(), |c| {
                         c.child(
                             Button::new("use-demo", "Start from this demo")

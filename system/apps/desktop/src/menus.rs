@@ -2,7 +2,7 @@
 //! Open… (⌘O) and Open Demo ›, View toggles for the sidebar (⌘B) and the
 //! right panel (⌥⌘B) plus zoom, and Help › Open Demo.
 
-use ferrum_ui::gpui::{Menu, MenuItem};
+use ferrum_ui::gpui::{Menu, MenuItem, OsAction};
 use ferrum_ui::menus::{
     CloseWindow, LargerText, SmallerText, ToggleFullScreen, app_menu, edit_menu, help_menu,
     window_menu,
@@ -11,7 +11,8 @@ use ferrum_ui::{AppInfo, ToggleProjectSwitcher};
 use ferrumsystem_core::demos;
 
 use crate::app::{
-    NewDiagram, OpenDemo, OpenProject, TogglePanel, ToggleSidebar, ZoomFit, ZoomIn, ZoomOut,
+    AskAgentToDraft, ExportAs, GenerateFromProject, NewDiagram, OpenDemo, OpenProject, Redo,
+    TogglePanel, ToggleSidebar, Undo, ZoomFit, ZoomIn, ZoomOut,
 };
 
 #[must_use]
@@ -21,6 +22,16 @@ pub fn menus(info: &AppInfo) -> Vec<Menu> {
         .enumerate()
         .map(|(index, demo)| MenuItem::action(demo.name, OpenDemo { index }))
         .collect();
+    // Edit › Undo / Redo the diagram's edits, above Cut, Copy, Paste.
+    let mut edit = edit_menu();
+    edit.items.splice(
+        0..0,
+        [
+            MenuItem::os_action("Undo", Undo, OsAction::Undo),
+            MenuItem::os_action("Redo", Redo, OsAction::Redo),
+            MenuItem::separator(),
+        ],
+    );
     let mut help = help_menu(info);
     help.items
         .insert(1, MenuItem::action("Open Demo", OpenDemo { index: 0 }));
@@ -28,14 +39,20 @@ pub fn menus(info: &AppInfo) -> Vec<Menu> {
         app_menu(info),
         Menu::new("File").items([
             MenuItem::action("New Diagram", NewDiagram),
+            MenuItem::action("Generate from Project Files", GenerateFromProject),
+            MenuItem::action("Ask Agent to Draft the Architecture", AskAgentToDraft),
             MenuItem::action("Open…", OpenProject),
             MenuItem::action("Switch Project…", ToggleProjectSwitcher),
             MenuItem::separator(),
             MenuItem::submenu(Menu::new("Open Demo").items(demo_items)),
             MenuItem::separator(),
+            MenuItem::submenu(Menu::new("Export").items(crate::export::Format::ALL.map(
+                |format| MenuItem::action(format!("As {}…", format.label()), ExportAs { format }),
+            ))),
+            MenuItem::separator(),
             MenuItem::action("Close Window", CloseWindow),
         ]),
-        edit_menu(),
+        edit,
         Menu::new("View").items([
             MenuItem::action("Toggle Sidebar", ToggleSidebar),
             MenuItem::action("Toggle Panel", TogglePanel),
@@ -82,7 +99,7 @@ mod tests {
         let menus = menus(&crate::app_info::app_info());
         let file = menu(&menus, "File");
         assert!(labels(file).contains(&"Open Demo ›".to_string()));
-        let Some(MenuItem::Submenu(demos)) = file.items.get(4) else {
+        let Some(MenuItem::Submenu(demos)) = file.items.get(6) else {
             panic!("File › Open Demo is a submenu");
         };
         assert_eq!(demos.items.len(), demos::all().len());
@@ -90,5 +107,6 @@ mod tests {
         assert_eq!(help[1], "Open Demo");
         let view = labels(menu(&menus, "View"));
         assert_eq!(view[..2], ["Toggle Sidebar", "Toggle Panel"]);
+        assert_eq!(labels(menu(&menus, "Edit"))[..2], ["Undo", "Redo"]);
     }
 }

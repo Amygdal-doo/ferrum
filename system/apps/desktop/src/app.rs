@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 
 use ferrum_ui::gpui::{KeyBinding, Point};
 use ferrum_ui::prelude::*;
+use ferrumsystem_core::history::History;
 use ferrumsystem_core::runtime::{Container, Pod};
 use ferrumsystem_core::{EdgeStyle, Provider, Side, System, demos, store};
 
@@ -21,6 +22,10 @@ actions!(
         ZoomFit,
         Escape,
         DeleteSelected,
+        /// Undo the last edit of the diagram.
+        Undo,
+        /// Redo the edit last undone.
+        Redo,
         /// Show or hide the left sidebar.
         ToggleSidebar,
         /// Show or hide the right panel (overview, APIs, data, …).
@@ -28,9 +33,22 @@ actions!(
         /// Choose a folder (or use the open project) and start its diagram.
         NewDiagram,
         /// Open a project folder.
-        OpenProject
+        OpenProject,
+        /// Generate the diagram from the project's docker-compose files,
+        /// Kubernetes manifests or package manifests.
+        GenerateFromProject,
+        /// Open the Agent pane asking it to draft the architecture from
+        /// the project's files (the user approves its proposal).
+        AskAgentToDraft
     ]
 );
+
+/// Export the diagram shown as a file of this format.
+#[derive(Clone, PartialEq, Debug, gpui::Action)]
+#[action(namespace = ferrum_system, no_json)]
+pub struct ExportAs {
+    pub format: crate::export::Format,
+}
 
 /// Show demo `index` (of [`demos::all`]).
 #[derive(Clone, PartialEq, Debug, gpui::Action)]
@@ -49,6 +67,8 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-0", ZoomFit, context),
         KeyBinding::new("escape", Escape, context),
         KeyBinding::new("backspace", DeleteSelected, context),
+        KeyBinding::new("cmd-z", Undo, context),
+        KeyBinding::new("cmd-shift-z", Redo, context),
         KeyBinding::new("cmd-b", ToggleSidebar, context),
         KeyBinding::new("alt-cmd-b", TogglePanel, context),
         KeyBinding::new("cmd-n", NewDiagram, context),
@@ -101,10 +121,11 @@ pub enum Tab {
     Reliability,
     Deploy,
     Runtime,
+    Problems,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 10] = [
+    pub const ALL: [Tab; 11] = [
         Tab::Add,
         Tab::Overview,
         Tab::Component,
@@ -115,6 +136,7 @@ impl Tab {
         Tab::Reliability,
         Tab::Deploy,
         Tab::Runtime,
+        Tab::Problems,
     ];
 
     pub fn label(self) -> &'static str {
@@ -129,6 +151,7 @@ impl Tab {
             Tab::Reliability => "Reliability",
             Tab::Deploy => "Deploy",
             Tab::Runtime => "Runtime",
+            Tab::Problems => "Problems",
         }
     }
 }
@@ -140,6 +163,8 @@ pub enum Dialog {
     Layer(Entity<TextInput>, u32),
     /// Name a custom technology before choosing its icon.
     CustomTech(Entity<TextInput>),
+    /// Export the diagram: PNG, SVG or PDF.
+    Export,
 }
 
 /// Live status for the Runtime tab.
@@ -150,6 +175,10 @@ pub struct Live {
     pub containers: Option<Result<Vec<Container>, String>>,
 }
 
+/// A state to undo to: the system and, for a project, its `system.json`
+/// text then (put back as it was when nothing else changed the file).
+pub(crate) type Snapshot = (System, Option<String>);
+
 pub struct FerrumSystem {
     pub(crate) project_bar: Entity<ProjectBar>,
     pub(crate) project: Option<PathBuf>,
@@ -157,6 +186,8 @@ pub struct FerrumSystem {
     pub(crate) project_has_system: bool,
     pub(crate) source: Source,
     pub(crate) system: System,
+    /// The edits of the system shown, to undo (cleared when another is shown).
+    pub(crate) history: History<Snapshot>,
     pub(crate) demos: Vec<System>,
     pub(crate) prefs: UiPrefs,
     prefs_file: Option<PathBuf>,
@@ -197,6 +228,12 @@ pub struct FerrumSystem {
     /// The diagram the agent's tools read, set before each message.
     pub(crate) agent_system: crate::agent_tools::SystemSlot,
     pub(crate) agent_home: Option<PathBuf>,
+    /// The agent's edit tools' channel to this window (see `agent_write`).
+    pub(crate) agent_bridge: crate::agent_write::Bridge,
+    /// What the project's files say, for the agent while it drafts the
+    /// diagram (see `generate`).
+    pub(crate) draft_brief: Option<String>,
+    _agent_calls: Task<()>,
     pub(crate) focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
 }
@@ -219,12 +256,14 @@ impl FerrumSystem {
                 this.open_project(Some(path), cx);
             }),
         ];
+        let (agent_bridge, agent_calls) = crate::agent::listen(cx);
         let mut this = Self {
             project_bar,
             project: None,
             project_has_system: false,
             source: Source::Empty,
             system: System::default(),
+            history: History::default(),
             demos: demos::all(),
             prefs,
             prefs_file: options.prefs_file,
@@ -252,6 +291,9 @@ impl FerrumSystem {
             agent: ferrumagent_ui::AgentPane::new(),
             agent_system: crate::agent_tools::SystemSlot::default(),
             agent_home: options.agent_home,
+            agent_bridge,
+            draft_brief: None,
+            _agent_calls: agent_calls,
             focus_handle: cx.focus_handle(),
             _subscriptions: subscriptions,
         };
@@ -401,6 +443,8 @@ impl FerrumSystem {
     fn show(&mut self, source: Source, system: System, cx: &mut Context<Self>) {
         self.source = source;
         self.system = system;
+        self.history.clear();
+        self.draft_brief = None;
         self.selected = None;
         self.walk = None;
         self.connecting = None;
@@ -440,16 +484,78 @@ impl FerrumSystem {
         }
     }
 
-    /// Applies an edit and saves it (demos change only in memory; with
-    /// nothing shown there is nothing to edit).
+    /// Applies an edit, saves it and lets it be undone (demos change only
+    /// in memory; with nothing shown there is nothing to edit). An edit
+    /// that changes nothing writes nothing.
     pub fn edit(&mut self, cx: &mut Context<Self>, f: impl FnOnce(&mut System)) {
+        self.edit_grouped(None, cx, f);
+    }
+
+    /// [`Self::edit`], where edits of one `group` in a row (typing into a
+    /// field) undo as one.
+    pub fn edit_grouped(
+        &mut self,
+        group: Option<&str>,
+        cx: &mut Context<Self>,
+        f: impl FnOnce(&mut System),
+    ) {
         if self.is_empty() {
             return;
         }
+        let before = self.system.clone();
         f(&mut self.system);
+        if self.system == before {
+            return;
+        }
+        let text = self.file_text();
+        self.history.record((before, text), group);
+        self.persist(None, cx);
+    }
+
+    /// The project's `system.json` as it is now (`None` for a demo).
+    fn file_text(&self) -> Option<String> {
+        match &self.source {
+            Source::Project(path) => store::read_text(path),
+            Source::Demo(_) | Source::Empty => None,
+        }
+    }
+
+    /// Undoes the last edit (`redo` false) or redoes the one undone last.
+    pub fn undo(&mut self, redo: bool, cx: &mut Context<Self>) {
+        let current = (self.system.clone(), self.file_text());
+        let restored = if redo {
+            self.history.redo(current)
+        } else {
+            self.history.undo(current)
+        };
+        let Some((system, text)) = restored else {
+            return;
+        };
+        self.system = system;
+        // The Component tab's fields show the restored text.
+        self.fields = None;
+        if let Some(id) = &self.selected
+            && self.system.node(id).is_none()
+        {
+            self.select(None, cx);
+        }
+        self.edge_menu = None;
+        self.persist(text, cx);
+    }
+
+    /// Saves the system shown: into the project's `system.json` (keeping
+    /// its formatting; `text`, the file as it was, when it says just that),
+    /// or into the demo in memory.
+    fn persist(&mut self, text: Option<String>, cx: &mut Context<Self>) {
         match &self.source {
             Source::Project(path) => {
-                if let Err(e) = store::save(path, &self.system) {
+                let same =
+                    |t: &String| serde_json::from_str::<System>(t).is_ok_and(|s| s == self.system);
+                let result = match text.filter(same) {
+                    Some(text) => store::restore_text(path, &text),
+                    None => store::save_edit(path, &self.system),
+                };
+                if let Err(e) = result {
                     self.say(Notice::error(e.to_string()), cx);
                 }
             }
@@ -480,6 +586,7 @@ impl FerrumSystem {
     }
 
     pub fn select(&mut self, id: Option<String>, cx: &mut Context<Self>) {
+        self.history.seal();
         self.selected = id;
         self.fields = None;
         if self.selected.is_some() {
