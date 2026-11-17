@@ -440,6 +440,22 @@ holds `.cmd` launchers instead of symlinks, and the active version gets a
 Start Menu shortcut under **Ferrum**. `state.json` is written atomically
 (temp file + rename).
 
+### Settings that would sync
+
+The Ferrum account has no settings API yet, so nothing is synced. The
+settings that should follow the user to another machine are already one
+document, `SyncedSettings` (`crates/core/src/synced.rs`, `format: 1`):
+the release repository, check interval, versions to keep, background
+updates, the menu bar icon, usage counts and each app's update channel.
+`State::synced_settings` reads it and `State::apply_synced_settings`
+adopts one (each valid field present replaces the local value; a newer
+`format` is refused). Everything else stays on the machine: installed and
+active versions, staged updates, global shortcuts, the apps already
+announced, migration markers, the usage install id, and the shell commands
+and Dock icons, which live in `~/.ferrum/preferences.json` with every
+Ferrum app. A sync only needs to store this document per account and call
+those two functions; `state.json`'s format is unchanged.
+
 ## Install safety
 
 - When a release has a `.sha256` file, the download is checked against it,
