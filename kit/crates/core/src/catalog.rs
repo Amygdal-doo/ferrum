@@ -11,6 +11,7 @@ pub enum Tool {
     Timestamp,
     Cron,
     Ids,
+    Qr,
     Hash,
     Regex,
     Diff,
@@ -22,7 +23,7 @@ pub enum Tool {
 
 impl Tool {
     /// Sidebar order.
-    pub const ALL: [Tool; 16] = [
+    pub const ALL: [Tool; 17] = [
         Tool::Json,
         Tool::JsonSchema,
         Tool::Sql,
@@ -32,6 +33,7 @@ impl Tool {
         Tool::Timestamp,
         Tool::Cron,
         Tool::Ids,
+        Tool::Qr,
         Tool::Hash,
         Tool::Regex,
         Tool::Diff,
@@ -52,6 +54,7 @@ impl Tool {
             Tool::Timestamp => "Unix Timestamp",
             Tool::Cron => "Cron Expression",
             Tool::Ids => "UUID / ULID",
+            Tool::Qr => "QR Code",
             Tool::Hash => "Hash Generator",
             Tool::Regex => "Regex Tester",
             Tool::Diff => "Text Diff",
@@ -74,6 +77,7 @@ impl Tool {
             Tool::Timestamp => "timestamp",
             Tool::Cron => "cron",
             Tool::Ids => "ids",
+            Tool::Qr => "qr",
             Tool::Hash => "hash",
             Tool::Regex => "regex",
             Tool::Diff => "diff",
@@ -106,6 +110,7 @@ impl Tool {
             }
             Tool::Cron => "Explain a cron schedule in plain English and list its next run times.",
             Tool::Ids => "Generate UUID v4, UUID v7 and ULID identifiers.",
+            Tool::Qr => "Make a QR code from text or a URL; copy it as an image or save a PNG.",
             Tool::Hash => "MD5, SHA-1, SHA-256 and SHA-512 digests of text.",
             Tool::Regex => "Test a regular expression (Rust regex syntax) against text.",
             Tool::Diff => "Line-by-line difference between two texts.",
@@ -130,6 +135,7 @@ impl Tool {
             Tool::Timestamp => "unix epoch timestamp time date seconds milliseconds",
             Tool::Cron => "cron crontab schedule job timer next run every minute hour",
             Tool::Ids => "uuid guid ulid v4 v7 generate id",
+            Tool::Qr => "qr qrcode barcode code image png generate url link",
             Tool::Hash => "hash md5 sha1 sha256 sha512 digest checksum",
             Tool::Regex => "regex regexp regular expression match pattern",
             Tool::Diff => "diff compare text lines changes",

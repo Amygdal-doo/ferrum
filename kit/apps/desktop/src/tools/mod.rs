@@ -14,6 +14,7 @@ mod json_schema;
 mod jwt;
 mod lines;
 mod number_base;
+mod qr;
 mod regex;
 mod sql;
 mod timestamp;
@@ -108,6 +109,7 @@ pub fn build(
         Tool::Timestamp => wire(cx.new(|cx| timestamp::TimestampTool::new(window, cx)), cx),
         Tool::Cron => wire(cx.new(|cx| cron::CronTool::new(window, cx)), cx),
         Tool::Ids => wire(cx.new(|cx| ids::IdsTool::new(window, cx)), cx),
+        Tool::Qr => wire(cx.new(|cx| qr::QrTool::new(window, cx)), cx),
         Tool::Hash => wire(cx.new(|cx| hash::HashTool::new(window, cx)), cx),
         Tool::Regex => wire(cx.new(|cx| regex::RegexTool::new(window, cx)), cx),
         Tool::Diff => wire(cx.new(|cx| diff::DiffTool::new(window, cx)), cx),

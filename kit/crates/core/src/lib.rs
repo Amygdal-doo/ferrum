@@ -21,6 +21,7 @@ pub mod json_schema;
 pub mod jwt;
 pub mod lines;
 pub mod number_base;
+pub mod qr;
 pub mod regex_tool;
 pub mod sql;
 pub mod store;

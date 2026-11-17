@@ -122,3 +122,15 @@ fn wrap_applies_to_every_tool_and_is_remembered(cx: &mut TestAppContext) {
     assert!(wraps(&app, Tool::Jwt, cx));
     assert!(KitStore::load(&path).expect("load").wrap);
 }
+
+#[gpui::test]
+fn qr_code_renders_as_an_image(cx: &mut TestAppContext) {
+    let (app, cx) = window(cx, None);
+    app.update(cx, |app, cx| app.select(Tool::Qr, cx));
+    draw(cx);
+    type_into(&app, Tool::Qr, "https://ferrum.dev", cx);
+    draw(cx);
+    // Too long for a QR code: an error instead of an image.
+    type_into(&app, Tool::Qr, &"x".repeat(8000), cx);
+    draw(cx);
+}
