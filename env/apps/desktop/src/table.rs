@@ -133,6 +133,13 @@ impl EnvApp {
                 |this, window, cx| this.open_sync(window, cx),
             ))
             .child(icon_button(
+                "leak-scan",
+                IconName::Warning,
+                "Scan the folder and git history for leaked secrets…",
+                cx,
+                |this, window, cx| this.open_leak_scan(window, cx),
+            ))
+            .child(icon_button(
                 "share-key",
                 IconName::Hash,
                 key_tooltip,

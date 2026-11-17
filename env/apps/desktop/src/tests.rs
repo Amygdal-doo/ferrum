@@ -842,3 +842,37 @@ fn projects_sync_through_a_shared_folder(cx: &mut TestAppContext) {
         Some("from-alice")
     );
 }
+
+#[gpui::test]
+fn leak_scan_names_files_and_variables(cx: &mut TestAppContext) {
+    init(cx);
+    let dir = tempfile::tempdir().expect("tempdir");
+    let work = dir.path().join("shop");
+    std::fs::create_dir_all(work.join("src")).expect("folder");
+    std::fs::write(work.join(".gitignore"), ".env\n").expect("write");
+    std::fs::write(work.join(".env"), "API_KEY=leaky-value-123\n").expect("write");
+    std::fs::write(work.join("src/app.js"), "\nconst k = 'leaky-value-123';\n").expect("write");
+    let (app, mut vcx) = open(cx, &dir.path().join("vault.json"));
+    let cx = &mut vcx;
+    submit_password(&app, PASSWORD, PASSWORD, cx);
+    app.update_in(cx, |a, window, cx| a.open_folder(&work, window, cx));
+    set_var(&app, "API_KEY", "leaky-value-123", cx);
+
+    app.update_in(cx, |a, window, cx| a.open_leak_scan(window, cx));
+    cx.run_until_parked();
+    let findings = with_vault(&app, cx, |u| match &u.dialog {
+        Some(Dialog::LeakScan(d)) => d.result.clone(),
+        _ => panic!("leak scan dialog not open"),
+    });
+    let findings = findings.expect("scan finished").expect("scan ok");
+    let summary: Vec<_> = findings
+        .iter()
+        .map(|f| (f.path.clone(), f.line, f.label.key.clone()))
+        .collect();
+    // The ignored .env is fine; the source file is not.
+    assert_eq!(
+        summary,
+        [("src/app.js".to_string(), Some(2), "API_KEY".to_string())]
+    );
+    assert!(!format!("{findings:?}").contains("leaky-value"));
+}

@@ -9,6 +9,8 @@
 //!   can be encrypted to each team member instead of a shared key.
 //! - [`sync`]: keeping a project in step through a shared folder of team
 //!   bundles, with three-way merges and explicit conflicts.
+//! - [`leaks`]: finding stored secret values in a project's files and git
+//!   history (by hash; values are never printed).
 //! - [`dotenv`]: `.env` parsing, writing and `.gitignore` checks.
 //! - [`diff`]: comparing environments and previewing imports.
 //! - [`lock`] and [`password`]: auto-lock timing and password strength.
@@ -23,6 +25,7 @@ pub mod dotenv;
 mod error;
 mod fsutil;
 pub mod identity;
+pub mod leaks;
 pub mod lock;
 pub mod model;
 pub mod password;

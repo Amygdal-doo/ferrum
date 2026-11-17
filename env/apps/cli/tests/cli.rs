@@ -159,3 +159,51 @@ fn run_injects_variables_without_writing_files() {
     assert!(!missing.status.success());
     assert!(stderr(&missing).contains("could not run no-such-program-fenv"));
 }
+
+fn git(dir: &Path, args: &[&str]) -> bool {
+    Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(["-c", "user.name=t", "-c", "user.email=t@example.com"])
+        .args(["-c", "commit.gpgsign=false"])
+        .args(args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+#[test]
+fn scan_reports_leaks_by_name_only() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let vault = make_vault(dir.path());
+    let work = dir.path().join("shop");
+    let clean = fenv(&vault, &work, PASSWORD, &["scan"]);
+    assert!(clean.status.success(), "{}", stderr(&clean));
+    assert!(stdout(&clean).contains("No stored secret values found"));
+
+    if !git(&work, &["init", "-q"]) {
+        return;
+    }
+    std::fs::write(work.join("src/settings.py"), "KEY = 's3cret-api-key'\n").expect("write");
+    assert!(git(&work, &["add", "."]));
+    assert!(git(&work, &["commit", "-q", "-m", "oops"]));
+    std::fs::write(work.join("src/settings.py"), "KEY = env('KEY')\n").expect("write");
+    assert!(git(&work, &["commit", "-q", "-am", "fix"]));
+    std::fs::write(work.join("notes.txt"), "\n\ntoken s3cret-api-key\n").expect("write");
+
+    let output = fenv(&vault, &work, PASSWORD, &["scan"]);
+    assert_eq!(output.status.code(), Some(1));
+    let text = stdout(&output);
+    assert!(
+        text.contains("notes.txt:3  API_KEY (development)"),
+        "{text}"
+    );
+    assert!(text.contains("src/settings.py (history, commit "), "{text}");
+    assert!(text.contains("rotate it"));
+    assert!(!text.contains("s3cret") && !stderr(&output).contains("s3cret"));
+
+    let tree_only = fenv(&vault, &work, PASSWORD, &["scan", "--no-history"]);
+    assert!(!stdout(&tree_only).contains("(history, commit"));
+    assert!(stdout(&tree_only).contains("notes.txt:3"));
+}

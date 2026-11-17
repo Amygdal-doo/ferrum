@@ -6,6 +6,8 @@
 //!   keeps the decrypted vault around.
 //! - `fenv list` lists projects; `fenv list --project shop` lists variable
 //!   names, values only with `--show`.
+//! - `fenv scan` warns about stored secret values found in the project's
+//!   files or git history (see `ferrumenv_core::leaks`).
 //!
 //! The vault is unlocked here, from the master password typed on the
 //! terminal (echo off) or given on stdin with `--password-stdin`. There is
@@ -16,11 +18,12 @@ mod password;
 mod select;
 
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command as Process, ExitCode};
 
 use clap::{Parser, Subcommand};
 use ferrumenv_core::Vault;
+use ferrumenv_core::leaks::{self, Fingerprints};
 use ferrumenv_core::store::{self, Session};
 use zeroize::Zeroizing;
 
@@ -69,6 +72,16 @@ enum Command {
         /// Print the values too, as .env lines.
         #[arg(long)]
         show: bool,
+    },
+    /// Look for the project's secret values in its folder and git history
+    /// (compared by hash; values are never printed). Exits 1 on findings.
+    Scan {
+        /// Project name (default: the project linked to this folder).
+        #[arg(long, short)]
+        project: Option<String>,
+        /// Only the working tree, not the git history.
+        #[arg(long)]
+        no_history: bool,
     },
 }
 
@@ -126,7 +139,60 @@ fn run(cli: Cli) -> Result<ExitCode, String> {
             print!("{}", select::list_variables(&envs, show));
             Ok(ExitCode::SUCCESS)
         }
+        Command::Scan {
+            project,
+            no_history,
+        } => {
+            let project = select::project(&vault, project.as_deref(), &cwd)?;
+            let dir = project
+                .path
+                .clone()
+                .ok_or_else(|| format!("{} is not linked to a folder", project.name))?;
+            let prints = Fingerprints::new(project);
+            let name = project.name.clone();
+            // Only lengths and hashes are needed from here on.
+            drop(vault);
+            scan(&name, &dir, &prints, !no_history)
+        }
     }
+}
+
+/// Prints where the project's values were found, and what to do.
+fn scan(name: &str, dir: &Path, prints: &Fingerprints, history: bool) -> Result<ExitCode, String> {
+    if prints.is_empty() {
+        println!(
+            "{name} has no secret values of {} characters or more to look for.",
+            leaks::MIN_LEN
+        );
+        return Ok(ExitCode::SUCCESS);
+    }
+    eprintln!(
+        "fenv: looking for {} secret values of {name} in {}",
+        prints.len(),
+        dir.display()
+    );
+    let mut findings = leaks::scan_working_tree(dir, prints);
+    if history && leaks::is_git_repo(dir) {
+        findings.extend(leaks::scan_history(dir, prints).map_err(|e| e.to_string())?);
+    }
+    if findings.is_empty() {
+        println!("No stored secret values found.");
+        return Ok(ExitCode::SUCCESS);
+    }
+    for f in &findings {
+        let place = match (f.line, &f.commit) {
+            (Some(line), _) => format!("{}:{line}", f.path),
+            (None, Some(commit)) => format!("{} (history, commit {commit})", f.path),
+            (None, None) => f.path.clone(),
+        };
+        println!("{place}  {} ({})", f.label.key, f.label.environment);
+    }
+    println!(
+        "\n{} finding(s). What to do:\n{}",
+        findings.len(),
+        leaks::GUIDANCE
+    );
+    Ok(ExitCode::FAILURE)
 }
 
 /// Reads the vault with the master password. The derived key is dropped

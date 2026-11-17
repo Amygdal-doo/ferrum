@@ -24,6 +24,7 @@ fenv run -- cargo run                            # project = the one linked to t
 fenv list                                        # projects and environment sizes
 fenv list --project shop --env staging           # variable names only
 fenv list --project shop --env staging --show    # KEY=value lines (values on purpose)
+fenv scan [--project shop] [--no-history]        # leaked secrets; exits 1 on findings
 ```
 
 `fenv run` never writes a `.env` file: the variables are added to the command's environment
@@ -80,6 +81,15 @@ password as the only way in.
   by the sync service (`shop (… conflicted copy).fenv`, `shop 2.fenv`, `shop.sync-conflict-…`)
   are merged too, every difference being a choice. Bundles from a key that is neither yours nor a
   member's are ignored with a notice.
+- **Secret leak warning.** *Scan for leaked secrets* (⚠ icon, or `fenv scan`) looks for the
+  project's stored secret values (variables marked secret, 8+ characters) in its folder (files
+  git would track: `.gitignore`d files such as `.env` are expected to hold them) and in every line
+  ever added under that folder in its git history (`git log --all -p`). It reports the file (and
+  line, or commit) and the variable name, then guidance: rotate the value, read it from the
+  environment instead, and only then consider rewriting history. Nothing is rewritten.
+  Values are compared by hash: the scan holds only each value's length, a 64-bit rolling hash
+  (to find candidates) and SHA-256 (to confirm), never prints a value, and runs git with external
+  diff and textconv drivers disabled. Values that span lines are only found in the working tree.
 - **.env interop.** Import a project folder's `.env`, `.env.local`, `.env.production`, … (`.env`
   → development, `.env.<name>` → `<name>`; comments, `export `, single / double / backtick
   quotes, escapes and multi-line quoted values). Write an environment to a `.env` file (asks
@@ -90,8 +100,8 @@ password as the only way in.
 
 | Path | What |
 | --- | --- |
-| `crates/core` (`ferrumenv-core`) | No UI. `model` (vault data), `crypto` (Argon2id, XChaCha20-Poly1305), `store` (vault file, `Session`), `share_key`, `identity` (X25519 key pair, public keys, members), `recipients` (team-bundle sealing), `bundle`, `sync` (shared folder, three-way merge), `dotenv`, `diff`, `lock` (auto-lock timing), `password` (rules, strength) |
-| `apps/cli` (`ferrumenv-cli`, binary `fenv`) | `fenv run` / `fenv list`: `select` (project by name or folder, environment by prefix), `password` (terminal prompt) |
+| `crates/core` (`ferrumenv-core`) | No UI. `model` (vault data), `crypto` (Argon2id, XChaCha20-Poly1305), `store` (vault file, `Session`), `share_key`, `identity` (X25519 key pair, public keys, members), `recipients` (team-bundle sealing), `bundle`, `sync` (shared folder, three-way merge), `leaks` (secret scan), `dotenv`, `diff`, `lock` (auto-lock timing), `password` (rules, strength) |
+| `apps/cli` (`ferrumenv-cli`, binary `fenv`) | `fenv run` / `list` / `scan`: `select` (project by name or folder, environment by prefix), `password` (terminal prompt) |
 | `apps/desktop` (`ferrumenv-desktop`, binary `ferrumenv`) | GPUI app: `app` (root, lock state, timer, clipboard), `lock_screen`, `unlocked` (strip, sidebar, status bar), `table`, `sync` (folder poll), `dialogs/*`, `tests.rs` |
 
 ## Security model
