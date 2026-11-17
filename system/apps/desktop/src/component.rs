@@ -17,6 +17,7 @@ pub struct NodeFields {
     pub below: Entity<TextInput>,
     pub body: Entity<TextInput>,
     pub item: Entity<TextInput>,
+    pub health: Entity<TextInput>,
     _subscriptions: std::rc::Rc<Vec<Subscription>>,
 }
 
@@ -102,6 +103,16 @@ impl FerrumSystem {
             cx,
         );
         let item = make("", "Add an item inside, then Enter", 1, window, cx);
+        let health = make(
+            node.deploy
+                .as_ref()
+                .and_then(|d| d.health.as_deref())
+                .unwrap_or(""),
+            "Health check, e.g. GET /healthz",
+            1,
+            window,
+            cx,
+        );
         let id = node.id.clone();
         let mut subs = Vec::new();
         // Typing into one field undoes as one edit.
@@ -151,6 +162,14 @@ impl FerrumSystem {
                 n.style.body = Some(t).filter(|t| !t.trim().is_empty())
             }),
         ));
+        subs.push(cx.subscribe(
+            &health,
+            field("health", move |n, t| {
+                if let Some(d) = n.deploy.as_mut() {
+                    d.health = Some(t).filter(|t| !t.trim().is_empty());
+                }
+            }),
+        ));
         let _ = opt;
         let item_id = id.clone();
         subs.push(cx.subscribe(
@@ -178,6 +197,7 @@ impl FerrumSystem {
             below,
             body,
             item,
+            health,
             _subscriptions: std::rc::Rc::new(subs),
         };
         self.fields = Some(fields.clone());
@@ -410,8 +430,8 @@ impl FerrumSystem {
             Some(DeployTarget::Pod | DeployTarget::Container | DeployTarget::Vm)
         ) {
             let (a, b) = (id.clone(), id.clone());
-            col =
-                col.child(
+            col = col
+                .child(
                     h_flex()
                         .pt_1()
                         .gap_2()
@@ -436,6 +456,13 @@ impl FerrumSystem {
                                 })
                             }),
                         )),
+                )
+                .child(
+                    h_flex()
+                        .pt_1()
+                        .gap_2()
+                        .child(div().flex_none().text_size(px(12.)).child("Health"))
+                        .child(div().flex_1().child(fields.health.clone())),
                 );
         }
 

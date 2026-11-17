@@ -180,6 +180,9 @@ pub struct Edge {
     pub color: Option<u32>,
     /// Line width in points; `None` = the default.
     pub width: Option<f32>,
+    /// How the caller is authenticated (`mTLS`, `JWT`, `API key`…);
+    /// `None` = not said.
+    pub auth: Option<String>,
 }
 
 /// How two components talk; drawn differently and listed in the legend.

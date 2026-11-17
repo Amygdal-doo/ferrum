@@ -118,10 +118,11 @@ pub enum Tab {
     Reliability,
     Deploy,
     Runtime,
+    Problems,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 10] = [
+    pub const ALL: [Tab; 11] = [
         Tab::Add,
         Tab::Overview,
         Tab::Component,
@@ -132,6 +133,7 @@ impl Tab {
         Tab::Reliability,
         Tab::Deploy,
         Tab::Runtime,
+        Tab::Problems,
     ];
 
     pub fn label(self) -> &'static str {
@@ -146,6 +148,7 @@ impl Tab {
             Tab::Reliability => "Reliability",
             Tab::Deploy => "Deploy",
             Tab::Runtime => "Runtime",
+            Tab::Problems => "Problems",
         }
     }
 }

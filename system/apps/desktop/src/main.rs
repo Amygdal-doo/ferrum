@@ -18,6 +18,7 @@ mod live;
 mod menus;
 mod panel;
 mod prefs;
+mod problems;
 mod sidebar;
 #[cfg(test)]
 mod tests;

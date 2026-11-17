@@ -17,7 +17,7 @@ project folder (custom icons in `.architecture/icons/`).
 - **Diagram card**: header (name, tagline, a *Demo* badge for demos, the tools toggle and the
   ◨ panel toggle), the toolbar (cloud switch, Connect, Add) and the canvas.
 - **Right panel**: Add, Overview, Component, APIs, Sockets, Data, Flows, Reliability, Deploy,
-  Runtime.
+  Runtime, Problems.
 
 Both side panes fold away and the canvas takes their room:
 
@@ -71,6 +71,20 @@ diagram, the same one every time for the same files:
 
 A project without a diagram gets this one as its `.architecture/system.json`; with a diagram,
 only the components and connections it lacks are added, as one edit (⌘Z takes it back).
+
+## Problems
+The **Problems** tab (and the toolbar's ⚠ count) lists what the diagram itself shows to be
+wrong; click one to select its component:
+
+| Problem | When |
+|---|---|
+| Database reachable from a public layer | a client or edge component connects straight to a datastore |
+| Connection without auth | a request from a client or edge component into a service or gateway that says no auth (the connection's *Auth*, or a label like "JWT"); a gateway that calls an identity service counts as checking |
+| Single replica on a critical path | a pod, container or VM with one replica that is in a flow or reached synchronously from a public component |
+| No health check | a pod, container or VM without one (Component tab › *Health*) |
+| Unknown reference | a connection, API, socket, flow step, layer or database naming something missing |
+| Image without a version | an image with no tag or `:latest` (info) |
+| Not connected | a component with no connections (info) |
 
 ## Export
 **Export** (the toolbar's download button, or File › Export ›) saves the whole diagram, laid

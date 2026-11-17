@@ -224,6 +224,7 @@ impl FerrumSystem {
             )
             .child(cloud)
             .child(div().flex_1())
+            .children(self.problems_button(cx))
             .child(
                 IconButton::new("undo", IconName::Undo)
                     .icon_size(IconSize::Small)

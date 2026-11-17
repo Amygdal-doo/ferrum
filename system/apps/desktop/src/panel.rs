@@ -111,6 +111,7 @@ impl FerrumSystem {
             Tab::Reliability => self.reliability_tab(cx).into_any_element(),
             Tab::Deploy => self.deploy_tab(cx).into_any_element(),
             Tab::Runtime => self.runtime_tab(cx),
+            Tab::Problems => self.problems_tab(cx),
         };
         v_flex().size_full().child(tabs).child(
             div()

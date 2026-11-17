@@ -688,6 +688,26 @@ impl FerrumSystem {
                     cx.listener(move |this, _, _, cx| this.edit_edge(index, cx, |e| e.style = k)),
                 )
             }));
+        // How callers are authenticated (the Problems tab warns when a
+        // public component's request says nothing).
+        const AUTH: [Option<&str>; 6] = [
+            None,
+            Some("mTLS"),
+            Some("JWT"),
+            Some("OAuth"),
+            Some("API key"),
+            Some("IAM"),
+        ];
+        let auth = h_flex().flex_wrap().gap_0p5().children(AUTH.map(|a| {
+            chip(
+                format!("auth-{}", a.unwrap_or("none")).into(),
+                a.unwrap_or("Not said").into(),
+                edge.auth.as_deref() == a,
+            )
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.edit_edge(index, cx, |e| e.auth = a.map(str::to_owned))
+            }))
+        }));
         const SWATCHES: [u32; 8] = [
             0x8b8b90, 0x38bdf8, 0xa855f7, 0x22c55e, 0xeab308, 0xef4444, 0xec4899, 0x14b8a6,
         ];
@@ -759,6 +779,8 @@ impl FerrumSystem {
                 .child(to_row)
                 .child(label("Kind"))
                 .child(kinds)
+                .child(label("Auth"))
+                .child(auth)
                 .child(label("Colour"))
                 .child(swatches)
                 .child(label("Thickness"))
