@@ -36,11 +36,24 @@ async fn main() -> std::io::Result<()> {
     } else {
         tracing::info!("DATABASE_URL unset: usage pings are accepted but not stored");
     }
+    // Page views are added up in memory and written once a minute.
+    let visits = state.visits.clone();
+    if visits.enabled() {
+        let visits = visits.clone();
+        tokio::spawn(async move {
+            let mut every = tokio::time::interval(web_ferrum::visits::FLUSH_EVERY);
+            loop {
+                every.tick().await;
+                visits.flush().await;
+            }
+        });
+    }
     // Peer addresses feed X-Forwarded-For on the accounts proxy.
     let service = router(state).into_make_service_with_connect_info::<std::net::SocketAddr>();
     axum::serve(listener, service)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
+    visits.flush().await;
     tracing::info!("web-ferrum stopped");
     Ok(())
 }

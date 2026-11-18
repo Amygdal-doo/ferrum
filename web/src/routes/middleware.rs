@@ -1,5 +1,6 @@
 //! Cross-cutting HTTP middleware: compression, tracing, security headers,
-//! a default cache policy and the `www.` → canonical host redirect.
+//! a default cache policy, the `www.` → canonical host redirect and the
+//! page-view count.
 
 use axum::{
     Router,
@@ -72,6 +73,47 @@ pub async fn canonical_host(
         Some(to) => axum::response::Redirect::permanent(&to).into_response(),
         None => next.run(req).await,
     }
+}
+
+/// Counts a page view (`crate::visits`): a `GET` from a browser that is
+/// answered with an HTML page. Not prefetches, bots, assets or the API.
+pub async fn count_view(
+    axum::extract::State(visits): axum::extract::State<std::sync::Arc<crate::visits::Visits>>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use crate::visits;
+    // In a block: a borrow of the request (its body is not `Sync`) must not
+    // be held across the `await` below.
+    let view = {
+        let headers = req.headers();
+        let header = |name: HeaderName| headers.get(name).and_then(|h| h.to_str().ok());
+        let prefetch = ["sec-purpose", "purpose"].into_iter().any(|name| {
+            header(HeaderName::from_static(name)).is_some_and(|v| v.contains("prefetch"))
+        });
+        let path = req.uri().path();
+        (visits.enabled()
+            && req.method() == axum::http::Method::GET
+            && !prefetch
+            && visits::countable(path)
+            && visits::is_browser(header(header::USER_AGENT).unwrap_or_default()))
+        .then(|| {
+            let source = visits::source(header(header::REFERER), visits.site_host());
+            (path.to_owned(), source)
+        })
+    };
+    let res = next.run(req).await;
+    if let Some((path, source)) = view {
+        let html = res
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v.starts_with("text/html"));
+        if res.status() == axum::http::StatusCode::OK && html {
+            visits.add(&path, source);
+        }
+    }
+    res
 }
 
 #[cfg(test)]

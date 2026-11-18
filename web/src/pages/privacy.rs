@@ -8,11 +8,13 @@ use crate::layout::{PageMeta, page};
 use crate::site;
 
 pub const PATH: &str = "/privacy";
-pub const UPDATED: &str = "2026-11-17";
+pub const UPDATED: &str = "2026-11-18";
 /// Anchor of the usage-count section (the launcher links to it).
 pub const USAGE_COUNTS_ID: &str = "usage-counts";
 /// Anchor of the accounts section (the sign-in pages link to it).
 pub const ACCOUNTS_ID: &str = "accounts";
+/// Anchor of the server-side page-view count.
+pub const PAGE_VIEWS_ID: &str = "page-views";
 /// Anchor of the website-analytics section.
 pub const ANALYTICS_ID: &str = "analytics";
 
@@ -51,6 +53,14 @@ pub fn render(site_url: &str) -> Markup {
                             "Nothing about you unless you sign in. There is no mailing list. \
                              Like any web server, this one logs each request's method and path, \
                              without query strings."
+                        }
+                        p id=(PAGE_VIEWS_ID) {
+                            "This site also counts page views itself, without cookies. For each \
+                             day it keeps only the page and where the visit came from, reduced to \
+                             a site name such as LinkedIn or X, taken from the link your browser \
+                             followed. No IP address, cookie or user agent is stored; the user \
+                             agent is only read to leave out bots. The totals are public on "
+                            a href=(super::stats::PATH) { "Stats" } "."
                         }
                         h2 { "Services involved" }
                         ul class="post__list" {

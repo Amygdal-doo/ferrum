@@ -12,6 +12,7 @@ pub mod seo;
 pub mod site;
 pub mod updates;
 pub mod usage;
+pub mod visits;
 
 pub use config::Config;
 pub use routes::app;

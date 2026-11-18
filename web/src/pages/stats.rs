@@ -1,5 +1,6 @@
 //! `/stats`: how many installs use Ferrum, from FerrumLauncher's anonymous
-//! daily count (`crate::usage`), plus GitHub's download totals.
+//! daily count (`crate::usage`), visits to this website (`crate::visits`)
+//! and GitHub's download totals.
 
 use std::sync::Arc;
 
@@ -13,7 +14,7 @@ use crate::components::{
 };
 use crate::layout::{PageMeta, page};
 use crate::releases::DownloadTotals;
-use crate::{products, usage::Aggregates};
+use crate::{products, usage::Aggregates, visits};
 
 pub const PATH: &str = "/stats";
 
@@ -65,11 +66,16 @@ fn app_name(id: &str) -> &str {
     products::by_release_id(id).map_or(id, |p| p.name)
 }
 
-pub fn render(site_url: &str, usage: &Usage, downloads: Option<&DownloadTotals>) -> Markup {
+pub fn render(
+    site_url: &str,
+    usage: &Usage,
+    visits: Option<&visits::Aggregates>,
+    downloads: Option<&DownloadTotals>,
+) -> Markup {
     let meta = PageMeta::new(
-        Some("Usage stats: active installs and downloads"),
+        Some("Usage stats: active installs, downloads and visits"),
         "How many people use Ferrum: active installs per day, week and month from the \
-         launcher's anonymous daily count, and GitHub download totals.",
+         launcher's anonymous daily count, GitHub download totals and visits to this website.",
         PATH,
         "page-stats",
     )
@@ -104,6 +110,9 @@ pub fn render(site_url: &str, usage: &Usage, downloads: Option<&DownloadTotals>)
                 (Section::new("apps", "Installed apps").tight().render(apps(a)))
             }
             (Section::new("downloads", "Downloads").tight().band().render(downloads_table(downloads)))
+            @if let Some(v) = visits {
+                (Section::new("visits", "Website visits").tight().render(website(v)))
+            }
         },
     )
 }
@@ -193,6 +202,53 @@ fn downloads_table(downloads: Option<&DownloadTotals>) -> Markup {
     }
 }
 
+fn website(v: &visits::Aggregates) -> Markup {
+    html! {
+        dl class="hero-stats" {
+            div class="hero-stat" { dt { "today (UTC, so far)" } dd { (count(v.today)) } }
+            div class="hero-stat" { dt { "in the last 7 days" } dd { (count(v.last_7_days)) } }
+            div class="hero-stat" { dt { "in the last 30 days" } dd { (count(v.last_30_days)) } }
+        }
+        p class="muted" {
+            "Pages opened from outside this site, counted on the server without cookies; \
+             bots are left out. "
+            a href={ (super::privacy::PATH) "#" (super::privacy::PAGE_VIEWS_ID) } { "How" } "."
+        }
+        @if !v.sources.is_empty() {
+            div class="table-wrap" {
+                table class="data-table" {
+                    caption class="visually-hidden" { "Visits by source, last 30 days" }
+                    thead { tr {
+                        th scope="col" { "Came from" }
+                        th scope="col" { "Visits (30 days)" }
+                    } }
+                    tbody {
+                        @for (source, n) in &v.sources {
+                            tr { th scope="row" { (visits::source_label(source)) } td { (count(*n)) } }
+                        }
+                    }
+                }
+            }
+        }
+        @if !v.pages.is_empty() {
+            div class="table-wrap" {
+                table class="data-table" {
+                    caption class="visually-hidden" { "Most viewed pages, last 30 days" }
+                    thead { tr {
+                        th scope="col" { "Page" }
+                        th scope="col" { "Views (30 days)" }
+                    } }
+                    tbody {
+                        @for (path, n) in &v.pages {
+                            tr { th scope="row" { code { (path) } } td { (count(*n)) } }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -207,11 +263,12 @@ mod tests {
 
     #[test]
     fn empty_state_without_a_database() {
-        let html = render("https://f.test", &Usage::NotCollected, None).into_string();
+        let html = render("https://f.test", &Usage::NotCollected, None, None).into_string();
         assert_eq!(html.matches("<h1").count(), 1);
         assert!(html.contains("No counts yet"));
         assert!(html.contains("/privacy#usage-counts"));
         assert!(!html.contains("hero-stats"));
+        assert!(!html.contains("Website visits"));
     }
 
     #[test]
@@ -227,9 +284,17 @@ mod tests {
             total: 9876,
             by_app: vec![("launcher".into(), 9876)],
         };
+        let visits = visits::Aggregates {
+            today: 3,
+            last_7_days: 45,
+            last_30_days: 2345,
+            sources: vec![("x".into(), 30), ("linkedin".into(), 15)],
+            pages: vec![("/ferrumide".into(), 70)],
+        };
         let html = render(
             "https://f.test",
             &Usage::Counts(Arc::new(counts)),
+            Some(&visits),
             Some(&downloads),
         )
         .into_string();
@@ -241,6 +306,12 @@ mod tests {
             "FerrumGIT",
             "9,876",
             "FerrumLauncher",
+            "Website visits",
+            "2,345",
+            "X (Twitter)",
+            "LinkedIn",
+            "/ferrumide",
+            "/privacy#page-views",
         ] {
             assert!(html.contains(text), "{text}");
         }

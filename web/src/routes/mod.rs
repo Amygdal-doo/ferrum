@@ -19,7 +19,7 @@ use axum::{
 };
 use maud::Markup;
 
-use crate::{Config, pages, products, releases::Releases, site, usage::Usage};
+use crate::{Config, pages, products, releases::Releases, site, usage::Usage, visits::Visits};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -29,6 +29,8 @@ pub struct AppState {
     /// Anonymous usage counts (`/api/ping`, `/stats`); stores nothing
     /// without `DATABASE_URL`.
     pub usage: Arc<Usage>,
+    /// Page views counted on the server, in the usage database.
+    pub visits: Arc<Visits>,
     /// Client for the accounts service behind `ACCOUNTS_URL`.
     pub accounts_client: reqwest::Client,
 }
@@ -36,6 +38,7 @@ pub struct AppState {
 impl AppState {
     pub fn new(config: Config, releases: Releases) -> Self {
         let usage = Usage::from_url(config.database_url.as_deref());
+        let visits = Visits::new(usage.pool().cloned(), &config.site_url);
         if let Some(id) = &config.ga_measurement_id {
             crate::analytics::enable(id);
         }
@@ -43,6 +46,7 @@ impl AppState {
             config: Arc::new(config),
             releases: Arc::new(releases),
             usage: Arc::new(usage),
+            visits: Arc::new(visits),
             accounts_client: accounts_proxy::client(),
         }
     }
@@ -166,10 +170,16 @@ pub fn router(state: AppState) -> Router {
         .fallback(not_found)
         .with_state(state.clone());
     let site_url: Arc<str> = state.site_url().into();
-    middleware::with_middleware(router.layer(axum::middleware::from_fn_with_state(
-        site_url,
-        middleware::canonical_host,
-    )))
+    let router = router
+        .layer(axum::middleware::from_fn_with_state(
+            state.visits.clone(),
+            middleware::count_view,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            site_url,
+            middleware::canonical_host,
+        ));
+    middleware::with_middleware(router)
 }
 
 async fn home(State(s): State<AppState>) -> Markup {
@@ -185,13 +195,17 @@ async fn licenses(State(s): State<AppState>) -> Markup {
     pages::licenses::render(s.site_url())
 }
 async fn stats(State(s): State<AppState>) -> Markup {
-    let (usage, downloads) = tokio::join!(s.usage.aggregates(), s.releases.download_totals());
+    let (usage, visits, downloads) = tokio::join!(
+        s.usage.aggregates(),
+        s.visits.aggregates(),
+        s.releases.download_totals()
+    );
     let view = match usage {
         Some(counts) => pages::stats::Usage::Counts(counts),
         None if s.usage.enabled() => pages::stats::Usage::Unavailable,
         None => pages::stats::Usage::NotCollected,
     };
-    pages::stats::render(s.site_url(), &view, downloads.as_ref())
+    pages::stats::render(s.site_url(), &view, visits.as_deref(), downloads.as_ref())
 }
 async fn ferrumdata(State(s): State<AppState>) -> Markup {
     pages::ferrumdata::render(s.site_url())

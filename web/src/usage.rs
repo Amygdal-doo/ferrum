@@ -158,6 +158,11 @@ impl Usage {
         self.pool.is_some()
     }
 
+    /// The database, shared with the page-view counter (`crate::visits`).
+    pub fn pool(&self) -> Option<&PgPool> {
+        self.pool.as_ref()
+    }
+
     /// Applies `migrations/` (embedded at build time). No-op without a database.
     pub async fn migrate(&self) -> Result<(), sqlx::migrate::MigrateError> {
         match &self.pool {
