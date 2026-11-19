@@ -129,6 +129,7 @@ pub fn router(state: AppState) -> Router {
         .route(pages::features::PATH, get(features))
         .route("/download", get(download))
         .route(site::MACOS_DOWNLOAD_PATH, get(download_macos))
+        .route("/download/{app}/{installer}", get(download_installer))
         .route("/about", get(about))
         .route(pages::docs::PATH, get(docs))
         .route(pages::docs::install::PATH, get(docs_install))
@@ -267,6 +268,33 @@ async fn download_macos(
             (header::CACHE_CONTROL, "no-store".to_owned()),
         ],
     )
+}
+/// `/download/<app>/<installer>`: the newest DMG or .deb of one app, for
+/// installing it without the launcher.
+async fn download_installer(
+    State(s): State<AppState>,
+    Path((app, installer)): Path<(String, String)>,
+) -> Response {
+    let (Some(product), Some(installer)) = (
+        products::by_slug(&app),
+        crate::releases::Installer::from_slug(&installer),
+    ) else {
+        return not_found(State(s)).await.into_response();
+    };
+    // The apps are in alpha, so their pre-releases count; the launcher's don't.
+    let prereleases = product.slug != products::FERRUM_LAUNCHER.slug;
+    let url = s
+        .releases
+        .installer_url(product.release_id(), installer, prereleases)
+        .await;
+    (
+        StatusCode::FOUND,
+        [
+            (header::LOCATION, url),
+            (header::CACHE_CONTROL, "no-store".to_owned()),
+        ],
+    )
+        .into_response()
 }
 async fn about(State(s): State<AppState>) -> Markup {
     pages::about::render(s.site_url())

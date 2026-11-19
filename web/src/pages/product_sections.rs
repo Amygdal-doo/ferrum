@@ -16,6 +16,7 @@ use crate::components::{
 };
 use crate::layout::{PageMeta, page};
 use crate::products::{self, Product};
+use crate::releases::Installer;
 use crate::{seo, site};
 
 /// A titled list of short bullet points (e.g. "Not built yet").
@@ -78,6 +79,7 @@ pub fn render(site_url: &str, p: &ProductPage, extra: Markup) -> Markup {
             (extra)
             (features(p))
             (status(p))
+            (installers(prod))
             (specs(p))
             (related(prod))
         },
@@ -156,6 +158,36 @@ fn status(p: &ProductPage) -> Markup {
                             @for item in group.items { li { (item) } }
                         }
                     }
+                }
+            }
+        })
+}
+
+/// The app's own DMGs and .deb, for installing it without the launcher.
+fn installers(prod: &Product) -> Markup {
+    let launcher = prod.slug == products::FERRUM_LAUNCHER.slug;
+    let title = if launcher {
+        "Download".to_owned()
+    } else {
+        format!("Install {} without the launcher", prod.name)
+    };
+    Section::new("install", &title)
+        .tight()
+        .lead(html! {
+            @if launcher {
+                p { "The newest FerrumLauncher installer for your system." }
+            } @else {
+                p {
+                    "Every release of " (prod.name) " has its own installer. A copy installed                      this way doesn't update itself yet: download the new version here, or "
+                    a href=(products::FERRUM_LAUNCHER.path()) { "install it with FerrumLauncher" }
+                    ", which keeps it up to date."
+                }
+            }
+        })
+        .render(html! {
+            div class="download-actions" {
+                @for installer in Installer::ALL {
+                    (button::link(installer.label(), &prod.installer_path(installer), Variant::Secondary))
                 }
             }
         })

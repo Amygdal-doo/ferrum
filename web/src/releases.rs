@@ -1,7 +1,8 @@
 //! Releases of every Ferrum app, from the public releases repo.
 //!
-//! Two pure functions read the GitHub API JSON: [`newest_launcher_dmg`]
-//! (behind `/download/macos`) and [`changelog`] (behind `/changelog`).
+//! Pure functions read the GitHub API JSON: [`newest_launcher_dmg`]
+//! (behind `/download/macos`), [`newest_installer`] (behind
+//! `/download/<app>/<installer>`) and [`changelog`] (behind `/changelog`).
 //! [`Releases`] wraps them with an injectable fetcher and one in-memory
 //! cache: a good response is reused for [`CACHE_TTL`]; after a failed fetch
 //! the last good response (if any) keeps being served, and GitHub is asked
@@ -93,6 +94,72 @@ pub fn newest_launcher_dmg(json: &str) -> Option<String> {
         })
         .max_by_key(|(version, _)| *version)
         .map(|(_, url)| url)
+}
+
+/// An installer for downloading one app by hand, without the launcher.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Installer {
+    MacAppleSilicon,
+    MacIntel,
+    LinuxDeb,
+}
+
+impl Installer {
+    pub const ALL: [Installer; 3] = [Self::MacAppleSilicon, Self::MacIntel, Self::LinuxDeb];
+
+    /// Last segment of `/download/<app>/<installer>`.
+    pub fn slug(self) -> &'static str {
+        match self {
+            Self::MacAppleSilicon => "macos-apple-silicon",
+            Self::MacIntel => "macos-intel",
+            Self::LinuxDeb => "linux-deb",
+        }
+    }
+
+    pub fn from_slug(slug: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|i| i.slug() == slug)
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::MacAppleSilicon => "macOS, Apple Silicon",
+            Self::MacIntel => "macOS, Intel",
+            Self::LinuxDeb => "Linux (.deb)",
+        }
+    }
+
+    /// End of the asset name (`.github/workflows/release.yml`).
+    fn suffix(self) -> &'static str {
+        match self {
+            Self::MacAppleSilicon => MACOS_DMG_SUFFIX,
+            Self::MacIntel => "-x86_64.dmg",
+            Self::LinuxDeb => "_amd64.deb",
+        }
+    }
+}
+
+/// Download URL of `installer` from the newest release of the app whose tags
+/// are `<release_id>-v<version>`. GitHub lists releases newest first, so the
+/// first match wins. Drafts never count; pre-releases only with
+/// `prereleases` (every app but the launcher is still in alpha).
+pub fn newest_installer(
+    json: &str,
+    release_id: &str,
+    installer: Installer,
+    prereleases: bool,
+) -> Option<String> {
+    let releases: Vec<Release> = serde_json::from_str(json).ok()?;
+    let prefix = format!("{release_id}-v");
+    releases
+        .into_iter()
+        .filter(|r| !r.draft && (prereleases || !r.prerelease))
+        .filter(|r| r.tag_name.starts_with(&prefix))
+        .find_map(|r| {
+            r.assets
+                .into_iter()
+                .find(|a| a.name.ends_with(installer.suffix()))
+        })
+        .map(|a| a.browser_download_url)
 }
 
 pub type FetchFuture = Pin<Box<dyn Future<Output = Result<String, String>> + Send>>;
@@ -318,6 +385,31 @@ impl Releases {
     }
 
     /// Every release, newest first; `None` when they can't be loaded.
+    /// Where `/download/<app>/<installer>` sends the browser: the file, or
+    /// the releases page when it can't be found.
+    pub async fn installer_url(
+        &self,
+        release_id: &str,
+        installer: Installer,
+        prereleases: bool,
+    ) -> String {
+        let body = self.body().await;
+        match body
+            .as_deref()
+            .and_then(|json| newest_installer(json, release_id, installer, prereleases))
+        {
+            Some(url) => url,
+            None => {
+                tracing::warn!(
+                    release_id,
+                    installer = installer.slug(),
+                    "no installer found; linking the releases page"
+                );
+                site::RELEASES_URL.to_owned()
+            }
+        }
+    }
+
     pub async fn changelog(&self) -> Option<Vec<ChangelogEntry>> {
         changelog(&self.body().await?)
     }
@@ -363,6 +455,51 @@ mod tests {
        "assets": [{"name": "toolbox-0.3.11-linux.tar.gz",
                    "browser_download_url": "https://dl.test/0.3.11.tar.gz"}]}
     ]"#;
+
+    #[test]
+    fn finds_each_installer_of_the_newest_app_release() {
+        let json = r#"[
+          {"tag_name": "git-v0.10.0", "draft": true, "assets": [
+             {"name": "FerrumGIT-0.10.0-aarch64.dmg", "browser_download_url": "draft"}]},
+          {"tag_name": "git-v0.9.1-alpha.1", "prerelease": true, "assets": [
+             {"name": "FerrumGIT-0.9.1-alpha.1-aarch64.dmg", "browser_download_url": "arm"},
+             {"name": "FerrumGIT-0.9.1-alpha.1-aarch64.dmg.sha256", "browser_download_url": "sum"},
+             {"name": "FerrumGIT-0.9.1-alpha.1-x86_64.dmg", "browser_download_url": "intel"},
+             {"name": "ferrumgit_0.9.1.alpha.1_amd64.deb", "browser_download_url": "deb"}]},
+          {"tag_name": "gitx-v1.0.0", "assets": [
+             {"name": "X-1.0.0-aarch64.dmg", "browser_download_url": "other app"}]},
+          {"tag_name": "git-v0.8.0", "assets": [
+             {"name": "FerrumGIT-0.8.0-aarch64.dmg", "browser_download_url": "stable"}]}
+        ]"#;
+        let find = |i, pre| newest_installer(json, "git", i, pre);
+        assert_eq!(
+            find(Installer::MacAppleSilicon, true).as_deref(),
+            Some("arm")
+        );
+        assert_eq!(find(Installer::MacIntel, true).as_deref(), Some("intel"));
+        assert_eq!(find(Installer::LinuxDeb, true).as_deref(), Some("deb"));
+        assert_eq!(
+            find(Installer::MacAppleSilicon, false).as_deref(),
+            Some("stable")
+        );
+        assert_eq!(find(Installer::LinuxDeb, false), None);
+        assert_eq!(
+            newest_installer(json, "api", Installer::LinuxDeb, true),
+            None
+        );
+        assert_eq!(
+            newest_installer("not json", "git", Installer::LinuxDeb, true),
+            None
+        );
+    }
+
+    #[test]
+    fn installer_slugs_round_trip() {
+        for i in Installer::ALL {
+            assert_eq!(Installer::from_slug(i.slug()), Some(i));
+        }
+        assert_eq!(Installer::from_slug("windows"), None);
+    }
 
     #[test]
     fn totals_downloads_per_app_without_checksums() {

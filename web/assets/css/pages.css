@@ -260,6 +260,10 @@
 .page-download .callout code { color: var(--text); }
 .page-download .callout--warn h2 { font-size: var(--fs-xl); }
 .page-download .download-actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); margin-top: var(--sp-8); }
+.page-product .download-actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.page-download .table-scroll { overflow-x: auto; }
+.installer-table td:first-child { font-weight: 600; white-space: nowrap; }
+.installer-table td a { white-space: nowrap; }
 .page-download .app-strip { margin-top: var(--sp-12); }
 
 /* Download: every app in one row, logo over name; scrolls sideways when the

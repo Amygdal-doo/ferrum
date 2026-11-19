@@ -84,14 +84,14 @@ const HX_REDIRECT: HeaderName = HeaderName::from_static("hx-redirect");
 /// site. Downloads, the feed, files and the accounts service must load in
 /// full, so the browser handles them itself.
 pub fn boostable(path: &str) -> bool {
-    const FULL_LOAD: [&str; 5] = [
-        crate::site::MACOS_DOWNLOAD_PATH,
+    const FULL_LOAD: [&str; 4] = [
         crate::updates::FEED_PATH,
         "/sitemap.xml",
         "/robots.txt",
         "/favicon.ico",
     ];
-    crate::visits::countable(path) && !FULL_LOAD.contains(&path)
+    // `/download/…` are the installers (`/download` itself is a page).
+    crate::visits::countable(path) && !path.starts_with("/download/") && !FULL_LOAD.contains(&path)
 }
 
 /// Answers a boosted request for anything but a site page with `HX-Redirect`,
@@ -167,7 +167,9 @@ mod tests {
         assert!(boostable("/ferrumide"));
         assert!(boostable("/updates"));
         assert!(boostable("/does-not-exist"));
+        assert!(boostable(crate::site::DOWNLOAD_PATH));
         assert!(!boostable(crate::site::MACOS_DOWNLOAD_PATH));
+        assert!(!boostable("/download/ferrumgit/linux-deb"));
         assert!(!boostable(crate::updates::FEED_PATH));
         assert!(!boostable("/assets/img/og.png"));
         assert!(!boostable("/logout"));

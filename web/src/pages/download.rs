@@ -12,6 +12,7 @@ use crate::components::{
     section::Section,
 };
 use crate::layout::{PageMeta, page};
+use crate::releases::Installer;
 use crate::{products, site};
 
 const DESCRIPTION: &str = "Download FerrumLauncher for macOS or Linux and install every \
@@ -179,6 +180,45 @@ fn source_section() -> Markup {
         })
 }
 
+/// Every app's own installers, newest release, for installing without the launcher.
+fn by_hand_section() -> Markup {
+    Section::new("by-hand", "Install an app without the launcher")
+        .tight()
+        .band()
+        .lead(html! {
+            p {
+                "Each link downloads the newest installer of that app. Apps installed this way                  don't update themselves yet: download the new version here, or let the                  launcher keep them up to date."
+            }
+        })
+        .render(html! {
+            div class="table-scroll" {
+                table class="data-table installer-table" {
+                    thead {
+                        tr {
+                            th scope="col" { "App" }
+                            @for installer in Installer::ALL { th scope="col" { (installer.label()) } }
+                        }
+                    }
+                    tbody {
+                        @for app in products::apps() {
+                            tr {
+                                td { a href=(app.path()) { (app.name) } }
+                                @for installer in Installer::ALL {
+                                    td {
+                                        a href=(app.installer_path(installer))
+                                            aria-label={ (app.name) " for " (installer.label()) } {
+                                            @if installer == Installer::LinuxDeb { ".deb" } @else { ".dmg" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        })
+}
+
 pub fn render(site_url: &str) -> Markup {
     let launcher = products::FERRUM_LAUNCHER;
     let meta = PageMeta::new(
@@ -204,7 +244,8 @@ pub fn render(site_url: &str) -> Markup {
                 })
                 .actions(html! {
                     (button::link("Download for macOS", site::MACOS_DOWNLOAD_PATH, Variant::Primary))
-                    (button::link("Linux (.deb)", site::RELEASES_URL, Variant::Secondary))
+                    (button::link("Linux (.deb)",
+                        &launcher.installer_path(Installer::LinuxDeb), Variant::Secondary))
                     (button::link("Build from source", "#source", Variant::Ghost))
                 })
                 .render())
@@ -247,7 +288,8 @@ pub fn render(site_url: &str) -> Markup {
                          (FerrumIDE, FerrumEngineer, FerrumGIT, FerrumTerm, FerrumAPI, \
                          FerrumContainers, FerrumData) and the tools (FerrumVariables, FerrumPorts, \
                          FerrumKit, FerrumSystem) install, update and roll back from the launcher. \
-                         Each also has its own DMG and .deb in the releases if you'd rather install one by hand."
+                         Each also has its own DMG and .deb if you'd rather "
+                        a href="#by-hand" { "install one by hand" } "."
                     }
                 })
                 .render(html! {
@@ -268,6 +310,7 @@ pub fn render(site_url: &str) -> Markup {
                         (button::link("About FerrumLauncher", &launcher.path(), Variant::Ghost))
                     }
                 }))
+            (by_hand_section())
             (source_section())
         },
     )
@@ -288,6 +331,8 @@ mod tests {
         assert!(html.contains(r#"href="/download/macos""#));
         assert!(html.contains("Apple Silicon"));
         assert!(html.contains(site::RELEASES_URL));
+        assert!(html.contains(r#"href="/download/ferrumgit/macos-intel""#));
+        assert!(html.contains(r#"href="/download/ferrum-launcher/linux-deb""#));
         assert!(html.contains("Amygdal-doo/ferrum-releases"));
         assert!(!html.contains("Coming soon"), "no Windows placeholder");
         for gone in [

@@ -125,6 +125,26 @@ async fn pages_render_html_with_title() {
 }
 
 #[tokio::test]
+async fn app_installers_redirect_and_unknown_ones_are_missing() {
+    // Offline in tests: the releases page is the fallback.
+    let res = get("/download/ferrumgit/macos-apple-silicon").await;
+    assert_eq!(res.status, StatusCode::FOUND);
+    assert!(
+        res.header(header::LOCATION)
+            .starts_with("https://github.com/")
+    );
+    assert_eq!(res.header(header::CACHE_CONTROL), "no-store");
+    assert_eq!(
+        get("/download/ferrumgit/windows").await.status,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        get("/download/nope/linux-deb").await.status,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
 async fn boosted_links_to_non_pages_load_in_full() {
     let boosted = |uri: &str| {
         Request::get(uri)

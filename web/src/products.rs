@@ -70,6 +70,16 @@ impl Product {
         format!("/{}", self.slug)
     }
 
+    /// Release tags are `<release id>-v<version>` (see [`by_release_id`]).
+    pub fn release_id(&self) -> &'static str {
+        self.logo
+    }
+
+    /// `/download/<slug>/<installer>`: redirects to the newest installer.
+    pub fn installer_path(&self, installer: crate::releases::Installer) -> String {
+        format!("/download/{}/{}", self.slug, installer.slug())
+    }
+
     /// Embedded asset path of the logo, for `routes::assets::url`.
     pub fn logo_asset(&self) -> String {
         format!("img/brand/{}.svg", self.logo)
@@ -243,6 +253,11 @@ pub const ALL: [Product; 12] = [
 /// are the logo names (`editor`, `api`, …, `launcher`).
 pub fn by_release_id(id: &str) -> Option<&'static Product> {
     ALL.iter().find(|p| p.logo == id)
+}
+
+/// The product at `/<slug>`.
+pub fn by_slug(slug: &str) -> Option<&'static Product> {
+    ALL.iter().find(|p| p.slug == slug)
 }
 
 /// The apps FerrumLauncher manages, i.e. everything except the launcher itself.
