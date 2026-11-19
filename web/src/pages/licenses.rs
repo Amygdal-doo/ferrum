@@ -68,9 +68,9 @@ const COMPONENTS: [Component; 4] = [
     },
 ];
 
-/// The website's own notable dependencies (web/Cargo.toml), with the licence
-/// each crate declares.
-const SITE_CRATES: [(&str, &str, &str); 6] = [
+/// The website's own notable dependencies (web/Cargo.toml and the scripts in
+/// web/assets/js), with the licence each declares.
+const SITE_CRATES: [(&str, &str, &str); 7] = [
     ("axum", "Web server and routing", "MIT"),
     ("maud", "HTML templates", "MIT or Apache-2.0"),
     ("tokio", "Async runtime", "MIT"),
@@ -85,6 +85,7 @@ const SITE_CRATES: [(&str, &str, &str); 6] = [
         "Reads the release list from GitHub",
         "MIT or Apache-2.0",
     ),
+    ("htmx", "Moves between pages without a full reload", "0BSD"),
 ];
 
 fn licence_text(id: &str, title: &str, applies_to: &str, text: &str) -> Markup {
@@ -198,7 +199,7 @@ pub fn render(site_url: &str) -> Markup {
             (Section::new("website", "This website").tight().render(html! {
                 div class="prose" {
                     p {
-                        "This site is a Rust server built with axum and maud. Its notable \
+                        "This site is a Rust server built with axum, maud and htmx. Its notable \
                          dependencies and the licences they declare:"
                     }
                     dl class="spec-sheet" {

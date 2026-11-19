@@ -17,6 +17,11 @@ use crate::releases::DownloadTotals;
 use crate::{products, usage::Aggregates, visits};
 
 pub const PATH: &str = "/stats";
+/// The part of the page that refreshes itself.
+const LIVE_ID: &str = "stats-live";
+/// As often as the totals change: `crate::visits::CACHE_TTL` and
+/// `crate::usage::CACHE_TTL` are five minutes.
+const REFRESH_TRIGGER: &str = "every 300s";
 
 /// What the usage half of the page can show.
 #[derive(Debug, Clone)]
@@ -93,6 +98,9 @@ pub fn render(
                     }
                 })
                 .render())
+            // htmx reloads this page in the background and swaps in this part.
+            div id=(LIVE_ID) hx-get=(PATH) hx-trigger=(REFRESH_TRIGGER)
+                hx-select={ "#" (LIVE_ID) } hx-swap="outerHTML" {
             (Section::new("active", "Active installs").render(match usage {
                 Usage::Counts(a) => active(a),
                 Usage::Unavailable => callout::render(Kind::Note, Some("Counts unavailable"), html! {
@@ -112,6 +120,7 @@ pub fn render(
             (Section::new("downloads", "Downloads").tight().band().render(downloads_table(downloads)))
             @if let Some(v) = visits {
                 (Section::new("visits", "Website visits").tight().render(website(v)))
+            }
             }
         },
     )
@@ -269,6 +278,7 @@ mod tests {
         assert!(html.contains("/privacy#usage-counts"));
         assert!(!html.contains("hero-stats"));
         assert!(!html.contains("Website visits"));
+        assert!(html.contains(r##"hx-select="#stats-live""##));
     }
 
     #[test]

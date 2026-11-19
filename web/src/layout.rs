@@ -114,6 +114,11 @@ const STYLESHEETS: [&str; 7] = [
 const THEME_DARK: &str = "#0d1520";
 const THEME_LIGHT: &str = "#edf1f5";
 
+/// htmx settings. Back and forward reload the page instead of restoring a
+/// snapshot, so the page scripts always start fresh. No `hx-on` or inline
+/// scripts are used, so both stay off.
+const HTMX_CONFIG: &str = r#"{"historyCacheSize":0,"refreshOnHistoryMiss":true,"allowEval":false,"allowScriptTags":false,"includeIndicatorStyles":false}"#;
+
 /// Render a complete HTML document. `site_url` has no trailing slash.
 pub fn page(site_url: &str, meta: &PageMeta, main: Markup) -> Markup {
     let title = meta.full_title();
@@ -170,6 +175,8 @@ pub fn page(site_url: &str, meta: &PageMeta, main: Markup) -> Markup {
                 }
                 // Runs before first paint to apply the saved theme (no flash).
                 script src=(assets::url("js/theme-init.js")) {}
+                meta name="htmx-config" content=(HTMX_CONFIG);
+                script src=(assets::url("js/htmx.min.js")) defer {}
                 script src=(assets::url("js/site.js")) defer {}
                 script src=(assets::url("js/filings.js")) defer {}
                 (analytics::head_tags(analytics::measurement_id()))
@@ -180,7 +187,9 @@ pub fn page(site_url: &str, meta: &PageMeta, main: Markup) -> Markup {
                     (seo::script(value))
                 }
             }
-            body class=(meta.body_class) {
+            // Links move between pages with htmx (hx-boost): the server sends
+            // the whole page and htmx swaps the body. Without JS they are plain links.
+            body class=(meta.body_class) hx-boost="true" {
                 a class="skip-link" href="#main" { "Skip to content" }
                 (components::nav::render(&meta.path))
                 main id="main" { (main) }
@@ -209,6 +218,8 @@ mod tests {
         );
         assert!(html.contains(r#""@type":"BreadcrumbList""#));
         assert!(html.contains(r#"<html lang="en""#));
+        assert!(html.contains(r#"hx-boost="true""#));
+        assert!(html.contains("/assets/js/htmx.min.js?v="));
     }
 
     #[test]

@@ -171,6 +171,7 @@ pub fn router(state: AppState) -> Router {
         .with_state(state.clone());
     let site_url: Arc<str> = state.site_url().into();
     let router = router
+        .layer(axum::middleware::from_fn(middleware::full_page_escape))
         .layer(axum::middleware::from_fn_with_state(
             state.visits.clone(),
             middleware::count_view,
@@ -194,7 +195,8 @@ async fn privacy(State(s): State<AppState>) -> Markup {
 async fn licenses(State(s): State<AppState>) -> Markup {
     pages::licenses::render(s.site_url())
 }
-async fn stats(State(s): State<AppState>) -> Markup {
+/// `no-cache`: the page refreshes itself (htmx), so the browser must ask again.
+async fn stats(State(s): State<AppState>) -> impl IntoResponse {
     let (usage, visits, downloads) = tokio::join!(
         s.usage.aggregates(),
         s.visits.aggregates(),
@@ -205,7 +207,10 @@ async fn stats(State(s): State<AppState>) -> Markup {
         None if s.usage.enabled() => pages::stats::Usage::Unavailable,
         None => pages::stats::Usage::NotCollected,
     };
-    pages::stats::render(s.site_url(), &view, visits.as_deref(), downloads.as_ref())
+    (
+        [(header::CACHE_CONTROL, "no-cache")],
+        pages::stats::render(s.site_url(), &view, visits.as_deref(), downloads.as_ref()),
+    )
 }
 async fn ferrumdata(State(s): State<AppState>) -> Markup {
     pages::ferrumdata::render(s.site_url())

@@ -114,12 +114,39 @@ async fn pages_render_html_with_title() {
             "{path}"
         );
         assert!(res.text().contains("<title>"), "{path}");
-        assert_eq!(
-            res.header(header::CACHE_CONTROL),
-            "public, max-age=300",
-            "{path}"
-        );
+        // /stats refreshes itself, so the browser must not reuse it.
+        let cache = if path == "/stats" {
+            "no-cache"
+        } else {
+            "public, max-age=300"
+        };
+        assert_eq!(res.header(header::CACHE_CONTROL), cache, "{path}");
     }
+}
+
+#[tokio::test]
+async fn boosted_links_to_non_pages_load_in_full() {
+    let boosted = |uri: &str| {
+        Request::get(uri)
+            .header("hx-request", "true")
+            .header("hx-boosted", "true")
+            .body(Body::empty())
+            .unwrap()
+    };
+    let res = send(boosted("/download/macos?x=1")).await;
+    assert_eq!(res.status, StatusCode::OK);
+    assert_eq!(
+        res.header(header::HeaderName::from_static("hx-redirect")),
+        "/download/macos?x=1"
+    );
+    // A site page is served as usual.
+    let res = send(boosted("/faq")).await;
+    assert_eq!(res.status, StatusCode::OK);
+    assert!(res.text().contains("<title>"));
+    assert_eq!(
+        res.header(header::HeaderName::from_static("hx-redirect")),
+        ""
+    );
 }
 
 #[tokio::test]

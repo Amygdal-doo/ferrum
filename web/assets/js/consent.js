@@ -1,6 +1,8 @@
 // Cookie banner for Google Analytics. Google's tag loads only after Accept;
 // the choice is kept in localStorage "ferrum-consent" ("granted" / "denied").
 // [data-consent-open] (footer "Cookie settings") shows the banner again.
+// After an htmx page change the banner comes back if no choice was made.
+// Google's tag counts those page changes itself (they change the history).
 (function () {
   var meta = document.querySelector('meta[name="ga-measurement-id"]');
   if (!meta) return;
@@ -70,8 +72,9 @@
           if (loaded) location.reload();
         }
       });
-      document.body.appendChild(banner);
     }
+    // htmx replaces the body's content on a page change, banner included.
+    if (!document.body.contains(banner)) document.body.appendChild(banner);
     banner.hidden = false;
   }
 
@@ -79,10 +82,16 @@
     var choice = read();
     if (choice === "granted") load();
     else if (choice !== "denied") show();
-    Array.prototype.forEach.call(document.querySelectorAll("[data-consent-open]"), function (btn) {
-      btn.addEventListener("click", show);
-    });
   }
+
+  document.addEventListener("click", function (e) {
+    if (e.target && e.target.closest && e.target.closest("[data-consent-open]")) show();
+  });
+  document.addEventListener("htmx:afterSettle", function (e) {
+    if (!e.detail.boosted) return;
+    var choice = read();
+    if (choice !== "granted" && choice !== "denied") show();
+  });
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();

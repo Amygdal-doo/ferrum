@@ -3,9 +3,10 @@
 // when the pointer is idle the magnet drifts on its own. Filings near the
 // magnet take on the temper colours of heated steel (tokens.css).
 // Reduced motion draws one still frame. Vanilla, no dependencies.
+// After an htmx page change it starts on the new page's canvas and stops the old one.
 (function () {
-  var canvas = document.querySelector("canvas[data-filings]");
-  if (!canvas || !canvas.getContext) return;
+// Starts the animation on `canvas`; returns a function that stops it.
+function mount(canvas) {
   var ctx = canvas.getContext("2d");
   var root = document.documentElement;
   var still = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -150,27 +151,53 @@
     pointerAt = performance.now();
   });
 
+  var io = null;
   if ("IntersectionObserver" in window) {
-    new IntersectionObserver(function (entries) {
+    io = new IntersectionObserver(function (entries) {
       visible = entries[0].isIntersecting;
       if (visible) start(); else stop();
-    }).observe(canvas);
+    });
+    io.observe(canvas);
   }
-  document.addEventListener("visibilitychange", function () {
+  function onVisibility() {
     if (document.hidden) stop(); else start();
-  });
+  }
+  document.addEventListener("visibilitychange", onVisibility);
   var resizeTimer = 0;
-  window.addEventListener("resize", function () {
+  function onResize() {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () { layout(); if (!running) settle(); }, 120);
-  });
+  }
+  window.addEventListener("resize", onResize);
   // The theme toggle changes data-theme on <html>; recolour with it.
-  new MutationObserver(function () { readPalette(); if (!running) draw(); })
-    .observe(root, { attributes: true, attributeFilter: ["data-theme"] });
-  still.addEventListener("change", function () { if (still.matches) { stop(); settle(); } else start(); });
+  var themeObserver = new MutationObserver(function () { readPalette(); if (!running) draw(); });
+  themeObserver.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  function onMotionPref() { if (still.matches) { stop(); settle(); } else start(); }
+  still.addEventListener("change", onMotionPref);
 
   readPalette();
   layout();
   settle();
   start();
+
+  return function unmount() {
+    stop();
+    clearTimeout(resizeTimer);
+    if (io) io.disconnect();
+    themeObserver.disconnect();
+    document.removeEventListener("visibilitychange", onVisibility);
+    window.removeEventListener("resize", onResize);
+    still.removeEventListener("change", onMotionPref);
+  };
+}
+
+var current = null; // { canvas, unmount }
+function attach() {
+  var canvas = document.querySelector("canvas[data-filings]");
+  if (current && current.canvas === canvas) return;
+  if (current) current.unmount();
+  current = canvas && canvas.getContext ? { canvas: canvas, unmount: mount(canvas) } : null;
+}
+attach();
+document.addEventListener("htmx:afterSettle", attach);
 })();

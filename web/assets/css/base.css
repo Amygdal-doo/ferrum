@@ -31,6 +31,8 @@ a:hover { color: var(--accent-hover); }
 :root[data-theme="light"] a:hover { color: var(--text); }
 code, kbd, pre { font-family: var(--font-mono); font-size: 0.88em; font-variant-ligatures: none; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; border-radius: var(--radius-sm); }
+/* site.js focuses <main> after an htmx page change; that is for screen readers, not a visible ring. */
+#main:focus { outline: none; }
 ::selection { background: var(--straw); color: var(--accent-text); }
 
 .container { width: 100%; max-width: var(--container); margin-inline: auto; padding-inline: var(--gutter); }

@@ -1,6 +1,6 @@
 //! Cross-cutting HTTP middleware: compression, tracing, security headers,
-//! a default cache policy, the `www.` → canonical host redirect and the
-//! page-view count.
+//! a default cache policy, the `www.` → canonical host redirect, the htmx
+//! escape for links that are not site pages, and the page-view count.
 
 use axum::{
     Router,
@@ -75,8 +75,47 @@ pub async fn canonical_host(
     }
 }
 
+/// htmx request headers. `HX-Boosted` marks a link followed with `hx-boost`.
+const HX_REQUEST: HeaderName = HeaderName::from_static("hx-request");
+const HX_BOOSTED: HeaderName = HeaderName::from_static("hx-boosted");
+const HX_REDIRECT: HeaderName = HeaderName::from_static("hx-redirect");
+
+/// Whether a boosted link to `path` may be loaded by htmx: a page of this
+/// site. Downloads, the feed, files and the accounts service must load in
+/// full, so the browser handles them itself.
+pub fn boostable(path: &str) -> bool {
+    const FULL_LOAD: [&str; 5] = [
+        crate::site::MACOS_DOWNLOAD_PATH,
+        crate::updates::FEED_PATH,
+        "/sitemap.xml",
+        "/robots.txt",
+        "/favicon.ico",
+    ];
+    crate::visits::countable(path) && !FULL_LOAD.contains(&path)
+}
+
+/// Answers a boosted request for anything but a site page with `HX-Redirect`,
+/// which makes htmx load the same URL as a normal page instead. Decided
+/// before the handler runs, so e.g. `/logout` is never sent twice.
+pub async fn full_page_escape(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    if req.headers().contains_key(HX_BOOSTED) && !boostable(req.uri().path()) {
+        let to = req
+            .uri()
+            .path_and_query()
+            .map_or("/", |pq| pq.as_str())
+            .to_owned();
+        return [(HX_REDIRECT, to)].into_response();
+    }
+    next.run(req).await
+}
+
 /// Counts a page view (`crate::visits`): a `GET` from a browser that is
-/// answered with an HTML page. Not prefetches, bots, assets or the API.
+/// answered with an HTML page. Not prefetches, bots, assets or the API, and
+/// not htmx's own requests (the `/stats` refresh); a boosted link is a view.
 pub async fn count_view(
     axum::extract::State(visits): axum::extract::State<std::sync::Arc<crate::visits::Visits>>,
     req: axum::extract::Request,
@@ -92,9 +131,11 @@ pub async fn count_view(
             header(HeaderName::from_static(name)).is_some_and(|v| v.contains("prefetch"))
         });
         let path = req.uri().path();
+        let htmx_partial = headers.contains_key(HX_REQUEST) && !headers.contains_key(HX_BOOSTED);
         (visits.enabled()
             && req.method() == axum::http::Method::GET
             && !prefetch
+            && !htmx_partial
             && visits::countable(path)
             && visits::is_browser(header(header::USER_AGENT).unwrap_or_default()))
         .then(|| {
@@ -118,7 +159,21 @@ pub async fn count_view(
 
 #[cfg(test)]
 mod tests {
-    use super::www_redirect;
+    use super::{boostable, www_redirect};
+
+    #[test]
+    fn only_site_pages_are_boostable() {
+        assert!(boostable("/"));
+        assert!(boostable("/ferrumide"));
+        assert!(boostable("/updates"));
+        assert!(boostable("/does-not-exist"));
+        assert!(!boostable(crate::site::MACOS_DOWNLOAD_PATH));
+        assert!(!boostable(crate::updates::FEED_PATH));
+        assert!(!boostable("/assets/img/og.png"));
+        assert!(!boostable("/logout"));
+        assert!(!boostable("/account/settings"));
+        assert!(!boostable("/sitemap.xml"));
+    }
 
     #[test]
     fn www_goes_to_the_canonical_host_with_path_and_query() {
