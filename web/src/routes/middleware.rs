@@ -108,7 +108,14 @@ pub async fn full_page_escape(
             .path_and_query()
             .map_or("/", |pq| pq.as_str())
             .to_owned();
-        return [(HX_REDIRECT, to)].into_response();
+        // Never cached: the browser then loads this same URL in full, and a
+        // cached copy of this empty answer would be shown as a blank page.
+        return [
+            (HX_REDIRECT, to),
+            (header::CACHE_CONTROL, "no-store".to_owned()),
+            (header::VARY, "HX-Boosted".to_owned()),
+        ]
+        .into_response();
     }
     next.run(req).await
 }

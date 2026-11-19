@@ -159,6 +159,8 @@ async fn boosted_links_to_non_pages_load_in_full() {
         res.header(header::HeaderName::from_static("hx-redirect")),
         "/download/macos?x=1"
     );
+    // Never cached, or the full load that follows would show it as a blank page.
+    assert_eq!(res.header(header::CACHE_CONTROL), "no-store");
     // A site page is served as usual.
     let res = send(boosted("/faq")).await;
     assert_eq!(res.status, StatusCode::OK);
