@@ -135,5 +135,11 @@ mod tests {
         assert!(html.contains("Interactive rebase"));
         assert!(html.contains("href=\"/download\""));
         assert!(html.contains("/assets/img/brand/git.svg"));
+        // The hero's own download menu, beside the launcher.
+        assert!(html.contains("Download FerrumGIT"));
+        for installer in ["macos-apple-silicon", "macos-intel", "linux-deb"] {
+            assert!(html.contains(&format!(r#"href="/download/ferrumgit/{installer}""#)));
+        }
+        assert!(html.contains("Or use FerrumLauncher"));
     }
 }

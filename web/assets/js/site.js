@@ -58,7 +58,29 @@
     if (nav && nav.contains(el) && el.closest("a")) setNavOpen(false, false);
   });
 
+  // Button menus (<details data-menu>): one open at a time, closed by a
+  // click outside or Escape.
+  function closeMenus(except) {
+    Array.prototype.forEach.call(document.querySelectorAll("details[data-menu][open]"), function (m) {
+      if (m !== except) m.removeAttribute("open");
+    });
+  }
+  document.addEventListener("click", function (e) {
+    var menu = e.target && e.target.closest ? e.target.closest("details[data-menu]") : null;
+    closeMenus(menu);
+    // A chosen link starts a download and the page stays: close the menu.
+    if (menu && e.target.closest("a")) menu.removeAttribute("open");
+  });
+
   document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      var open = document.querySelector("details[data-menu][open]");
+      if (open) {
+        open.removeAttribute("open");
+        open.querySelector("summary").focus();
+        return;
+      }
+    }
     var header = document.querySelector(".site-header");
     if (e.key === "Escape" && header && header.classList.contains("is-open")) setNavOpen(false, true);
   });

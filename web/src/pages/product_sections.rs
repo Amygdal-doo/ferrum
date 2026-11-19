@@ -17,7 +17,7 @@ use crate::components::{
 use crate::layout::{PageMeta, page};
 use crate::products::{self, Product};
 use crate::releases::Installer;
-use crate::{seo, site};
+use crate::seo;
 
 /// A titled list of short bullet points (e.g. "Not built yet").
 pub struct BulletGroup {
@@ -97,13 +97,22 @@ fn hero(p: &ProductPage, trail: &[Crumb]) -> Markup {
             p { (p.intro) }
         })
         .actions(html! {
-            (button::link(site::DOWNLOAD_LABEL, site::DOWNLOAD_PATH, Variant::Primary))
+            (download_menu(prod))
             @if prod.slug != products::FERRUM_LAUNCHER.slug {
-                (button::link("Install with FerrumLauncher",
+                (button::link("Or use FerrumLauncher",
                     &products::FERRUM_LAUNCHER.path(), Variant::Secondary))
             }
         })
         .render()
+}
+
+/// "Download <app>": the newest DMG for each Mac and the .deb.
+fn download_menu(prod: &Product) -> Markup {
+    let items: Vec<_> = Installer::ALL
+        .into_iter()
+        .map(|i| (i.label(), i.file_kind(), prod.installer_path(i)))
+        .collect();
+    button::menu(&format!("Download {}", prod.name), &items)
 }
 
 fn features(p: &ProductPage) -> Markup {

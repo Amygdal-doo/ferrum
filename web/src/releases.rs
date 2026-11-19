@@ -128,6 +128,14 @@ impl Installer {
         }
     }
 
+    /// File type, shown next to the label.
+    pub fn file_kind(self) -> &'static str {
+        match self {
+            Self::MacAppleSilicon | Self::MacIntel => ".dmg disk image",
+            Self::LinuxDeb => "Debian and Ubuntu package",
+        }
+    }
+
     /// End of the asset name (`.github/workflows/release.yml`).
     fn suffix(self) -> &'static str {
         match self {

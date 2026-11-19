@@ -29,6 +29,34 @@ pub fn link(label: &str, href: &str, variant: Variant) -> Markup {
     }
 }
 
+/// A primary button that opens a short list of links, e.g. one app's
+/// installers. A `<details>` element, so it opens without JS; site.js closes
+/// it on Escape or a click elsewhere. `items` are `(label, note, href)`.
+/// The links are full page loads (downloads), not htmx page changes.
+pub fn menu(label: &str, items: &[(&str, &str, String)]) -> Markup {
+    html! {
+        details class="btn-menu" data-menu {
+            summary class="btn btn--primary" {
+                (label)
+                svg class="btn-menu__caret" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" {
+                    path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.8"
+                        stroke-linecap="round" stroke-linejoin="round" {}
+                }
+            }
+            ul class="btn-menu__list" hx-boost="false" {
+                @for (item, note, href) in items {
+                    li {
+                        a href=(href) {
+                            span class="btn-menu__label" { (item) }
+                            span class="btn-menu__note" { (note) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// A non-clickable CTA, e.g. `disabled(site::DOWNLOAD_LABEL, "Downloads are not available yet")`.
 /// Rendered as a `<span>` with `aria-disabled` and the note as visible small text.
 pub fn disabled(label: &str, note: &str) -> Markup {
