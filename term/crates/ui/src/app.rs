@@ -607,6 +607,7 @@ impl App {
                         .request(Request::Capture {
                             target,
                             scrollback: false,
+                            unwrapped: false,
                         })
                         .await
                     {

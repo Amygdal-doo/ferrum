@@ -118,14 +118,18 @@ pub fn frame<T: alacritty_terminal::event::EventListener>(term: &Term<T>, title:
     }
 }
 
-pub fn capture<T>(term: &Term<T>, scrollback: bool) -> String {
+/// Rows as text, trailing blanks trimmed. With `unwrapped`, a row the
+/// terminal soft-wrapped continues on the same line.
+pub fn capture<T>(term: &Term<T>, scrollback: bool, unwrapped: bool) -> String {
     let grid = term.grid();
     let start = if scrollback {
         -(grid.history_size() as i32)
     } else {
         0
     };
+    let last_col = Column(grid.columns() - 1);
     let mut out: Vec<String> = Vec::new();
+    let mut joining = false;
     for l in start..grid.screen_lines() as i32 {
         let row = &grid[Line(l)];
         let mut s = String::new();
@@ -138,7 +142,13 @@ pub fn capture<T>(term: &Term<T>, scrollback: bool) -> String {
                 push_cell(&mut s, cell);
             }
         }
-        out.push(s.trim_end().to_owned());
+        let wraps = unwrapped && row[last_col].flags.contains(Flags::WRAPLINE);
+        let s = if wraps { s } else { s.trim_end().to_owned() };
+        match out.last_mut() {
+            Some(prev) if joining => prev.push_str(&s),
+            _ => out.push(s),
+        }
+        joining = wraps;
     }
     while out.last().is_some_and(String::is_empty) {
         out.pop();

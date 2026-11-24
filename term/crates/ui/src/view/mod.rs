@@ -26,7 +26,7 @@ use ferrum_ui::gpui::{
     KeyDownEvent, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, ScrollDelta,
     ScrollEvent, Subscription, Task, Window, px,
 };
-use ferrumterm_protocol::{BlockId, Event};
+use ferrumterm_protocol::{BlockId, Event, Input, Request};
 use futures::StreamExt as _;
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
@@ -590,9 +590,30 @@ impl TermView {
                     cx.write_to_clipboard(ClipboardItem::new_string(text.clone()));
                 }
             }
-            _ => self.clear_selection(),
+            Some(s) => {
+                let (block, at) = (s.block, s.anchor);
+                self.clear_selection();
+                self.click_to_move(block, at);
+            }
+            None => self.clear_selection(),
         }
         cx.notify();
+    }
+
+    /// A click on the command being typed moves the shell's cursor there.
+    fn click_to_move(&self, block: BlockId, at: Cell) {
+        let Some(frame) = self.app.frames.get(&block) else {
+            return;
+        };
+        let Ok(row) = u16::try_from(at.row) else {
+            return;
+        };
+        if let Some((key, presses)) = crate::click_move::keys(frame, row, at.col) {
+            self.app.send(Request::Input {
+                target: Some(block.to_string()),
+                input: (0..presses).map(|_| Input::Key(key.into())).collect(),
+            });
+        }
     }
 
     /// The pane and cell under a window point; with `block`, that pane

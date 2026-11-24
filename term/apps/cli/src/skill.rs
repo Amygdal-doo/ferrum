@@ -8,7 +8,7 @@ use std::process::ExitCode;
 
 const SKILL: &str = r#"---
 name: fterm
-description: Control FerrumTerm terminals with the `fterm` CLI — open tabs and split panes, run dev servers or tests in the background, read another terminal's screen, type into it, wait for programs to finish, and report your own status. Use whenever the user mentions panes, splits, tabs, other terminals, background processes, or FerrumTerm.
+description: Control FerrumTerm terminals with the `fterm` CLI — open tabs and split panes, run dev servers or tests in the background, read another terminal's screen, type into it, wait for programs to finish, prompt other agents and share notes with them, and report your own status. Use whenever the user mentions panes, splits, tabs, other terminals, other agents, background processes, or FerrumTerm.
 ---
 
 # FerrumTerm (`fterm`)
@@ -40,6 +40,19 @@ name, or a block label (`--label`).
 - `fterm wait -t b5 --timeout 10m` — until it exits (exit code passed through).
 - `fterm wait -t b5 --status done,error,blocked` — until it reports a status.
 - `fterm kill b5` — close a block (or `w2`, or a session).
+
+## Work with other agents
+Other terminals may run other agents (`fterm ls` shows them, e.g. a block labelled `codex`).
+- `fterm prompt codex --wait "Review the diff in src/db.rs"` — type a prompt into its agent, wait
+  until it finishes or asks something, and print its answer (`-n 120` for more lines). Exit code 2
+  means it is blocked on a question: read it, then answer with `fterm prompt` or `send-key`.
+- `fterm read -t b3 -n 60` — a terminal's last lines as clean text (wrapped lines joined).
+- `fterm read -t server --command` — its last finished shell command, output and exit code.
+- `fterm handoff b3 codex "Fix the failing test"` — send b3's last output to codex's agent
+  (`--command` sends its last command instead; `--wait` prints the answer).
+- `fterm context` — notes shared by every agent in this session; `fterm context add "API lives in
+  api/src, run tests with make test"` adds one (signed with your block). Read it when you start,
+  add decisions and findings others will need.
 
 ## Report your status (so the user sees it, even with the window closed)
 - `fterm status working -m "Running migrations"`; `fterm status blocked -k question -m "Which DB?"`;

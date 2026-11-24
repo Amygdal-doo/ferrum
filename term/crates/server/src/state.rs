@@ -36,6 +36,9 @@ pub struct State {
     next: u32,
     /// Last block focused by any client (default target).
     pub last_focus: Option<BlockId>,
+    /// Notes shared by each session's agents (`Context`), oldest first;
+    /// they go with the session.
+    pub context: HashMap<SessionId, Vec<String>>,
 }
 
 /// A resolved target.

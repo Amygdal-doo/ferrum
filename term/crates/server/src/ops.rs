@@ -283,6 +283,7 @@ pub fn remove_block(server: &Server, id: BlockId) {
             }
             if emptied_session {
                 st.sessions.retain(|s| s.id != sid);
+                st.context.remove(&sid);
             } else {
                 st.apply_layout(sid, wid);
             }
@@ -400,6 +401,56 @@ pub fn focus(server: &Server, target: &str) -> Response {
     }
     server.emit(Event::Changed);
     Response::Ok
+}
+
+/// Most notes a session keeps; the oldest go first.
+const CONTEXT_NOTES: usize = 200;
+/// Longest note, in characters.
+const CONTEXT_NOTE_CHARS: usize = 4000;
+
+/// Adds to, clears or reads the shared context of the session `target` is in.
+pub fn context(
+    server: &Server,
+    target: Option<&str>,
+    add: Option<String>,
+    clear: bool,
+) -> Response {
+    let mut st = lock(&server.state);
+    let sid = match target {
+        Some(t) => match st.resolve(t) {
+            Some(Target::Session(s) | Target::Window(s, _) | Target::Block(s, _, _)) => s,
+            None => {
+                return Response::Error {
+                    message: format!("no session matches “{t}”"),
+                };
+            }
+        },
+        None => match st
+            .last_focus
+            .and_then(|b| st.locate(b))
+            .map(|(s, _)| s)
+            .or_else(|| st.sessions.first().map(|s| s.id))
+        {
+            Some(s) => s,
+            None => {
+                return Response::Error {
+                    message: "no sessions yet".into(),
+                };
+            }
+        },
+    };
+    let notes = st.context.entry(sid).or_default();
+    if clear {
+        notes.clear();
+    }
+    if let Some(note) = add.map(|n| n.trim().to_owned()).filter(|n| !n.is_empty()) {
+        notes.push(note.chars().take(CONTEXT_NOTE_CHARS).collect());
+        let extra = notes.len().saturating_sub(CONTEXT_NOTES);
+        notes.drain(..extra);
+    }
+    Response::Text {
+        text: notes.join("\n"),
+    }
 }
 
 pub fn resize(server: &Server, target: &str, cols: u16, rows: u16) -> Response {

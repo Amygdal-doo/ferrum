@@ -137,6 +137,9 @@ pub struct CaptureArgs {
     /// Only the last N lines.
     #[arg(short = 'n', long)]
     pub lines: Option<usize>,
+    /// Join lines the terminal wrapped to fit its width.
+    #[arg(short = 'u', long)]
+    pub unwrap: bool,
 }
 
 #[derive(Args)]
@@ -314,6 +317,7 @@ pub async fn run(cmd: Cmd, ctx: &Ctx) -> Result<ExitCode, String> {
             let Response::Text { text } = req(Request::Capture {
                 target: ctx.target(a.target),
                 scrollback: a.all,
+                unwrapped: a.unwrap,
             })
             .await
             .map_err(e)?
@@ -406,7 +410,11 @@ pub async fn run(cmd: Cmd, ctx: &Ctx) -> Result<ExitCode, String> {
         | Cmd::Forward(_)
         | Cmd::Port { .. }
         | Cmd::Ports
-        | Cmd::ShellIntegration { .. } => {
+        | Cmd::ShellIntegration { .. }
+        | Cmd::Prompt(_)
+        | Cmd::Read(_)
+        | Cmd::Handoff(_)
+        | Cmd::Context(_) => {
             unreachable!("dispatched in main")
         }
     }

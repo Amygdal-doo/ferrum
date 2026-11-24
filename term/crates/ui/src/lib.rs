@@ -31,6 +31,7 @@ mod app_info;
 #[cfg(test)]
 mod app_tests;
 mod blocks;
+mod click_move;
 mod config;
 mod connection;
 mod dialogs;

@@ -11,6 +11,7 @@ mod server;
 mod server_status;
 mod skill;
 mod ssh;
+mod talk;
 mod util;
 
 use clap::{Parser, Subcommand};
@@ -51,6 +52,14 @@ pub enum Cmd {
     SendKey(cmd::SendKeyArgs),
     /// Print a block's screen (and scrollback).
     Capture(cmd::CaptureArgs),
+    /// Give another terminal's agent a prompt; with --wait, print its answer.
+    Prompt(talk::PromptArgs),
+    /// Read a terminal as clean text: its last lines, or its last command and output.
+    Read(talk::ReadArgs),
+    /// Hand one terminal's work (its last output or command) to another terminal's agent.
+    Handoff(talk::HandoffArgs),
+    /// Notes shared by the agents of a session: show, add <text>, clear.
+    Context(talk::ContextArgs),
     /// Close sessions, windows or blocks (their programs are terminated).
     Kill { targets: Vec<String> },
     /// Rename a session, window or block.
@@ -146,6 +155,10 @@ async fn dispatch(cli: Cli) -> Result<ExitCode, String> {
             }
         }
         Cmd::Attach { target } => attach::run(&ctx, target).await,
+        Cmd::Prompt(a) => talk::prompt(a, &ctx).await,
+        Cmd::Read(a) => talk::read(a, &ctx).await,
+        Cmd::Handoff(a) => talk::handoff(a, &ctx).await,
+        Cmd::Context(a) => talk::context(a, &ctx).await,
         other => cmd::run(other, &ctx).await,
     }
 }

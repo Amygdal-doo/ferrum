@@ -31,7 +31,9 @@ use std::cmp::Ordering;
 /// - 3: `Find` (search in the scrollback); `Spawn::scrollback`; command
 ///   blocks (shell integration: `Frame::commands`, `Commands`,
 ///   `CommandOutput`).
-pub const SERVER_REVISION: u32 = 3;
+/// - 4: `Context` (notes shared by a session's agents); `Capture::unwrapped`;
+///   `CommandMark::input` (click to move the cursor at the prompt).
+pub const SERVER_REVISION: u32 = 4;
 
 /// The release version of this build: `FERRUM_VERSION` at compile time
 /// (set by the release scripts), else the crate version.

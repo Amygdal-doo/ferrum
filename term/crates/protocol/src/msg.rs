@@ -203,6 +203,10 @@ pub enum Request {
     Capture {
         target: Option<String>,
         scrollback: bool,
+        /// Join rows that the terminal soft-wrapped into one line (server
+        /// revision 4; older servers ignore it and return the rows as shown).
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        unwrapped: bool,
     },
     /// The pane's shell commands still in its scrollback or on its screen
     /// (shell integration); answered with [`Response::Commands`].
@@ -268,6 +272,18 @@ pub enum Request {
     },
     SetAwake {
         mode: AwakeMode,
+    },
+    /// A session's shared context: notes any of its blocks (and their
+    /// agents) can add and read. Adds `add`, or with `clear` empties it,
+    /// then answers with the notes as [`Response::Text`], one per line.
+    /// `session` is any target in it (default: the last focused session).
+    /// Server revision 4.
+    Context {
+        session: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        add: Option<String>,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        clear: bool,
     },
     /// Start an SSH port forward as a server-owned child process
     /// (`command` is the full `ssh -N …` argv, built by the client).

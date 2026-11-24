@@ -190,11 +190,15 @@ impl Commands {
             carry = zone;
             let Some((id, zone)) = zone else { continue };
             let row = r as u16;
+            let input = input_col(&grid[Line(line)], grid.columns(), id).map(|c| (row, c));
             match out.last_mut() {
                 Some(m) if m.id == id => {
                     m.bottom = row;
                     if zone == Zone::Output && m.output.is_none() {
                         m.output = Some(row);
+                    }
+                    if m.input.is_none() {
+                        m.input = input;
                     }
                 }
                 _ => {
@@ -208,6 +212,7 @@ impl Commands {
                         exit: record.and_then(|r| r.exit),
                         running: record.is_some_and(|r| r.running),
                         command: record.and_then(|r| r.command.clone()).unwrap_or_default(),
+                        input,
                     });
                 }
             }
@@ -301,6 +306,14 @@ fn row_zone(row: &alacritty_terminal::grid::Row<Cell>, cols: usize) -> Option<(u
     (0..cols).find_map(|c| {
         let link = row[Column(c)].hyperlink()?;
         parse_id(link.id())
+    })
+}
+
+/// The first column of `row` holding command `id`'s typed command line.
+fn input_col(row: &alacritty_terminal::grid::Row<Cell>, cols: usize, id: u64) -> Option<u16> {
+    (0..cols).find_map(|c| {
+        let link = row[Column(c)].hyperlink()?;
+        (parse_id(link.id())? == (id, Zone::Input)).then_some(c as u16)
     })
 }
 

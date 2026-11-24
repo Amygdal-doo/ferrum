@@ -187,7 +187,13 @@ impl Terminal {
     /// Screen (and optionally scrollback) as plain text, trailing blanks trimmed.
     #[must_use]
     pub fn capture(&self, scrollback: bool) -> String {
-        snapshot::capture(&self.term, scrollback)
+        snapshot::capture(&self.term, scrollback, false)
+    }
+
+    /// Like [`Self::capture`], with soft-wrapped rows joined into one line.
+    #[must_use]
+    pub fn capture_unwrapped(&self, scrollback: bool) -> String {
+        snapshot::capture(&self.term, scrollback, true)
     }
 
     /// Searches the screen and scrollback: the matches, oldest first, and
@@ -279,6 +285,15 @@ mod tests {
     }
 
     #[test]
+    fn capture_unwrapped_joins_soft_wrapped_rows() {
+        let mut t = Terminal::new(10, 4);
+        // Wraps after ten cells; the hard newline after it stays.
+        t.feed(b"abcdef ghij klm\r\nnext\r\n");
+        assert_eq!(t.capture(false), "abcdef ghi\nj klm\nnext");
+        assert_eq!(t.capture_unwrapped(false), "abcdef ghij klm\nnext");
+    }
+
+    #[test]
     fn finds_in_scrollback_across_wraps_and_wide_characters() {
         let mut t = Terminal::new(10, 3);
         t.feed(b"Error one\r\nok\r\n");
@@ -319,6 +334,18 @@ mod tests {
         t.feed(format!("\x1b]133;C;cmdline_url={url}\x07{output}").as_bytes());
         t.feed(format!("\x1b]133;D;{exit}\x07").as_bytes());
         prompt(t);
+    }
+
+    #[test]
+    fn marks_where_the_typed_command_starts() {
+        let mut t = Terminal::new(20, 4);
+        t.feed(b"\x1b]133;A\x07~ $ \x1b]133;B\x07");
+        assert_eq!(t.frame().commands.last().and_then(|c| c.input), None);
+        t.feed(b"git st");
+        assert_eq!(
+            t.frame().commands.last().and_then(|c| c.input),
+            Some((0, 4))
+        );
     }
 
     #[test]

@@ -120,11 +120,25 @@ where
                     Err(message) => Response::Error { message },
                 })
             }
-            Request::Capture { target, scrollback } => {
-                with_block(&server, target.as_deref(), |b| Response::Text {
-                    text: lock(&b.term).capture(scrollback),
-                })
-            }
+            Request::Capture {
+                target,
+                scrollback,
+                unwrapped,
+            } => with_block(&server, target.as_deref(), |b| {
+                let term = lock(&b.term);
+                Response::Text {
+                    text: if unwrapped {
+                        term.capture_unwrapped(scrollback)
+                    } else {
+                        term.capture(scrollback)
+                    },
+                }
+            }),
+            Request::Context {
+                session,
+                add,
+                clear,
+            } => ops::context(&server, session.as_deref(), add, clear),
             Request::Commands { target } => {
                 with_block(&server, target.as_deref(), |b| Response::Commands {
                     commands: lock(&b.term).commands(),

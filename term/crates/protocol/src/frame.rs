@@ -66,6 +66,10 @@ pub struct CommandMark {
     /// The command line, when the shell sent it.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub command: String,
+    /// Where the typed command line starts on the screen, `(row, col)`,
+    /// once something was typed (server revision 4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input: Option<(u16, u16)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]

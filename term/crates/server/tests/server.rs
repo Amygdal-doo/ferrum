@@ -65,6 +65,7 @@ async fn capture(c: &Client, target: &str) -> String {
         .request(Request::Capture {
             target: Some(target.into()),
             scrollback: false,
+            unwrapped: false,
         })
         .await
         .unwrap()
@@ -194,7 +195,8 @@ async fn sessions_input_capture_split_and_close() {
     assert!(
         c.request(Request::Capture {
             target: Some("work".into()),
-            scrollback: false
+            scrollback: false,
+            unwrapped: false
         })
         .await
         .is_err()
@@ -673,4 +675,88 @@ async fn find_searches_the_scrollback() {
     assert_eq!(matches[0].line, 200);
     let err = c.request(find("(", true)).await.unwrap_err().to_string();
     assert!(err.contains("unclosed"), "{err}");
+}
+
+async fn context(c: &Client, session: &str, add: Option<&str>, clear: bool) -> String {
+    match c
+        .request(Request::Context {
+            session: Some(session.into()),
+            add: add.map(str::to_owned),
+            clear,
+        })
+        .await
+        .unwrap()
+    {
+        Response::Text { text } => text,
+        r => panic!("{r:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sessions_share_context_notes() {
+    let h = start(false).await;
+    let c = &h.client;
+    for name in ["a", "b"] {
+        c.request(Request::NewSession {
+            name: Some(name.into()),
+            spawn: sh("cat"),
+        })
+        .await
+        .unwrap();
+    }
+    assert_eq!(
+        context(c, "a", Some("[b1] schema is in db/schema.sql"), false).await,
+        "[b1] schema is in db/schema.sql"
+    );
+    // Any target in the session reaches the same notes; other sessions have their own.
+    assert_eq!(
+        context(c, "a", Some("  "), false).await,
+        "[b1] schema is in db/schema.sql"
+    );
+    assert_eq!(context(c, "b", None, false).await, "");
+    context(c, "a", Some("[b3] tests pass"), false).await;
+    assert_eq!(
+        context(c, "a", None, false).await,
+        "[b1] schema is in db/schema.sql\n[b3] tests pass"
+    );
+    assert_eq!(context(c, "a", None, true).await, "");
+    assert!(
+        c.request(Request::Context {
+            session: Some("nope".into()),
+            add: None,
+            clear: false
+        })
+        .await
+        .is_err()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn capture_can_join_wrapped_lines() {
+    let h = start(false).await;
+    let c = &h.client;
+    let Response::Created { block, .. } = c
+        .request(Request::NewSession {
+            name: None,
+            spawn: sh("printf 'x%.0s' $(seq 1 150); echo; echo END; cat"),
+        })
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    let b = block.to_string();
+    eventually(c, &b, "END").await;
+    let Response::Text { text } = c
+        .request(Request::Capture {
+            target: Some(b),
+            scrollback: true,
+            unwrapped: true,
+        })
+        .await
+        .unwrap()
+    else {
+        panic!()
+    };
+    assert!(text.lines().any(|l| l == "x".repeat(150)), "{text:?}");
 }
