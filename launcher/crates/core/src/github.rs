@@ -75,16 +75,35 @@ impl GitHubClient {
         format!("{}/{}", self.owner, self.repo)
     }
 
-    fn get(&self, url: &str, accept: &str) -> reqwest::RequestBuilder {
+    fn get(&self, url: &str, accept: &str, token: Option<&GitHubToken>) -> reqwest::RequestBuilder {
         let request = self
             .http
             .get(url)
             .header(header::ACCEPT, accept)
             .header("X-GitHub-Api-Version", "2022-11-28");
-        match &self.token {
+        match token {
             Some(token) => request.bearer_auth(token.expose()),
             None => request,
         }
+    }
+
+    /// Sends a GET with the token. If GitHub rejects the token (expired or
+    /// revoked), tries once more without it: the repo is public, so only a
+    /// private repo still ends in `Unauthorized`.
+    async fn send(&self, url: &str, accept: &str) -> Result<Response> {
+        let response = self
+            .get(url, accept, self.token.as_ref())
+            .send()
+            .await
+            .map_err(network_error)?;
+        if response.status() != StatusCode::UNAUTHORIZED || self.token.is_none() {
+            return Ok(response);
+        }
+        tracing::warn!("GitHub rejected the saved token; retrying without it");
+        self.get(url, accept, None)
+            .send()
+            .await
+            .map_err(network_error)
     }
 
     /// All Ferrum app releases in the repo (drafts and foreign tags skipped).
@@ -95,11 +114,7 @@ impl GitHubClient {
                 "{}/repos/{}/{}/releases?per_page={PER_PAGE}&page={page}",
                 self.api_base, self.owner, self.repo
             );
-            let response = self
-                .get(&url, "application/vnd.github+json")
-                .send()
-                .await
-                .map_err(network_error)?;
+            let response = self.send(&url, "application/vnd.github+json").await?;
             let response = check_status(response, &self.repo_slug()).await?;
             let page_releases: Vec<GitHubRelease> = response
                 .json()
@@ -125,11 +140,7 @@ impl GitHubClient {
             "{}/repos/{}/{}/contents/catalog.json",
             self.api_base, self.owner, self.repo
         );
-        let response = self
-            .get(&url, "application/vnd.github.raw+json")
-            .send()
-            .await
-            .map_err(network_error)?;
+        let response = self.send(&url, "application/vnd.github.raw+json").await?;
         let response = check_status(response, "catalog.json").await?;
         let text = response.text().await.map_err(network_error)?;
         crate::Catalog::parse(&text)
@@ -162,11 +173,7 @@ impl GitHubClient {
 
     /// Downloads a small text asset (e.g. a `.sha256` file).
     pub async fn download_text(&self, asset: &Asset) -> Result<String> {
-        let response = self
-            .get(&asset.url, "application/octet-stream")
-            .send()
-            .await
-            .map_err(network_error)?;
+        let response = self.send(&asset.url, "application/octet-stream").await?;
         let response = check_status(response, &asset.name).await?;
         response.text().await.map_err(network_error)
     }
@@ -199,10 +206,10 @@ impl GitHubClient {
         progress: DownloadProgress,
         cancel: CancellationToken,
     ) -> Result<String> {
-        let request = self.get(&asset.url, "application/octet-stream").send();
+        let request = self.send(&asset.url, "application/octet-stream");
         let response = tokio::select! {
             () = cancel.cancelled() => return Err(LauncherError::Cancelled),
-            response = request => response.map_err(network_error)?,
+            response = request => response?,
         };
         let response = check_status(response, &asset.name).await?;
         let total = response
@@ -421,6 +428,33 @@ pub(crate) mod tests {
                 .to_lowercase()
                 .contains("authorization: bearer tok123")
         );
+    }
+
+    #[tokio::test]
+    async fn retries_without_a_rejected_token() {
+        let server = FakeServer::start(vec![(
+            "/repos/o/r/contents/catalog.json".into(),
+            401,
+            vec![],
+            b"{}".to_vec(),
+        )])
+        .await;
+        let token = GitHubToken::new("expired", crate::TokenSource::Keychain);
+        let client = GitHubClient::new("o", "r", Some(token))
+            .expect("client")
+            .with_api_base(&server.base);
+        assert!(matches!(
+            client.fetch_catalog().await,
+            Err(LauncherError::Unauthorized)
+        ));
+        let requests = server.requests.lock().expect("lock");
+        assert_eq!(requests.len(), 2);
+        assert!(
+            requests[0]
+                .to_lowercase()
+                .contains("authorization: bearer expired")
+        );
+        assert!(!requests[1].to_lowercase().contains("authorization"));
     }
 
     #[tokio::test]
