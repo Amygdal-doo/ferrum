@@ -5,6 +5,10 @@ use crate::services::Services;
 use crate::state::{AppState, EngineStatus};
 use crate::views;
 use ferrum_ui::components::{h_flex, v_flex};
+use ferrum_ui::search::{
+    DoubleShift, FindInFiles, FindInView, GoToItem, SearchEverywhere, SearchModal, SearchMode,
+    search_overlay,
+};
 use ferrum_ui::theme::ActiveTheme;
 use ferrum_ui::{ProjectBar, ProjectBarEvent, TextInput, TextInputEvent, ToggleProjectSwitcher};
 use ferrumdock_engine::DockerCli;
@@ -145,7 +149,11 @@ pub struct FerrumContainers {
     pub(crate) agent: ferrumagent_ui::AgentPane,
     /// The engine the agent's tools use, set before each message.
     pub(crate) agent_engine: crate::agent::EngineSlot,
-    focus_handle: FocusHandle,
+    /// Search Everywhere / Go to / Find in files.
+    pub(crate) search: Option<Entity<SearchModal>>,
+    pub(crate) search_subscription: Option<Subscription>,
+    double_shift: DoubleShift,
+    pub(crate) focus_handle: FocusHandle,
     _poll: Task<()>,
     _subscriptions: Vec<Subscription>,
 }
@@ -301,6 +309,9 @@ impl FerrumContainers {
             notice_task: None,
             agent: ferrumagent_ui::AgentPane::new(),
             agent_engine: crate::agent::EngineSlot::default(),
+            search: None,
+            search_subscription: None,
+            double_shift: DoubleShift::default(),
             focus_handle: cx.focus_handle(),
             _poll: Self::start_polling(cx),
             _subscriptions: subscriptions,
@@ -391,6 +402,28 @@ impl Render for FerrumContainers {
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::on_refresh))
             .on_action(cx.listener(Self::on_focus_filter))
+            .on_action(cx.listener(|app, _: &FindInView, window, cx| {
+                app.on_focus_filter(&FocusFilter, window, cx)
+            }))
+            .on_action(cx.listener(|app, _: &SearchEverywhere, window, cx| {
+                app.toggle_search(SearchMode::Everywhere, window, cx)
+            }))
+            .on_action(cx.listener(|app, _: &GoToItem, window, cx| {
+                app.toggle_search(SearchMode::GoTo, window, cx)
+            }))
+            .on_action(cx.listener(|app, _: &FindInFiles, window, cx| {
+                app.toggle_search(SearchMode::FindInFiles, window, cx)
+            }))
+            .on_modifiers_changed(cx.listener(
+                |app, e: &gpui::ModifiersChangedEvent, window, cx| {
+                    if app.double_shift.modifiers_changed(&e.modifiers) {
+                        app.toggle_search(SearchMode::Everywhere, window, cx);
+                    }
+                },
+            ))
+            .capture_key_down(cx.listener(|app, _: &gpui::KeyDownEvent, _, _| {
+                app.double_shift.key_down();
+            }))
             .on_action(cx.listener(Self::on_cancel))
             .on_action(cx.listener(|app, _: &ToggleSidebar, _, cx| app.toggle_sidebar(cx)))
             .on_action(cx.listener(|app, _: &ToggleProjectSwitcher, window, cx| {
@@ -406,6 +439,9 @@ impl Render for FerrumContainers {
             .child(main)
             .children(dialog)
             .children(notice)
+            .when_some(self.search.as_ref(), |d, search| {
+                d.child(search_overlay(search))
+            })
     }
 }
 

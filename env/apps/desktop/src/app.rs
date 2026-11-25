@@ -4,8 +4,11 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use ferrum_ui::gpui::{ClipboardItem, KeyBinding};
+use ferrum_ui::gpui::{ClipboardItem, KeyBinding, ModifiersChangedEvent};
 use ferrum_ui::prelude::*;
+use ferrum_ui::search::{
+    FindInFiles, FindInView, GoToItem, SearchEverywhere, SearchMode, search_overlay,
+};
 use ferrumenv_core::crypto::KdfParams;
 use ferrumenv_core::store::{self, Session};
 use ferrumenv_core::{Result as CoreResult, Vault};
@@ -23,6 +26,8 @@ actions!(ferrum_env, [Lock, NewVariable, OpenSettings, ToggleSidebar]);
 const TICK: Duration = Duration::from_secs(15);
 
 pub fn bind_keys(cx: &mut App) {
+    // ⌘P (Go to), ⌘⇧F (Find in files), ⌘F (project filter).
+    ferrum_ui::search::bind_keys(cx);
     cx.bind_keys([
         KeyBinding::new("cmd-l", Lock, None),
         KeyBinding::new("ctrl-l", Lock, None),
@@ -74,6 +79,9 @@ pub struct EnvApp {
     pub(crate) focus_handle: FocusHandle,
     /// The project sidebar of the unlocked vault is shown (⌘B).
     pub(crate) sidebar_open: bool,
+    /// Search Everywhere / Go to / Find in files while open.
+    pub(crate) search_modal: Option<(Entity<ferrum_ui::search::SearchModal>, Subscription)>,
+    double_shift: ferrum_ui::search::DoubleShift,
     _ticker: Task<()>,
     _sync_poller: Task<()>,
 }
@@ -115,6 +123,8 @@ impl EnvApp {
             clipboard: ClipboardGuard::default(),
             focus_handle: cx.focus_handle(),
             sidebar_open: true,
+            search_modal: None,
+            double_shift: Default::default(),
             _ticker: ticker,
             _sync_poller: sync_poller,
         };
@@ -176,6 +186,8 @@ impl EnvApp {
             return;
         }
         self.clipboard.clear_if_ours(cx);
+        // The search modal holds copies of the names: close it too.
+        self.search_modal = None;
         // Dropping `Unlocked` wipes the session key and the variables.
         self.screen = Screen::Locked;
         self.form.reset(cx);
@@ -295,7 +307,31 @@ impl Render for EnvApp {
             .size_full()
             .text_color(colors.text)
             .track_focus(&self.focus_handle)
-            .capture_key_down(cx.listener(|this, _, _, _| this.touch()))
+            .capture_key_down(cx.listener(|this, _, _, _| {
+                this.touch();
+                this.double_shift.key_down();
+            }))
+            .on_modifiers_changed(
+                cx.listener(|this, event: &ModifiersChangedEvent, window, cx| {
+                    if this.double_shift.modifiers_changed(&event.modifiers) {
+                        this.toggle_search(SearchMode::Everywhere, window, cx);
+                    }
+                }),
+            )
+            .on_action(cx.listener(|this, _: &SearchEverywhere, window, cx| {
+                this.toggle_search(SearchMode::Everywhere, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &GoToItem, window, cx| {
+                this.toggle_search(SearchMode::GoTo, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &FindInFiles, window, cx| {
+                this.toggle_search(SearchMode::FindInFiles, window, cx)
+            }))
+            .on_action(
+                cx.listener(|this, _: &FindInView, window, cx| {
+                    this.focus_project_filter(window, cx)
+                }),
+            )
             .capture_any_mouse_down(cx.listener(|this, _, _, _| this.touch()))
             .on_mouse_move(cx.listener(|this, _, _, _| this.touch()))
             .on_scroll(cx.listener(|this, _, _, _| this.touch()))
@@ -325,6 +361,9 @@ impl Render for EnvApp {
                     }),
                     cx,
                 ))
+            })
+            .when_some(self.search_modal.as_ref(), |this, (modal, _)| {
+                this.child(search_overlay(modal))
             })
     }
 }

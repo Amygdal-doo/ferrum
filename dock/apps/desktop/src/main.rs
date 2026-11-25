@@ -6,6 +6,7 @@ mod app;
 mod app_info;
 mod commands;
 mod project;
+mod search;
 mod services;
 mod state;
 mod views;
@@ -39,6 +40,7 @@ fn main() {
     ferrum_ui::run(config, move |window, cx| {
         ferrum_account_ui::init(ferrum_account_ui::AccountApp::Dock, cx);
         ferrumagent_ui::init(cx);
+        ferrum_ui::search::bind_keys(cx);
         app::bind_keys(cx);
         cx.new(|cx| {
             let mut app = app::FerrumContainers::new(services, docker_cli, window, cx);

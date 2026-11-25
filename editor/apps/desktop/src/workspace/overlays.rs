@@ -124,7 +124,7 @@ impl Workspace {
 
     /// Walks the project on a background thread; the open file finder
     /// picks the list up when it arrives.
-    fn load_file_list(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn load_file_list(&mut self, cx: &mut Context<Self>) {
         let Some(root) = self.root.clone() else {
             return;
         };
@@ -135,6 +135,7 @@ impl Workspace {
                 .await;
             this.update(cx, |this, cx| {
                 this.file_list = Some(Arc::new(list));
+                this.refresh_search_files(cx);
                 if let Some(picker) = this.picker.clone()
                     && picker.read(cx).kind() == PickerKind::Files
                 {

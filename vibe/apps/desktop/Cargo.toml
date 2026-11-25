@@ -12,11 +12,14 @@ name = "ferrumvibe"
 path = "src/main.rs"
 
 [dependencies]
+anyhow.workspace = true
 chrono.workspace = true
 ferrum-ui.workspace = true
 # The Ferrum account: Sign in / avatar menu, Settings › Account.
 ferrum-account-ui.workspace = true
 ferrumagent-ui.workspace = true
+# Search: the project's file list and text search (as in FerrumIDE).
+ferrumeditor-core.workspace = true
 ferrumgit-ui.workspace = true
 ferrumterm-ui.workspace = true
 # The Files pane reads folders the way git sees them (.gitignore).

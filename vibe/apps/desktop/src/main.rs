@@ -19,6 +19,7 @@ mod navigate;
 mod pages;
 mod panes;
 mod parallel;
+mod search;
 mod shell_path;
 mod sidebar;
 mod sites;

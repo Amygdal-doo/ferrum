@@ -7,6 +7,7 @@ mod app;
 mod app_info;
 mod history;
 mod palette;
+mod search;
 #[cfg(test)]
 mod tests_render;
 mod tools;

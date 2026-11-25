@@ -19,6 +19,7 @@ mod lsp_edits;
 mod overlays;
 mod panes;
 mod quit;
+mod search;
 mod session;
 mod status_bar;
 mod tasks;
@@ -66,6 +67,9 @@ pub struct Workspace {
     closed_tabs: Vec<PathBuf>,
     registry: CommandRegistry,
     picker: Option<Entity<Picker>>,
+    /// Search Everywhere / Find in files.
+    search: Option<Entity<ferrum_ui::search::SearchModal>>,
+    double_shift: ferrum_ui::search::DoubleShift,
     find_bar: Entity<FindBar>,
     find_visible: bool,
     project_find: Entity<ProjectFind>,
@@ -158,6 +162,8 @@ impl Workspace {
             closed_tabs: Vec::new(),
             registry: commands::builtin_registry(),
             picker: None,
+            search: None,
+            double_shift: Default::default(),
             find_bar,
             find_visible: false,
             project_find,
@@ -457,6 +463,16 @@ impl Render for Workspace {
             .track_focus(&self.focus_handle)
             .key_context("FerrumWorkspace")
             .on_action(cx.listener(Self::on_run_command))
+            .on_modifiers_changed(cx.listener(
+                |this, event: &gpui::ModifiersChangedEvent, window, cx| {
+                    if this.double_shift.modifiers_changed(&event.modifiers) {
+                        this.toggle_search(ferrum_ui::search::SearchMode::Everywhere, window, cx);
+                    }
+                },
+            ))
+            .capture_key_down(cx.listener(|this, _: &gpui::KeyDownEvent, _, _| {
+                this.double_shift.key_down();
+            }))
             .on_action(cx.listener(|this, _: &ToggleProjectSwitcher, window, cx| {
                 this.project_bar
                     .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
@@ -529,6 +545,9 @@ impl Render for Workspace {
                         ),
                 )
             })
+            .when_some(self.search.as_ref(), |this, search| {
+                this.child(ferrum_ui::search::search_overlay(search))
+            })
             .when_some(self.render_dialog(window, cx), |this, dialog| {
                 this.child(dialog)
             })
@@ -570,6 +589,10 @@ impl Workspace {
 
     pub fn tree(&self) -> Option<Entity<TreeView>> {
         self.tree.clone()
+    }
+
+    pub fn search_open(&self) -> bool {
+        self.search.is_some()
     }
 
     pub fn picker_open(&self) -> bool {

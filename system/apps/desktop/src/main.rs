@@ -21,6 +21,7 @@ mod menus;
 mod panel;
 mod prefs;
 mod problems;
+mod search;
 mod sidebar;
 #[cfg(test)]
 mod tests;
@@ -45,6 +46,7 @@ fn main() {
     ferrum_ui::run(config, move |window, cx| {
         ferrum_account_ui::init(ferrum_account_ui::AccountApp::System, cx);
         ferrumagent_ui::init(cx);
+        ferrum_ui::search::bind_keys(cx);
         app::bind_keys(cx);
         cx.set_menus(menus::menus(&app_info::app_info()));
         let options = app::Options {

@@ -121,7 +121,13 @@ pub(super) fn builtin_registry() -> CommandRegistry {
         w.use_selection_as_find(window, cx)
     });
     r.register("find-in-files:show", |w, window, cx| {
+        w.toggle_search(ferrum_ui::search::SearchMode::FindInFiles, window, cx)
+    });
+    r.register("find-in-files:show-panel", |w, window, cx| {
         w.show_project_find(window, cx)
+    });
+    r.register("search-everywhere:toggle", |w, window, cx| {
+        w.toggle_search(ferrum_ui::search::SearchMode::Everywhere, window, cx)
     });
     r.register("markdown-preview:toggle", |w, window, cx| {
         w.toggle_markdown_preview(window, cx)

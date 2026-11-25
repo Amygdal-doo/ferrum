@@ -49,6 +49,8 @@ pub const MIN_COLUMN_WIDTH: f32 = 260.;
 pub const SIDEBAR_FOLDERS: usize = 6;
 
 pub fn bind_keys(cx: &mut App) {
+    // ⇧⇧ / ⌘P / ⌘⇧F / ⌘F: the shared search modal (`crate::search`).
+    ferrum_ui::search::bind_keys(cx);
     let context = Some(KEY_CONTEXT);
     cx.bind_keys([
         KeyBinding::new("cmd-alt-1", ToggleFiles, None),
@@ -65,7 +67,6 @@ pub fn bind_keys(cx: &mut App) {
         KeyBinding::new("cmd-shift-n", NewDiscussion, context),
         KeyBinding::new("cmd-[", GoBack, context),
         KeyBinding::new("cmd-]", GoForward, context),
-        KeyBinding::new("cmd-shift-f", ShowSearch, context),
         KeyBinding::new("cmd-o", OpenFolder, context),
     ]);
     crate::files::bind_keys(cx);
@@ -184,6 +185,8 @@ pub struct FerrumEngineer {
     pub(crate) pages: PageState,
     /// Run in parallel: the task, the run and its worktrees.
     pub(crate) parallel: crate::parallel::ParallelState,
+    /// Search Everywhere / Go to / Find in files.
+    pub(crate) search: crate::search::SearchState,
     focus_handle: FocusHandle,
     pub(crate) git_subscriptions: Vec<Subscription>,
     _tasks: Vec<Task<()>>,
@@ -249,6 +252,7 @@ impl FerrumEngineer {
             index_task: None,
             pages,
             parallel,
+            search: crate::search::SearchState::default(),
             focus_handle: cx.focus_handle(),
             git_subscriptions: Vec::new(),
             _tasks: vec![crate::pages::automations::start_timer(window, cx)],

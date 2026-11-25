@@ -36,6 +36,8 @@ fn main() {
         .app(app_info::app_info());
     ferrum_ui::run(config, move |window, cx| {
         ferrum_account_ui::init(ferrum_account_ui::AccountApp::Git, cx);
+        // ⇧⇧ / ⌘⇧F / ⌘F; FerrumGIT's own ⌘P (repositories) wins in its context.
+        ferrum_ui::search::bind_keys(cx);
         ferrumgit_ui::init_with_services(services, cx);
         let view = GitView::new(open_at, GitViewOptions::desktop(), window, cx);
         window.focus(&view.focus_handle(cx), cx);

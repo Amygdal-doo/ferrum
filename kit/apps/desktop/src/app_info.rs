@@ -9,5 +9,7 @@ pub fn app_info() -> AppInfo {
         .tagline("Everyday developer utilities: JSON, JWT, Base64, hashes, regex, diffs and more.")
         .icon(IconName::ToolHammer, 0xf0b43c)
         .key("Search tools", "cmd-k")
+        .key("Go to a tool or saved input", "cmd-p")
+        .key("Find in tool descriptions", "cmd-shift-f")
         .key("Settings", "cmd-,")
 }

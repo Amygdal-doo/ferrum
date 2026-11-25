@@ -9,6 +9,7 @@ mod components;
 mod installer_update;
 mod integration;
 mod panel;
+mod search;
 mod services;
 mod settings_page;
 mod usage;
@@ -111,6 +112,7 @@ fn main() {
         // The Ferrum account: Sign in / avatar in the title row, Settings ›
         // Account; its messages show in the launcher's notice line.
         ferrum_account_ui::init(ferrum_account_ui::AccountApp::Launcher, cx);
+        ferrum_ui::search::bind_keys(cx);
         let launcher =
             cx.new(|cx| app::FerrumLauncher::new(services, state, startup_notice, window, cx));
         let notices = launcher.downgrade();

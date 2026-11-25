@@ -1,4 +1,4 @@
-//! The command palette (⌘K / ⌘P): every tool, fuzzy-searched; ↑/↓ choose,
+//! The command palette (⌘K): every tool, fuzzy-searched; ↑/↓ choose,
 //! Enter opens, Esc closes.
 
 use ferrum_ui::gpui::{Action, HighlightStyle, StyledText};

@@ -10,6 +10,7 @@ use ferrum_ui::gpui::{
     self, Axis, Context, ElementId, Hsla, MouseButton, SharedString, Window, canvas, div,
     prelude::*, px,
 };
+use ferrum_ui::search::{self, SearchMode};
 use ferrum_ui::theme::ActiveTheme;
 use ferrumterm_protocol::{ProgramState, WindowInfo};
 
@@ -616,6 +617,33 @@ impl Render for TermView {
             .key_context(crate::KEY_CONTEXT)
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(Self::key_down))
+            .on_modifiers_changed(cx.listener(
+                |view, event: &gpui::ModifiersChangedEvent, window, cx| {
+                    if view.options.standalone
+                        && view.double_shift.modifiers_changed(&event.modifiers)
+                    {
+                        view.toggle_search(SearchMode::Everywhere, window, cx);
+                    }
+                },
+            ))
+            // Only watches: every key still reaches the terminal.
+            .capture_key_down(cx.listener(|view, _: &gpui::KeyDownEvent, _, _| {
+                view.double_shift.key_down();
+            }))
+            .on_action(
+                cx.listener(|view, _: &search::SearchEverywhere, window, cx| {
+                    view.toggle_search(SearchMode::Everywhere, window, cx)
+                }),
+            )
+            .on_action(cx.listener(|view, _: &search::GoToItem, window, cx| {
+                view.toggle_search(SearchMode::GoTo, window, cx)
+            }))
+            .on_action(cx.listener(|view, _: &search::FindInFiles, window, cx| {
+                view.toggle_search(SearchMode::FindInFiles, window, cx)
+            }))
+            .on_action(
+                cx.listener(|view, _: &search::FindInView, window, cx| view.open_find(window, cx)),
+            )
             .on_action(cx.listener(|view, _: &ToggleProjectSwitcher, window, cx| {
                 match &view.project {
                     Some(project) => project
@@ -663,6 +691,9 @@ impl Render for TermView {
                 )
             })
             .when_some(dialog, |root, dialog| root.child(dialog))
+            .when_some(self.search.as_ref(), |root, modal| {
+                root.child(search::search_overlay(modal))
+            })
     }
 }
 

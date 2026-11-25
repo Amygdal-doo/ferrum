@@ -87,6 +87,8 @@ pub struct GitView {
     /// A host's markers above the history, under their section title (see
     /// [`GitView::set_history_markers`]).
     pub(crate) markers: Option<(gpui::SharedString, Vec<crate::embed::HistoryMarker>)>,
+    /// Search Everywhere / Find in files (stand-alone window).
+    pub(crate) search: crate::search::Search,
     focus_handle: FocusHandle,
     _poll: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -264,6 +266,7 @@ impl GitView {
             review_subscription: None,
             ai_model: None,
             markers: None,
+            search: crate::search::Search::default(),
             focus_handle: cx.focus_handle(),
             _poll: Self::start_polling(cx),
             _subscriptions: subscriptions,
@@ -500,6 +503,7 @@ impl Render for GitView {
             .on_action(cx.listener(Self::on_back))
             .on_action(cx.listener(Self::on_forward))
             .on_action(cx.listener(Self::on_quit))
+            .map(|d| self.search_listeners(d, cx))
             .when(self.options.show_project_bar, |d| {
                 d.on_action(cx.listener(|app, _: &ToggleProjectSwitcher, window, cx| {
                     app.project_bar
@@ -526,6 +530,9 @@ impl Render for GitView {
             .children(dialog)
             .children(context_menu)
             .children(notice)
+            .when_some(self.search.modal.as_ref(), |d, modal| {
+                d.child(ferrum_ui::search::search_overlay(modal))
+            })
     }
 }
 

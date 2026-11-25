@@ -14,9 +14,11 @@ path = "src/ferrum_ui.rs"
 anyhow.workspace = true
 # Settings › System: the app's shell command and Dock choice.
 ferrum-shell = { path = "../shell" }
+globset.workspace = true
 gpui.workspace = true
 # Same platform features as the IDE; without `font-kit` macOS renders no text.
 gpui_platform = { workspace = true, features = ["font-kit", "wayland", "x11"] }
+regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 smallvec.workspace = true

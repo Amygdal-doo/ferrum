@@ -30,5 +30,8 @@ serde_json.workspace = true
 tree-sitter-highlight.workspace = true
 tree-sitter-yaml.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [lints]
 workspace = true

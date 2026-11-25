@@ -4,6 +4,7 @@ use crate::components::onboarding::Onboarding;
 use crate::services::Services;
 use ferrum_ui::gpui::Image;
 use ferrum_ui::prelude::*;
+use ferrum_ui::search::{self, SearchMode};
 use ferrumlauncher_core::{AppId, State, TokenSource};
 use semver::Version;
 use std::collections::HashMap;
@@ -85,6 +86,10 @@ pub struct FerrumLauncher {
     pub(crate) check_loop: Task<()>,
     progress_ticker: Option<Task<()>>,
     pub focus_handle: FocusHandle,
+    /// The shared search modal (Shift twice, ⌘P, ⌘⇧F, ⌘F).
+    pub(crate) search: Option<Entity<ferrum_ui::search::SearchModal>>,
+    pub(crate) search_sub: Option<Subscription>,
+    pub(crate) double_shift: ferrum_ui::search::DoubleShift,
     /// Shell commands, Dock, shortcuts and the menu bar icon.
     pub integration: crate::integration::Integration,
     /// Subscriptions that live as long as the window.
@@ -130,6 +135,9 @@ impl FerrumLauncher {
             check_loop: Task::ready(()),
             progress_ticker: None,
             focus_handle: cx.focus_handle(),
+            search: None,
+            search_sub: None,
+            double_shift: Default::default(),
             integration: crate::integration::Integration::default(),
             kept: Vec::new(),
             _subscriptions: Vec::new(),
@@ -399,6 +407,40 @@ impl Render for FerrumLauncher {
             .size_full()
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(Self::on_key_down))
+            .on_modifiers_changed(cx.listener(
+                |this, e: &ferrum_ui::gpui::ModifiersChangedEvent, window, cx| {
+                    if this.double_shift.modifiers_changed(&e.modifiers) {
+                        this.toggle_search(SearchMode::Everywhere, window, cx);
+                    }
+                },
+            ))
+            .capture_key_down(
+                cx.listener(|this, _: &ferrum_ui::gpui::KeyDownEvent, _, _| {
+                    this.double_shift.key_down();
+                }),
+            )
+            .on_action(
+                cx.listener(|this, _: &search::SearchEverywhere, window, cx| {
+                    this.toggle_search(SearchMode::Everywhere, window, cx)
+                }),
+            )
+            .on_action(cx.listener(|this, _: &search::GoToItem, window, cx| {
+                this.toggle_search(SearchMode::GoTo, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &search::FindInFiles, window, cx| {
+                this.toggle_search(SearchMode::FindInFiles, window, cx)
+            }))
+            // The app table has no find bar of its own: ⌘F finds an app.
+            .on_action(cx.listener(|this, _: &search::FindInView, window, cx| {
+                this.toggle_search(SearchMode::GoTo, window, cx)
+            }))
+            .on_action(
+                cx.listener(|this, _: &ferrum_ui::menu::Cancel, window, cx| {
+                    if !this.close_search(window, cx) {
+                        cx.propagate();
+                    }
+                }),
+            )
             .on_key_down(
                 cx.listener(|this, event: &ferrum_ui::gpui::KeyDownEvent, _, cx| {
                     if this.uninstall_dialog.is_some() && event.keystroke.key == "escape" {
@@ -437,6 +479,9 @@ impl Render for FerrumLauncher {
                     }),
                     cx,
                 ))
+            })
+            .when_some(self.search.as_ref(), |this, search| {
+                this.child(search::search_overlay(search))
             })
     }
 }

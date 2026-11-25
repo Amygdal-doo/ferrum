@@ -1,7 +1,8 @@
 //! Root view: searchable tool list in a sidebar on the window backdrop, the
 //! selected tool in a pane card on the right, and the tool's history and
-//! saved inputs in a panel at the card's right edge. ⌘K / ⌘P open the
-//! command palette over everything.
+//! saved inputs in a panel at the card's right edge. ⌘K opens the tool
+//! palette over everything; ⌘P, ⌘⇧F and Shift twice the shared search
+//! (see `search.rs`).
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -9,8 +10,11 @@ use std::time::Duration;
 use crate::palette::{Palette, PaletteEvent};
 use crate::tools::{self, ToolView};
 use crate::widgets::KitEvent;
-use ferrum_ui::gpui::{KeyBinding, MouseButton, hsla};
+use ferrum_ui::gpui::{KeyBinding, KeyDownEvent, ModifiersChangedEvent, MouseButton, hsla};
 use ferrum_ui::prelude::*;
+use ferrum_ui::search::{
+    FindInFiles, FindInView, GoToItem, SearchEverywhere, SearchMode, search_overlay,
+};
 use ferrumkit_core::store::KitStore;
 use ferrumkit_core::{Tool, filter_tools};
 use std::collections::HashMap;
@@ -31,11 +35,12 @@ const SIDEBAR_WIDTH: f32 = 232.;
 const RECORD_AFTER: Duration = Duration::from_millis(1500);
 
 pub fn bind_keys(cx: &mut App) {
+    // ⌘P (Go to), ⌘⇧F (Find in files) and ⌘F app-wide; ⌘F below stays the
+    // sidebar filter, ⌘K the tool palette.
+    ferrum_ui::search::bind_keys(cx);
     cx.bind_keys([
         KeyBinding::new("cmd-k", TogglePalette, None),
         KeyBinding::new("ctrl-k", TogglePalette, None),
-        KeyBinding::new("cmd-p", TogglePalette, None),
-        KeyBinding::new("ctrl-p", TogglePalette, None),
         KeyBinding::new("cmd-f", FocusSearch, None),
         KeyBinding::new("cmd-b", ToggleSidebar, None),
         KeyBinding::new("cmd-y", ToggleHistory, None),
@@ -68,14 +73,17 @@ pub struct FerrumKit {
     session: Option<Tool>,
     /// The command palette while it is open.
     palette: Option<(Entity<Palette>, Subscription)>,
+    /// Search Everywhere / Go to / Find in files while open.
+    pub(crate) search_modal: Option<Entity<ferrum_ui::search::SearchModal>>,
+    double_shift: ferrum_ui::search::DoubleShift,
     /// Keeps the root in the dispatch path so ⌘K works with nothing focused.
-    focus_handle: FocusHandle,
+    pub(crate) focus_handle: FocusHandle,
     /// Inside the tool card; the card is lighter while it holds focus.
     card_focus: FocusHandle,
     sidebar_open: bool,
     notice: Option<Notice>,
     notice_task: Option<Task<()>>,
-    _subscriptions: Vec<Subscription>,
+    pub(crate) _subscriptions: Vec<Subscription>,
 }
 
 impl FerrumKit {
@@ -128,6 +136,8 @@ impl FerrumKit {
             pending_record: None,
             session: None,
             palette: None,
+            search_modal: None,
+            double_shift: Default::default(),
             focus_handle: cx.focus_handle(),
             card_focus: cx.focus_handle(),
             sidebar_open: true,
@@ -338,7 +348,7 @@ impl FerrumKit {
     }
 
     /// Puts the caret in `tool`'s first input field.
-    fn focus_tool(&mut self, tool: Tool, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn focus_tool(&mut self, tool: Tool, window: &mut Window, cx: &mut Context<Self>) {
         let view = self.ensure_view(tool, window, cx);
         if let Some(input) = view.inputs().first() {
             input.update(cx, |input, cx| input.focus(window, cx));
@@ -371,11 +381,9 @@ impl FerrumKit {
             )
             .child(ferrum_ui::settings_button("open-settings"))
             .child(
-                ferrum_ui::command_button("go-to-tool", "Go to a tool (⌘K / ⌘P)").on_click(
-                    cx.listener(|this, _, window, cx| {
-                        this.toggle_palette(&TogglePalette, window, cx)
-                    }),
-                ),
+                ferrum_ui::command_button("go-to-tool", "Go to a tool (⌘K)").on_click(cx.listener(
+                    |this, _, window, cx| this.toggle_palette(&TogglePalette, window, cx),
+                )),
             )
     }
 
@@ -524,6 +532,28 @@ impl Render for FerrumKit {
             .on_action(cx.listener(Self::toggle_history))
             .on_action(cx.listener(Self::toggle_wrap))
             .on_action(cx.listener(Self::toggle_palette))
+            .on_action(cx.listener(|this, _: &FindInView, window, cx| {
+                this.focus_search(&FocusSearch, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &SearchEverywhere, window, cx| {
+                this.toggle_search(SearchMode::Everywhere, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &GoToItem, window, cx| {
+                this.toggle_search(SearchMode::GoTo, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &FindInFiles, window, cx| {
+                this.toggle_search(SearchMode::FindInFiles, window, cx)
+            }))
+            .on_modifiers_changed(
+                cx.listener(|this, event: &ModifiersChangedEvent, window, cx| {
+                    if this.double_shift.modifiers_changed(&event.modifiers) {
+                        this.toggle_search(SearchMode::Everywhere, window, cx);
+                    }
+                }),
+            )
+            .capture_key_down(cx.listener(|this, _: &KeyDownEvent, _, _| {
+                this.double_shift.key_down();
+            }))
             .when(sidebar_open, |root| {
                 root.child(self.render_sidebar(window, cx))
             })
@@ -567,6 +597,9 @@ impl Render for FerrumKit {
                     }),
                     cx,
                 ))
+            })
+            .when_some(self.search_modal.as_ref(), |this, modal| {
+                this.child(search_overlay(modal))
             })
     }
 }

@@ -7,6 +7,7 @@ mod app;
 mod app_info;
 mod dialogs;
 mod lock_screen;
+mod search;
 mod secrets;
 mod sync;
 mod table;

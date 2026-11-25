@@ -235,6 +235,10 @@ pub struct FerrumSystem {
     pub(crate) draft_brief: Option<String>,
     _agent_calls: Task<()>,
     pub(crate) focus_handle: FocusHandle,
+    /// The shared search modal (Shift twice, ⌘P, ⌘⇧F, ⌘F).
+    pub(crate) search: Option<Entity<ferrum_ui::search::SearchModal>>,
+    pub(crate) search_sub: Option<Subscription>,
+    pub(crate) double_shift: ferrum_ui::search::DoubleShift,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -295,6 +299,9 @@ impl FerrumSystem {
             draft_brief: None,
             _agent_calls: agent_calls,
             focus_handle: cx.focus_handle(),
+            search: None,
+            search_sub: None,
+            double_shift: Default::default(),
             _subscriptions: subscriptions,
         };
         if let Some(path) = project.clone() {

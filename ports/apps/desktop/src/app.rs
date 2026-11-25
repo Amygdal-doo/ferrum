@@ -5,8 +5,11 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use chrono::{DateTime, Local};
-use ferrum_ui::gpui::{KeyBinding, MouseButton};
+use ferrum_ui::gpui::{KeyBinding, KeyDownEvent, ModifiersChangedEvent, MouseButton};
 use ferrum_ui::prelude::*;
+use ferrum_ui::search::{
+    FindInFiles, FindInView, GoToItem, SearchEverywhere, SearchMode, search_overlay,
+};
 use ferrumports_core::forward::Forward;
 use ferrumports_core::history::PortHistory;
 use ferrumports_core::{Listener, ListenerKey, Row, View, remote, table};
@@ -20,6 +23,8 @@ actions!(ferrum_ports, [Refresh, FocusSearch, TogglePause]);
 const KEY_CONTEXT: &str = "FerrumPorts";
 
 pub fn bind_keys(cx: &mut App) {
+    // ⌘P / ⌘⇧F / ⌘F app-wide first; the table's own ⌘F below wins.
+    ferrum_ui::search::bind_keys(cx);
     let context = Some(KEY_CONTEXT);
     cx.bind_keys([
         KeyBinding::new("cmd-r", Refresh, context),
@@ -101,6 +106,9 @@ pub struct FerrumPorts {
     pub(crate) history_saved: Option<Instant>,
     /// The table shows the history instead of the listeners.
     pub(crate) show_history: bool,
+    /// Search Everywhere / Go to / Find in files while open.
+    pub(crate) search_modal: Option<Entity<ferrum_ui::search::SearchModal>>,
+    double_shift: ferrum_ui::search::DoubleShift,
     focus_handle: FocusHandle,
     _poll: Option<Task<()>>,
     pub(crate) _subscriptions: Vec<Subscription>,
@@ -199,6 +207,8 @@ impl FerrumPorts {
             history_path,
             history_saved: None,
             show_history: false,
+            search_modal: None,
+            double_shift: Default::default(),
             focus_handle: cx.focus_handle(),
             _poll: None,
             _subscriptions: subscriptions,
@@ -323,6 +333,28 @@ impl Render for FerrumPorts {
             .on_action(cx.listener(Self::on_refresh))
             .on_action(cx.listener(Self::on_toggle_pause))
             .on_action(cx.listener(Self::on_focus_search))
+            .on_action(cx.listener(|this, _: &FindInView, window, cx| {
+                this.on_focus_search(&FocusSearch, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &SearchEverywhere, window, cx| {
+                this.toggle_search(SearchMode::Everywhere, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &GoToItem, window, cx| {
+                this.toggle_search(SearchMode::GoTo, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &FindInFiles, window, cx| {
+                this.toggle_search(SearchMode::FindInFiles, window, cx)
+            }))
+            .on_modifiers_changed(
+                cx.listener(|this, event: &ModifiersChangedEvent, window, cx| {
+                    if this.double_shift.modifiers_changed(&event.modifiers) {
+                        this.toggle_search(SearchMode::Everywhere, window, cx);
+                    }
+                }),
+            )
+            .capture_key_down(cx.listener(|this, _: &KeyDownEvent, _, _| {
+                this.double_shift.key_down();
+            }))
             .on_action(cx.listener(Self::on_cancel))
             .on_action(cx.listener(|this, _: &ToggleProjectSwitcher, window, cx| {
                 this.project_bar
@@ -343,6 +375,9 @@ impl Render for FerrumPorts {
             )
             .children(dialog)
             .children(notice)
+            .when_some(self.search_modal.as_ref(), |this, modal| {
+                this.child(search_overlay(modal))
+            })
     }
 }
 

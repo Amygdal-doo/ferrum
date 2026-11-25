@@ -348,21 +348,37 @@ fn find_in_files_lists_and_opens_matches(cx: &mut TestAppContext) {
     std::fs::write(dir.path().join("b.rs"), "// no\n// needle here\n").expect("write");
     let root = dir.path().to_path_buf();
     workspace.update_in(cx, |w, window, cx| w.set_root(root, window, cx));
+    // ⌘⇧F opens the find in files modal, not a panel.
     cx.simulate_keystrokes(&primary("cmd-shift-f"));
+    assert!(workspace.read_with(cx, |w, _| w.search_open()));
+    assert!(!workspace.read_with(cx, |w, _| w.project_find_visible()));
     cx.simulate_input("needle");
+    cx.executor()
+        .advance_clock(std::time::Duration::from_millis(500));
+    cx.run_until_parked();
     cx.simulate_keystrokes("enter");
     cx.run_until_parked();
-    let panel = workspace.read_with(cx, |w, _| w.project_find().clone());
-    panel.read_with(cx, |p, _| {
-        assert_eq!(p.result_rows(), 4, "{}", p.status());
-        assert_eq!(p.status().as_ref(), "2 results in 2 files");
-    });
-    panel.update(cx, |p, cx| p.open_first_match(cx));
-    cx.run_until_parked();
+    assert!(!workspace.read_with(cx, |w, _| w.search_open()));
     let editor = workspace
         .read_with(cx, |w, _| w.active_editor())
         .expect("opened");
-    editor.read_with(cx, |e, _| assert_eq!(e.cursor_point(), Point::new(0, 3)));
+    editor.read_with(cx, |e, _| {
+        assert!(e.path.as_deref().is_some_and(|p| p.ends_with("a.rs")));
+        assert_eq!(e.cursor_point(), Point::new(0, 3));
+    });
+}
+
+#[gpui::test]
+fn search_everywhere_runs_commands_and_closes_on_escape(cx: &mut TestAppContext) {
+    let (workspace, cx) = workspace_window(cx);
+    workspace.update_in(cx, |w, window, cx| {
+        w.run_command("search-everywhere:toggle", window, cx)
+    });
+    cx.run_until_parked();
+    assert!(workspace.read_with(cx, |w, _| w.search_open()));
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(!workspace.read_with(cx, |w, _| w.search_open()));
 }
 
 #[gpui::test]

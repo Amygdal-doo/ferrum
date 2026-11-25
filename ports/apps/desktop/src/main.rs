@@ -10,6 +10,7 @@ mod detail;
 mod forwards;
 mod history;
 mod remote;
+mod search;
 mod table;
 #[cfg(test)]
 mod tests;

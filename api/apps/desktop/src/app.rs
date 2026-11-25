@@ -4,6 +4,7 @@ use crate::components::fields::FieldCache;
 use crate::components::response::BodyDisplay;
 use crate::state::AppState;
 use ferrum_ui::components::{ActiveTheme as _, Color, Label, LabelCommon as _, h_flex, v_flex};
+use ferrum_ui::search::{self, SearchMode};
 use ferrum_ui::{
     DraggedSplitter, Notice, ProjectBar, ToggleProjectSwitcher, gap_splitter, render_notice,
 };
@@ -67,6 +68,10 @@ pub struct FerrumApi {
     pub drafter: Option<ferrumapi_application::agent_tests::TestDrafter>,
     notice: Option<Notice>,
     notice_task: Option<Task<()>>,
+    /// Search Everywhere / Go to request / Find in requests (see `search`).
+    pub(crate) search: Option<Entity<ferrum_ui::search::SearchModal>>,
+    pub(crate) _search_events: Option<gpui::Subscription>,
+    double_shift: ferrum_ui::search::DoubleShift,
     _autosave: Task<()>,
     _project_events: gpui::Subscription,
 }
@@ -101,6 +106,9 @@ impl FerrumApi {
             drafter: None,
             notice: None,
             notice_task: None,
+            search: None,
+            _search_events: None,
+            double_shift: ferrum_ui::search::DoubleShift::default(),
             _autosave: Self::autosave_loop(cx),
             _project_events: project_events,
         }
@@ -306,6 +314,30 @@ impl Render for FerrumApi {
             .on_action(cx.listener(Self::on_find_next))
             .on_action(cx.listener(Self::on_find_previous))
             .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| this.toggle_sidebar(cx)))
+            .on_modifiers_changed(cx.listener(
+                |this, event: &gpui::ModifiersChangedEvent, window, cx| {
+                    if this.double_shift.modifiers_changed(&event.modifiers) {
+                        this.toggle_search(SearchMode::Everywhere, window, cx);
+                    }
+                },
+            ))
+            .capture_key_down(cx.listener(|this, _: &gpui::KeyDownEvent, _, _| {
+                this.double_shift.key_down();
+            }))
+            .on_action(
+                cx.listener(|this, _: &search::SearchEverywhere, window, cx| {
+                    this.toggle_search(SearchMode::Everywhere, window, cx);
+                }),
+            )
+            .on_action(cx.listener(|this, _: &search::GoToItem, window, cx| {
+                this.toggle_search(SearchMode::GoTo, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &search::FindInFiles, window, cx| {
+                this.toggle_search(SearchMode::FindInFiles, window, cx);
+            }))
+            .on_action(cx.listener(|this, _: &search::FindInView, window, cx| {
+                this.on_find(&FindInResponse, window, cx);
+            }))
             .on_action(cx.listener(|this, _: &ToggleProjectSwitcher, window, cx| {
                 this.project_bar
                     .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
@@ -317,5 +349,8 @@ impl Render for FerrumApi {
             .child(status)
             .children(dialog)
             .children(notice)
+            .when_some(self.search.as_ref(), |root, modal| {
+                root.child(search::search_overlay(modal))
+            })
     }
 }

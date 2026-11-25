@@ -89,3 +89,23 @@ pub fn init(cx: &mut App) {
     cx.set_global(Initialized);
     cx.bind_keys(key_bindings());
 }
+
+/// The search shortcuts of the FerrumTerm window: ⌘P (Go to terminal) and
+/// ⌘⇧F (Find in all terminals); ⌘F stays the pane's find bar. On Linux and
+/// Windows they are Ctrl-Shift-P / Ctrl-Shift-F, so Ctrl-P and Ctrl-F still
+/// reach the shell. Shift twice opens Search Everywhere.
+pub fn bind_search_keys(cx: &mut App) {
+    use ferrum_ui::gpui::KeyBinding;
+    use ferrum_ui::search::{CONTEXT, FindInFiles, GoToItem, NextTab, PreviousTab};
+    let (go_to, find) = if cfg!(target_os = "macos") {
+        ("cmd-p", "cmd-shift-f")
+    } else {
+        ("ctrl-shift-p", "ctrl-shift-f")
+    };
+    cx.bind_keys([
+        KeyBinding::new(go_to, GoToItem, Some(KEY_CONTEXT)),
+        KeyBinding::new(find, FindInFiles, Some(KEY_CONTEXT)),
+        KeyBinding::new("tab", NextTab, Some(CONTEXT)),
+        KeyBinding::new("shift-tab", PreviousTab, Some(CONTEXT)),
+    ]);
+}

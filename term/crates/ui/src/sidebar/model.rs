@@ -280,7 +280,7 @@ fn detail(b: &BlockInfo) -> String {
 }
 
 /// `/Users/me/src/x` → `~/src/x`.
-fn tilde(path: &str) -> String {
+pub(crate) fn tilde(path: &str) -> String {
     match std::env::var("HOME") {
         Ok(home) if !home.is_empty() => match path.strip_prefix(home.as_str()) {
             Some(rest) if rest.is_empty() || rest.starts_with('/') => format!("~{rest}"),

@@ -93,6 +93,16 @@ pub(crate) fn shared_pages() -> (Pages, Pages) {
     )
 }
 
+/// Every page of this app's Settings window, in sidebar order.
+pub(crate) fn all_pages(cx: &App) -> Pages {
+    let (head, tail) = shared_pages();
+    let mut pages = head;
+    pages.extend(extra_pages(cx));
+    pages.extend(crate::app_info(cx).pages.iter().cloned());
+    pages.extend(tail);
+    pages
+}
+
 pub(crate) fn tint(rgb: u32) -> Hsla {
     gpui::rgb(rgb).into()
 }

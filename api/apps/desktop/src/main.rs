@@ -5,6 +5,7 @@ mod app;
 mod app_info;
 mod commands;
 mod components;
+mod search;
 mod state;
 #[cfg(test)]
 mod tests_render;
@@ -35,6 +36,7 @@ fn main() {
             .unified_titlebar(),
         move |window, cx| {
             ferrum_account_ui::init(ferrum_account_ui::AccountApp::Api, cx);
+            ferrum_ui::search::bind_keys(cx);
             app::bind_keys(cx);
             cx.new(|cx| app::FerrumApi::new(services, window, cx))
         },

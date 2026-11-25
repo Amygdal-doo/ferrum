@@ -153,8 +153,8 @@ fn palette_jumps_to_a_tool(cx: &mut TestAppContext) {
         assert!(app.palette().is_none());
     });
 
-    // ⌘P too; ↓ then Enter takes the second match; Esc closes.
-    cx.simulate_keystrokes("cmd-p");
+    // ↓ then Enter takes the second match; Esc closes.
+    cx.simulate_keystrokes("cmd-k");
     draw(cx);
     let palette = app.read_with(cx, |app, _| app.palette().cloned().expect("open"));
     let input = palette.read_with(cx, |palette, _| palette.input().clone());
@@ -183,4 +183,39 @@ fn qr_code_renders_as_an_image(cx: &mut TestAppContext) {
     // Too long for a QR code: an error instead of an image.
     type_into(&app, Tool::Qr, &"x".repeat(8000), cx);
     draw(cx);
+}
+
+#[gpui::test]
+fn cmd_p_opens_the_shared_search_and_jumps_to_a_tool(cx: &mut TestAppContext) {
+    use ferrum_ui::search::{SearchCategory, SearchEvent, SearchItem, SearchMode};
+    let (app, cx) = window(cx, None);
+    cx.simulate_keystrokes("cmd-p");
+    draw(cx);
+    let modal = app.read_with(cx, |app, _| app.search_modal().cloned().expect("open"));
+    assert_eq!(modal.read_with(cx, |m, _| m.mode()), SearchMode::GoTo);
+    assert!(app.read_with(cx, |app, _| app.palette().is_none()));
+    modal.update(cx, |_, cx| {
+        cx.emit(SearchEvent::Open(SearchItem::new(
+            SearchCategory::Items,
+            "Regex Tester",
+            "tool:regex",
+        )))
+    });
+    draw(cx);
+    app.read_with(cx, |app, _| {
+        assert_eq!(app.selected(), Tool::Regex);
+        assert!(app.search_modal().is_none());
+    });
+
+    // ⌘⇧F opens Find in files; Esc closes it.
+    cx.simulate_keystrokes("cmd-shift-f");
+    draw(cx);
+    let modal = app.read_with(cx, |app, _| app.search_modal().cloned().expect("open"));
+    assert_eq!(
+        modal.read_with(cx, |m, _| m.mode()),
+        SearchMode::FindInFiles
+    );
+    cx.dispatch_action(ferrum_ui::menu::Cancel);
+    draw(cx);
+    assert!(app.read_with(cx, |app, _| app.search_modal().is_none()));
 }

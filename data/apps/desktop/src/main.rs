@@ -6,6 +6,7 @@ mod app;
 mod app_info;
 mod commands;
 mod components;
+mod search;
 mod state;
 
 use ferrum_ui::AppConfig;
@@ -36,6 +37,7 @@ fn main() {
     ferrum_ui::run(config, move |window, cx| {
         ferrum_account_ui::init(ferrum_account_ui::AccountApp::Data, cx);
         ferrumagent_ui::init(cx);
+        ferrum_ui::search::bind_keys(cx);
         cx.new(|cx| app::FerrumData::new(services, window, cx))
     });
 }

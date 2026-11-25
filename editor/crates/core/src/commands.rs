@@ -131,6 +131,10 @@ const BUILTIN: &[(&str, Scope, &[&str])] = &[
     ("find-and-replace:find-previous", W, &["cmd-shift-g"]),
     ("find-and-replace:use-selection-as-find", E, &["cmd-e"]),
     ("find-in-files:show", W, &["cmd-shift-f"]),
+    // Shift twice; no key binding of its own.
+    ("search-everywhere:toggle", W, &[]),
+    // The bottom panel find in files used before the modal (references too).
+    ("find-in-files:show-panel", W, &[]),
     ("markdown-preview:toggle", W, &["cmd-shift-m"]),
     // Tool panes inside the window (Git, Agent, Term, CI, Logs, Debug)
     ("git:toggle-view", W, &["cmd-alt-g"]),

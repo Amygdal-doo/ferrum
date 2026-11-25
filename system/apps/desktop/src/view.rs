@@ -4,6 +4,7 @@
 //! panel (⌥⌘B) each fold away; the canvas takes their room.
 
 use ferrum_ui::prelude::*;
+use ferrum_ui::search::{self, SearchMode};
 use ferrum_ui::settings::widgets::Segmented;
 use ferrumsystem_core::{EdgeStyle, Provider};
 
@@ -369,6 +370,31 @@ impl Render for FerrumSystem {
             .key_context(KEY_CONTEXT)
             .track_focus(&self.focus_handle)
             .text_color(colors.text)
+            .on_modifiers_changed(cx.listener(
+                |this, e: &gpui::ModifiersChangedEvent, window, cx| {
+                    if this.double_shift.modifiers_changed(&e.modifiers) {
+                        this.toggle_search(SearchMode::Everywhere, window, cx);
+                    }
+                },
+            ))
+            .capture_key_down(cx.listener(|this, _: &gpui::KeyDownEvent, _, _| {
+                this.double_shift.key_down();
+            }))
+            .on_action(
+                cx.listener(|this, _: &search::SearchEverywhere, window, cx| {
+                    this.toggle_search(SearchMode::Everywhere, window, cx)
+                }),
+            )
+            .on_action(cx.listener(|this, _: &search::GoToItem, window, cx| {
+                this.toggle_search(SearchMode::GoTo, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &search::FindInFiles, window, cx| {
+                this.toggle_search(SearchMode::FindInFiles, window, cx)
+            }))
+            // The diagram has no text view of its own: ⌘F finds a component.
+            .on_action(cx.listener(|this, _: &search::FindInView, window, cx| {
+                this.toggle_search(SearchMode::GoTo, window, cx)
+            }))
             .on_action(cx.listener(|this, _: &ZoomIn, _, cx| this.zoom_by(1.2, cx)))
             .on_action(cx.listener(|this, _: &ZoomOut, _, cx| this.zoom_by(1. / 1.2, cx)))
             .on_action(cx.listener(|this, _: &ZoomFit, _, cx| this.fit(cx)))
@@ -393,8 +419,11 @@ impl Render for FerrumSystem {
                     this.delete_selected(cx)
                 }
             }))
-            .on_action(cx.listener(|this, _: &Escape, _, cx| {
-                if this.dialog.take().is_none() && this.connecting.take().is_none() {
+            .on_action(cx.listener(|this, _: &Escape, window, cx| {
+                if this.search.take().is_some() {
+                    this.search_sub = None;
+                    window.focus(&this.focus_handle, cx);
+                } else if this.dialog.take().is_none() && this.connecting.take().is_none() {
                     this.walk = None;
                     this.select(None, cx);
                 }
@@ -431,5 +460,8 @@ impl Render for FerrumSystem {
                     .child(n)
             }))
             .children(dialog)
+            .when_some(self.search.as_ref(), |this, search| {
+                this.child(search::search_overlay(search))
+            })
     }
 }

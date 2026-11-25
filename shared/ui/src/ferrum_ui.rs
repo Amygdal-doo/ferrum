@@ -26,6 +26,7 @@ pub mod prefs;
 pub mod project;
 mod project_bar;
 mod root;
+pub mod search;
 pub mod settings;
 mod splitter;
 pub mod surface;

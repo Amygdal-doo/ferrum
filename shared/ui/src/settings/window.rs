@@ -9,8 +9,8 @@ use gpui::{
     prelude::*, px, size,
 };
 
+use super::SettingsPage;
 use super::widgets::{icon_tile, page_title};
-use super::{SettingsPage, extra_pages, shared_pages};
 use crate::app_info::app_info;
 use crate::components::{
     Clickable, Color, Disableable, IconButton, IconName, Label, LabelCommon, LabelSize, h_flex,
@@ -78,11 +78,7 @@ pub fn open_settings(page: Option<&str>, cx: &mut App) {
 
 impl SettingsWindow {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let (head, tail) = shared_pages();
-        let mut pages = head;
-        pages.extend(extra_pages(cx));
-        pages.extend(app_info(cx).pages.iter().cloned());
-        pages.extend(tail);
+        let pages = super::all_pages(cx);
         let search = cx.new(|cx| TextInput::new(window, cx).placeholder("Search Settings"));
         let subscription = cx.subscribe(&search, |this: &mut Self, _, event, cx| {
             if *event == TextInputEvent::Changed {

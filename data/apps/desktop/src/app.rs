@@ -6,6 +6,10 @@ use crate::components::sql_editor::{CompletionPopup, apply_highlights};
 use crate::state::{AppState, Dialog, ToolTab};
 use ferrum_ui::gpui::{Axis, MouseDownEvent, Pixels, UniformListScrollHandle};
 use ferrum_ui::prelude::*;
+use ferrum_ui::search::{
+    DoubleShift, FindInFiles, FindInView, GoToItem, SearchEverywhere, SearchModal, SearchMode,
+    search_overlay,
+};
 use ferrumdata_application::AppServices;
 use ferrumdata_domain::{DatabaseEngine, EditorTabId, ProfileId};
 use std::collections::HashMap;
@@ -67,6 +71,10 @@ pub struct FerrumData {
     pub(crate) diagram_bounds: std::rc::Rc<std::cell::Cell<ferrum_ui::gpui::Bounds<Pixels>>>,
     /// Inline editor of a table tab's cell (row editing).
     pub(crate) cell_editor: Option<crate::commands::edit::CellEditor>,
+    /// Search Everywhere / Go to / Find in files.
+    pub(crate) search: Option<Entity<SearchModal>>,
+    pub(crate) search_subscription: Option<Subscription>,
+    double_shift: DoubleShift,
     notice_task: Option<Task<()>>,
     _autosave: Task<()>,
     _subscriptions: Vec<Subscription>,
@@ -113,6 +121,9 @@ impl FerrumData {
             accepting_completion: false,
             cell_editor: None,
             diagram_bounds: std::rc::Rc::default(),
+            search: None,
+            search_subscription: None,
+            double_shift: DoubleShift::default(),
             notice_task: None,
             _autosave: Task::ready(()),
             _subscriptions: vec![filter_changed, history_changed],
@@ -447,6 +458,30 @@ impl Render for FerrumData {
             .track_focus(&self.focus_handle)
             .key_context("FerrumData")
             .on_action(cx.listener(|this, _: &ToggleSidebar, _, cx| this.toggle_sidebar(cx)))
+            .on_action(cx.listener(|this, _: &SearchEverywhere, window, cx| {
+                this.toggle_search(SearchMode::Everywhere, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &GoToItem, window, cx| {
+                this.toggle_search(SearchMode::GoTo, window, cx)
+            }))
+            .on_action(cx.listener(|this, _: &FindInFiles, window, cx| {
+                this.toggle_search(SearchMode::FindInFiles, window, cx)
+            }))
+            .on_action(
+                cx.listener(|this, _: &FindInView, window, cx| this.find_in_view(window, cx)),
+            )
+            .on_modifiers_changed(cx.listener(
+                |this, e: &ferrum_ui::gpui::ModifiersChangedEvent, window, cx| {
+                    if this.double_shift.modifiers_changed(&e.modifiers) {
+                        this.toggle_search(SearchMode::Everywhere, window, cx);
+                    }
+                },
+            ))
+            .capture_key_down(
+                cx.listener(|this, _: &ferrum_ui::gpui::KeyDownEvent, _, _| {
+                    this.double_shift.key_down();
+                }),
+            )
             .text_color(colors.text)
             .on_action(
                 cx.listener(|this, _: &ferrum_ui::menu::Cancel, window, cx| {
@@ -476,6 +511,9 @@ impl Render for FerrumData {
                     }),
                     cx,
                 ))
+            })
+            .when_some(self.search.as_ref(), |this, search| {
+                this.child(search_overlay(search))
             })
     }
 }

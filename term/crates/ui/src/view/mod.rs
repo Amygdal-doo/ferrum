@@ -12,6 +12,9 @@ mod find;
 mod find_tests;
 mod ime;
 mod render;
+mod search;
+#[cfg(test)]
+mod search_tests;
 mod stale_server;
 
 use crate::app::{App, UiEvent};
@@ -92,6 +95,10 @@ pub struct TermView {
     pub(crate) agent: crate::agent_pane::AgentState,
     /// The find bar, while open (see `find`).
     pub(crate) find: Option<find::FindBar>,
+    /// Search Everywhere / Go to / Find in all terminals (desktop window).
+    pub(crate) search: Option<Entity<ferrum_ui::search::SearchModal>>,
+    pub(crate) _search_events: Option<Subscription>,
+    pub(crate) double_shift: ferrum_ui::search::DoubleShift,
     /// Top-left of the painted panes in window px (from the last paint),
     /// for overlays positioned over a pane.
     pub(crate) canvas_origin: (f32, f32),
@@ -185,6 +192,9 @@ impl TermView {
             resizing_sidebar: false,
             dialog: None,
             _dialog_events: Vec::new(),
+            search: None,
+            _search_events: None,
+            double_shift: Default::default(),
             selection: None,
             selection_text: None,
             selecting: false,
@@ -494,6 +504,10 @@ impl TermView {
     fn key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         // Keys typed into the sidebar's text field are not for the terminal.
         if !self.focus_handle.is_focused(window) {
+            // The search modal handles its own keys (Esc closes it).
+            if self.search.is_some() {
+                return;
+            }
             let in_find = self
                 .find
                 .as_ref()

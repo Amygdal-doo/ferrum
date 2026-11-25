@@ -10,6 +10,8 @@ pub fn app_info() -> AppInfo {
         .icon(IconName::Lock, 0xc792ea)
         .key("New variable", "cmd-n")
         .key("Lock vault", "cmd-l")
+        .key("Go to a project or variable", "cmd-p")
+        .key("Find in variable names and comments", "cmd-shift-f")
         .key("Switch project", "cmd-alt-o")
         .permission(
             PermissionKind::FilesAndFolders,

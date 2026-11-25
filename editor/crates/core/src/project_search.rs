@@ -65,6 +65,18 @@ pub fn search_project(
     limits: &SearchLimits,
     cancel: &AtomicBool,
 ) -> Result<ProjectSearchResult, FindError> {
+    search_project_where(root, query, limits, cancel, &|_| true)
+}
+
+/// [`search_project`] over the files whose path relative to `root` passes
+/// `allow` (a file mask).
+pub fn search_project_where(
+    root: &Path,
+    query: &SearchQuery,
+    limits: &SearchLimits,
+    cancel: &AtomicBool,
+    allow: &dyn Fn(&Path) -> bool,
+) -> Result<ProjectSearchResult, FindError> {
     let compiled = query.compile()?;
     let mut result = ProjectSearchResult::default();
     for entry in walker(root).build() {
@@ -77,6 +89,9 @@ pub fn search_project(
             continue;
         }
         let path = entry.path();
+        if !allow(path.strip_prefix(root).unwrap_or(path)) {
+            continue;
+        }
         if entry
             .metadata()
             .map_or(true, |m| m.len() > limits.max_file_size)
@@ -213,6 +228,21 @@ mod tests {
             &AtomicBool::new(false),
         )
         .expect("search")
+    }
+
+    #[test]
+    fn searches_only_files_the_mask_allows() {
+        let dir = project();
+        let result = search_project_where(
+            dir.path(),
+            &SearchQuery::plain("needle"),
+            &SearchLimits::default(),
+            &AtomicBool::new(false),
+            &|rel| rel.ends_with("b.rs"),
+        )
+        .expect("search");
+        assert_eq!(result.files.len(), 1);
+        assert!(result.files[0].path.ends_with("src/b.rs"));
     }
 
     #[test]

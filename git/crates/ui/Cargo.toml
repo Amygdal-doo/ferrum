@@ -8,6 +8,7 @@ publish.workspace = true
 license.workspace = true
 
 [dependencies]
+anyhow.workspace = true
 ferrumgit-domain.workspace = true
 ferrumgit-application.workspace = true
 ferrum-ui.workspace = true

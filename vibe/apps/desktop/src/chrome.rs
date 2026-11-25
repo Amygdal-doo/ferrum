@@ -278,6 +278,7 @@ impl Render for FerrumEngineer {
                 this.project_bar
                     .update(cx, |bar, cx| bar.toggle_switcher(window, cx));
             }))
+            .map(|root| self.search_listeners(root, cx))
             .on_drag_move(cx.listener(Self::resize_sidebar))
             .on_mouse_up(
                 MouseButton::Left,
@@ -302,5 +303,8 @@ impl Render for FerrumEngineer {
             .children(self.render_restore_prompt(cx))
             .children(self.render_parallel_confirm(cx))
             .children(notice)
+            .when_some(self.search.modal.as_ref(), |root, modal| {
+                root.child(ferrum_ui::search::search_overlay(modal))
+            })
     }
 }
